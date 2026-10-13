@@ -7,6 +7,7 @@ not guessed from a hand-written table, so it follows upstream.
 """
 
 import argparse
+import itertools
 import re
 import sqlite3
 from pathlib import Path
@@ -115,23 +116,28 @@ class Converter:
         codes = self.codes(pinyin)
         return codes[0] if codes else None
 
-    def word(self, code_field):
-        """Return ``(code, aux)`` for a dictionary code field, or None.
+    def word_codes(self, code_field):
+        """Return every ``(code, aux)`` spelling for a dictionary code field.
 
-        The auxiliary part keeps each syllable's Moqi groups and joins the
-        syllables with ``/`` so the engine can match them positionally; it is
-        stored lowercase and matched case-insensitively at runtime.
+        A syllable can have more than one valid double-pinyin code (for
+        example ``jue`` is both ``jt`` and ``jv``), so a word is stored under
+        every combination.  The auxiliary part keeps each syllable's Moqi
+        groups and joins the syllables with ``/`` so the engine can match
+        them positionally; it is stored lowercase and matched
+        case-insensitively at runtime.
         """
-        codes = []
+        choices = []
         auxes = []
         for syllable in code_field.split():
             pinyin, _, aux = syllable.partition(";")
-            code = self.primary(pinyin)
-            if code is None:
-                return None
-            codes.append(code)
+            codes = self.codes(pinyin)
+            if not codes:
+                return []
+            choices.append(codes)
             auxes.append(re.sub(r"[^a-z,]", "", aux.lower()))
-        return "".join(codes), "/".join(auxes)
+        aux = "/".join(auxes)
+        return [("".join(combination), aux)
+                for combination in itertools.product(*choices)]
 
 
 def iter_entries(path):
@@ -183,14 +189,14 @@ def build_database(dict_paths, converter, output):
         for word, code_field, weight in iter_entries(path):
             if not word:
                 continue
-            parsed = converter.word(code_field)
-            if parsed is None:
+            parsed = converter.word_codes(code_field)
+            if not parsed:
                 continue
-            code, aux = parsed
-            key = (code, word, aux)
-            if weight > best.get(key, -1):
-                best[key] = weight
-            total += 1
+            for code, aux in parsed:
+                key = (code, word, aux)
+                if weight > best.get(key, -1):
+                    best[key] = weight
+                total += 1
     connection.executemany(
         "INSERT INTO entry VALUES (?, ?, ?, ?)",
         [(code, word, aux, weight) for (code, word, aux), weight in best.items()])

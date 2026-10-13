@@ -119,5 +119,15 @@
   (should (equal (car (wime--candidates "womfm;tm")) "我们明天"))
   (should (equal (car (wime--candidates "yrtk")) "袁涛")))
 
+(ert-deftest wime-alternative-syllable-spellings ()
+  (unless (wime--database)
+    (ert-skip "word database not available"))
+  ;; jue is both jt and jv; nüe is nv, nü is ny, gui is gv.
+  (should (member "决" (wime--candidates "jv")))
+  (should (member "决" (wime--candidates "jt")))
+  (should (member "虐" (wime--candidates "nv")))
+  (should (member "女" (wime--candidates "ny")))
+  (should (member "贵" (wime--candidates "gv"))))
+
 (provide 'wime-test)
 ;;; wime-test.el ends here
