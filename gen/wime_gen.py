@@ -142,7 +142,7 @@ def build_single(zi_path, converter):
             if (word, aux) in seen:
                 continue
             seen.add((word, aux))
-            ordered.append((word, aux))
+            ordered.append((word, aux, weight))
         table[code] = ordered
     return table
 
@@ -174,7 +174,7 @@ def build_words(words_path, converter, min_weight, max_candidates):
     for code, entries in table.items():
         ordered = sorted(entries, key=lambda e: -e[2])[:max_candidates]
         if ordered and ordered[0][2] >= min_weight:
-            result[code] = [(word, aux) for word, aux, _ in ordered]
+            result[code] = ordered
     return result
 
 
@@ -191,8 +191,8 @@ def emit(feature, const, title, table, stream):
     stream.write("(defconst %s\n  '(\n" % const)
     for code in sorted(table):
         stream.write("    (%s" % elisp_string(code))
-        for word, aux in table[code]:
-            stream.write(" (%s %s)" % (elisp_string(word), elisp_string(aux)))
+        for word, aux, weight in table[code]:
+            stream.write(" (%s %s %d)" % (elisp_string(word), elisp_string(aux), weight))
         stream.write(")\n")
     stream.write("    ))\n\n(provide '%s)\n;;; %s.el ends here\n" % (feature, feature))
 

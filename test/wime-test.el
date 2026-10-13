@@ -98,5 +98,13 @@
     (wime-input-method ?\s)
     (should (equal (buffer-string) "你好"))))
 
+(ert-deftest wime-composes-unknown-codes ()
+  (let ((result (wime--candidates "yrtk")))
+    (should result)
+    (should (= (length (car result)) 2))))
+
+(ert-deftest wime-keeps-exact-words-before-composition ()
+  (should (equal (car (wime--candidates "nihk")) "你好")))
+
 (provide 'wime-test)
 ;;; wime-test.el ends here

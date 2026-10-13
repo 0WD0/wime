@@ -52,6 +52,16 @@
   :type 'natnum
   :group 'wime)
 
+(defcustom wime-compose-depth 3
+  "How many single characters per syllable feed sentence composition."
+  :type 'natnum
+  :group 'wime)
+
+(defcustom wime-compose-max-syllables 4
+  "Longest input, in syllables, for which sentence composition runs."
+  :type 'natnum
+  :group 'wime)
+
 (defcustom wime-show-candidates t
   "Whether to show the candidate list in the preedit."
   :type 'boolean
@@ -140,18 +150,75 @@ prefix of one of its comma-separated groups."
                      (wime--syllable-match-p syllable (cdr unit)))
                    units syllables))))
 
+(defun wime--entries-for (code)
+  "Return the table entries for CODE, or nil."
+  (and code (not (string-empty-p code))
+       (gethash code (wime--ensure-table))))
+
+(defun wime--filter (entries units)
+  "Return the words of ENTRIES whose auxiliary codes match UNITS."
+  (let (result)
+    (dolist (entry entries)
+      (when (wime--entry-match-p (nth 1 entry) units)
+        (push (car entry) result)))
+    (nreverse result)))
+
+(defun wime--unit-entries (unit)
+  "Return the auxiliary-filtered entries for one UNIT."
+  (seq-filter (lambda (entry)
+                (wime--syllable-match-p (nth 1 entry) (cdr unit)))
+              (wime--entries-for (car unit))))
+
+(defun wime--unit-words (unit)
+  "Return the single-character words for one UNIT."
+  (mapcar #'car (wime--unit-entries unit)))
+
+(defun wime--cartesian (lists)
+  "Return the Cartesian product of LISTS."
+  (if (null lists)
+      '(nil)
+    (cl-loop for item in (car lists)
+             append (cl-loop for tail in (wime--cartesian (cdr lists))
+                             collect (cons item tail)))))
+
+(defun wime--combo-score (combo)
+  "Rank a composed candidate by the total log weight of its characters."
+  (cl-loop for entry in combo
+           sum (log (max 1 (nth 2 entry)))))
+
+(defun wime--compose (units)
+  "Compose sentence candidates from one character per UNIT."
+  (let ((choices (mapcar (lambda (unit)
+                           (seq-take (wime--unit-entries unit) wime-compose-depth))
+                         units)))
+    (when (cl-every #'identity choices)
+      (let ((combos (wime--cartesian choices)))
+        (mapcar (lambda (combo)
+                  (mapconcat (lambda (entry) (nth 0 entry)) combo ""))
+                (sort combos (lambda (a b) (> (wime--combo-score a) (wime--combo-score b)))))))))
+
 (defun wime--candidates (input)
-  "Return candidates for the raw INPUT string."
+  "Return candidates for the raw INPUT string.
+
+Exact word matches come first, followed by the first syllable's single
+characters.  When the full code has no word, fall back to composing one
+character per syllable, the way Rime's translator does."
   (let* ((units (wime--parse input))
          (code (wime--full-code units))
-         (entries (and (not (string-empty-p code))
-                       (gethash code (wime--ensure-table)))))
-    (when entries
-      (let (result)
-        (dolist (entry entries)
-          (when (wime--entry-match-p (cadr entry) units)
-            (push (car entry) result)))
-        (seq-take (nreverse result) wime-candidates-max)))))
+         (complete (cl-every (lambda (unit) (= (length (car unit)) 2)) units))
+         (words (and (not (string-empty-p code))
+                     (wime--filter (wime--entries-for code) units))))
+    (seq-take
+     (cond
+      (words (append words
+                     (when (> (length units) 1)
+                       (wime--unit-words (car units)))))
+      ((and complete (> (length units) 1)
+            (<= (length units) wime-compose-max-syllables))
+       (append (wime--compose units)
+               (wime--unit-words (car units))))
+      (units (wime--unit-words (car units))))
+     wime-candidates-max)))
 
 (defun wime--candidates-for (code aux)
   "Return candidates for a single-syllable CODE filtered by AUX."
