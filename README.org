@@ -7,7 +7,8 @@ wime 是取代 emacs-rime 的纯 Elisp 输入法，针对万象 pro 的微软双
 
 - 小写字母（含 =;=，即 ing 键）累积双拼码；第一个大写字母出现即封顶，之后的大写字母作为墨奇辅助码过滤候选。
 - 因为大写不可能出现在音节里，不需要回溯；=;= 也就可以专属于 ing，不再兼作辅助码引导符。
-- 候选来自生成的单字表：数字选字、空格选当前、回车提交原始输入、退格依次回退辅助码与双拼码、ESC 取消。
+- 候选来自生成的单字表和词表：数字选字、空格选当前、回车提交原始输入、退格依次回退辅助码与双拼码、ESC 取消。
+- 两个音节的词码直接命中词表（如 =nihk= 得「你好」）；大写辅助码按词内各音节首组码的拼接做前缀过滤。
 - 只读缓冲区原样透传，不进入组合。
 
 * 数据与生成
@@ -15,16 +16,19 @@ wime 是取代 emacs-rime 的纯 Elisp 输入法，针对万象 pro 的微软双
 生成器 =gen/wime_gen.py= 读取本机 =/usr/share/rime-data=：
 
 - =wanxiang_algebra.yaml= 的 =pro/微软双拼= 规则，忠实移植 Rime 的 =xform=／=derive=／=xlit=，把完整拼音转成微软双拼码；
-- =dicts/zi.pro.dict.yaml=，每行 =字<TAB>带调拼音;墨奇码<TAB>权重=。
+- =dicts/zi.pro.dict.yaml=，每行 =字<TAB>带调拼音;墨奇码<TAB>权重=，生成 =wime-data.el=；
+- =dicts/jichu.pro.dict.yaml=，每行 =词<TAB>逐音节拼音;墨奇码<TAB>权重=，生成 =wime-words.el=。
 
-输出 =wime-data.el=，按双拼码索引并保留权重降序，运行时只建一次 hash 表。重新生成：
+词表只保留权重不低于 =--min-weight=（默认 1000）的词码，每码最多 =--max-candidates=（默认 8）个候选，因此体积可控而覆盖常用词。重新生成：
 
 #+begin_src sh
-python3 emacs-packages/wime/gen/wime_gen.py --output emacs-packages/wime/wime-data.el
+python3 emacs-packages/wime/gen/wime_gen.py \
+  --output emacs-packages/wime/wime-data.el \
+  --words-output emacs-packages/wime/wime-words.el
 #+end_src
 
 生成的表随仓库提交，wdoom 的构建和快照不依赖本机 Rime 安装；升级本机 wanxiang 包后需要重新生成并提交。
 
 * 当前范围
 
-目前只做单字。尚未实现：词组与整句、声调输入（7890 与选字数字冲突）、posframe 候选窗、自造词与调频。候选暂时作为行内 overlay 附在光标后显示。
+单字与常用词已可用。尚未实现：整句／长句、声调输入（7890 与选字数字冲突）、更低权重词的全量覆盖（需要 SQLite 或更紧凑的存储）、posframe 候选窗、自造词与调频。候选暂时作为行内 overlay 附在光标后显示。

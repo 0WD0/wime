@@ -22,6 +22,7 @@
 (require 'cl-lib)
 (require 'seq)
 (require 'wime-data)
+(require 'wime-words)
 
 (defgroup wime nil
   "Wanxiang double-pinyin input method."
@@ -75,12 +76,18 @@
 (defvar-local wime--overlay nil
   "Overlay showing the preedit and candidates.")
 
+(defvar wime--table nil
+  "Hash table built from the generated single-character and word tables.")
+
 (defun wime--ensure-table ()
   "Return the lookup table, building it once."
   (unless wime--table
-    (let ((table (make-hash-table :test #'equal :size (length wime-wanxiang-table))))
-      (dolist (entry wime-wanxiang-table)
-        (puthash (car entry) (cdr entry) table))
+    (let ((table (make-hash-table :test #'equal
+                                  :size (+ (length wime-wanxiang-table)
+                                           (length wime-wanxiang-words)))))
+      (dolist (source (list wime-wanxiang-table wime-wanxiang-words))
+        (dolist (entry source)
+          (puthash (car entry) (cdr entry) table)))
       (setq wime--table table)))
   wime--table)
 
