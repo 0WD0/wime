@@ -1,5 +1,8 @@
 ;;; wime.el --- Wanxiang double-pinyin input method -*- lexical-binding: t; -*-
 
+;; Version: 0.1.0
+;; Package-Requires: ((emacs "29.1"))
+
 ;;; Commentary:
 ;; A small, Rime-free input method for the wanxiang 微软双拼 scheme with
 ;; uppercase Moqi auxiliary codes.
