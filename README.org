@@ -12,9 +12,11 @@ wime 是取代 emacs-rime 的纯 Elisp 输入法，针对万象 pro 的微软双
 
 * 数据与生成
 
-Bazel 在构建期下载固定版本的 release 产物，不依赖本机安装，也不导入整个仓库：
+Bazel 在构建期从上游 nightly 产物下载，不依赖本机安装，也不导入整个仓库：
 
-- =rime_wanxiang.bzl= 按固定 URL 与 sha256 拉取 =rime-wanxiang-moqi-fuzhu.zip=（墨奇辅助码只存在于 release，git 树里的 =chaifen.txt= 是空占位）。
+- =rime_wanxiang.bzl= 按固定 URL 与 sha256 拉取 =dict-nightly= 的 =rime-wanxiang-moqi-fuzhu.zip=（墨奇辅助码只存在于 release，git 树里的 =chaifen.txt= 是空占位）。
+- 同一个文件里的 gram 规则拉取 =RIME-LMDG= 的 =wanxiang-lts-zh-hans.gram=，随快照发布，供后续语言模型模块使用。
+- =gen/update_nightly.py= 重新下载两个 nightly 资产并回写 =rime_wanxiang.bzl= 里的 sha256，用于跟随 nightly。
 - 生成器 =gen/wime_gen.py= 解析 =wanxiang_algebra.yaml= 的 =pro/微软双拼= 规则（忠实移植 Rime 的 =xform=／=derive=／=xlit=，不依赖 PyYAML），把 =wanxiang_pro.dict.yaml= 及其 =dicts/*.pro.dict.yaml= 转成按双拼码索引的库。
 - 产物 =wanxiang.db= 是 SQLite（约 220 万条），由 =//emacs-packages/wime:database= 生成并随快照发布；wime 用内置的 =sqlite-select= 查询。仓库不再提交生成的 Elisp 表。
 
