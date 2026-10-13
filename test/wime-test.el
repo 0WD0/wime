@@ -147,5 +147,16 @@
   ;; A complete prefix allows longer words.
   (should (member "你好" (wime--candidates "nih"))))
 
+(ert-deftest wime-full-width-punctuation ()
+  (with-temp-buffer
+    (wime--reset)
+    (wime-input-method ?\,)
+    (wime-input-method ?.)
+    (should (equal (buffer-string) "，。")))
+  (with-temp-buffer
+    (wime--reset)
+    (let ((wime-ascii-punctuation t))
+      (should (equal (wime-input-method ?\,) (list 44))))))
+
 (provide 'wime-test)
 ;;; wime-test.el ends here

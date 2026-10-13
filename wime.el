@@ -93,6 +93,31 @@ is nil or unreadable, wime falls back to the committed Elisp tables."
   :type 'string
   :group 'wime)
 
+(defcustom wime-ascii-punctuation nil
+  "When non-nil, insert ASCII punctuation instead of full-width."
+  :type 'boolean
+  :group 'wime)
+
+(defcustom wime-punctuation
+  '((?\, . "，")
+    (?. . "。")
+    (?\? . "？")
+    (?\! . "！")
+    (?\: . "：")
+    (?\x28 . "（")
+    (?\x29 . "）")
+    (?\[ . "【")
+    (?\] . "】")
+    (?\{ . "『")
+    (?\} . "』")
+    (?< . "《")
+    (?> . "》")
+    (?^ . "……")
+    (?_ . "——"))
+  "Full-width replacements for ASCII punctuation keys."
+  :type '(alist :key-type character :value-type string)
+  :group 'wime)
+
 (defcustom wime-show-candidates t
   "Whether to show the candidate list in the preedit."
   :type 'boolean
@@ -417,6 +442,18 @@ falls back to a prefix search, the way Rime completes partial pinyin."
        (not (or inhibit-read-only
                 (get-pos-property (point) 'inhibit-read-only)))))
 
+(defun wime--punctuation-for (key)
+  "Return the full-width replacement for KEY, or nil."
+  (unless wime-ascii-punctuation
+    (cdr (assq key wime-punctuation))))
+
+(defun wime-toggle-punctuation ()
+  "Toggle full-width punctuation."
+  (interactive)
+  (setq wime-ascii-punctuation (not wime-ascii-punctuation))
+  (message "wime punctuation: %s"
+           (if wime-ascii-punctuation "ASCII" "中文")))
+
 (defun wime-input-method (key)
   "Process KEY for the wanxiang input method."
   (if (wime--text-read-only-p)
@@ -438,6 +475,11 @@ falls back to a prefix search, the way Rime completes partial pinyin."
       nil)
      ((and (wime--active-p) (= key ?\s))
       (wime--commit (nth wime--selected wime--candidates))
+      nil)
+     ((wime--punctuation-for key)
+      (when (wime--active-p)
+        (wime--commit (nth wime--selected wime--candidates)))
+      (insert (wime--punctuation-for key))
       nil)
      (t
       (when (wime--active-p)
