@@ -50,6 +50,19 @@
   "Face for the selected candidate."
   :group 'wime)
 
+(defface wime-indicator-face
+  '((t (:inherit (mode-line-emphasis font-lock-keyword-face) :weight bold)))
+  "Face for the wime indicator while it handles input."
+  :group 'wime)
+
+(defface wime-indicator-dim-face
+  '((t (:inherit (mode-line shadow))))
+  "Face for the wime indicator while input passes through."
+  :group 'wime)
+
+(defvar wime-title "万"
+  "The title shown in the mode line.")
+
 (defcustom wime-candidates-max 10
   "Maximum number of candidates shown at once."
   :type 'natnum
@@ -554,6 +567,19 @@ falls back to a prefix search, the way Rime completes partial pinyin."
 (defun wime-setup ()
   "Install the wanxiang input method as the default input method."
   (setq default-input-method "wime"))
+
+(defun wime-lighter ()
+  "Return a mode-line indicator for wime, or an empty string.
+
+Bright while wime handles input, dim while the buffer is read-only and
+keys pass through."
+  (if (and (equal current-input-method "wime") (bound-and-true-p wime-mode))
+      (propertize wime-title
+                  'face (if (wime--text-read-only-p)
+                            'wime-indicator-dim-face
+                          'wime-indicator-face)
+                  'help-echo "wime: 万象双拼")
+    ""))
 
 (register-input-method "wime" "euc-cn" #'wime-activate "万象双拼")
 

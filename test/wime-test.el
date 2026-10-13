@@ -9,6 +9,8 @@
 (require 'ert)
 (require 'wime)
 
+(declare-function wime-grammar-query "librime-grammar" (context word rear))
+
 ;; The database is a Bazel artifact.  Point at the build output when running
 ;; from the repository root so the batch suite works without a snapshot.
 (unless wime-database-file
@@ -157,6 +159,13 @@
     (wime--reset)
     (let ((wime-ascii-punctuation t))
       (should (equal (wime-input-method ?\,) (list 44))))))
+
+(ert-deftest wime-lighter ()
+  (with-temp-buffer
+    (should (equal (wime-lighter) ""))
+    (wime-mode 1)
+    (let ((current-input-method "wime"))
+      (should (equal (substring-no-properties (wime-lighter)) "万")))))
 
 (provide 'wime-test)
 ;;; wime-test.el ends here
