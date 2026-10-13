@@ -6,29 +6,18 @@ wime 是取代 emacs-rime 的纯 Elisp 输入法，针对万象 pro 的微软双
 * 输入模型
 
 - 输入按音节解析：两个小写键（=;= 也计一键，代表 ing）构成一个音节，紧随其后的大写字母是该音节的墨奇辅助码；辅助码之后再出现小写就开启下一音节。因此 =yrZt= 保持原样显示，不会把 =Z= 挪到 =t= 后面。
-- 候选来自生成的单字表和词表：数字选字、空格选当前、回车提交原始输入、退格依次回退已输入的键、ESC 取消。
-- 两个音节的词码直接命中词表（如 =nihk= 得「你好」）；辅助码按音节匹配，如 =niRhk= 用首音节的辅助码筛选。
-- 整词命中时先列词再接首音节单字；整词没有时按音节取单字做笛卡尔组合，按词频（对数权重之和）排序，行为对齐 Rime 的组句回退（如 =yrtk= 没有词条仍给出「原套」等组合）。
-- 只读缓冲区原样透传，不进入组合。
+- 单音节直接查字表；多音节跑**词格 + Viterbi**，一次搜索同时得到整句、整词和较短前缀，再补首音节单字，顺序对齐 Rime 的翻译器（=nihk=、=yrtk= 的候选与 Rime 一致）。
+- 打分用词频对数减去每个词一个固定罚项（=wime-word-penalty=），等价于按词数惩罚过度切分。
+- 数字选字、空格选当前、回车提交原始输入、退格依次回退已输入的键、ESC 取消；只读缓冲区原样透传。
 
 * 数据与生成
 
-生成器 =gen/wime_gen.py= 读取本机 =/usr/share/rime-data=：
+Bazel 在构建期下载固定版本的 release 产物，不依赖本机安装，也不导入整个仓库：
 
-- =wanxiang_algebra.yaml= 的 =pro/微软双拼= 规则，忠实移植 Rime 的 =xform=／=derive=／=xlit=，把完整拼音转成微软双拼码；
-- =dicts/zi.pro.dict.yaml=，每行 =字<TAB>带调拼音;墨奇码<TAB>权重=，生成 =wime-data.el=；
-- =dicts/jichu.pro.dict.yaml=，每行 =词<TAB>逐音节拼音;墨奇码<TAB>权重=，生成 =wime-words.el=；词表用 =/= 分隔各音节的辅助码，以便按音节匹配。
-
-词表只保留权重不低于 =--min-weight=（默认 1000）的词码，每码最多 =--max-candidates=（默认 8）个候选，因此体积可控而覆盖常用词。重新生成：
-
-#+begin_src sh
-python3 emacs-packages/wime/gen/wime_gen.py \
-  --output emacs-packages/wime/wime-data.el \
-  --words-output emacs-packages/wime/wime-words.el
-#+end_src
-
-生成的表随仓库提交，wdoom 的构建和快照不依赖本机 Rime 安装；升级本机 wanxiang 包后需要重新生成并提交。
+- =rime_wanxiang.bzl= 按固定 URL 与 sha256 拉取 =rime-wanxiang-moqi-fuzhu.zip=（墨奇辅助码只存在于 release，git 树里的 =chaifen.txt= 是空占位）。
+- 生成器 =gen/wime_gen.py= 解析 =wanxiang_algebra.yaml= 的 =pro/微软双拼= 规则（忠实移植 Rime 的 =xform=／=derive=／=xlit=，不依赖 PyYAML），把 =wanxiang_pro.dict.yaml= 及其 =dicts/*.pro.dict.yaml= 转成按双拼码索引的库。
+- 产物 =wanxiang.db= 是 SQLite（约 220 万条），由 =//emacs-packages/wime:database= 生成并随快照发布；wime 用内置的 =sqlite-select= 查询。仓库不再提交生成的 Elisp 表。
 
 * 当前范围
 
-单字、常用词与整词缺失时的音节组合已可用。尚未实现：长句寻路与语言模型、声调输入（7890 与选字数字冲突）、更低权重词的全量覆盖（需要 SQLite 或更紧凑的存储）、posframe 候选窗、自造词与调频。候选暂时作为行内 overlay 附在光标后显示。
+单字、词、以及整词缺失时的整句组合已可用。尚未实现：Rime 的 octagram collocation 语言模型（只包 LM 的原生模块，输入引擎仍是 Elisp）、上屏后的后续预测、声调输入（7890 与选字数字冲突）、自造词与调频。候选暂时作为行内 overlay 附在光标后显示。

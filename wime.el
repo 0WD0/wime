@@ -20,8 +20,7 @@
 
 (require 'cl-lib)
 (require 'seq)
-(require 'wime-data)
-(require 'wime-words)
+(require 'sqlite)
 
 (defgroup wime nil
   "Wanxiang double-pinyin input method."
@@ -52,13 +51,26 @@
   :type 'natnum
   :group 'wime)
 
-(defcustom wime-compose-depth 3
-  "How many single characters per syllable feed sentence composition."
+(defcustom wime-database-file nil
+  "SQLite database holding the full wanxiang word list, or nil.
+
+wdoom points this at the database built by the Bazel artifact.  When it
+is nil or unreadable, wime falls back to the committed Elisp tables."
+  :type '(choice (const nil) file)
+  :group 'wime)
+
+(defcustom wime-database-limit 64
+  "Maximum entries fetched from the database for one code."
   :type 'natnum
   :group 'wime)
 
-(defcustom wime-compose-max-syllables 4
-  "Longest input, in syllables, for which sentence composition runs."
+(defcustom wime-word-penalty 20.0
+  "Penalty subtracted per word when scoring a sentence path."
+  :type 'number
+  :group 'wime)
+
+(defcustom wime-max-word-syllables 6
+  "Longest dictionary word, in syllables, that the lattice considers."
   :type 'natnum
   :group 'wime)
 
@@ -66,9 +78,6 @@
   "Whether to show the candidate list in the preedit."
   :type 'boolean
   :group 'wime)
-
-(defvar wime--table nil
-  "Hash table built from the generated single-character and word tables.")
 
 (defvar-local wime--input nil
   "Raw typed string, preserving the case and order of the keys.")
@@ -81,18 +90,6 @@
 
 (defvar-local wime--overlay nil
   "Overlay showing the preedit and candidates.")
-
-(defun wime--ensure-table ()
-  "Return the lookup table, building it once."
-  (unless wime--table
-    (let ((table (make-hash-table :test #'equal
-                                  :size (+ (length wime-wanxiang-table)
-                                           (length wime-wanxiang-words)))))
-      (dolist (source (list wime-wanxiang-table wime-wanxiang-words))
-        (dolist (entry source)
-          (puthash (car entry) (cdr entry) table)))
-      (setq wime--table table)))
-  wime--table)
 
 (defun wime--code-char-p (key)
   "Return non-nil if KEY is a double-pinyin code character."
@@ -150,18 +147,43 @@ prefix of one of its comma-separated groups."
                      (wime--syllable-match-p syllable (cdr unit)))
                    units syllables))))
 
+(defvar wime--db nil
+  "SQLite connection to `wime-database-file'.")
+
+(defvar wime--db-failed nil
+  "Non-nil once opening the database has failed.")
+
+(defun wime--database ()
+  "Return the SQLite connection, or nil when unavailable."
+  (when (and wime-database-file (file-readable-p wime-database-file))
+    (unless (or wime--db wime--db-failed)
+      (condition-case err
+          (setq wime--db (sqlite-open wime-database-file))
+        (error
+         (setq wime--db-failed t)
+         (message "wime: cannot open %s: %s" wime-database-file err))))
+    wime--db))
+
+(defun wime--database-entries (code)
+  "Return the word entries for CODE from the database."
+  (when-let* ((db (wime--database)))
+    (sqlite-select db (concat "SELECT word, aux, weight FROM entry WHERE code = ? "
+                              "ORDER BY weight DESC LIMIT ?")
+                   (list code wime-database-limit))))
+
 (defun wime--entries-for (code)
-  "Return the table entries for CODE, or nil."
-  (and code (not (string-empty-p code))
-       (gethash code (wime--ensure-table))))
+  "Return the word entries for CODE from the database."
+  (and code (not (string-empty-p code)) (wime--database-entries code)))
+
+(defun wime--matching-entries (entries units)
+  "Return the entries of ENTRIES whose auxiliary codes match UNITS."
+  (seq-filter (lambda (entry)
+                (wime--entry-match-p (nth 1 entry) units))
+              entries))
 
 (defun wime--filter (entries units)
   "Return the words of ENTRIES whose auxiliary codes match UNITS."
-  (let (result)
-    (dolist (entry entries)
-      (when (wime--entry-match-p (nth 1 entry) units)
-        (push (car entry) result)))
-    (nreverse result)))
+  (mapcar #'car (wime--matching-entries entries units)))
 
 (defun wime--unit-entries (unit)
   "Return the auxiliary-filtered entries for one UNIT."
@@ -173,51 +195,76 @@ prefix of one of its comma-separated groups."
   "Return the single-character words for one UNIT."
   (mapcar #'car (wime--unit-entries unit)))
 
-(defun wime--cartesian (lists)
-  "Return the Cartesian product of LISTS."
-  (if (null lists)
-      '(nil)
-    (cl-loop for item in (car lists)
-             append (cl-loop for tail in (wime--cartesian (cdr lists))
-                             collect (cons item tail)))))
+(defun wime--span-code (units start end)
+  "Return the concatenated code of UNITS from START to END."
+  (mapconcat (lambda (unit) (car unit)) (seq-subseq units start end) ""))
 
-(defun wime--combo-score (combo)
-  "Rank a composed candidate by the total log weight of its characters."
-  (cl-loop for entry in combo
-           sum (log (max 1 (nth 2 entry)))))
+(defun wime--sentence-path (back end)
+  "Reconstruct the word list of the best path to boundary END."
+  (let (words)
+    (while (> end 0)
+      (let ((arc (aref back end)))
+        (push (nth 0 (cdr arc)) words)
+        (setq end (car arc))))
+    words))
 
-(defun wime--compose (units)
-  "Compose sentence candidates from one character per UNIT."
-  (let ((choices (mapcar (lambda (unit)
-                           (seq-take (wime--unit-entries unit) wime-compose-depth))
-                         units)))
-    (when (cl-every #'identity choices)
-      (let ((combos (wime--cartesian choices)))
-        (mapcar (lambda (combo)
-                  (mapconcat (lambda (entry) (nth 0 entry)) combo ""))
-                (sort combos (lambda (a b) (> (wime--combo-score a) (wime--combo-score b)))))))))
+(defun wime--sentence-candidates (units)
+  "Return sentence candidates for UNITS using a word lattice and Viterbi."
+  (let* ((n (length units))
+         (best (make-vector (1+ n) nil))
+         (back (make-vector (1+ n) nil)))
+    (aset best 0 0.0)
+    (cl-loop for end from 1 to n do
+             (cl-loop for start from (max 0 (- end wime-max-word-syllables))
+                      to (1- end) do
+                      (when (aref best start)
+                        (let* ((subunits (seq-subseq units start end))
+                               (entries (wime--matching-entries
+                                         (wime--entries-for
+                                          (wime--span-code units start end))
+                                         subunits)))
+                          (dolist (entry entries)
+                            (let ((score (+ (aref best start)
+                                            (log (max 1 (nth 2 entry)))
+                                            (- wime-word-penalty))))
+                              (when (or (null (aref best end))
+                                        (> score (aref best end)))
+                                (aset best end score)
+                                (aset back end (cons start entry)))))))))
+    (let ((top (cl-loop for end from n downto 1
+                        when (aref best end) return end)))
+      (when top
+        (let (result)
+          (cl-labels ((add (text)
+                        (when (and text (not (member text result)))
+                          (push text result))))
+            (add (mapconcat #'identity (wime--sentence-path back top) ""))
+            (dolist (word (seq-take
+                           (wime--filter
+                            (wime--entries-for (wime--span-code units 0 top))
+                            (seq-subseq units 0 top))
+                           wime-candidates-max))
+              (add word))
+            (cl-loop for end from (1- top) downto 1 do
+                     (when (aref best end)
+                       (add (mapconcat #'identity (wime--sentence-path back end) ""))))
+            (dolist (word (wime--unit-words (car units)))
+              (add word)))
+          (nreverse result))))))
 
 (defun wime--candidates (input)
   "Return candidates for the raw INPUT string.
 
-Exact word matches come first, followed by the first syllable's single
-characters.  When the full code has no word, fall back to composing one
-character per syllable, the way Rime's translator does."
+Single syllables go straight to the character table.  Longer input runs
+the word lattice: exact words, sentences and shorter prefixes all fall
+out of one Viterbi pass, matching Rime's translator ordering."
   (let* ((units (wime--parse input))
-         (code (wime--full-code units))
-         (complete (cl-every (lambda (unit) (= (length (car unit)) 2)) units))
-         (words (and (not (string-empty-p code))
-                     (wime--filter (wime--entries-for code) units))))
+         (complete (cl-every (lambda (unit) (= (length (car unit)) 2)) units)))
     (seq-take
      (cond
-      (words (append words
-                     (when (> (length units) 1)
-                       (wime--unit-words (car units)))))
-      ((and complete (> (length units) 1)
-            (<= (length units) wime-compose-max-syllables))
-       (append (wime--compose units)
-               (wime--unit-words (car units))))
-      (units (wime--unit-words (car units))))
+      ((null units) nil)
+      ((and complete (> (length units) 1)) (wime--sentence-candidates units))
+      (t (wime--unit-words (car units))))
      wime-candidates-max)))
 
 (defun wime--candidates-for (code aux)
@@ -378,7 +425,6 @@ character per syllable, the way Rime's translator does."
 
 (defun wime-activate (_name)
   "Activate the wanxiang input method."
-  (wime--ensure-table)
   (setq-local input-method-function #'wime-input-method)
   (setq-local deactivate-current-input-method-function #'wime-deactivate)
   (wime-mode 1))
@@ -391,7 +437,6 @@ character per syllable, the way Rime's translator does."
 
 (defun wime-setup ()
   "Install the wanxiang input method as the default input method."
-  (wime--ensure-table)
   (setq default-input-method "wime"))
 
 (register-input-method "wime" "euc-cn" #'wime-activate "万象双拼")

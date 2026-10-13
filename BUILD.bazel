@@ -1,0 +1,23 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+
+package(default_visibility = ["//visibility:private"])
+
+py_binary(
+    name = "generator",
+    srcs = ["gen/wime_gen.py"],
+    main = "gen/wime_gen.py",
+)
+
+genrule(
+    name = "database",
+    srcs = [
+        "@rime_wanxiang//:sources",
+        "@rime_wanxiang//:wanxiang_algebra.yaml",
+        "@rime_wanxiang//:wanxiang_pro.dict.yaml",
+    ],
+    outs = ["wanxiang.db"],
+    cmd = "RIME=$$(dirname $(location @rime_wanxiang//:wanxiang_pro.dict.yaml)); " +
+          "$(location :generator) --rime-data $$RIME --database $@",
+    tools = [":generator"],
+    visibility = ["//wdoom/bazel/native:__pkg__"],
+)

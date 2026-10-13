@@ -1,35 +1,58 @@
 #!/usr/bin/env python3
-"""Generate wime's tables from local Rime data.
+"""Generate wime's SQLite word database from the pinned rime-wanxiang sources.
 
-Both the single-character table and the word table are keyed by the Microsoft
-double-pinyin code.  The conversion is a faithful port of the `pro/微软双拼`
-rules in `wanxiang_algebra.yaml`; it is not guessed from a hand-written table,
-so it follows the installed wanxiang release.
+The database is keyed by the Microsoft double-pinyin code.  The conversion is
+a faithful port of the `pro/微软双拼` rules in `wanxiang_algebra.yaml`; it is
+not guessed from a hand-written table, so it follows upstream.
 """
 
 import argparse
 import re
+import sqlite3
 from pathlib import Path
-
-import yaml
 
 
 def load_rules(algebra_path):
-    document = yaml.safe_load(algebra_path.read_text())
-    rules = document["pro"]["微软双拼"]["__append"]
-    compiled = []
-    for rule in rules:
-        parts = rule.split("/")
-        name = parts[0]
-        if name in ("xform", "derive", "abbrev"):
-            compiled.append((name, parts[1], _rime_replacement(parts[2])))
-        elif name == "xlit":
-            compiled.append((name, parts[1], parts[2]))
-        elif name == "erase":
-            compiled.append((name, parts[1], ""))
-        else:
-            raise ValueError("unsupported algebra rule: %s" % rule)
-    return compiled
+    """Extract the ``pro/微软双拼`` algebra rules without a YAML library."""
+    lines = algebra_path.read_text(encoding="utf-8").splitlines()
+    rules = []
+    in_pro = in_dialect = in_append = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent == 0:
+            in_pro = stripped == "pro:"
+            in_dialect = in_append = False
+            continue
+        if not in_pro:
+            continue
+        if indent == 2:
+            in_dialect = stripped == "微软双拼:"
+            in_append = False
+            continue
+        if not in_dialect:
+            continue
+        if indent == 4:
+            in_append = stripped.startswith("__append:")
+            continue
+        if in_append and stripped.startswith("- "):
+            rule = re.split(r"\s+#", stripped[2:], maxsplit=1)[0].strip()
+            rules.append(compile_rule(rule))
+    return rules
+
+
+def compile_rule(rule):
+    parts = rule.split("/")
+    name = parts[0]
+    if name in ("xform", "derive", "abbrev"):
+        return (name, parts[1], _rime_replacement(parts[2]))
+    if name == "xlit":
+        return (name, parts[1], parts[2])
+    if name == "erase":
+        return (name, parts[1], "")
+    raise ValueError("unsupported algebra rule: %s" % rule)
 
 
 def _rime_replacement(value):
@@ -99,10 +122,9 @@ class Converter:
         syllables with ``/`` so the engine can match them positionally; it is
         stored lowercase and matched case-insensitively at runtime.
         """
-        syllables = code_field.split()
         codes = []
         auxes = []
-        for syllable in syllables:
+        for syllable in code_field.split():
             pinyin, _, aux = syllable.partition(";")
             code = self.primary(pinyin)
             if code is None:
@@ -112,44 +134,9 @@ class Converter:
         return "".join(codes), "/".join(auxes)
 
 
-def parse_zi(path):
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line or line.startswith("#"):
-            continue
-        fields = line.split("\t")
-        if len(fields) != 3:
-            continue
-        word, code, weight = fields
-        if ";" not in code:
-            continue
-        pinyin, _, aux = code.partition(";")
-        try:
-            weight = int(weight)
-        except ValueError:
-            continue
-        yield word, pinyin, aux, weight
-
-
-def build_single(zi_path, converter):
-    table = {}
-    for word, pinyin, aux, weight in parse_zi(zi_path):
-        for code in converter.codes(pinyin):
-            table.setdefault(code, []).append((word, aux, weight))
-    for code, entries in table.items():
-        seen = set()
-        ordered = []
-        for word, aux, weight in sorted(entries, key=lambda e: -e[2]):
-            if (word, aux) in seen:
-                continue
-            seen.add((word, aux))
-            ordered.append((word, aux, weight))
-        table[code] = ordered
-    return table
-
-
-def build_words(words_path, converter, min_weight, max_candidates):
-    table = {}
-    with words_path.open(encoding="utf-8") as stream:
+def iter_entries(path):
+    """Yield ``(word, code_field, weight)`` from a Rime dictionary file."""
+    with path.open(encoding="utf-8") as stream:
         for line in stream:
             if line.startswith("#") or "\t" not in line:
                 continue
@@ -157,75 +144,71 @@ def build_words(words_path, converter, min_weight, max_candidates):
             if len(fields) != 3:
                 continue
             word, code_field, weight = fields
-            if not 2 <= len(word) <= 4:
-                continue
-            if not all("\u4e00" <= ch <= "\u9fff" for ch in word):
-                continue
-            parsed = converter.word(code_field)
-            if parsed is None:
-                continue
             try:
                 weight = int(weight)
             except ValueError:
                 continue
+            yield word, code_field, weight
+
+
+def imported_dicts(dict_path):
+    """Return the dictionary paths imported by a top-level dictionary."""
+    paths = []
+    collect = False
+    for line in dict_path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("import_tables:"):
+            collect = True
+            continue
+        if collect:
+            if not line.startswith("  "):
+                break
+            name = line.strip().lstrip("- ").split()[0]
+            paths.append(dict_path.parent / (name + ".dict.yaml"))
+    return paths
+
+
+def build_database(dict_paths, converter, output):
+    """Write a SQLite database keyed by double-pinyin code."""
+    if output.exists():
+        output.unlink()
+    connection = sqlite3.connect(str(output))
+    connection.execute("PRAGMA journal_mode=OFF")
+    connection.execute("PRAGMA synchronous=OFF")
+    connection.execute("CREATE TABLE entry (code TEXT NOT NULL, "
+                       "word TEXT NOT NULL, aux TEXT NOT NULL, "
+                       "weight INTEGER NOT NULL)")
+    best = {}
+    total = 0
+    for path in dict_paths:
+        for word, code_field, weight in iter_entries(path):
+            if not word:
+                continue
+            parsed = converter.word(code_field)
+            if parsed is None:
+                continue
             code, aux = parsed
-            table.setdefault(code, []).append((word, aux, weight))
-    result = {}
-    for code, entries in table.items():
-        ordered = sorted(entries, key=lambda e: -e[2])[:max_candidates]
-        if ordered and ordered[0][2] >= min_weight:
-            result[code] = ordered
-    return result
-
-
-def elisp_string(value):
-    return '"%s"' % value.replace("\\", "\\\\").replace('"', '\\"')
-
-
-def emit(feature, const, title, table, stream):
-    stream.write(";;; %s.el --- Generated wanxiang %s -*- lexical-binding: t; -*-\n"
-                 % (feature, title))
-    stream.write(";;; Commentary:\n")
-    stream.write(";; Generated by gen/wime_gen.py; do not edit by hand.\n")
-    stream.write(";;; Code:\n\n")
-    stream.write("(defconst %s\n  '(\n" % const)
-    for code in sorted(table):
-        stream.write("    (%s" % elisp_string(code))
-        for word, aux, weight in table[code]:
-            stream.write(" (%s %s %d)" % (elisp_string(word), elisp_string(aux), weight))
-        stream.write(")\n")
-    stream.write("    ))\n\n(provide '%s)\n;;; %s.el ends here\n" % (feature, feature))
+            key = (code, word, aux)
+            if weight > best.get(key, -1):
+                best[key] = weight
+            total += 1
+    connection.executemany(
+        "INSERT INTO entry VALUES (?, ?, ?, ?)",
+        [(code, word, aux, weight) for (code, word, aux), weight in best.items()])
+    connection.execute("CREATE INDEX entry_code ON entry(code, weight DESC)")
+    connection.commit()
+    connection.close()
+    return total, len(best)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--rime-data", type=Path, default=Path("/usr/share/rime-data"))
-    parser.add_argument("--output", type=Path, help="single-character table")
-    parser.add_argument("--words-output", type=Path, help="word table")
-    parser.add_argument("--min-weight", type=int, default=1000,
-                        help="minimum weight for a word code to be kept")
-    parser.add_argument("--max-candidates", type=int, default=8,
-                        help="maximum words kept per code")
+    parser.add_argument("--rime-data", type=Path, required=True)
+    parser.add_argument("--database", type=Path, required=True)
     args = parser.parse_args()
-    if not args.output and not args.words_output:
-        parser.error("at least one of --output or --words-output is required")
     converter = Converter(load_rules(args.rime_data / "wanxiang_algebra.yaml"))
-    if args.output:
-        table = build_single(args.rime_data / "dicts" / "zi.pro.dict.yaml", converter)
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        with args.output.open("w", encoding="utf-8") as stream:
-            emit("wime-data", "wime-wanxiang-table", "single-character table",
-                 table, stream)
-        print("single: %d codes, %d entries"
-              % (len(table), sum(len(v) for v in table.values())))
-    if args.words_output:
-        table = build_words(args.rime_data / "dicts" / "jichu.pro.dict.yaml",
-                            converter, args.min_weight, args.max_candidates)
-        args.words_output.parent.mkdir(parents=True, exist_ok=True)
-        with args.words_output.open("w", encoding="utf-8") as stream:
-            emit("wime-words", "wime-wanxiang-words", "word table", table, stream)
-        print("words: %d codes, %d entries"
-              % (len(table), sum(len(v) for v in table.values())))
+    dict_paths = imported_dicts(args.rime_data / "wanxiang_pro.dict.yaml")
+    total, unique = build_database(dict_paths, converter, args.database)
+    print("database: %d input entries, %d unique" % (total, unique))
 
 
 if __name__ == "__main__":

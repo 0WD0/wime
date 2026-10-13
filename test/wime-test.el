@@ -9,6 +9,13 @@
 (require 'ert)
 (require 'wime)
 
+;; The database is a Bazel artifact.  Point at the build output when running
+;; from the repository root so the batch suite works without a snapshot.
+(unless wime-database-file
+  (let ((candidate (expand-file-name "bazel-bin/emacs-packages/wime/wanxiang.db")))
+    (when (file-readable-p candidate)
+      (setq wime-database-file candidate))))
+
 (defmacro wime-test--type (keys &rest body)
   "Type KEYS into a temporary buffer and evaluate BODY."
   `(with-temp-buffer
@@ -105,6 +112,12 @@
 
 (ert-deftest wime-keeps-exact-words-before-composition ()
   (should (equal (car (wime--candidates "nihk")) "你好")))
+
+(ert-deftest wime-sentence-composition ()
+  (unless (wime--database)
+    (ert-skip "word database not available"))
+  (should (equal (car (wime--candidates "womfm;tm")) "我们明天"))
+  (should (equal (car (wime--candidates "yrtk")) "袁涛")))
 
 (provide 'wime-test)
 ;;; wime-test.el ends here
