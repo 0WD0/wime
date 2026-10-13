@@ -22,6 +22,10 @@
 (require 'seq)
 (require 'sqlite)
 
+(declare-function wime-grammar-open "librime-grammar"
+                  (shared-data-dir language))
+(declare-function wime-grammar-query "librime-grammar" (context word rear))
+
 (defgroup wime nil
   "Wanxiang double-pinyin input method."
   :group 'leim)
@@ -72,6 +76,21 @@ is nil or unreadable, wime falls back to the committed Elisp tables."
 (defcustom wime-max-word-syllables 6
   "Longest dictionary word, in syllables, that the lattice considers."
   :type 'natnum
+  :group 'wime)
+
+(defcustom wime-grammar-module nil
+  "Path to the librime-grammar module, or nil to disable the language model."
+  :type '(choice (const nil) file)
+  :group 'wime)
+
+(defcustom wime-grammar-shared-dir nil
+  "Directory holding the octagram ``.gram'' model."
+  :type '(choice (const nil) directory)
+  :group 'wime)
+
+(defcustom wime-grammar-language "wanxiang-lts-zh-hans"
+  "Octagram language name."
+  :type 'string
   :group 'wime)
 
 (defcustom wime-show-candidates t
@@ -171,6 +190,32 @@ prefix of one of its comma-separated groups."
                               "ORDER BY weight DESC LIMIT ?")
                    (list code wime-database-limit))))
 
+(defvar wime--grammar-ready nil)
+
+(defvar wime--grammar-failed nil)
+
+(defun wime--grammar-ready-p ()
+  "Load the grammar module once and return non-nil when it is usable."
+  (when (and wime-grammar-module wime-grammar-shared-dir
+             (not wime--grammar-ready) (not wime--grammar-failed))
+    (condition-case err
+        (progn
+          (module-load (expand-file-name wime-grammar-module))
+          (setq wime--grammar-ready
+                (and (fboundp 'wime-grammar-open)
+                     (wime-grammar-open (expand-file-name wime-grammar-shared-dir)
+                                        wime-grammar-language))))
+      (error
+       (setq wime--grammar-failed t)
+       (message "wime: grammar module unavailable: %s" err))))
+  wime--grammar-ready)
+
+(defun wime--grammar-score (context word rear)
+  "Return the octagram collocation score for WORD after CONTEXT."
+  (if (wime--grammar-ready-p)
+      (wime-grammar-query (or context "") word rear)
+    0.0))
+
 (defun wime--entries-for (code)
   "Return the word entries for CODE from the database."
   (and code (not (string-empty-p code)) (wime--database-entries code)))
@@ -212,8 +257,10 @@ prefix of one of its comma-separated groups."
   "Return sentence candidates for UNITS using a word lattice and Viterbi."
   (let* ((n (length units))
          (best (make-vector (1+ n) nil))
+         (text (make-vector (1+ n) nil))
          (back (make-vector (1+ n) nil)))
     (aset best 0 0.0)
+    (aset text 0 "")
     (cl-loop for end from 1 to n do
              (cl-loop for start from (max 0 (- end wime-max-word-syllables))
                       to (1- end) do
@@ -224,12 +271,17 @@ prefix of one of its comma-separated groups."
                                           (wime--span-code units start end))
                                          subunits)))
                           (dolist (entry entries)
-                            (let ((score (+ (aref best start)
-                                            (log (max 1 (nth 2 entry)))
-                                            (- wime-word-penalty))))
+                            (let* ((word (nth 0 entry))
+                                   (score (+ (aref best start)
+                                             (log (max 1 (nth 2 entry)))
+                                             (- wime-word-penalty)
+                                             (wime--grammar-score
+                                              (aref text start) word
+                                              (= end n)))))
                               (when (or (null (aref best end))
                                         (> score (aref best end)))
                                 (aset best end score)
+                                (aset text end (concat (aref text start) word))
                                 (aset back end (cons start entry)))))))))
     (let ((top (cl-loop for end from n downto 1
                         when (aref best end) return end)))

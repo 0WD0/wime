@@ -129,5 +129,12 @@
   (should (member "女" (wime--candidates "ny")))
   (should (member "贵" (wime--candidates "gv"))))
 
+(ert-deftest wime-grammar-module ()
+  (unless (wime--grammar-ready-p)
+    (ert-skip "grammar module not available"))
+  ;; 我们明天 is a stronger collocation than 我们今天.
+  (should (< (wime-grammar-query "我们明" "天" nil)
+             (wime-grammar-query "我们今" "天" nil))))
+
 (provide 'wime-test)
 ;;; wime-test.el ends here

@@ -1,6 +1,32 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_python//python:defs.bzl", "py_binary")
 
 package(default_visibility = ["//visibility:private"])
+
+cc_binary(
+    name = "librime-grammar.so",
+    srcs = ["grammar.cc"],
+    copts = [
+        "-fPIC",
+        "-O2",
+        "-std=c++17",
+        "-DGLOG_USE_GLOG_EXPORT",
+        "-I/usr/local/include",
+    ],
+    linkopts = [
+        "-L/usr/lib/rime-plugins",
+        "-l:librime-octagram.so",
+        "-Wl,-rpath,/usr/lib/rime-plugins",
+    ],
+    linkshared = True,
+    linkstatic = True,
+    visibility = ["//wdoom/bazel/native:__pkg__"],
+    deps = [
+        "//third_party/librime-octagram:octagram",
+        "//third_party/librime:rime",
+        "@rime_system_deps//:deps",
+    ],
+)
 
 py_binary(
     name = "generator",
