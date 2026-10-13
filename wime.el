@@ -184,30 +184,38 @@ Comparison is case-insensitive because the table stores lowercase codes."
     (when (< index (length wime--candidates))
       (wime--commit (nth index wime--candidates)))))
 
+(defun wime--text-read-only-p ()
+  "Return non-nil when inserting at point would fail."
+  (and (or buffer-read-only (get-pos-property (point) 'read-only))
+       (not (or inhibit-read-only
+                (get-pos-property (point) 'inhibit-read-only)))))
+
 (defun wime-input-method (key)
   "Process KEY for the wanxiang input method."
-  (cond
-   ((wime--code-char-p key)
-    (setq wime--code (concat wime--code (char-to-string key)))
-    (wime--refresh)
-    nil)
-   ((wime--aux-char-p key)
-    (if (wime--active-p)
-        (progn
-          (setq wime--aux (concat wime--aux (char-to-string key)))
-          (wime--refresh)
-          nil)
-      (list key)))
-   ((and (wime--active-p) (wime--digit-p key))
-    (wime--select-digit key)
-    nil)
-   ((and (wime--active-p) (= key ?\s))
-    (wime--commit (nth wime--selected wime--candidates))
-    nil)
-   (t
-    (when (wime--active-p)
-      (wime--reset))
-    (list key))))
+  (if (wime--text-read-only-p)
+      (list key)
+    (cond
+     ((wime--code-char-p key)
+      (setq wime--code (concat wime--code (char-to-string key)))
+      (wime--refresh)
+      nil)
+     ((wime--aux-char-p key)
+      (if (wime--active-p)
+          (progn
+            (setq wime--aux (concat wime--aux (char-to-string key)))
+            (wime--refresh)
+            nil)
+        (list key)))
+     ((and (wime--active-p) (wime--digit-p key))
+      (wime--select-digit key)
+      nil)
+     ((and (wime--active-p) (= key ?\s))
+      (wime--commit (nth wime--selected wime--candidates))
+      nil)
+     (t
+      (when (wime--active-p)
+        (wime--reset))
+      (list key)))))
 
 (defun wime-delete-backward ()
   "Delete the last typed code or auxiliary character."

@@ -1,0 +1,30 @@
+#+title: wime
+#+options: toc:nil num:nil
+
+wime 是取代 emacs-rime 的纯 Elisp 输入法，针对万象 pro 的微软双拼加大写墨奇辅助码。它不链接 librime，不启动外部进程，也不需要原生模块。
+
+* 输入模型
+
+- 小写字母（含 =;=，即 ing 键）累积双拼码；第一个大写字母出现即封顶，之后的大写字母作为墨奇辅助码过滤候选。
+- 因为大写不可能出现在音节里，不需要回溯；=;= 也就可以专属于 ing，不再兼作辅助码引导符。
+- 候选来自生成的单字表：数字选字、空格选当前、回车提交原始输入、退格依次回退辅助码与双拼码、ESC 取消。
+- 只读缓冲区原样透传，不进入组合。
+
+* 数据与生成
+
+生成器 =gen/wime_gen.py= 读取本机 =/usr/share/rime-data=：
+
+- =wanxiang_algebra.yaml= 的 =pro/微软双拼= 规则，忠实移植 Rime 的 =xform=／=derive=／=xlit=，把完整拼音转成微软双拼码；
+- =dicts/zi.pro.dict.yaml=，每行 =字<TAB>带调拼音;墨奇码<TAB>权重=。
+
+输出 =wime-data.el=，按双拼码索引并保留权重降序，运行时只建一次 hash 表。重新生成：
+
+#+begin_src sh
+python3 emacs-packages/wime/gen/wime_gen.py --output emacs-packages/wime/wime-data.el
+#+end_src
+
+生成的表随仓库提交，wdoom 的构建和快照不依赖本机 Rime 安装；升级本机 wanxiang 包后需要重新生成并提交。
+
+* 当前范围
+
+目前只做单字。尚未实现：词组与整句、声调输入（7890 与选字数字冲突）、posframe 候选窗、自造词与调频。候选暂时作为行内 overlay 附在光标后显示。
