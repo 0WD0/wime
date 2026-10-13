@@ -136,5 +136,16 @@
   (should (< (wime-grammar-query "我们明" "天" nil)
              (wime-grammar-query "我们今" "天" nil))))
 
+(ert-deftest wime-single-key-completion ()
+  (unless (wime--database)
+    (ert-skip "word database not available"))
+  (should (member "你" (wime--candidates "n")))
+  (should (member "就" (wime--candidates "j")))
+  ;; A lone incomplete syllable completes to single characters only.
+  (should (cl-every (lambda (word) (= (length word) 1))
+                    (wime--candidates "n")))
+  ;; A complete prefix allows longer words.
+  (should (member "你好" (wime--candidates "nih"))))
+
 (provide 'wime-test)
 ;;; wime-test.el ends here

@@ -304,18 +304,40 @@ prefix of one of its comma-separated groups."
               (add word)))
           (nreverse result))))))
 
+(defun wime--prefix-entries (code)
+  "Return completion entries whose code starts with CODE."
+  (when-let* ((db (wime--database)))
+    (sqlite-select db
+                   (concat "SELECT word, aux, weight FROM entry "
+                           "WHERE code GLOB ? ORDER BY weight DESC LIMIT ?")
+                   (list (concat code "*") (* 4 wime-candidates-max)))))
+
+(defun wime--prefix-candidates (units)
+  "Return completion candidates for an incomplete UNITS input.
+
+A lone incomplete syllable can only complete to single characters; once
+a complete syllable precedes it, longer words are allowed.
+ "
+  (let ((entries (wime--prefix-entries (wime--full-code units))))
+    (when (= (length units) 1)
+      (setq entries (seq-filter (lambda (entry) (= (length (car entry)) 1))
+                                entries)))
+    (seq-uniq (mapcar #'car entries))))
+
 (defun wime--candidates (input)
   "Return candidates for the raw INPUT string.
 
-Single syllables go straight to the character table.  Longer input runs
-the word lattice: exact words, sentences and shorter prefixes all fall
-out of one Viterbi pass, matching Rime's translator ordering."
+A complete single syllable goes straight to the character table; longer
+complete input runs the word lattice.  An incomplete trailing syllable
+falls back to a prefix search, the way Rime completes partial pinyin."
   (let* ((units (wime--parse input))
+         (last (car (last units)))
          (complete (cl-every (lambda (unit) (= (length (car unit)) 2)) units)))
     (seq-take
      (cond
       ((null units) nil)
       ((and complete (> (length units) 1)) (wime--sentence-candidates units))
+      ((and last (not complete)) (wime--prefix-candidates units))
       (t (wime--unit-words (car units))))
      wime-candidates-max)))
 
