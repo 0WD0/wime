@@ -95,7 +95,8 @@ class Converter:
     def word(self, code_field):
         """Return ``(code, aux)`` for a dictionary code field, or None.
 
-        The auxiliary part concatenates each syllable's first Moqi group; it is
+        The auxiliary part keeps each syllable's Moqi groups and joins the
+        syllables with ``/`` so the engine can match them positionally; it is
         stored lowercase and matched case-insensitively at runtime.
         """
         syllables = code_field.split()
@@ -107,8 +108,8 @@ class Converter:
             if code is None:
                 return None
             codes.append(code)
-            auxes.append(re.sub(r"[^a-z]", "", aux.split(",")[0].lower()))
-        return "".join(codes), "".join(auxes)
+            auxes.append(re.sub(r"[^a-z,]", "", aux.lower()))
+        return "".join(codes), "/".join(auxes)
 
 
 def parse_zi(path):

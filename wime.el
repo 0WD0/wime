@@ -7,15 +7,14 @@
 ;; A small, Rime-free input method for the wanxiang 微软双拼 scheme with
 ;; uppercase Moqi auxiliary codes.
 ;;
-;; Lowercase keys build the double-pinyin code; the first uppercase key ends
-;; that code and starts the auxiliary filter.  Because uppercase letters can
-;; never be part of a pinyin syllable, the split is unambiguous and no
-;; backtracking is needed.  Single-character candidates come from the
-;; generated table in `wime-data'.
+;; The typed string is parsed into syllables: two lowercase keys (``;'' counts
+;; as a key, for ing) optionally followed by uppercase auxiliary keys.  The
+;; auxiliary code belongs to the syllable it follows, so a lowercase key after
+;; it starts the next syllable.  This keeps the typed order intact and never
+;; has to guess where an auxiliary code ends.
 ;;
-;; The engine deliberately owns no C module and no process.  All lookup is
-;; plain Elisp over the generated table, so the whole input path is testable
-;; in batch.
+;; Candidate lookup is plain Elisp over the generated single-character and
+;; word tables, so the whole input path is testable in batch.
 
 ;;; Code:
 
@@ -59,25 +58,19 @@
   :group 'wime)
 
 (defvar wime--table nil
-  "Hash table built from `wime-wanxiang-table' on first use.")
+  "Hash table built from the generated single-character and word tables.")
 
-(defvar-local wime--code nil
-  "Double-pinyin code typed so far, lowercase, including `;' for ing.")
-
-(defvar-local wime--aux nil
-  "Moqi auxiliary code typed so far, in the case the user typed it.")
+(defvar-local wime--input nil
+  "Raw typed string, preserving the case and order of the keys.")
 
 (defvar-local wime--candidates nil
-  "Characters matching the current code and auxiliary filter.")
+  "Candidates matching the current input.")
 
 (defvar-local wime--selected 0
   "Index into `wime--candidates' of the selected candidate.")
 
 (defvar-local wime--overlay nil
   "Overlay showing the preedit and candidates.")
-
-(defvar wime--table nil
-  "Hash table built from the generated single-character and word tables.")
 
 (defun wime--ensure-table ()
   "Return the lookup table, building it once."
@@ -90,34 +83,6 @@
           (puthash (car entry) (cdr entry) table)))
       (setq wime--table table)))
   wime--table)
-
-(defun wime--aux-match-p (entry-aux typed)
-  "Return non-nil if ENTRY-AUX matches the typed auxiliary code TYPED.
-
-An entry's auxiliary field can hold several comma-separated groups; the
-typed code matches when it is a prefix of any group.  TYPED may be nil.
-Comparison is case-insensitive because the table stores lowercase codes."
-  (cond
-   ((or (null typed) (string-empty-p typed)) t)
-   ((or (null entry-aux) (string-empty-p entry-aux)) nil)
-   (t (let ((typed (downcase typed)))
-        (seq-some (lambda (group) (string-prefix-p typed group))
-                  (split-string entry-aux "," t))))))
-
-(defun wime--candidates-for (code aux)
-  "Return candidates for double-pinyin CODE filtered by auxiliary AUX."
-  (let ((entries (and code (not (string-empty-p code))
-                      (gethash code (wime--ensure-table)))))
-    (when entries
-      (let (result)
-        (dolist (entry entries)
-          (when (wime--aux-match-p (cadr entry) aux)
-            (push (car entry) result)))
-        (seq-take (nreverse result) wime-candidates-max)))))
-
-(defun wime--active-p ()
-  "Return non-nil when a composition is in progress."
-  (and wime--code (not (string-empty-p wime--code))))
 
 (defun wime--code-char-p (key)
   "Return non-nil if KEY is a double-pinyin code character."
@@ -133,6 +98,69 @@ Comparison is case-insensitive because the table stores lowercase codes."
   "Return non-nil if KEY is a digit."
   (and (integerp key) (>= key ?0) (<= key ?9)))
 
+(defun wime--parse (input)
+  "Split INPUT into a list of (CODE . AUX) syllables.
+
+CODE holds one or two lowercase keys (``;'' is a key); a lowercase key
+after a complete syllable starts a new syllable.  AUX collects the
+uppercase keys typed after that syllable, so the typed order is kept."
+  (let (units code aux)
+    (dolist (key (string-to-list (or input "")))
+      (cond
+       ((wime--code-char-p key)
+        (when (= (length code) 2)
+          (push (cons code (or aux "")) units)
+          (setq code nil aux nil))
+        (setq code (concat code (char-to-string key))))
+       ((wime--aux-char-p key)
+        (setq aux (concat aux (char-to-string key))))))
+    (when (or code aux)
+      (push (cons (or code "") (or aux "")) units))
+    (nreverse units)))
+
+(defun wime--full-code (units)
+  "Return the concatenated double-pinyin code of UNITS."
+  (mapconcat #'car units ""))
+
+(defun wime--syllable-match-p (entry-aux typed)
+  "Return non-nil if TYPED matches one comma-separated group of ENTRY-AUX."
+  (or (string-empty-p typed)
+      (seq-some (lambda (group) (string-prefix-p (downcase typed) group))
+                (split-string entry-aux "," t))))
+
+(defun wime--entry-match-p (entry-aux units)
+  "Return non-nil if ENTRY-AUX matches the auxiliary codes in UNITS.
+
+Word entries separate syllables with ``/''; single-character entries are
+a single syllable.  A syllable matches when the typed auxiliary code is a
+prefix of one of its comma-separated groups."
+  (let ((syllables (split-string entry-aux "/")))
+    (and (= (length syllables) (length units))
+         (cl-every (lambda (unit syllable)
+                     (wime--syllable-match-p syllable (cdr unit)))
+                   units syllables))))
+
+(defun wime--candidates (input)
+  "Return candidates for the raw INPUT string."
+  (let* ((units (wime--parse input))
+         (code (wime--full-code units))
+         (entries (and (not (string-empty-p code))
+                       (gethash code (wime--ensure-table)))))
+    (when entries
+      (let (result)
+        (dolist (entry entries)
+          (when (wime--entry-match-p (cadr entry) units)
+            (push (car entry) result)))
+        (seq-take (nreverse result) wime-candidates-max)))))
+
+(defun wime--candidates-for (code aux)
+  "Return candidates for a single-syllable CODE filtered by AUX."
+  (wime--candidates (concat code (upcase (or aux "")))))
+
+(defun wime--active-p ()
+  "Return non-nil when a composition is in progress."
+  (and wime--input (not (string-empty-p wime--input))))
+
 (defun wime--clear-overlay ()
   "Delete the preedit overlay, if any."
   (when (overlayp wime--overlay)
@@ -142,8 +170,13 @@ Comparison is case-insensitive because the table stores lowercase codes."
 (defun wime--format ()
   "Return the preedit string, including candidates when enabled."
   (concat
-   (propertize (or wime--code "") 'face 'wime-preedit-face)
-   (propertize (or wime--aux "") 'face 'wime-aux-face)
+   (apply #'concat
+          (mapcar (lambda (key)
+                    (propertize (char-to-string key)
+                                'face (if (wime--aux-char-p key)
+                                          'wime-aux-face
+                                        'wime-preedit-face)))
+                  (string-to-list (or wime--input ""))))
    (when (and wime-show-candidates wime--candidates)
      (concat
       " "
@@ -163,25 +196,24 @@ Comparison is case-insensitive because the table stores lowercase codes."
         (setq wime--overlay (make-overlay (point) (point)))
         (overlay-put wime--overlay 'after-string text)))))
 
+(defun wime--refresh ()
+  "Recompute candidates from the raw input and refresh the display."
+  (setq wime--candidates (wime--candidates wime--input)
+        wime--selected 0)
+  (wime-active-mode (if (wime--active-p) 1 -1))
+  (wime--display))
+
 (defun wime--reset ()
   "Discard the current composition and its display."
-  (setq wime--code nil
-        wime--aux nil
+  (setq wime--input nil
         wime--candidates nil
         wime--selected 0)
   (wime-active-mode -1)
   (wime--clear-overlay))
 
-(defun wime--refresh ()
-  "Recompute candidates from the current code and refresh the display."
-  (setq wime--candidates (wime--candidates-for wime--code wime--aux)
-        wime--selected 0)
-  (wime-active-mode (if (wime--active-p) 1 -1))
-  (wime--display))
-
 (defun wime--commit (text)
   "Commit TEXT, or the raw typed input when TEXT is nil."
-  (let ((fallback (concat (or wime--code "") (or wime--aux ""))))
+  (let ((fallback (or wime--input "")))
     (wime--reset)
     (insert (or text fallback))))
 
@@ -203,13 +235,13 @@ Comparison is case-insensitive because the table stores lowercase codes."
       (list key)
     (cond
      ((wime--code-char-p key)
-      (setq wime--code (concat wime--code (char-to-string key)))
+      (setq wime--input (concat wime--input (char-to-string key)))
       (wime--refresh)
       nil)
      ((wime--aux-char-p key)
       (if (wime--active-p)
           (progn
-            (setq wime--aux (concat wime--aux (char-to-string key)))
+            (setq wime--input (concat wime--input (char-to-string key)))
             (wime--refresh)
             nil)
         (list key)))
@@ -225,13 +257,10 @@ Comparison is case-insensitive because the table stores lowercase codes."
       (list key)))))
 
 (defun wime-delete-backward ()
-  "Delete the last typed code or auxiliary character."
+  "Delete the last typed key."
   (interactive)
-  (cond
-   ((and wime--aux (not (string-empty-p wime--aux)))
-    (setq wime--aux (substring wime--aux 0 -1)))
-   ((and wime--code (not (string-empty-p wime--code)))
-    (setq wime--code (substring wime--code 0 -1))))
+  (when (and wime--input (not (string-empty-p wime--input)))
+    (setq wime--input (substring wime--input 0 -1)))
   (if (wime--active-p)
       (wime--refresh)
     (wime--reset)))
