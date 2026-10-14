@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """Generate wime's SQLite word database from the pinned rime-wanxiang sources.
 
-The database is keyed by the Microsoft double-pinyin code.  The conversion is
-a faithful port of the `pro/微软双拼` rules in `wanxiang_algebra.yaml`; it is
-not guessed from a hand-written table, so it follows upstream.
+By default the database is keyed by the Microsoft double-pinyin code, a
+faithful port of the `pro/微软双拼` rules in `wanxiang_algebra.yaml`.  With
+``--scheme`` the code comes from a JSON table that assigns every initial and
+final to one key (see ``schemes/``).
+
+Either way a ``meta`` table records which keys occur in the initial and final
+position of a syllable, so the engine can tell a code key from punctuation.
 """
 
 import argparse
 import itertools
+import json
 import re
 import sqlite3
+import unicodedata
 from pathlib import Path
 
 
@@ -95,22 +101,70 @@ def _extract_code(spelling):
     return spelling
 
 
-class Converter:
-    """Double-pinyin conversion with a per-syllable cache."""
+INITIALS = ("zh", "ch", "sh", "b", "p", "m", "f", "d", "t", "n", "l", "g", "k",
+            "h", "j", "q", "x", "r", "z", "c", "s", "y", "w")
 
-    def __init__(self, rules):
+
+def split_pinyin(pinyin):
+    """Toned pinyin -> (initial, final), ü written v; None if not a syllable.
+
+    After j/q/x/y a written ``u`` is ü, so it is spelled ``v`` (ju -> j + v,
+    yuan -> y + van), matching the scheme tables.
+    """
+    plain = unicodedata.normalize("NFD", pinyin).replace("u\u0308", "v")
+    plain = "".join(c for c in plain if c.isascii()).lower()
+    if not re.fullmatch(r"[a-z]+", plain):
+        return None
+    # Syllabic nasals, spelled the way the wanxiang algebra does (嗯 ń = en).
+    plain = {"n": "en", "ng": "eng", "m": "me"}.get(plain, plain)
+    for initial in INITIALS:
+        if plain.startswith(initial) and len(plain) > len(initial):
+            final = plain[len(initial):]
+            if initial in "jqxy" and final[0] == "u":
+                final = "v" + final[1:]
+            return initial, final
+    return "", plain
+
+
+class Converter:
+    """Double-pinyin conversion with a per-syllable cache.
+
+    ``rules`` is a list of compiled algebra rules; ``scheme`` a table dict
+    with ``initials`` and ``finals``.  Exactly one of them is used.
+    """
+
+    def __init__(self, rules=None, scheme=None):
         self.rules = rules
+        self.scheme = scheme
         self.cache = {}
 
     def codes(self, pinyin):
         if pinyin not in self.cache:
             result = set()
-            for spelling in apply_rules(pinyin + ";", self.rules):
-                code = _extract_code(spelling)
-                if code and all(ch.isascii() for ch in code):
-                    result.add(code)
+            if self.scheme is not None:
+                parts = split_pinyin(pinyin)
+                if parts:
+                    initial = self.scheme["initials"].get(parts[0])
+                    final = self.scheme["finals"].get(parts[1])
+                    if initial and final:
+                        result.add(initial + final)
+            else:
+                for spelling in apply_rules(pinyin + ";", self.rules):
+                    code = _extract_code(spelling)
+                    if code and all(ch.isascii() for ch in code):
+                        result.add(code)
             self.cache[pinyin] = sorted(result)
         return self.cache[pinyin]
+
+    def position_keys(self):
+        """Keys seen in the first and second position of syllable codes."""
+        first, second = set(), set()
+        for codes in self.cache.values():
+            for code in codes:
+                if len(code) == 2:
+                    first.add(code[0])
+                    second.add(code[1])
+        return "".join(sorted(first)), "".join(sorted(second))
 
     def primary(self, pinyin):
         codes = self.codes(pinyin)
@@ -173,7 +227,7 @@ def imported_dicts(dict_path):
     return paths
 
 
-def build_database(dict_paths, converter, output):
+def build_database(dict_paths, converter, output, name):
     """Write a SQLite database keyed by double-pinyin code."""
     if output.exists():
         output.unlink()
@@ -201,6 +255,11 @@ def build_database(dict_paths, converter, output):
         "INSERT INTO entry VALUES (?, ?, ?, ?)",
         [(code, word, aux, weight) for (code, word, aux), weight in best.items()])
     connection.execute("CREATE INDEX entry_code ON entry(code, weight DESC)")
+    initial_keys, final_keys = converter.position_keys()
+    connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    connection.executemany("INSERT INTO meta VALUES (?, ?)",
+                           [("scheme", name), ("initial_keys", initial_keys),
+                            ("final_keys", final_keys)])
     connection.commit()
     connection.close()
     return total, len(best)
@@ -210,11 +269,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rime-data", type=Path, required=True)
     parser.add_argument("--database", type=Path, required=True)
+    parser.add_argument("--scheme", type=Path,
+                        help="JSON scheme table; default: wanxiang 微软双拼 rules")
     args = parser.parse_args()
-    converter = Converter(load_rules(args.rime_data / "wanxiang_algebra.yaml"))
+    if args.scheme:
+        scheme = json.loads(args.scheme.read_text(encoding="utf-8"))
+        converter, name = Converter(scheme=scheme), scheme["name"]
+    else:
+        converter = Converter(load_rules(args.rime_data / "wanxiang_algebra.yaml"))
+        name = "mspy"
     dict_paths = imported_dicts(args.rime_data / "wanxiang_pro.dict.yaml")
-    total, unique = build_database(dict_paths, converter, args.database)
-    print("database: %d input entries, %d unique" % (total, unique))
+    total, unique = build_database(dict_paths, converter, args.database, name)
+    print("database %s: %d input entries, %d unique; keys %s | %s"
+          % (name, total, unique, *converter.position_keys()))
 
 
 if __name__ == "__main__":

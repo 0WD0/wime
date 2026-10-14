@@ -167,5 +167,39 @@
     (let ((current-input-method "wime"))
       (should (equal (substring-no-properties (wime-lighter)) "万")))))
 
+(defmacro wime-test--with-database (file &rest body)
+  "Evaluate BODY with the database FILE under bazel-bin, or skip."
+  (declare (indent 1))
+  `(let ((path (expand-file-name (concat "bazel-bin/emacs-packages/wime/" ,file)))
+         (saved wime-database-file))
+     (unless (file-readable-p path)
+       (ert-skip (concat ,file " not built")))
+     (unwind-protect
+         (progn (wime-select-database path) ,@body)
+       (wime-select-database saved))))
+
+(ert-deftest wime-scheme-keys-come-from-the-database ()
+  (wime-test--with-database "wanxiang.db"
+    ;; 微软双拼 only uses ; for the final ing.
+    (should-not (wime--code-char-p ?\; 'initial))
+    (should (wime--code-char-p ?\; 'final))
+    (should-not (wime--code-char-p ?\, 'final))))
+
+(ert-deftest wime-lr-scheme-lookup ()
+  (wime-test--with-database "wanxiang-lr.db"
+    (should (equal (car (wime--candidates "wks/")) "你好"))
+    (should (equal (car (wime--candidates "fdd,")) "我们"))
+    (should (member "人" (wime--candidates "q,")))))
+
+(ert-deftest wime-lr-punctuation-depends-on-position ()
+  (wime-test--with-database "wanxiang-lr.db"
+    ;; , is the final en after an initial, full-width punctuation elsewhere.
+    (wime-test--type "q,"
+      (should (equal wime--input "q,")))
+    (wime-test--type "wks/,"
+      (should (equal (buffer-string) "你好，")))
+    (wime-test--type ","
+      (should (equal (buffer-string) "，")))))
+
 (provide 'wime-test)
 ;;; wime-test.el ends here

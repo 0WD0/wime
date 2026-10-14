@@ -4,11 +4,13 @@
 ;; Package-Requires: ((emacs "29.1"))
 
 ;;; Commentary:
-;; A small, Rime-free input method for the wanxiang 微软双拼 scheme with
-;; uppercase Moqi auxiliary codes.
+;; A small, Rime-free input method for wanxiang double pinyin with uppercase
+;; Moqi auxiliary codes.  The scheme comes with the database: 微软双拼 by
+;; default, or a table-generated one (see schemes/).
 ;;
-;; The typed string is parsed into syllables: two lowercase keys (``;'' counts
-;; as a key, for ing) optionally followed by uppercase auxiliary keys.  The
+;; The typed string is parsed into syllables: two code keys (letters, plus
+;; whichever of ``;,./'' the scheme uses) optionally followed by uppercase
+;; auxiliary keys.  The
 ;; auxiliary code belongs to the syllable it follows, so a lowercase key after
 ;; it starts the next syllable.  This keeps the typed order intact and never
 ;; has to guess where an auxiliary code ends.
@@ -148,11 +150,37 @@ is nil or unreadable, wime falls back to the committed Elisp tables."
 (defvar-local wime--overlay nil
   "Overlay showing the preedit and candidates.")
 
-(defun wime--code-char-p (key)
-  "Return non-nil if KEY is a double-pinyin code character."
+(defconst wime--default-keys "abcdefghijklmnopqrstuvwxyz;"
+  "Code keys assumed when the database does not describe its scheme.")
+
+(defvar wime--position-keys nil
+  "Cons (INITIAL-KEYS . FINAL-KEYS) read from the open database.")
+
+(defun wime--position-keys ()
+  "Return (INITIAL-KEYS . FINAL-KEYS): the keys a syllable starts and ends with."
+  (or wime--position-keys
+      (when-let* ((db (wime--database))
+                  (rows (ignore-errors
+                          (sqlite-select db "SELECT key, value FROM meta"))))
+        (setq wime--position-keys
+              (cons (cadr (assoc "initial_keys" rows))
+                    (cadr (assoc "final_keys" rows)))))
+      (cons wime--default-keys wime--default-keys)))
+
+(defun wime--code-char-p (key &optional position)
+  "Return non-nil if KEY is a double-pinyin code character.
+
+Letters always are.  A punctuation key such as ``;'' or ``,'' is a code
+key only where the scheme uses it: POSITION is `initial' or `final', and
+nil accepts either.  Elsewhere it stays punctuation."
   (and (integerp key)
        (or (and (>= key ?a) (<= key ?z))
-           (= key ?\;))))
+           (let ((keys (wime--position-keys)))
+             (string-search (char-to-string key)
+                            (pcase position
+                              ('initial (car keys))
+                              ('final (cdr keys))
+                              (_ (concat (car keys) (cdr keys)))))))))
 
 (defun wime--aux-char-p (key)
   "Return non-nil if KEY is an uppercase auxiliary code character."
@@ -181,6 +209,13 @@ uppercase keys typed after that syllable, so the typed order is kept."
     (when (or code aux)
       (push (cons (or code "") (or aux "")) units))
     (nreverse units)))
+
+(defun wime--next-position ()
+  "Return `final' when the next code key completes a syllable, else `initial'."
+  (let ((last (car (last (wime--parse wime--input)))))
+    (if (and last (= (length (car last)) 1) (string-empty-p (cdr last)))
+        'final
+      'initial)))
 
 (defun wime--full-code (units)
   "Return the concatenated double-pinyin code of UNITS."
@@ -220,6 +255,20 @@ prefix of one of its comma-separated groups."
          (setq wime--db-failed t)
          (message "wime: cannot open %s: %s" wime-database-file err))))
     wime--db))
+
+(defun wime-select-database (file)
+  "Switch to the word database FILE, and with it to its double-pinyin scheme."
+  (interactive
+   (list (read-file-name "wime database: "
+                         (and wime-database-file (file-name-directory wime-database-file))
+                         wime-database-file t)))
+  (when wime--db
+    (ignore-errors (sqlite-close wime--db)))
+  (setq wime-database-file (and file (expand-file-name file))
+        wime--db nil
+        wime--db-failed nil
+        wime--position-keys nil)
+  (wime--reset))
 
 (defun wime--database-entries (code)
   "Return the word entries for CODE from the database."
@@ -472,7 +521,7 @@ falls back to a prefix search, the way Rime completes partial pinyin."
   (if (wime--text-read-only-p)
       (list key)
     (cond
-     ((wime--code-char-p key)
+     ((wime--code-char-p key (wime--next-position))
       (setq wime--input (concat wime--input (char-to-string key)))
       (wime--refresh)
       nil)

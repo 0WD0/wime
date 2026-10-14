@@ -47,3 +47,20 @@ genrule(
     tools = [":generator"],
     visibility = ["//wdoom/bazel/native:__pkg__"],
 )
+
+# The layout found by keyboard-ergonomics/optimize.py ("prefer L/R"); try it
+# with M-x wime-select-database.
+genrule(
+    name = "database_lr",
+    srcs = [
+        "schemes/lr.json",
+        "@rime_wanxiang//:sources",
+        "@rime_wanxiang//:wanxiang_pro.dict.yaml",
+    ],
+    outs = ["wanxiang-lr.db"],
+    cmd = "RIME=$$(dirname $(location @rime_wanxiang//:wanxiang_pro.dict.yaml)); " +
+          "$(location :generator) --rime-data $$RIME --database $@ " +
+          "--scheme $(location schemes/lr.json)",
+    tools = [":generator"],
+    visibility = ["//wdoom/bazel/native:__pkg__"],
+)
