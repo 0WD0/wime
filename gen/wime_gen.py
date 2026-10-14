@@ -19,8 +19,8 @@ import unicodedata
 from pathlib import Path
 
 
-def load_rules(algebra_path):
-    """Extract the ``pro/微软双拼`` algebra rules without a YAML library."""
+def load_rules(algebra_path, dialect="微软双拼"):
+    """Extract the ``pro/DIALECT`` algebra rules without a YAML library."""
     lines = algebra_path.read_text(encoding="utf-8").splitlines()
     rules = []
     in_pro = in_dialect = in_append = False
@@ -36,7 +36,7 @@ def load_rules(algebra_path):
         if not in_pro:
             continue
         if indent == 2:
-            in_dialect = stripped == "微软双拼:"
+            in_dialect = re.split(r"\s+#", stripped, maxsplit=1)[0].strip() == dialect + ":"
             in_append = False
             continue
         if not in_dialect:
