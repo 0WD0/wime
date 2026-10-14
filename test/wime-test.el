@@ -185,14 +185,14 @@
     (should (wime--code-char-p ?\; 'final))
     (should-not (wime--code-char-p ?\, 'final))))
 
-(ert-deftest wime-lr-scheme-lookup ()
-  (wime-test--with-database "wanxiang-lr.db"
+(ert-deftest wime-liangti-scheme-lookup ()
+  (wime-test--with-database "wanxiang-liangti.db"
     (should (equal (car (wime--candidates "wks/")) "你好"))
     (should (equal (car (wime--candidates "fdd,")) "我们"))
     (should (member "人" (wime--candidates "q,")))))
 
-(ert-deftest wime-lr-punctuation-depends-on-position ()
-  (wime-test--with-database "wanxiang-lr.db"
+(ert-deftest wime-liangti-punctuation-depends-on-position ()
+  (wime-test--with-database "wanxiang-liangti.db"
     ;; , is the final en after an initial, full-width punctuation elsewhere.
     (wime-test--type "q,"
       (should (equal wime--input "q,")))

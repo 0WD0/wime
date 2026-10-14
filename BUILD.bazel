@@ -48,19 +48,19 @@ genrule(
     visibility = ["//wdoom/bazel/native:__pkg__"],
 )
 
-# The layout found by keyboard-ergonomics/optimize.py ("prefer L/R"); try it
-# with M-x wime-select-database.
+# 量体双拼, the layout keyboard-ergonomics/optimize.py fitted to measured typing
+# costs ("prefer L/R"); try it with M-x wime-select-database.
 genrule(
-    name = "database_lr",
+    name = "database_liangti",
     srcs = [
-        "schemes/lr.json",
+        "schemes/liangti.json",
         "@rime_wanxiang//:sources",
         "@rime_wanxiang//:wanxiang_pro.dict.yaml",
     ],
-    outs = ["wanxiang-lr.db"],
+    outs = ["wanxiang-liangti.db"],
     cmd = "RIME=$$(dirname $(location @rime_wanxiang//:wanxiang_pro.dict.yaml)); " +
           "$(location :generator) --rime-data $$RIME --database $@ " +
-          "--scheme $(location schemes/lr.json)",
+          "--scheme $(location schemes/liangti.json)",
     tools = [":generator"],
     visibility = ["//wdoom/bazel/native:__pkg__"],
 )
