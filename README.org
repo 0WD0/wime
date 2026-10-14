@@ -18,7 +18,7 @@ Bazel 在构建期从上游 nightly 产物下载，不依赖本机安装，也�
 - 同一个文件里的 gram 规则拉取 =RIME-LMDG= 的 =wanxiang-lts-zh-hans.gram=，随快照发布，供后续语言模型模块使用。
 - =gen/update_nightly.py= 重新下载两个 nightly 资产并回写 =rime_wanxiang.bzl= 里的 sha256，用于跟随 nightly。
 - 生成器 =gen/wime_gen.py= 解析 =wanxiang_algebra.yaml= 的 =pro/微软双拼= 规则（忠实移植 Rime 的 =xform=／=derive=／=xlit=，不依赖 PyYAML），把 =wanxiang_pro.dict.yaml= 及其 =dicts/*.pro.dict.yaml= 转成按双拼码索引的库。
-- =--scheme schemes/X.json= 改用表：每个声母（=""= 为零声母）和韵母对应一个键，ü 写作 =v=，j/q/x/y 后的 u 也写作 =v=。表由 =keyboard-ergonomics/export_scheme.py= 从优化结果导出；=schemes/liangti.json= 是量体双拼——按实测击键成本优化、偏好左声右韵的布局，构建目标 =//emacs-packages/wime:database_liangti=（=wanxiang-liangti.db=），用 =M-x wime-select-database= 切换。
+- =--scheme schemes/X.json= 改用表：每个声母（=""= 为零声母）和韵母对应一个键，ü 写作 =v=，j/q/x/y 后的 u 也写作 =v=。表由 =keyboard-ergonomics/export_scheme.py= 从优化结果导出；=schemes/liangti.json= 是量体双拼——按实测击键成本优化、偏好左声右韵的布局，构建目标 =//emacs-packages/wime:database_liangti=（=wanxiang-liangti.db=）；=schemes/liangti-fast.json= 是同一批测量下不顾好记、只求最快的量体双拼·速（=database_liangti_fast=）。用 =M-x wime-select-database= 切换。
 - 每个库都带 =meta= 表（方案名、声母位与韵母位用到的键），引擎据此判断 =;,./= 是编码还是标点。
 - 产物 =wanxiang.db= 是 SQLite（约 220 万条），由 =//emacs-packages/wime:database= 生成并随快照发布；wime 用内置的 =sqlite-select= 查询。仓库不再提交生成的 Elisp 表。
 

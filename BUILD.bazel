@@ -64,3 +64,19 @@ genrule(
     tools = [":generator"],
     visibility = ["//wdoom/bazel/native:__pkg__"],
 )
+
+# 量体双拼·速: the same measurements optimised without memorability rules.
+genrule(
+    name = "database_liangti_fast",
+    srcs = [
+        "schemes/liangti-fast.json",
+        "@rime_wanxiang//:sources",
+        "@rime_wanxiang//:wanxiang_pro.dict.yaml",
+    ],
+    outs = ["wanxiang-liangti-fast.db"],
+    cmd = "RIME=$$(dirname $(location @rime_wanxiang//:wanxiang_pro.dict.yaml)); " +
+          "$(location :generator) --rime-data $$RIME --database $@ " +
+          "--scheme $(location schemes/liangti-fast.json)",
+    tools = [":generator"],
+    visibility = ["//wdoom/bazel/native:__pkg__"],
+)

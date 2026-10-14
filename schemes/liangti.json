@@ -64,6 +64,7 @@
   "zh": "a"
  },
  "name": "liangti",
+ "note": "好记：翘舌挨着平舌，前后鼻音相邻，同键韵母只差介音",
  "title": "量体双拼",
  "variant": "prefer L/R + memorable (mnemonic.py lambda=0.8, initial/vowel x0.25)"
 }
