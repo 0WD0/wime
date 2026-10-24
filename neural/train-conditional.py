@@ -19,6 +19,13 @@ from safetensors.torch import save_file
 from conditional import augment_composition, encode_example, grow_depth, load_model, FORMAT
 
 
+def reference_kl(logits, reference_logits, labels):
+    """Preserve the reference distribution only at supervised output positions."""
+    mask = labels != 0
+    return F.kl_div(logits[mask].float().log_softmax(-1),
+                    reference_logits[mask].float().softmax(-1), reduction="batchmean")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--base", required=True)
@@ -35,6 +42,9 @@ def main():
     p.add_argument("--single-share", type=float, default=0.0)
     p.add_argument("--whitespace-share", type=float, default=0.0)
     p.add_argument("--learning-rate", type=float, default=2e-4)
+    p.add_argument("--reference-model", help="fixed older checkpoint for primary-domain retention")
+    p.add_argument("--reference-weight", type=float, default=0.0,
+                   help="output-token KL weight on primary replay batches only; extra data uses CE")
     p.add_argument("--exclude-cases", type=Path, action="append", default=[],
                    help="exclude exact normalized context/answer pairs after span augmentation")
     p.add_argument("--layers", type=int, help="grow depth with initially identity residual blocks")
@@ -42,7 +52,8 @@ def main():
     if (args.steps < 1 or args.batch < 1 or not 0 <= args.extra_share <= 1
             or not 0 <= args.span_share <= 1 or not 0 <= args.single_share <= 1
             or args.span_share + args.single_share > 1
-            or not 0 <= args.whitespace_share <= 1 or args.learning_rate <= 0):
+            or not 0 <= args.whitespace_share <= 1 or args.learning_rate <= 0
+            or args.reference_weight < 0 or (args.reference_weight and not args.reference_model)):
         p.error("positive steps/batch/rate required; shares in [0, 1], span + single <= 1")
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -107,6 +118,14 @@ def main():
     extra_train = pack("train", args.extra_data) if args.extra_data else None
     extra_dev = pack("dev", args.extra_data) if args.extra_data else None
     model = model.cuda()
+    reference = None
+    if args.reference_weight:
+        reference, reference_vocab, reference_metadata = load_model(args.reference_model)
+        if reference_vocab != vocab or reference_metadata.get("conditional") != FORMAT:
+            raise ValueError("reference token semantics must match the conditional model")
+        if reference.cfg.context < window:
+            raise ValueError("reference window is too short")
+        reference = reference.cuda().eval().requires_grad_(False)
     # Architecture initialization consumes random numbers. Reset the sampling
     # stream so same-seed capacity controls receive the same training batches.
     torch.cuda.manual_seed_all(args.seed)
@@ -123,6 +142,9 @@ def main():
                 "extra_validation_examples": len(extra_dev) if extra_dev is not None else 0,
                 "exclusions": dict(exclusions), "format": FORMAT, "config": dataclasses.asdict(model.cfg)}
     settings["compositions"] = dict(compositions)
+    if args.reference_model:
+        with open(args.reference_model, "rb") as source:
+            settings["reference_sha256"] = hashlib.file_digest(source, "sha256").hexdigest()
     settings["parameters"] = sum(p.numel() for p in model.parameters())
     settings["depth_growth"] = dict(original_layers=original_layers,
                                   retained_positions=[i * model.cfg.n_layer // original_layers
@@ -139,10 +161,15 @@ def main():
         length = int((b[:, 0] != 0).sum(1).max())
         return b[:, 0, :length], b[:, 1, :length]
 
-    def loss(x, y):
+    def loss(x, y, preserve=False):
         with torch.autocast("cuda", dtype=torch.bfloat16):
             logits, _ = model(x)
-            return F.cross_entropy(logits.flatten(0, 1).float(), y.flatten(), ignore_index=0)
+            value = F.cross_entropy(logits.flatten(0, 1).float(), y.flatten(), ignore_index=0)
+            if preserve and reference is not None:
+                with torch.no_grad():
+                    reference_logits, _ = reference(x)
+                value = value + args.reference_weight * reference_kl(logits, reference_logits, y)
+            return value
 
     def validate(step):
         model.eval()
@@ -166,7 +193,7 @@ def main():
         # Deterministic batch-level domain mixture. Do not physically duplicate
         # technical rows, and retain the actual sampling share in run.json.
         domain = extra_train if extra_train is not None and np.random.random() < args.extra_share else train
-        value = loss(*batch(domain, args.batch))
+        value = loss(*batch(domain, args.batch), preserve=domain is train)
         value.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
@@ -183,6 +210,7 @@ def main():
                             vocab=json.dumps(vocab, ensure_ascii=False), precision="f16", conditional=FORMAT,
                             validation_loss=str(best), training_steps=str(step),
                             single_character_training=str(args.single_share > 0).lower(),
+                            reference_retention=str(args.reference_weight),
                             attribution=metadata.get("attribution", "") + " Continued training; corpus manifests in run.json."
                             + (" Additional corpus attribution and licenses: "
                                + json.dumps(settings["extra_manifest"], ensure_ascii=False)
