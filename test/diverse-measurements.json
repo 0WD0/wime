@@ -1,0 +1,2867 @@
+{
+  "date": "2026-10-25",
+  "implementation_commit": "35e14ec2",
+  "model": {
+    "path": "/home/_WD_/.cache/wime-conditional/run-diverse/model.safetensors",
+    "sha256": "335640a3bc8a664bc3fe48e715b418b6139f38b18c0d252e27e6af81b947539c",
+    "parameters": 25255104,
+    "base_sha256": "72411b8cbedc3069b026a1d424d0b232fd42eb8f7cb5c746cce4d168be1967ae"
+  },
+  "training": {
+    "steps": 8000,
+    "batch": 128,
+    "learning_rate": 8e-05,
+    "new_corpus_share": 0.6,
+    "short_span_share": 0.3,
+    "single_span_share": 0.15,
+    "whitespace_share": 0.1,
+    "packed_replay_examples": 299452,
+    "packed_new_examples": 598504,
+    "exclusions": {
+      "/home/_WD_/.cache/wime-conditional/replay/protected_pair": 254,
+      "/home/_WD_/.cache/wime-conditional/replay/train/unknown_target": 4,
+      "/home/_WD_/.cache/wime-conditional/diverse/train/unknown_target": 1204,
+      "/home/_WD_/.cache/wime-conditional/diverse/protected_pair": 291,
+      "/home/_WD_/.cache/wime-conditional/diverse/dev/unknown_target": 18
+    },
+    "validation_before": {
+      "replay": 0.16012753080576658,
+      "new": 1.28866358846426
+    },
+    "validation_after": {
+      "replay": 0.14943691343069077,
+      "new": 0.4702017903327942
+    },
+    "seconds": 314.28005770299933
+  },
+  "corpus": {
+    "documents": {
+      "train": 460623,
+      "dev": 7327,
+      "test": 7338
+    },
+    "document_overlap": {
+      "train/dev": 0,
+      "train/test": 0,
+      "dev/test": 0
+    },
+    "unique_idioms": 3844,
+    "unique_entities": 81084,
+    "training_target_characters": 4534949,
+    "selected_word_examples": {
+      "望梅止渴": 11,
+      "真刀真枪": 86,
+      "井井有条": 114,
+      "栩栩如生": 111,
+      "兢兢业业": 123
+    },
+    "sources": [
+      {
+        "repo": "liwu/MNBVC",
+        "revision": "c153d877b4af9c66026ee6fa4eefbc29dd8c11b0",
+        "path": "news/20230196/0.jsonl.gz"
+      },
+      {
+        "repo": "thu-coai/chid",
+        "revision": "47ad8022d369233bea2f4a8112268f9a9a039a43",
+        "path": "original/dev_data.txt"
+      },
+      {
+        "repo": "thu-coai/chid",
+        "revision": "47ad8022d369233bea2f4a8112268f9a9a039a43",
+        "path": "original/train_data.txt"
+      },
+      {
+        "repo": "liwu/MNBVC",
+        "revision": "c153d877b4af9c66026ee6fa4eefbc29dd8c11b0",
+        "path": "wiki/20230197/0.jsonl.gz"
+      },
+      {
+        "repo": "liwu/MNBVC",
+        "revision": "c153d877b4af9c66026ee6fa4eefbc29dd8c11b0",
+        "path": "wiki/20230197/10.jsonl.gz"
+      },
+      {
+        "repo": "liwu/MNBVC",
+        "revision": "c153d877b4af9c66026ee6fa4eefbc29dd8c11b0",
+        "path": "wiki/20230197/20.jsonl.gz"
+      },
+      {
+        "repo": "liwu/MNBVC",
+        "revision": "c153d877b4af9c66026ee6fa4eefbc29dd8c11b0",
+        "path": "wiki/20230197/30.jsonl.gz"
+      },
+      {
+        "repo": "liwu/MNBVC",
+        "revision": "c153d877b4af9c66026ee6fa4eefbc29dd8c11b0",
+        "path": "wiki/20230197/40.jsonl.gz"
+      }
+    ],
+    "training_examples": 599999,
+    "categories": {
+      "idiom": 180000,
+      "entity": 89999,
+      "encyclopedia": 200000,
+      "chid_prose": 70000,
+      "news": 60000
+    }
+  },
+  "settings": {
+    "width": 16,
+    "budget": 4,
+    "prior_weight": 0.1,
+    "seed_candidates": true,
+    "single_character": true,
+    "precision": "FP32, TF32 disabled",
+    "context_anchor": 2
+  },
+  "limitations": [
+    "Automatic pronunciation labels except unambiguous dictionary words; pretrained source overlap unknown.",
+    "Known failure probes and derived splits are correlated, not an estimate of natural typing accuracy.",
+    "Same idioms can occur in independently sourced training and evaluation contexts; this measures unseen contexts, not exclusively unseen vocabulary.",
+    "Context anchoring changes inference formatting with unchanged trained weights; prefix length selected using dev data only.",
+    "Inferred pronunciation of existing text can be wrong; valid recent Wime commits instead supply their actual typed keys.",
+    "There are new regressions as well as gains; regressions are recorded without tuning on the frozen test.",
+    "Concurrent benchmark jobs make these wall times unsuitable as isolated interactive latency measurements."
+  ],
+  "artifacts": {
+    "sources": {
+      "path": "/home/_WD_/Projects/dev-monorepo/emacs-packages/wime/neural/corpus-sources.json",
+      "sha256": "6ea8187fa82e3f604008a8dee44f99a9e3ab8c595a7bffbfd36529f56187735e"
+    },
+    "prepared": {
+      "path": "/home/_WD_/.cache/wime-conditional/diverse/manifest.json",
+      "sha256": "408fe37bd7bb1b413fdc91d6cc54854032c51860b19d456d356d9f7385c75bf8"
+    },
+    "training": {
+      "path": "/home/_WD_/.cache/wime-conditional/run-diverse/run.json",
+      "sha256": "8023a06cffdff5fa7d46f1e7ec921cf1f2684383f3083a05d8254427040c9052"
+    },
+    "training_log": {
+      "path": "/home/_WD_/.cache/wime-conditional/train-diverse.log",
+      "sha256": "77adc7b3f8af9af60b507d859baf02ad85601fedb647c674229360a6036f6e26"
+    },
+    "independent_cases": {
+      "path": "/home/_WD_/.cache/wime-conditional/diverse/evaluation.json",
+      "sha256": "1190e627314b9f30ee0e9816be52982bde0e79b0ff30886cb211d3b8228e9f7a"
+    },
+    "fixed_cases": {
+      "path": "/home/_WD_/.cache/wime-conditional/test-programming.json",
+      "sha256": "dce1695810c7bdf524e359f861243adb3bb4fc64a717b2b2394de8d8534003e1"
+    },
+    "stress_cases": {
+      "path": "/home/_WD_/.cache/wime-conditional/stress-cases.json",
+      "sha256": "b436b258d272b3a406ece44748120fb08b8312f894d5d7b8d5fdedd6638fb549"
+    },
+    "database": {
+      "path": "/home/_WD_/.cache/wime-conditional/runtime/wanxiang.db",
+      "sha256": "6cd642c6562de74701bba9f5df424c707de9c9362182e6e41c1c63943246ea66"
+    },
+    "grammar_module": {
+      "path": "/home/_WD_/.cache/wime-conditional/runtime/librime-grammar.so",
+      "sha256": "d2feaf9e7e79b59cca4b6c7a123a9503c2f65ad94b5d0b1c9f9be1b3b3f55ba5"
+    },
+    "counterfactual": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-counterfactual.json",
+      "sha256": "499ccf9f3b6812efb3227cfc235be413d62ae7b3fc663b420dd2cb339c21896b"
+    },
+    "fixed_training": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-fixed/training-comparison.json",
+      "sha256": "56d27f079ae20fa893bea642b509e8a1e73c3649a910bec03d92de3b7b899e4b"
+    },
+    "fixed_inference_only": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-fixed/inference_only-comparison.json",
+      "sha256": "dc670c8c2f989d106201293045063726ca138115f3acc21ea81d92e7865a059f"
+    },
+    "fixed_combined": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-fixed/combined-comparison.json",
+      "sha256": "016e2ca8c224e0942f28931cdac41139a824189f90dab1e97dfd6a869d99a6cf"
+    },
+    "stress-fixed-test": {
+      "path": "/home/_WD_/.cache/wime-conditional/stress-fixed-test/results.json",
+      "sha256": "8416ba040ac5f44a75148afd892a0267ac0af74de276d012ae2276053af2c004"
+    },
+    "diverse-fixed": {
+      "path": "/home/_WD_/.cache/wime-conditional/diverse-fixed/results.json",
+      "sha256": "619de9e772ed1bae4c1529b59aaa55f492e1de636f1631bc451e75e12e8ade61"
+    },
+    "anchor-fixed": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-fixed/results.json",
+      "sha256": "d8dd184472255ba90011c446b95fec36f08b76619b5a568a6128ea0d9d5edd42"
+    },
+    "stress_training": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-stress/training-comparison.json",
+      "sha256": "b6e104f5c95adbe47bc8408904386a2ff8c1a3e851e0fbf7f946f1531d91f3e8"
+    },
+    "stress_inference_only": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-stress/inference_only-comparison.json",
+      "sha256": "57e3b0f353c3bf430b1eae61403b2a6b7e621e172d44c745bb1e61c13aaa5b3f"
+    },
+    "stress_combined": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-stress/combined-comparison.json",
+      "sha256": "fb139f92a87c24cbe5bdb550a49dd411f27ea796ce5c23e0e96011b4ae9bd21c"
+    },
+    "stress-probes": {
+      "path": "/home/_WD_/.cache/wime-conditional/stress-probes/results.json",
+      "sha256": "5736e34b1788e7bd976eacbddc3ebf8ee737e549547604beddc20243e5355472"
+    },
+    "diverse-stress": {
+      "path": "/home/_WD_/.cache/wime-conditional/diverse-stress/results.json",
+      "sha256": "0734bd2f4d7f99cc7ae1c448288ec05ea8307015e18390dce0cd2647cb835a54"
+    },
+    "anchor-stress": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-stress/results.json",
+      "sha256": "6d5a0f85d2512a9829444e08c0b31e463dddd2b25025566cefb170288d4bce9b"
+    },
+    "independent_training": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-independent/training-comparison.json",
+      "sha256": "9d6231d67819c7fd4634a2a1ebb172cb589225a730f0f735a1b1e9933e3391de"
+    },
+    "independent_inference_only": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-independent/inference_only-comparison.json",
+      "sha256": "647583b0bddfd017fa0c37692f19e9088a92f3f978f1bd927b1f1cdbd708ca15"
+    },
+    "independent_combined": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-independent/combined-comparison.json",
+      "sha256": "76897281515449d4a84d6c66331a971e0ccd838f95fb7725bd0985cb490a671f"
+    },
+    "diverse-before": {
+      "path": "/home/_WD_/.cache/wime-conditional/diverse-before/results.json",
+      "sha256": "9f24b65760fe9604946e7f1626266cf6a36ea1b848e55c165ceaf4282865e476"
+    },
+    "diverse-independent": {
+      "path": "/home/_WD_/.cache/wime-conditional/diverse-independent/results.json",
+      "sha256": "26fce8a021a8717ee8df272ac0942bea3ed5355b5677347ea7ece32d280feb5a"
+    },
+    "anchor-independent": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-independent/results.json",
+      "sha256": "cae2519f1c1f2ac95d4adeeeeb7a211c5cd9737854eac3ec26d8d84c33dcef1a"
+    },
+    "user_training": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-user/training-comparison.json",
+      "sha256": "4391b0231e3b5c02f931443b095f279355608135d390520ffb5bd7c58358e298"
+    },
+    "user_inference_only": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-user/inference_only-comparison.json",
+      "sha256": "ae41a093df0999b06c9670e4cce67803abad121814af3ae404f37c33ad60d63c"
+    },
+    "user_combined": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-user/combined-comparison.json",
+      "sha256": "66d976e937e8a8ad1e02bb671cf589031cc53ed360c67cd608ef15682f771e16"
+    },
+    "continuation-user-offline": {
+      "path": "/home/_WD_/.cache/wime-conditional/continuation-user-offline/results.json",
+      "sha256": "b3787d32f45ce8add6974ec12828132bea3c3920844b6ef1a344fe5e496b59a0"
+    },
+    "diverse-user": {
+      "path": "/home/_WD_/.cache/wime-conditional/diverse-user/results.json",
+      "sha256": "5cde40ef9e817b9f7cf86562ee0ae798a861e6a2bd6aabbb1607239a4c8f23cb"
+    },
+    "anchor-user": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-user/results.json",
+      "sha256": "e7f6dac954b076194401093f13a5afc90d99c4780b72cd0c136c85eb753cd49d"
+    },
+    "old_single_enabled": {
+      "path": "/home/_WD_/.cache/wime-conditional/diverse-single-before-enabled/results.json",
+      "sha256": "2897182d00b901c12fba77d7cb47fa2e4635381c4e1e6713e0f9b4c972b333a6"
+    },
+    "known_failure_cases": {
+      "path": "/home/_WD_/Projects/dev-monorepo/emacs-packages/wime/test/stress-failures.json",
+      "sha256": "337a51bf827c2a9ee612f2af20bc3f958319f662c27df6de8f2e84338d5f981c"
+    },
+    "known_failure_results": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-failures/results.json",
+      "sha256": "61ab6e426def8f46401d5925dbff9e27485a1487f1c2b5629456e26bf7786ae0"
+    },
+    "new_regressions": {
+      "path": "/home/_WD_/Projects/dev-monorepo/emacs-packages/wime/test/diverse-regressions.json",
+      "sha256": "c60c4ad5d6e0378d05e0f39bddccf414ffa460e4d25c058b3979d5d87df6a7bc"
+    },
+    "anchor_runtime": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-runtime.json",
+      "sha256": "0420c362838f05e71b685694244d24ae6cd095e426dd39656865374c7fd7f512"
+    },
+    "real_commits": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-commits.json",
+      "sha256": "499930e08a6f0c5de099aefd49b1b2ac497046a584dad002913ea2ebb352997b"
+    },
+    "real_commit_cases": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-commit-cases.json",
+      "sha256": "cc58c92dd744dbbb45892c6ca41fcca20bb48d32502afe6d6877c6fae61bc3a0"
+    },
+    "typing": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-typing.json",
+      "sha256": "094ca518d7a8aa5d0c1edb8671163a153e44e191935e770de0c19e47921040fd"
+    },
+    "activation_profile": {
+      "path": "/home/_WD_/.cache/wime-conditional/activate-diverse.el",
+      "sha256": "4c1217e17bfb9fcbaac5fa447619c70592728df4f4bf6fbdc0f9ce7d4b46774a"
+    },
+    "anchor_audit": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-audit.json",
+      "sha256": "afb6d0eb474072c0d22cfe8a224e056dc92beb7da93dd3257140001e6ecda8b7"
+    },
+    "anchor_dev": {
+      "path": "/home/_WD_/.cache/wime-conditional/diverse-anchor-dev/summary.json",
+      "sha256": "c96173c9ad647025562f9058bff41072e1966afc85e4b5b344558bee88a1ecfe"
+    },
+    "build": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-build.log",
+      "sha256": "4fa2106073b483d480b782c663b293599c20dd80b6d799f4cb98e5203227640c"
+    },
+    "ert": {
+      "path": "/home/_WD_/.cache/wime-conditional/anchor-ert.log",
+      "sha256": "52cddcfe33168b10c45f3347c65ef12b14459f5c021999b3c6f9c0ba3a31bd42"
+    }
+  },
+  "commit_harness_commit": "d600ecc5",
+  "comparison_notes": {
+    "training": "Old deployed profile (single-character neural disabled) versus newly trained model with single-character neural enabled, both anchor=0. For single characters, see the same-policy ablation below.",
+    "inference_only": "Identical newly trained weights and single-character neural enabled; only context_anchor changes from 0 to 2.",
+    "combined": "Old deployed profile versus trained, anchored profile."
+  },
+  "anchor_selection": {
+    "selected": 2,
+    "stats": {
+      "0": {
+        "total": 1024,
+        "correct": 685,
+        "single_total": 152,
+        "single_correct": 116,
+        "chid_prose/correct": 74,
+        "chid_prose/total": 128,
+        "encyclopedia/correct": 74,
+        "encyclopedia/total": 128,
+        "entity/correct": 58,
+        "entity/total": 128,
+        "idiom/correct": 116,
+        "idiom/total": 128,
+        "news/correct": 71,
+        "news/total": 128,
+        "chat/correct": 132,
+        "chat/total": 192,
+        "technical/correct": 160,
+        "technical/total": 192
+      },
+      "2": {
+        "total": 1024,
+        "correct": 693,
+        "single_total": 152,
+        "single_correct": 124,
+        "chid_prose/correct": 76,
+        "chid_prose/total": 128,
+        "encyclopedia/correct": 78,
+        "encyclopedia/total": 128,
+        "entity/correct": 57,
+        "entity/total": 128,
+        "idiom/correct": 117,
+        "idiom/total": 128,
+        "news/correct": 73,
+        "news/total": 128,
+        "chat/correct": 130,
+        "chat/total": 192,
+        "technical/correct": 162,
+        "technical/total": 192
+      },
+      "4": {
+        "total": 1024,
+        "correct": 689,
+        "single_total": 152,
+        "single_correct": 123,
+        "chid_prose/correct": 76,
+        "chid_prose/total": 128,
+        "encyclopedia/correct": 76,
+        "encyclopedia/total": 128,
+        "entity/correct": 57,
+        "entity/total": 128,
+        "idiom/correct": 112,
+        "idiom/total": 128,
+        "news/correct": 75,
+        "news/total": 128,
+        "chat/correct": 132,
+        "chat/total": 192,
+        "technical/correct": 161,
+        "technical/total": 192
+      },
+      "8": {
+        "total": 1024,
+        "correct": 685,
+        "single_total": 152,
+        "single_correct": 123,
+        "chid_prose/correct": 76,
+        "chid_prose/total": 128,
+        "encyclopedia/correct": 77,
+        "encyclopedia/total": 128,
+        "entity/correct": 57,
+        "entity/total": 128,
+        "idiom/correct": 109,
+        "idiom/total": 128,
+        "news/correct": 74,
+        "news/total": 128,
+        "chat/correct": 131,
+        "chat/total": 192,
+        "technical/correct": 161,
+        "technical/total": 192
+      }
+    },
+    "scope": "dev-only same-pool N-best; 60/40 new/replay strata",
+    "model_sha256": "335640a3bc8a664bc3fe48e715b418b6139f38b18c0d252e27e6af81b947539c",
+    "source_hashes": {
+      "/home/_WD_/.cache/wime-conditional/diverse/dev.jsonl": "9b050058c692ec9aea3ec049501709103483668337b136149ac496b811c74a4e",
+      "/home/_WD_/.cache/wime-conditional/replay/dev.jsonl": "8669e97b7040e15bd201342635c7e376233f2cf074e4712bc2e2997fb01e83ed"
+    }
+  },
+  "counterfactual": {
+    "model_sha256": "335640a3bc8a664bc3fe48e715b418b6139f38b18c0d252e27e6af81b947539c",
+    "scores": "Model-only probabilities over the full vocabulary, before the grammar prior",
+    "rows": [
+      {
+        "context": "真刀真",
+        "input": "qd",
+        "context_anchor": 0,
+        "formatted_prompt": "真刀真",
+        "log_probability": {
+          "枪": -4.458326816558838,
+          "强": -0.09314583986997604,
+          "墙": -4.859490871429443
+        },
+        "probability": {
+          "枪": 0.01158172543595785,
+          "强": 0.9110606216442725,
+          "墙": 0.007754430888600641
+        }
+      },
+      {
+        "context": "真刀真",
+        "input": "qd",
+        "context_anchor": 2,
+        "formatted_prompt": "真刀真",
+        "log_probability": {
+          "枪": -0.08311823010444641,
+          "强": -5.036352157592773,
+          "墙": -4.8921613693237305
+        },
+        "probability": {
+          "枪": 0.9202423404401068,
+          "强": 0.006497406656648914,
+          "墙": 0.007505183458762501
+        }
+      },
+      {
+        "context": "真刀真",
+        "input": "qd",
+        "context_anchor": 3,
+        "formatted_prompt": "真刀真",
+        "log_probability": {
+          "枪": -0.040924374014139175,
+          "强": -7.3584794998168945,
+          "墙": -5.524581432342529
+        },
+        "probability": {
+          "枪": 0.9599017207168488,
+          "强": 0.0006371665352058303,
+          "墙": 0.003987537397058335
+        }
+      },
+      {
+        "context": "这面",
+        "input": "qd",
+        "context_anchor": 0,
+        "formatted_prompt": "这面",
+        "log_probability": {
+          "枪": -4.394333362579346,
+          "强": -0.777978241443634,
+          "墙": -3.4090445041656494
+        },
+        "probability": {
+          "枪": 0.01234710862712662,
+          "强": 0.4593337350816044,
+          "墙": 0.03307278619286323
+        }
+      },
+      {
+        "context": "这面",
+        "input": "qd",
+        "context_anchor": 2,
+        "formatted_prompt": "这面",
+        "log_probability": {
+          "枪": -4.2224440574646,
+          "强": -2.40580153465271,
+          "墙": -0.1722552329301834
+        },
+        "probability": {
+          "枪": 0.014662764037902428,
+          "强": 0.09019317367524933,
+          "墙": 0.8417642997795275
+        }
+      },
+      {
+        "context": "这面",
+        "input": "qd",
+        "context_anchor": 3,
+        "formatted_prompt": "这面",
+        "log_probability": {
+          "枪": -4.2224440574646,
+          "强": -2.40580153465271,
+          "墙": -0.1722552329301834
+        },
+        "probability": {
+          "枪": 0.014662764037902428,
+          "强": 0.09019317367524933,
+          "墙": 0.8417642997795275
+        }
+      }
+    ]
+  },
+  "comparisons": {
+    "fixed": {
+      "training": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 4864,
+          "before": 3774,
+          "after": 3806,
+          "fixed": 196,
+          "regressed": 164,
+          "same_width_octagram": 2950
+        },
+        "groups": {
+          "category": {
+            "chat": {
+              "total": 2048,
+              "before": 1369,
+              "after": 1379,
+              "fixed": 99,
+              "regressed": 89,
+              "same_width_octagram": 1172
+            },
+            "chat_short": {
+              "total": 256,
+              "before": 199,
+              "after": 206,
+              "fixed": 19,
+              "regressed": 12,
+              "same_width_octagram": 172
+            },
+            "kubernetes": {
+              "total": 1024,
+              "before": 921,
+              "after": 924,
+              "fixed": 28,
+              "regressed": 25,
+              "same_width_octagram": 705
+            },
+            "kubernetes_short": {
+              "total": 256,
+              "before": 211,
+              "after": 218,
+              "fixed": 10,
+              "regressed": 3,
+              "same_width_octagram": 171
+            },
+            "python": {
+              "total": 1024,
+              "before": 861,
+              "after": 863,
+              "fixed": 32,
+              "regressed": 30,
+              "same_width_octagram": 583
+            },
+            "python_short": {
+              "total": 256,
+              "before": 213,
+              "after": 216,
+              "fixed": 8,
+              "regressed": 5,
+              "same_width_octagram": 147
+            }
+          },
+          "variant": {
+            "None": {
+              "total": 4864,
+              "before": 3774,
+              "after": 3806,
+              "fixed": 196,
+              "regressed": 164,
+              "same_width_octagram": 2950
+            }
+          }
+        }
+      },
+      "inference_only": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 4864,
+          "before": 3806,
+          "after": 3812,
+          "fixed": 17,
+          "regressed": 11,
+          "same_width_octagram": 2950
+        },
+        "groups": {
+          "category": {
+            "chat": {
+              "total": 2048,
+              "before": 1379,
+              "after": 1380,
+              "fixed": 1,
+              "regressed": 0,
+              "same_width_octagram": 1172
+            },
+            "chat_short": {
+              "total": 256,
+              "before": 206,
+              "after": 205,
+              "fixed": 4,
+              "regressed": 5,
+              "same_width_octagram": 172
+            },
+            "kubernetes": {
+              "total": 1024,
+              "before": 924,
+              "after": 924,
+              "fixed": 0,
+              "regressed": 0,
+              "same_width_octagram": 705
+            },
+            "kubernetes_short": {
+              "total": 256,
+              "before": 218,
+              "after": 221,
+              "fixed": 5,
+              "regressed": 2,
+              "same_width_octagram": 171
+            },
+            "python": {
+              "total": 1024,
+              "before": 863,
+              "after": 863,
+              "fixed": 0,
+              "regressed": 0,
+              "same_width_octagram": 583
+            },
+            "python_short": {
+              "total": 256,
+              "before": 216,
+              "after": 219,
+              "fixed": 7,
+              "regressed": 4,
+              "same_width_octagram": 147
+            }
+          },
+          "variant": {
+            "None": {
+              "total": 4864,
+              "before": 3806,
+              "after": 3812,
+              "fixed": 17,
+              "regressed": 11,
+              "same_width_octagram": 2950
+            }
+          }
+        }
+      },
+      "combined": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 4864,
+          "before": 3774,
+          "after": 3812,
+          "fixed": 198,
+          "regressed": 160,
+          "same_width_octagram": 2950
+        },
+        "groups": {
+          "category": {
+            "chat": {
+              "total": 2048,
+              "before": 1369,
+              "after": 1380,
+              "fixed": 100,
+              "regressed": 89,
+              "same_width_octagram": 1172
+            },
+            "chat_short": {
+              "total": 256,
+              "before": 199,
+              "after": 205,
+              "fixed": 17,
+              "regressed": 11,
+              "same_width_octagram": 172
+            },
+            "kubernetes": {
+              "total": 1024,
+              "before": 921,
+              "after": 924,
+              "fixed": 28,
+              "regressed": 25,
+              "same_width_octagram": 705
+            },
+            "kubernetes_short": {
+              "total": 256,
+              "before": 211,
+              "after": 221,
+              "fixed": 11,
+              "regressed": 1,
+              "same_width_octagram": 171
+            },
+            "python": {
+              "total": 1024,
+              "before": 861,
+              "after": 863,
+              "fixed": 32,
+              "regressed": 30,
+              "same_width_octagram": 583
+            },
+            "python_short": {
+              "total": 256,
+              "before": 213,
+              "after": 219,
+              "fixed": 10,
+              "regressed": 4,
+              "same_width_octagram": 147
+            }
+          },
+          "variant": {
+            "None": {
+              "total": 4864,
+              "before": 3774,
+              "after": 3812,
+              "fixed": 198,
+              "regressed": 160,
+              "same_width_octagram": 2950
+            }
+          }
+        }
+      }
+    },
+    "stress": {
+      "training": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 8970,
+          "before": 6928,
+          "after": 7392,
+          "fixed": 737,
+          "regressed": 273,
+          "same_width_octagram": 6341
+        },
+        "groups": {
+          "category": {
+            "homophone": {
+              "total": 527,
+              "before": 427,
+              "after": 461,
+              "fixed": 52,
+              "regressed": 18,
+              "same_width_octagram": 460
+            },
+            "idiom": {
+              "total": 646,
+              "before": 252,
+              "after": 560,
+              "fixed": 325,
+              "regressed": 17,
+              "same_width_octagram": 581
+            },
+            "proper": {
+              "total": 251,
+              "before": 100,
+              "after": 153,
+              "fixed": 60,
+              "regressed": 7,
+              "same_width_octagram": 202
+            },
+            "split_chat": {
+              "total": 2361,
+              "before": 1692,
+              "after": 1722,
+              "fixed": 112,
+              "regressed": 82,
+              "same_width_octagram": 1494
+            },
+            "split_kubernetes": {
+              "total": 2496,
+              "before": 2175,
+              "after": 2185,
+              "fixed": 80,
+              "regressed": 70,
+              "same_width_octagram": 1765
+            },
+            "split_python": {
+              "total": 2223,
+              "before": 1877,
+              "after": 1917,
+              "fixed": 98,
+              "regressed": 58,
+              "same_width_octagram": 1449
+            },
+            "technical": {
+              "total": 466,
+              "before": 405,
+              "after": 394,
+              "fixed": 10,
+              "regressed": 21,
+              "same_width_octagram": 390
+            }
+          },
+          "variant": {
+            "auxiliary": {
+              "total": 476,
+              "before": 350,
+              "after": 438,
+              "fixed": 94,
+              "regressed": 6,
+              "same_width_octagram": 453
+            },
+            "commit_span": {
+              "total": 4048,
+              "before": 3232,
+              "after": 3279,
+              "fixed": 181,
+              "regressed": 134,
+              "same_width_octagram": 2535
+            },
+            "commit_suffix": {
+              "total": 2968,
+              "before": 2433,
+              "after": 2498,
+              "fixed": 149,
+              "regressed": 84,
+              "same_width_octagram": 2156
+            },
+            "delimiter_prefix": {
+              "total": 119,
+              "before": 72,
+              "after": 99,
+              "fixed": 31,
+              "regressed": 4,
+              "same_width_octagram": 103
+            },
+            "emoji_prefix": {
+              "total": 119,
+              "before": 69,
+              "after": 100,
+              "fixed": 34,
+              "regressed": 3,
+              "same_width_octagram": 103
+            },
+            "english_prefix": {
+              "total": 119,
+              "before": 67,
+              "after": 92,
+              "fixed": 28,
+              "regressed": 3,
+              "same_width_octagram": 103
+            },
+            "newline": {
+              "total": 119,
+              "before": 66,
+              "after": 95,
+              "fixed": 36,
+              "regressed": 7,
+              "same_width_octagram": 99
+            },
+            "outside_window": {
+              "total": 119,
+              "before": 69,
+              "after": 86,
+              "fixed": 20,
+              "regressed": 3,
+              "same_width_octagram": 103
+            },
+            "paragraph": {
+              "total": 119,
+              "before": 67,
+              "after": 98,
+              "fixed": 36,
+              "regressed": 5,
+              "same_width_octagram": 99
+            },
+            "space": {
+              "total": 119,
+              "before": 66,
+              "after": 98,
+              "fixed": 37,
+              "regressed": 5,
+              "same_width_octagram": 99
+            },
+            "topic_prefix": {
+              "total": 119,
+              "before": 68,
+              "after": 99,
+              "fixed": 33,
+              "regressed": 2,
+              "same_width_octagram": 103
+            },
+            "whole": {
+              "total": 407,
+              "before": 300,
+              "after": 324,
+              "fixed": 38,
+              "regressed": 14,
+              "same_width_octagram": 282
+            },
+            "window_control": {
+              "total": 119,
+              "before": 69,
+              "after": 86,
+              "fixed": 20,
+              "regressed": 3,
+              "same_width_octagram": 103
+            }
+          }
+        }
+      },
+      "inference_only": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 8970,
+          "before": 7392,
+          "after": 7526,
+          "fixed": 308,
+          "regressed": 174,
+          "same_width_octagram": 6341
+        },
+        "groups": {
+          "category": {
+            "homophone": {
+              "total": 527,
+              "before": 461,
+              "after": 480,
+              "fixed": 23,
+              "regressed": 4,
+              "same_width_octagram": 460
+            },
+            "idiom": {
+              "total": 646,
+              "before": 560,
+              "after": 542,
+              "fixed": 19,
+              "regressed": 37,
+              "same_width_octagram": 581
+            },
+            "proper": {
+              "total": 251,
+              "before": 153,
+              "after": 154,
+              "fixed": 8,
+              "regressed": 7,
+              "same_width_octagram": 202
+            },
+            "split_chat": {
+              "total": 2361,
+              "before": 1722,
+              "after": 1792,
+              "fixed": 111,
+              "regressed": 41,
+              "same_width_octagram": 1494
+            },
+            "split_kubernetes": {
+              "total": 2496,
+              "before": 2185,
+              "after": 2230,
+              "fixed": 79,
+              "regressed": 34,
+              "same_width_octagram": 1765
+            },
+            "split_python": {
+              "total": 2223,
+              "before": 1917,
+              "after": 1937,
+              "fixed": 53,
+              "regressed": 33,
+              "same_width_octagram": 1449
+            },
+            "technical": {
+              "total": 466,
+              "before": 394,
+              "after": 391,
+              "fixed": 15,
+              "regressed": 18,
+              "same_width_octagram": 390
+            }
+          },
+          "variant": {
+            "auxiliary": {
+              "total": 476,
+              "before": 438,
+              "after": 435,
+              "fixed": 8,
+              "regressed": 11,
+              "same_width_octagram": 453
+            },
+            "commit_span": {
+              "total": 4048,
+              "before": 3279,
+              "after": 3351,
+              "fixed": 158,
+              "regressed": 86,
+              "same_width_octagram": 2535
+            },
+            "commit_suffix": {
+              "total": 2968,
+              "before": 2498,
+              "after": 2588,
+              "fixed": 115,
+              "regressed": 25,
+              "same_width_octagram": 2156
+            },
+            "delimiter_prefix": {
+              "total": 119,
+              "before": 99,
+              "after": 97,
+              "fixed": 3,
+              "regressed": 5,
+              "same_width_octagram": 103
+            },
+            "emoji_prefix": {
+              "total": 119,
+              "before": 100,
+              "after": 97,
+              "fixed": 2,
+              "regressed": 5,
+              "same_width_octagram": 103
+            },
+            "english_prefix": {
+              "total": 119,
+              "before": 92,
+              "after": 88,
+              "fixed": 3,
+              "regressed": 7,
+              "same_width_octagram": 103
+            },
+            "newline": {
+              "total": 119,
+              "before": 95,
+              "after": 97,
+              "fixed": 7,
+              "regressed": 5,
+              "same_width_octagram": 99
+            },
+            "outside_window": {
+              "total": 119,
+              "before": 86,
+              "after": 80,
+              "fixed": 3,
+              "regressed": 9,
+              "same_width_octagram": 103
+            },
+            "paragraph": {
+              "total": 119,
+              "before": 98,
+              "after": 98,
+              "fixed": 0,
+              "regressed": 0,
+              "same_width_octagram": 99
+            },
+            "space": {
+              "total": 119,
+              "before": 98,
+              "after": 98,
+              "fixed": 0,
+              "regressed": 0,
+              "same_width_octagram": 99
+            },
+            "topic_prefix": {
+              "total": 119,
+              "before": 99,
+              "after": 95,
+              "fixed": 3,
+              "regressed": 7,
+              "same_width_octagram": 103
+            },
+            "whole": {
+              "total": 407,
+              "before": 324,
+              "after": 322,
+              "fixed": 3,
+              "regressed": 5,
+              "same_width_octagram": 282
+            },
+            "window_control": {
+              "total": 119,
+              "before": 86,
+              "after": 80,
+              "fixed": 3,
+              "regressed": 9,
+              "same_width_octagram": 103
+            }
+          }
+        }
+      },
+      "combined": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 8970,
+          "before": 6928,
+          "after": 7526,
+          "fixed": 837,
+          "regressed": 239,
+          "same_width_octagram": 6341
+        },
+        "groups": {
+          "category": {
+            "homophone": {
+              "total": 527,
+              "before": 427,
+              "after": 480,
+              "fixed": 66,
+              "regressed": 13,
+              "same_width_octagram": 460
+            },
+            "idiom": {
+              "total": 646,
+              "before": 252,
+              "after": 542,
+              "fixed": 300,
+              "regressed": 10,
+              "same_width_octagram": 581
+            },
+            "proper": {
+              "total": 251,
+              "before": 100,
+              "after": 154,
+              "fixed": 61,
+              "regressed": 7,
+              "same_width_octagram": 202
+            },
+            "split_chat": {
+              "total": 2361,
+              "before": 1692,
+              "after": 1792,
+              "fixed": 169,
+              "regressed": 69,
+              "same_width_octagram": 1494
+            },
+            "split_kubernetes": {
+              "total": 2496,
+              "before": 2175,
+              "after": 2230,
+              "fixed": 116,
+              "regressed": 61,
+              "same_width_octagram": 1765
+            },
+            "split_python": {
+              "total": 2223,
+              "before": 1877,
+              "after": 1937,
+              "fixed": 109,
+              "regressed": 49,
+              "same_width_octagram": 1449
+            },
+            "technical": {
+              "total": 466,
+              "before": 405,
+              "after": 391,
+              "fixed": 16,
+              "regressed": 30,
+              "same_width_octagram": 390
+            }
+          },
+          "variant": {
+            "auxiliary": {
+              "total": 476,
+              "before": 350,
+              "after": 435,
+              "fixed": 93,
+              "regressed": 8,
+              "same_width_octagram": 453
+            },
+            "commit_span": {
+              "total": 4048,
+              "before": 3232,
+              "after": 3351,
+              "fixed": 239,
+              "regressed": 120,
+              "same_width_octagram": 2535
+            },
+            "commit_suffix": {
+              "total": 2968,
+              "before": 2433,
+              "after": 2588,
+              "fixed": 210,
+              "regressed": 55,
+              "same_width_octagram": 2156
+            },
+            "delimiter_prefix": {
+              "total": 119,
+              "before": 72,
+              "after": 97,
+              "fixed": 30,
+              "regressed": 5,
+              "same_width_octagram": 103
+            },
+            "emoji_prefix": {
+              "total": 119,
+              "before": 69,
+              "after": 97,
+              "fixed": 32,
+              "regressed": 4,
+              "same_width_octagram": 103
+            },
+            "english_prefix": {
+              "total": 119,
+              "before": 67,
+              "after": 88,
+              "fixed": 23,
+              "regressed": 2,
+              "same_width_octagram": 103
+            },
+            "newline": {
+              "total": 119,
+              "before": 66,
+              "after": 97,
+              "fixed": 37,
+              "regressed": 6,
+              "same_width_octagram": 99
+            },
+            "outside_window": {
+              "total": 119,
+              "before": 69,
+              "after": 80,
+              "fixed": 16,
+              "regressed": 5,
+              "same_width_octagram": 103
+            },
+            "paragraph": {
+              "total": 119,
+              "before": 67,
+              "after": 98,
+              "fixed": 36,
+              "regressed": 5,
+              "same_width_octagram": 99
+            },
+            "space": {
+              "total": 119,
+              "before": 66,
+              "after": 98,
+              "fixed": 37,
+              "regressed": 5,
+              "same_width_octagram": 99
+            },
+            "topic_prefix": {
+              "total": 119,
+              "before": 68,
+              "after": 95,
+              "fixed": 31,
+              "regressed": 4,
+              "same_width_octagram": 103
+            },
+            "whole": {
+              "total": 407,
+              "before": 300,
+              "after": 322,
+              "fixed": 37,
+              "regressed": 15,
+              "same_width_octagram": 282
+            },
+            "window_control": {
+              "total": 119,
+              "before": 69,
+              "after": 80,
+              "fixed": 16,
+              "regressed": 5,
+              "same_width_octagram": 103
+            }
+          }
+        }
+      }
+    },
+    "independent": {
+      "training": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 1920,
+          "before": 935,
+          "after": 1362,
+          "fixed": 495,
+          "regressed": 68,
+          "same_width_octagram": 1230
+        },
+        "groups": {
+          "category": {
+            "chid_prose": {
+              "total": 384,
+              "before": 225,
+              "after": 261,
+              "fixed": 51,
+              "regressed": 15,
+              "same_width_octagram": 274
+            },
+            "encyclopedia": {
+              "total": 384,
+              "before": 176,
+              "after": 264,
+              "fixed": 98,
+              "regressed": 10,
+              "same_width_octagram": 230
+            },
+            "entity": {
+              "total": 384,
+              "before": 151,
+              "after": 242,
+              "fixed": 102,
+              "regressed": 11,
+              "same_width_octagram": 194
+            },
+            "idiom": {
+              "total": 384,
+              "before": 192,
+              "after": 323,
+              "fixed": 148,
+              "regressed": 17,
+              "same_width_octagram": 279
+            },
+            "news": {
+              "total": 384,
+              "before": 191,
+              "after": 272,
+              "fixed": 96,
+              "regressed": 15,
+              "same_width_octagram": 253
+            }
+          },
+          "variant": {
+            "single": {
+              "total": 640,
+              "before": 473,
+              "after": 521,
+              "fixed": 97,
+              "regressed": 49,
+              "same_width_octagram": 473
+            },
+            "suffix": {
+              "total": 640,
+              "before": 268,
+              "after": 436,
+              "fixed": 179,
+              "regressed": 11,
+              "same_width_octagram": 392
+            },
+            "whole": {
+              "total": 640,
+              "before": 194,
+              "after": 405,
+              "fixed": 219,
+              "regressed": 8,
+              "same_width_octagram": 365
+            }
+          }
+        }
+      },
+      "inference_only": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 1920,
+          "before": 1362,
+          "after": 1451,
+          "fixed": 112,
+          "regressed": 23,
+          "same_width_octagram": 1230
+        },
+        "groups": {
+          "category": {
+            "chid_prose": {
+              "total": 384,
+              "before": 261,
+              "after": 277,
+              "fixed": 23,
+              "regressed": 7,
+              "same_width_octagram": 274
+            },
+            "encyclopedia": {
+              "total": 384,
+              "before": 264,
+              "after": 272,
+              "fixed": 12,
+              "regressed": 4,
+              "same_width_octagram": 230
+            },
+            "entity": {
+              "total": 384,
+              "before": 242,
+              "after": 255,
+              "fixed": 17,
+              "regressed": 4,
+              "same_width_octagram": 194
+            },
+            "idiom": {
+              "total": 384,
+              "before": 323,
+              "after": 363,
+              "fixed": 45,
+              "regressed": 5,
+              "same_width_octagram": 279
+            },
+            "news": {
+              "total": 384,
+              "before": 272,
+              "after": 284,
+              "fixed": 15,
+              "regressed": 3,
+              "same_width_octagram": 253
+            }
+          },
+          "variant": {
+            "single": {
+              "total": 640,
+              "before": 521,
+              "after": 573,
+              "fixed": 62,
+              "regressed": 10,
+              "same_width_octagram": 473
+            },
+            "suffix": {
+              "total": 640,
+              "before": 436,
+              "after": 476,
+              "fixed": 50,
+              "regressed": 10,
+              "same_width_octagram": 392
+            },
+            "whole": {
+              "total": 640,
+              "before": 405,
+              "after": 402,
+              "fixed": 0,
+              "regressed": 3,
+              "same_width_octagram": 365
+            }
+          }
+        }
+      },
+      "combined": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 1920,
+          "before": 935,
+          "after": 1451,
+          "fixed": 553,
+          "regressed": 37,
+          "same_width_octagram": 1230
+        },
+        "groups": {
+          "category": {
+            "chid_prose": {
+              "total": 384,
+              "before": 225,
+              "after": 277,
+              "fixed": 54,
+              "regressed": 2,
+              "same_width_octagram": 274
+            },
+            "encyclopedia": {
+              "total": 384,
+              "before": 176,
+              "after": 272,
+              "fixed": 103,
+              "regressed": 7,
+              "same_width_octagram": 230
+            },
+            "entity": {
+              "total": 384,
+              "before": 151,
+              "after": 255,
+              "fixed": 118,
+              "regressed": 14,
+              "same_width_octagram": 194
+            },
+            "idiom": {
+              "total": 384,
+              "before": 192,
+              "after": 363,
+              "fixed": 174,
+              "regressed": 3,
+              "same_width_octagram": 279
+            },
+            "news": {
+              "total": 384,
+              "before": 191,
+              "after": 284,
+              "fixed": 104,
+              "regressed": 11,
+              "same_width_octagram": 253
+            }
+          },
+          "variant": {
+            "single": {
+              "total": 640,
+              "before": 473,
+              "after": 573,
+              "fixed": 122,
+              "regressed": 22,
+              "same_width_octagram": 473
+            },
+            "suffix": {
+              "total": 640,
+              "before": 268,
+              "after": 476,
+              "fixed": 215,
+              "regressed": 7,
+              "same_width_octagram": 392
+            },
+            "whole": {
+              "total": 640,
+              "before": 194,
+              "after": 402,
+              "fixed": 216,
+              "regressed": 8,
+              "same_width_octagram": 365
+            }
+          }
+        }
+      },
+      "actual_single_syllable": {
+        "old": 477,
+        "trained": 526,
+        "anchored": 579,
+        "total": 653
+      }
+    },
+    "user": {
+      "training": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 9,
+          "before": 7,
+          "after": 6,
+          "fixed": 2,
+          "regressed": 3,
+          "same_width_octagram": 9
+        },
+        "groups": {
+          "category": {
+            "None": {
+              "total": 9,
+              "before": 7,
+              "after": 6,
+              "fixed": 2,
+              "regressed": 3,
+              "same_width_octagram": 9
+            }
+          },
+          "variant": {
+            "None": {
+              "total": 9,
+              "before": 7,
+              "after": 6,
+              "fixed": 2,
+              "regressed": 3,
+              "same_width_octagram": 9
+            }
+          }
+        }
+      },
+      "inference_only": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 9,
+          "before": 6,
+          "after": 9,
+          "fixed": 3,
+          "regressed": 0,
+          "same_width_octagram": 9
+        },
+        "groups": {
+          "category": {
+            "None": {
+              "total": 9,
+              "before": 6,
+              "after": 9,
+              "fixed": 3,
+              "regressed": 0,
+              "same_width_octagram": 9
+            }
+          },
+          "variant": {
+            "None": {
+              "total": 9,
+              "before": 6,
+              "after": 9,
+              "fixed": 3,
+              "regressed": 0,
+              "same_width_octagram": 9
+            }
+          }
+        }
+      },
+      "combined": {
+        "single_character_policy": "model",
+        "overall": {
+          "total": 9,
+          "before": 7,
+          "after": 9,
+          "fixed": 2,
+          "regressed": 0,
+          "same_width_octagram": 9
+        },
+        "groups": {
+          "category": {
+            "None": {
+              "total": 9,
+              "before": 7,
+              "after": 9,
+              "fixed": 2,
+              "regressed": 0,
+              "same_width_octagram": 9
+            }
+          },
+          "variant": {
+            "None": {
+              "total": 9,
+              "before": 7,
+              "after": 9,
+              "fixed": 2,
+              "regressed": 0,
+              "same_width_octagram": 9
+            }
+          }
+        }
+      }
+    }
+  },
+  "single_same_policy_ablation": {
+    "single_character_policy": "model",
+    "overall": {
+      "total": 1060,
+      "before": 730,
+      "after": 894,
+      "fixed": 180,
+      "regressed": 16,
+      "same_width_octagram": 834
+    },
+    "groups": {
+      "category": {
+        "chid_prose": {
+          "total": 128,
+          "before": 95,
+          "after": 112,
+          "fixed": 19,
+          "regressed": 2,
+          "same_width_octagram": 112
+        },
+        "encyclopedia": {
+          "total": 128,
+          "before": 99,
+          "after": 114,
+          "fixed": 19,
+          "regressed": 4,
+          "same_width_octagram": 91
+        },
+        "entity": {
+          "total": 141,
+          "before": 70,
+          "after": 102,
+          "fixed": 35,
+          "regressed": 3,
+          "same_width_octagram": 82
+        },
+        "homophone": {
+          "total": 35,
+          "before": 21,
+          "after": 30,
+          "fixed": 10,
+          "regressed": 1,
+          "same_width_octagram": 31
+        },
+        "idiom": {
+          "total": 166,
+          "before": 81,
+          "after": 130,
+          "fixed": 51,
+          "regressed": 2,
+          "same_width_octagram": 122
+        },
+        "news": {
+          "total": 128,
+          "before": 80,
+          "after": 99,
+          "fixed": 21,
+          "regressed": 2,
+          "same_width_octagram": 99
+        },
+        "proper": {
+          "total": 16,
+          "before": 7,
+          "after": 10,
+          "fixed": 3,
+          "regressed": 0,
+          "same_width_octagram": 12
+        },
+        "split_chat": {
+          "total": 96,
+          "before": 77,
+          "after": 88,
+          "fixed": 11,
+          "regressed": 0,
+          "same_width_octagram": 84
+        },
+        "split_kubernetes": {
+          "total": 96,
+          "before": 94,
+          "after": 95,
+          "fixed": 1,
+          "regressed": 0,
+          "same_width_octagram": 88
+        },
+        "split_python": {
+          "total": 96,
+          "before": 90,
+          "after": 91,
+          "fixed": 2,
+          "regressed": 1,
+          "same_width_octagram": 88
+        },
+        "technical": {
+          "total": 30,
+          "before": 16,
+          "after": 23,
+          "fixed": 8,
+          "regressed": 1,
+          "same_width_octagram": 25
+        }
+      },
+      "variant": {
+        "commit_suffix": {
+          "total": 407,
+          "before": 326,
+          "after": 368,
+          "fixed": 45,
+          "regressed": 3,
+          "same_width_octagram": 357
+        },
+        "single": {
+          "total": 640,
+          "before": 400,
+          "after": 521,
+          "fixed": 133,
+          "regressed": 12,
+          "same_width_octagram": 473
+        },
+        "suffix": {
+          "total": 13,
+          "before": 4,
+          "after": 5,
+          "fixed": 2,
+          "regressed": 1,
+          "same_width_octagram": 4
+        }
+      }
+    },
+    "fixed_ids": [
+      "00069d6394fa9a31a1569fc5/single",
+      "00080f92a7dc0e4726a7e0f0/single",
+      "000bdc10e423423058ba3118/single",
+      "000fea2ea9a88da6624bf7d5/single",
+      "002300a0fc2d2d439b70add7/single",
+      "002fa8a15fd6dd4905d7ee1a/single",
+      "00340ad357dd38876ce2f7e0/single",
+      "003811e6372283ea0808ca3e/single",
+      "006a31c2abea95b3d0992c6b/single",
+      "00747d68f49dc4eb75240c83/single",
+      "0074ddc2c17255bd6bd4fec8/single",
+      "007b43405d9473ed60ea547c/single",
+      "0080b34f2f92c4c7bb41de88/single",
+      "008b0a777bf3e8a075edc118/single",
+      "009af0ef914657af6cd6174e/single",
+      "00a0903ae2f70ef6bc6549be/single",
+      "00b3bec674a7e55466d290b8/single",
+      "00b43179adb2394fc5cfa091/single",
+      "00b7b8db67d7180c2a4a180e/single",
+      "000660d19eefedaf5548b793/single",
+      "000c4d71f361ca73e551d901/single",
+      "001567ef141237cad950cff8/single",
+      "003bf64850086eaa8e81d497/single",
+      "00412358df322419be15a616/single",
+      "00464cd2f2a604cfde75ba4e/single",
+      "005407bc54d93a7be2633d36/single",
+      "005b1d68d3b2c442021eb683/single",
+      "0085967506aa3fccd15e615a/single",
+      "008637506c652bd6bfa5597a/single",
+      "0088234109712271ee9c8f0d/single",
+      "00ae5c5e1365d8aec15444cd/single",
+      "00b78a5d502b0faff8acd8e0/single",
+      "00cfbcad0898e345bcc5b14e/single",
+      "00e85cc72b87d98aa60d92ae/single",
+      "0106c9a90678fd80eed9a96e/single",
+      "01208aab9a29147a5b052749/single",
+      "0122d30c75a883c16b5c05b1/single",
+      "01263dc1996e653910c2caf8/single",
+      "002c23cc6272b192cd467376/single",
+      "005e7a2b1ef7e629362193a7/single",
+      "0064a3253f627f00ff292dc4/single",
+      "008d1a208db2ebe9d6dade44/suffix",
+      "008d1a208db2ebe9d6dade44/single",
+      "00912e5d0f90818aa8195919/single",
+      "0093b480fd3e026f18b9d775/single",
+      "00bdaebef564576fb00da7d9/single",
+      "00df5698975d3df1b5fcaa3c/single",
+      "00e4afd43d441cd6ff185114/single",
+      "013eedb19b2ca737e4443c4c/single",
+      "018441812ef4baeba30a3cff/single",
+      "01d854db0ef542cd6166b459/single",
+      "01dd3c6a08115bea425284b7/single",
+      "022ebbc1f3e7ab0a30be5bf3/single",
+      "0243abde3f021d19b2d71b18/single",
+      "027a051faefbc7f7dfb12b88/single",
+      "0309c59c0055933b5f7f4fc7/single",
+      "030a876a7273c5c841341020/single",
+      "030f4f5134636afee6bfdef2/single",
+      "0317b47d949bc45e723b057f/single",
+      "033ddfd7262c25a38b6324c5/single",
+      "034b5c45d149f278934a9048/single",
+      "0371c01774bbb06e4986bb70/single",
+      "03a433d3d5602d22973adf5f/single",
+      "03a7be4d9d9ad19ef3955a99/single",
+      "03b06418afeeff6b1f72225c/suffix",
+      "03b06418afeeff6b1f72225c/single",
+      "040bccb1785a56733302c0b3/single",
+      "041c86b0976ea65cdb1ae786/single",
+      "0444b007527e3cd255b91fee/single",
+      "04720ada3669f7af4038c099/single",
+      "04866377c8fd1f039f7ae575/single",
+      "049065eb6d124542d2267b9f/single",
+      "04f639c607b1dacd02d76082/single",
+      "00041649d194c2b7a7464443/single",
+      "00138e09027e2b891012872a/single",
+      "001696de462d3986424c0003/single",
+      "002637dcc6f8fdd55b129d60/single",
+      "0030cbfc420e9907ffb2c748/single",
+      "0043ac58c200717de3ffb64c/single",
+      "005b99fd6b446a9399961836/single",
+      "005cb528be6f525db7dae8c3/single",
+      "0064636c55dff2368d3829d6/single",
+      "007797183a76f496530ee2fa/single",
+      "0097eb090f0afe940f9b57f3/single",
+      "00b0727b861e9b45327f04cb/single",
+      "00d336385e227760421a0bbc/single",
+      "00dc8ba72076710611717531/single",
+      "0104c655806109ad5cb04ae5/single",
+      "01148b6f8184e8314f531a2f/single",
+      "0118a2e3a925a6a97ee79796/single",
+      "013c5af8745a05dc62dd5c47/single",
+      "0152c8055ccdec8945cb4a0c/single",
+      "019c44d9793de7253ec41b3e/single",
+      "01a71a8176e0493f2a8b35ca/single",
+      "01a7e7b2c15050778d6fb559/single",
+      "01b297259094c63464a29100/single",
+      "01c1e2f0dacf09e308d19222/single",
+      "01c69e022ecea4d2c0c5cb52/single",
+      "01da77ea36b37c62dca2f7d4/single",
+      "01f583dd69d41ba69a374c78/single",
+      "01ff8794a4590f20ff2e529b/single",
+      "0215998f666d41fff69a5865/single",
+      "0235d12beb6a200d661a0c92/single",
+      "025062db50e6723e95a606e7/single",
+      "02513a6a6546fde4d3eb35a6/single",
+      "025dba8fbf41dd12fac1ff0d/single",
+      "0260d74c3320f92d46e83aad/single",
+      "02707a738a9ffdc1ee67da80/single",
+      "027109a9a703a7bc75b379bf/single",
+      "027598606bfc1b4e64b484dc/single",
+      "0289efd21df277a301b79179/single",
+      "028adae3c7753a835e2b5159/single",
+      "028ce6ab0b23b6181c3b0d47/single",
+      "02a684888eaeb484967d5e3c/single",
+      "00aa8801fb4f7d53b8a8226e/single",
+      "00ef5a74177932399fc3972f/single",
+      "0129798542719ac2633e6250/single",
+      "0158ddee707247721c70a6a6/single",
+      "016241a509ea612e8346945e/single",
+      "016fce2d88819fa7291b2ba8/single",
+      "018142743e0a4e6406991d40/single",
+      "018f8d769996c1c876788193/single",
+      "01b18517dcc6e94ae6c7009e/single",
+      "01ea37f12c472964eb7605db/single",
+      "01f17aed6a3426b442e042b8/single",
+      "01fe452849d6b8abafbee061/single",
+      "020c188a5ff9163e924994cf/single",
+      "0225f40c94cb883c11ea74ec/single",
+      "023aaf31cd5c42208b2df826/single",
+      "0266cb4f2ebf63217aa2de78/single",
+      "028b81dc4ed56d2b5e2b7218/single",
+      "028c495e924bcbf061623766/single",
+      "0299cfba162b92eee9142e15/single",
+      "02dfb71eaa746ae77515955f/single",
+      "031153ae99cf8f28fbb22def/single",
+      "heldout/8d90890be517b83a5528/split-7",
+      "heldout/94e914b8246eeed2135d/split-7",
+      "heldout/69ef851d83f3fa602c76/split-14",
+      "heldout/86d28d61db542e98005c/split-6",
+      "heldout/b192a7636822392f66b0/split-7",
+      "heldout/f33d82aa1e5273f7e200/split-5",
+      "heldout/cc53e684415e8e10d12f/split-10",
+      "heldout/de82512e623f08ad4215/split-5",
+      "heldout/6d09612a1804f45b2eb4/split-5",
+      "heldout/993fa3aea2d9d1a02a31/split-23",
+      "heldout/4b358cf953dcd55d93d7/split-6",
+      "heldout/0068ef954914dccac0d5/split-9",
+      "heldout/00a1280fd4f6886c7b73/split-15",
+      "heldout/0275a43757d3118054fb/split-8",
+      "stress-006/split-3",
+      "stress-010/split-3",
+      "stress-012/split-3",
+      "stress-015/split-3",
+      "stress-017/split-3",
+      "stress-028/split-3",
+      "stress-029/split-3",
+      "stress-030/split-3",
+      "stress-031/split-3",
+      "stress-037/split-3",
+      "stress-040/split-1",
+      "stress-046/split-3",
+      "stress-050/split-1",
+      "stress-051/split-1",
+      "stress-053/split-1",
+      "stress-061/split-1",
+      "stress-062/split-1",
+      "stress-064/split-1",
+      "stress-070/split-1",
+      "stress-072/split-1",
+      "stress-075/split-2",
+      "stress-079/split-1",
+      "stress-080/split-1",
+      "stress-081/split-3",
+      "stress-083/split-2",
+      "stress-086/split-3",
+      "stress-090/split-1",
+      "stress-091/split-1",
+      "stress-105/split-2",
+      "stress-116/split-2",
+      "stress-118/split-1"
+    ],
+    "regressed_ids": [
+      "0013ca425752af7a77b7222a/single",
+      "0060f39a1f6e66854ddd92cc/single",
+      "00403e7fcc02d5a49f310a5d/single",
+      "007e573e00ca3bbb82a0fb80/single",
+      "0081ee9cf081576da1731974/single",
+      "0129cac3c337af6ed99ba597/single",
+      "0283eb7290ee00fcd65f8d3b/single",
+      "034ad5b8c261508b534a7827/suffix",
+      "034ad5b8c261508b534a7827/single",
+      "00de940bb2b912a2c1ea8045/single",
+      "0108a843cd6c8c4aad56329e/single",
+      "01de4bb3fbdc8e236bf22266/single",
+      "01f5269b9cc3f2c306ad132c/single",
+      "heldout/00dc6cb8a30051913070/split-7",
+      "stress-067/split-1",
+      "stress-094/split-2"
+    ]
+  },
+  "known_failures": {
+    "total": 97,
+    "original_correct": 0,
+    "trained_correct": 61,
+    "anchored_correct": 65,
+    "inference_only": {
+      "single_character_policy": "model",
+      "overall": {
+        "total": 97,
+        "before": 61,
+        "after": 65,
+        "fixed": 9,
+        "regressed": 5,
+        "same_width_octagram": 65
+      },
+      "groups": {
+        "category": {
+          "chat": {
+            "total": 6,
+            "before": 1,
+            "after": 1,
+            "fixed": 0,
+            "regressed": 0,
+            "same_width_octagram": 6
+          },
+          "homophone": {
+            "total": 15,
+            "before": 9,
+            "after": 12,
+            "fixed": 3,
+            "regressed": 0,
+            "same_width_octagram": 7
+          },
+          "idiom": {
+            "total": 47,
+            "before": 40,
+            "after": 37,
+            "fixed": 2,
+            "regressed": 5,
+            "same_width_octagram": 35
+          },
+          "kubernetes": {
+            "total": 2,
+            "before": 0,
+            "after": 0,
+            "fixed": 0,
+            "regressed": 0,
+            "same_width_octagram": 2
+          },
+          "proper": {
+            "total": 16,
+            "before": 8,
+            "after": 9,
+            "fixed": 1,
+            "regressed": 0,
+            "same_width_octagram": 12
+          },
+          "python": {
+            "total": 2,
+            "before": 1,
+            "after": 1,
+            "fixed": 0,
+            "regressed": 0,
+            "same_width_octagram": 2
+          },
+          "technical": {
+            "total": 9,
+            "before": 2,
+            "after": 5,
+            "fixed": 3,
+            "regressed": 0,
+            "same_width_octagram": 1
+          }
+        },
+        "variant": {
+          "auxiliary": {
+            "total": 8,
+            "before": 8,
+            "after": 6,
+            "fixed": 0,
+            "regressed": 2,
+            "same_width_octagram": 8
+          },
+          "commit_suffix": {
+            "total": 22,
+            "before": 12,
+            "after": 19,
+            "fixed": 7,
+            "regressed": 0,
+            "same_width_octagram": 4
+          },
+          "heldout_whole": {
+            "total": 10,
+            "before": 2,
+            "after": 2,
+            "fixed": 0,
+            "regressed": 0,
+            "same_width_octagram": 10
+          },
+          "space": {
+            "total": 10,
+            "before": 8,
+            "after": 8,
+            "fixed": 0,
+            "regressed": 0,
+            "same_width_octagram": 7
+          },
+          "whole": {
+            "total": 47,
+            "before": 31,
+            "after": 30,
+            "fixed": 2,
+            "regressed": 3,
+            "same_width_octagram": 36
+          }
+        }
+      },
+      "fixed_ids": [
+        "stress-039",
+        "stress-062",
+        "stress-023/split-3",
+        "stress-037/split-2",
+        "stress-046/split-1",
+        "stress-082/split-1",
+        "stress-095/split-1",
+        "stress-101/split-3",
+        "stress-113/split-1"
+      ],
+      "regressed_ids": [
+        "stress-003",
+        "stress-006",
+        "stress-031",
+        "stress-003/aux-3-2",
+        "stress-006/aux-3-2"
+      ]
+    },
+    "remaining": [
+      {
+        "id": "stress-003",
+        "context": "小事也要算得清清楚楚，未免太",
+        "input": "jnjnjijc",
+        "gold": [
+          "斤斤计较"
+        ],
+        "constrained": "紧紧计较"
+      },
+      {
+        "id": "stress-006",
+        "context": "春天的田野呈现出",
+        "input": "xnxnxdrs",
+        "gold": [
+          "欣欣向荣"
+        ],
+        "constrained": "信心向荣"
+      },
+      {
+        "id": "stress-025",
+        "context": "双方做法看似不同，最终却",
+        "input": "uututsgv",
+        "gold": [
+          "殊途同归"
+        ],
+        "constrained": "殊涂同归"
+      },
+      {
+        "id": "stress-031",
+        "context": "方法不对，付出很多也会",
+        "input": "uibzgsbj",
+        "gold": [
+          "事倍功半"
+        ],
+        "constrained": "是被公办"
+      },
+      {
+        "id": "stress-036",
+        "context": "为了名声故意做作，这叫",
+        "input": "gum;dcyu",
+        "gold": [
+          "沽名钓誉"
+        ],
+        "constrained": "故名钓鱼"
+      },
+      {
+        "id": "stress-054",
+        "context": "那个证人愿意当庭进行",
+        "input": "virf",
+        "gold": [
+          "指认"
+        ],
+        "constrained": "之人"
+      },
+      {
+        "id": "stress-075",
+        "context": "SIGSEGV 是访问非法地址引发的",
+        "input": "drcowu",
+        "gold": [
+          "段错误"
+        ],
+        "constrained": "短错误"
+      },
+      {
+        "id": "stress-076",
+        "context": "torch.cuda.OutOfMemoryError 表示不足的是",
+        "input": "xmcp",
+        "gold": [
+          "显存"
+        ],
+        "constrained": "现存"
+      },
+      {
+        "id": "stress-081",
+        "context": "多个请求同时访问同一变量可能造成",
+        "input": "j;tltcjm",
+        "gold": [
+          "竞态条件"
+        ],
+        "constrained": "静态条件"
+      },
+      {
+        "id": "stress-086",
+        "context": "访问已释放的地址可能产生",
+        "input": "xrivvivf",
+        "gold": [
+          "悬垂指针"
+        ],
+        "constrained": "选吹指针"
+      },
+      {
+        "id": "stress-104",
+        "context": "《赤壁赋》的作者是",
+        "input": "suui",
+        "gold": [
+          "苏轼"
+        ],
+        "constrained": "素食"
+      },
+      {
+        "id": "stress-106",
+        "context": "《青玉案元夕》的作者是",
+        "input": "xnqiji",
+        "gold": [
+          "辛弃疾"
+        ],
+        "constrained": "新奇迹"
+      },
+      {
+        "id": "stress-108",
+        "context": "信息论的奠基人是",
+        "input": "xdns",
+        "gold": [
+          "香农"
+        ],
+        "constrained": "想弄"
+      },
+      {
+        "id": "stress-109",
+        "context": "以猫的思想实验闻名的物理学家是",
+        "input": "xtd;oe",
+        "gold": [
+          "薛定谔"
+        ],
+        "constrained": "学定额"
+      },
+      {
+        "id": "stress-114",
+        "context": "《滕王阁序》的作者是",
+        "input": "whbo",
+        "gold": [
+          "王勃"
+        ],
+        "constrained": "王伯"
+      },
+      {
+        "id": "stress-115",
+        "context": "《兰亭集序》的作者是",
+        "input": "whxivi",
+        "gold": [
+          "王羲之"
+        ],
+        "constrained": "王喜之"
+      },
+      {
+        "id": "stress-118",
+        "context": "与代数逻辑相关的数学家是",
+        "input": "buor",
+        "gold": [
+          "布尔"
+        ],
+        "constrained": "不二"
+      },
+      {
+        "id": "stress-034/split-1",
+        "context": "虽有遗憾，结果也算差",
+        "input": "qdrfyi",
+        "gold": [
+          "强人意"
+        ],
+        "constrained": "强人一"
+      },
+      {
+        "id": "stress-034/split-2",
+        "context": "虽有遗憾，结果也算差强",
+        "input": "rfyi",
+        "gold": [
+          "人意"
+        ],
+        "constrained": "人一"
+      },
+      {
+        "id": "stress-034/split-3",
+        "context": "虽有遗憾，结果也算差强人",
+        "input": "yi",
+        "gold": [
+          "意"
+        ],
+        "constrained": "一"
+      },
+      {
+        "id": "stress-046/space",
+        "context": "紧急情况下可以酌情 ",
+        "input": "bmyix;ui",
+        "gold": [
+          "便宜行事"
+        ],
+        "constrained": "变异形式"
+      },
+      {
+        "id": "stress-047/space",
+        "context": "不要只看表面，应当面对 ",
+        "input": "xmui",
+        "gold": [
+          "现实"
+        ],
+        "constrained": "显示"
+      },
+      {
+        "id": "55f18e1470937d37236c",
+        "context": "哈哈哈逮到机会我亚欧多得瑟几下。小样！刚刚我同学夸了我的画，",
+        "input": "mjmjdedslioa",
+        "gold": [
+          "满满的动力啊"
+        ],
+        "constrained": "慢慢的动力啊"
+      },
+      {
+        "id": "4216b13ec4b9c8150378",
+        "context": "你们决定好再call我。",
+        "input": "ykhlj;hluiwznisiwobuvidkoa",
+        "gold": [
+          "要海景还是威尼斯我不知道啊"
+        ],
+        "constrained": "要海景还是为你死我不知道啊"
+      },
+      {
+        "id": "8dec14ea33acacf3eff1",
+        "context": "我们也是为她好生活本来就艰辛为了钱做狗更可怜以后别接这种活啦好好",
+        "input": "zogevilix;zbderf",
+        "gold": [
+          "做个直立行走的人"
+        ],
+        "constrained": "做个智力行走的人"
+      },
+      {
+        "id": "de82512e623f08ad4215",
+        "context": "新年快乐。祝你越变越漂亮，越活越年轻~身体越来越好，",
+        "input": "qmbkytllytgu",
+        "gold": [
+          "钱包越来越鼓"
+        ],
+        "constrained": "钱包越来越骨"
+      },
+      {
+        "id": "fd5203c0ade15980586f",
+        "context": "事实证明在你生气的时候和一个机器一样的人对话。可能过一会就气死了。。",
+        "input": "vunizkriyuhwdgxm",
+        "gold": [
+          "祝你早日羽化登仙"
+        ],
+        "constrained": "祝你早日与花灯先"
+      },
+      {
+        "id": "1c1e9ba4a4b79eb89d5b",
+        "context": "用同一插件的 Score\n结果。每个插件在每个调度周期调用一次。\n\n \n例如，假设一个 BlinkingLightScorer ",
+        "input": "iajmjiyujuybdeujuoviuidguuldlldvjxdmjnx;plm;",
+        "gold": [
+          "插件基于具有的闪烁指示灯数量来对节点进行排名"
+        ],
+        "constrained": "插件基于具有的闪烁值是等数量来对节点进行排名"
+      },
+      {
+        "id": "1ebc4fd08cb804c5e7f6",
+        "context": "oc/sys/kernel/overflowgid）。\n然而，即使以 65534 用户/组的身份运行，也不可能修改这些文件。\n\n",
+        "input": "rugoyspzvixrnqjd",
+        "gold": [
+          "如果用配置旋钮将"
+        ],
+        "constrained": "如果用配置选牛将"
+      },
+      {
+        "id": "0aa2e357341af0269a49",
+        "context": "到完整名称的映射。 传入 '' 作为前缀可将表达式中所有无前缀的标记名称移动到给定的命名空间。\n查找第一个匹配 *match* ",
+        "input": "deziyrsudewfbf",
+        "gold": [
+          "的子元素的文本"
+        ],
+        "constrained": "的资源素的文本"
+      },
+      {
+        "id": "stress-003/aux-3-2",
+        "context": "小事也要算得清清楚楚，未免太",
+        "input": "jnjnjijcIF",
+        "gold": [
+          "斤斤计较"
+        ],
+        "constrained": "紧紧计较"
+      },
+      {
+        "id": "stress-006/aux-3-2",
+        "context": "春天的田野呈现出",
+        "input": "xnxnxdrsCM",
+        "gold": [
+          "欣欣向荣"
+        ],
+        "constrained": "信心向荣"
+      }
+    ]
+  },
+  "constraints_and_boundaries": {
+    "fixed": {
+      "total": 4864,
+      "baseline_correct": 2950,
+      "pipeline_correct": 3812,
+      "rescue": 1023,
+      "regression": 161,
+      "neural_evaluated": 4864,
+      "failures": {
+        "gold_in_pool_but_ranked_wrong": 388,
+        "search_missed_reachable_gold": 500,
+        "overrode_correct_baseline": 161,
+        "gold_unreachable": 3
+      }
+    },
+    "probes": {
+      "total": 8970,
+      "baseline_correct": 6341,
+      "pipeline_correct": 7526,
+      "rescue": 1522,
+      "regression": 337,
+      "neural_evaluated": 8970,
+      "failures": {
+        "gold_in_pool_but_ranked_wrong": 713,
+        "search_missed_reachable_gold": 394,
+        "overrode_correct_baseline": 337
+      }
+    },
+    "fixed_categories": {
+      "chat": {
+        "total": 2048,
+        "baseline_correct": 1172,
+        "pipeline_correct": 1380,
+        "rescue": 320,
+        "regression": 112,
+        "neural_evaluated": 2048,
+        "failures": {
+          "gold_in_pool_but_ranked_wrong": 230,
+          "search_missed_reachable_gold": 324,
+          "overrode_correct_baseline": 112,
+          "gold_unreachable": 2
+        }
+      },
+      "chat_short": {
+        "total": 256,
+        "baseline_correct": 172,
+        "pipeline_correct": 205,
+        "rescue": 42,
+        "regression": 9,
+        "neural_evaluated": 256,
+        "failures": {
+          "search_missed_reachable_gold": 10,
+          "gold_in_pool_but_ranked_wrong": 31,
+          "gold_unreachable": 1,
+          "overrode_correct_baseline": 9
+        }
+      },
+      "kubernetes": {
+        "total": 1024,
+        "baseline_correct": 705,
+        "pipeline_correct": 924,
+        "rescue": 235,
+        "regression": 16,
+        "neural_evaluated": 1024,
+        "failures": {
+          "overrode_correct_baseline": 16,
+          "gold_in_pool_but_ranked_wrong": 36,
+          "search_missed_reachable_gold": 48
+        }
+      },
+      "kubernetes_short": {
+        "total": 256,
+        "baseline_correct": 171,
+        "pipeline_correct": 221,
+        "rescue": 53,
+        "regression": 3,
+        "neural_evaluated": 256,
+        "failures": {
+          "gold_in_pool_but_ranked_wrong": 23,
+          "search_missed_reachable_gold": 9,
+          "overrode_correct_baseline": 3
+        }
+      },
+      "python": {
+        "total": 1024,
+        "baseline_correct": 583,
+        "pipeline_correct": 863,
+        "rescue": 298,
+        "regression": 18,
+        "neural_evaluated": 1024,
+        "failures": {
+          "search_missed_reachable_gold": 93,
+          "gold_in_pool_but_ranked_wrong": 50,
+          "overrode_correct_baseline": 18
+        }
+      },
+      "python_short": {
+        "total": 256,
+        "baseline_correct": 147,
+        "pipeline_correct": 219,
+        "rescue": 75,
+        "regression": 3,
+        "neural_evaluated": 256,
+        "failures": {
+          "search_missed_reachable_gold": 16,
+          "gold_in_pool_but_ranked_wrong": 18,
+          "overrode_correct_baseline": 3
+        }
+      }
+    },
+    "probe_categories": {
+      "homophone": {
+        "total": 527,
+        "baseline_correct": 460,
+        "pipeline_correct": 480,
+        "rescue": 44,
+        "regression": 24,
+        "neural_evaluated": 527,
+        "failures": {
+          "gold_in_pool_but_ranked_wrong": 23,
+          "overrode_correct_baseline": 24
+        }
+      },
+      "idiom": {
+        "total": 646,
+        "baseline_correct": 581,
+        "pipeline_correct": 542,
+        "rescue": 51,
+        "regression": 90,
+        "neural_evaluated": 646,
+        "failures": {
+          "overrode_correct_baseline": 90,
+          "gold_in_pool_but_ranked_wrong": 13,
+          "search_missed_reachable_gold": 1
+        }
+      },
+      "proper": {
+        "total": 251,
+        "baseline_correct": 202,
+        "pipeline_correct": 154,
+        "rescue": 7,
+        "regression": 55,
+        "neural_evaluated": 251,
+        "failures": {
+          "overrode_correct_baseline": 55,
+          "search_missed_reachable_gold": 2,
+          "gold_in_pool_but_ranked_wrong": 40
+        }
+      },
+      "split_chat": {
+        "total": 2361,
+        "baseline_correct": 1494,
+        "pipeline_correct": 1792,
+        "rescue": 377,
+        "regression": 79,
+        "neural_evaluated": 2361,
+        "failures": {
+          "gold_in_pool_but_ranked_wrong": 268,
+          "search_missed_reachable_gold": 222,
+          "overrode_correct_baseline": 79
+        }
+      },
+      "split_kubernetes": {
+        "total": 2496,
+        "baseline_correct": 1765,
+        "pipeline_correct": 2230,
+        "rescue": 502,
+        "regression": 37,
+        "neural_evaluated": 2496,
+        "failures": {
+          "search_missed_reachable_gold": 66,
+          "gold_in_pool_but_ranked_wrong": 163,
+          "overrode_correct_baseline": 37
+        }
+      },
+      "split_python": {
+        "total": 2223,
+        "baseline_correct": 1449,
+        "pipeline_correct": 1937,
+        "rescue": 509,
+        "regression": 21,
+        "neural_evaluated": 2223,
+        "failures": {
+          "gold_in_pool_but_ranked_wrong": 165,
+          "search_missed_reachable_gold": 100,
+          "overrode_correct_baseline": 21
+        }
+      },
+      "technical": {
+        "total": 466,
+        "baseline_correct": 390,
+        "pipeline_correct": 391,
+        "rescue": 32,
+        "regression": 31,
+        "neural_evaluated": 466,
+        "failures": {
+          "gold_in_pool_but_ranked_wrong": 41,
+          "overrode_correct_baseline": 31,
+          "search_missed_reachable_gold": 3
+        }
+      }
+    },
+    "variants": {
+      "auxiliary": {
+        "total": 476,
+        "baseline_correct": 453,
+        "pipeline_correct": 435,
+        "rescue": 12,
+        "regression": 30,
+        "neural_evaluated": 476,
+        "failures": {
+          "overrode_correct_baseline": 30,
+          "gold_in_pool_but_ranked_wrong": 11
+        }
+      },
+      "commit_span": {
+        "total": 4048,
+        "baseline_correct": 2535,
+        "pipeline_correct": 3351,
+        "rescue": 889,
+        "regression": 73,
+        "neural_evaluated": 4048,
+        "failures": {
+          "gold_in_pool_but_ranked_wrong": 459,
+          "search_missed_reachable_gold": 165,
+          "overrode_correct_baseline": 73
+        }
+      },
+      "commit_suffix": {
+        "total": 2968,
+        "baseline_correct": 2156,
+        "pipeline_correct": 2588,
+        "rescue": 493,
+        "regression": 61,
+        "neural_evaluated": 2968,
+        "failures": {
+          "gold_in_pool_but_ranked_wrong": 125,
+          "overrode_correct_baseline": 61,
+          "search_missed_reachable_gold": 194
+        }
+      },
+      "delimiter_prefix": {
+        "total": 119,
+        "baseline_correct": 103,
+        "pipeline_correct": 97,
+        "rescue": 6,
+        "regression": 12,
+        "neural_evaluated": 119,
+        "failures": {
+          "overrode_correct_baseline": 12,
+          "gold_in_pool_but_ranked_wrong": 10
+        }
+      },
+      "emoji_prefix": {
+        "total": 119,
+        "baseline_correct": 103,
+        "pipeline_correct": 97,
+        "rescue": 6,
+        "regression": 12,
+        "neural_evaluated": 119,
+        "failures": {
+          "overrode_correct_baseline": 12,
+          "gold_in_pool_but_ranked_wrong": 10
+        }
+      },
+      "english_prefix": {
+        "total": 119,
+        "baseline_correct": 103,
+        "pipeline_correct": 88,
+        "rescue": 6,
+        "regression": 21,
+        "neural_evaluated": 119,
+        "failures": {
+          "overrode_correct_baseline": 21,
+          "gold_in_pool_but_ranked_wrong": 10
+        }
+      },
+      "newline": {
+        "total": 119,
+        "baseline_correct": 99,
+        "pipeline_correct": 97,
+        "rescue": 9,
+        "regression": 11,
+        "neural_evaluated": 119,
+        "failures": {
+          "overrode_correct_baseline": 11,
+          "gold_in_pool_but_ranked_wrong": 10,
+          "search_missed_reachable_gold": 1
+        }
+      },
+      "outside_window": {
+        "total": 119,
+        "baseline_correct": 103,
+        "pipeline_correct": 80,
+        "rescue": 5,
+        "regression": 28,
+        "neural_evaluated": 119,
+        "failures": {
+          "overrode_correct_baseline": 28,
+          "gold_in_pool_but_ranked_wrong": 11
+        }
+      },
+      "paragraph": {
+        "total": 119,
+        "baseline_correct": 99,
+        "pipeline_correct": 98,
+        "rescue": 9,
+        "regression": 10,
+        "neural_evaluated": 119,
+        "failures": {
+          "overrode_correct_baseline": 10,
+          "gold_in_pool_but_ranked_wrong": 10,
+          "search_missed_reachable_gold": 1
+        }
+      },
+      "space": {
+        "total": 119,
+        "baseline_correct": 99,
+        "pipeline_correct": 98,
+        "rescue": 10,
+        "regression": 11,
+        "neural_evaluated": 119,
+        "failures": {
+          "overrode_correct_baseline": 11,
+          "gold_in_pool_but_ranked_wrong": 10
+        }
+      },
+      "topic_prefix": {
+        "total": 119,
+        "baseline_correct": 103,
+        "pipeline_correct": 95,
+        "rescue": 7,
+        "regression": 15,
+        "neural_evaluated": 119,
+        "failures": {
+          "overrode_correct_baseline": 15,
+          "gold_in_pool_but_ranked_wrong": 9
+        }
+      },
+      "whole": {
+        "total": 407,
+        "baseline_correct": 282,
+        "pipeline_correct": 322,
+        "rescue": 65,
+        "regression": 25,
+        "neural_evaluated": 407,
+        "failures": {
+          "gold_in_pool_but_ranked_wrong": 27,
+          "search_missed_reachable_gold": 33,
+          "overrode_correct_baseline": 25
+        }
+      },
+      "window_control": {
+        "total": 119,
+        "baseline_correct": 103,
+        "pipeline_correct": 80,
+        "rescue": 5,
+        "regression": 28,
+        "neural_evaluated": 119,
+        "failures": {
+          "overrode_correct_baseline": 28,
+          "gold_in_pool_but_ranked_wrong": 11
+        }
+      }
+    },
+    "outside_window": {
+      "pairs": 119,
+      "changed": []
+    },
+    "segmentation": {
+      "variants_of_correct_whole": 5027,
+      "failed": 367,
+      "model_failures": 367,
+      "affected_parents": 134
+    },
+    "auxiliary": {
+      "cases": 476,
+      "regressed_from_correct_whole": 0,
+      "ids": []
+    },
+    "constraints": {
+      "checked": 13834,
+      "violations": []
+    }
+  },
+  "targeted_constraints": {
+    "checked": 2026,
+    "violations": []
+  },
+  "runtime": {
+    "cases": 234,
+    "offline_disagreements": [],
+    "real_commits": [
+      {
+        "id": "original-commit-1",
+        "committed_reading": {
+          "text": "真",
+          "input": "vf"
+        },
+        "input": "dkvfqd",
+        "gold": [
+          "刀真枪"
+        ],
+        "result": "刀真枪"
+      },
+      {
+        "id": "original-commit-2",
+        "committed_reading": {
+          "text": "真刀",
+          "input": "vfdk"
+        },
+        "input": "vfqd",
+        "gold": [
+          "真枪"
+        ],
+        "result": "真枪"
+      },
+      {
+        "id": "original-commit-3",
+        "committed_reading": {
+          "text": "真刀真",
+          "input": "vfdkvf"
+        },
+        "input": "qd",
+        "gold": [
+          "枪"
+        ],
+        "result": "枪"
+      },
+      {
+        "id": "bianyi-commit",
+        "committed_reading": {
+          "text": "便宜",
+          "input": "bmyi"
+        },
+        "input": "x;ui",
+        "gold": [
+          "行事"
+        ],
+        "result": "行事"
+      },
+      {
+        "id": "pianyi-commit",
+        "committed_reading": {
+          "text": "便宜",
+          "input": "pmyi"
+        },
+        "input": "dole",
+        "gold": [
+          "多了"
+        ],
+        "result": "多了"
+      },
+      {
+        "id": "zhugeliang-commit",
+        "committed_reading": {
+          "text": "诸",
+          "input": "vu"
+        },
+        "input": "geld",
+        "gold": [
+          "葛亮"
+        ],
+        "result": "葛亮"
+      }
+    ],
+    "typing": {
+      "cases": 96,
+      "typed_keys": 902,
+      "checks": 576,
+      "invalidated_inflight_requests": 384,
+      "failures": 0
+    },
+    "profile_smoke": "枪",
+    "tests": {
+      "python": 18,
+      "ert": 74,
+      "bazel": "passed"
+    }
+  },
+  "deployment": {
+    "activation_profile": "/home/_WD_/.cache/wime-conditional/activate-diverse.el",
+    "loaded_into_existing_user_emacs": false,
+    "default_neural_mode": false,
+    "default_single_character": false,
+    "default_context_anchor": 0
+  }
+}
