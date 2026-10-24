@@ -43,7 +43,8 @@ def main():
         if args.grammar_dir:
             env.update(WIME_GRAMMAR=str(args.grammar_dir.resolve()),
                        WIME_GRAMMAR_MODULE=str(args.grammar_module.resolve()))
-        subprocess.run(['emacs', '-Q', '--batch', '-L', str(lisp), '-l',
+        subprocess.run(['emacs', '-Q', '--batch', '-L', str(lisp),
+                        '-l', str(lisp / 'wime.el'), '-l',
                         str(package / 'test/record-neural.el')], env=env, check=True)
         return [json.loads(line) for line in path.read_text().splitlines()]
 
@@ -86,6 +87,9 @@ def main():
         worker.stdin.close()
         worker.wait(timeout=5)
     summary = dict(cases=len(final), keystrokes=len(beam), model_requests=len(model_times),
+                   model=str(args.model.resolve()), worker=str(args.worker.resolve()),
+                   database=str(args.database.resolve()), grammar=bool(args.grammar_dir),
+                   execution='Emacs source, serial per-keystroke replay; UI debounce excluded',
                    correct={name: sum(r[name] in r['gold'] for r in final)
                             for name in ('baseline', 'beam', 'neural')},
                    covered=sum(r['covered'] for r in final),

@@ -105,6 +105,9 @@ is nil or unreadable, wime falls back to the committed Elisp tables."
 (defvar-local wime--candidate-records nil
   "Candidates with scores, input coverage and dictionary provenance.")
 
+(defvar-local wime--search-cache nil
+  "Last complete search, as (SIGNATURE UNITS PATHS).")
+
 (defvar wime-candidates-updated-hook nil
   "Hook run after refreshing the traditional candidates.")
 
@@ -363,9 +366,24 @@ prefix of one of its comma-separated groups."
 
 (defun wime--sentence-records (units)
   "Search UNITS with a bounded beam of distinct readings at each boundary."
-  (let* ((n (length units)) (paths (make-vector (1+ n) nil)))
+  (let* ((n (length units)) (paths (make-vector (1+ n) nil))
+         (signature (list wime-database-file wime--db wime-database-limit
+                          wime-word-penalty wime-max-word-syllables wime-search-width
+                          wime-grammar-module wime-grammar-shared-dir wime-grammar-language
+                          wime--grammar-ready wime--grammar-failed
+                          (symbol-function 'wime--entries-for)
+                          (symbol-function 'wime--grammar-score)))
+         (cache (and (equal signature (car wime--search-cache)) wime--search-cache))
+         (old-units (nth 1 cache)) (old-paths (nth 2 cache))
+         (common (cl-loop for old in old-units for new in units
+                          while (equal old new) count t))
+         ;; Only the last boundary uses octagram's rear score. When growing or
+         ;; shrinking, rebuild both the old final boundary and the new one.
+         (reuse (if (equal units old-units) n
+                  (max 0 (min common (1- (length old-units)) (1- n))))))
     (aset paths 0 (list (wime--make-candidate :text "" :score 0.0 :end 0)))
-    (cl-loop for end from 1 to n do
+    (cl-loop for end from 1 to reuse do (aset paths end (aref old-paths end)))
+    (cl-loop for end from (1+ reuse) to n do
              (let (extensions)
                (cl-loop for start from (max 0 (- end wime-max-word-syllables))
                         to (1- end) do
@@ -386,6 +404,7 @@ prefix of one of its comma-separated groups."
                                                  (wime--grammar-score prefix word (= end n))))
                                       extensions))))))
                (aset paths end (wime--best-paths (nreverse extensions)))))
+    (setq wime--search-cache (list signature units paths))
     ;; Full readings lead; shorter prefixes remain available after the beam.
     (let ((seen (make-hash-table :test #'equal)) result)
       (cl-loop for end from n downto 1 do
@@ -494,6 +513,7 @@ falls back to a prefix search, the way Rime completes partial pinyin."
   "Discard the current composition and its display."
   (setq wime--input nil
         wime--candidate-records nil
+        wime--search-cache nil
         wime--candidates nil
         wime--selected 0)
   (wime-active-mode -1)

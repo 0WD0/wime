@@ -7,6 +7,8 @@
 
 (setq wime-database-file (getenv "WIME_DATABASE"))
 (when-let* ((grammar (getenv "WIME_GRAMMAR")))
+  (unless (file-readable-p (expand-file-name "wanxiang-lts-zh-hans.gram" grammar))
+    (error "The requested octagram artifact is missing"))
   (setq wime-grammar-shared-dir grammar
         wime-grammar-module (getenv "WIME_GRAMMAR_MODULE")))
 (when-let* ((width (getenv "WIME_WIDTH")))
@@ -18,6 +20,7 @@
       (serial 0))
   (with-temp-file (getenv "WIME_RECORDING")
     (dolist (case cases)
+      (wime--reset)
       (let ((context (alist-get 'context case)) (input (alist-get 'input case)))
         (cl-loop for end from 1 to (length input) do
                  (let* ((typed (substring input 0 end))

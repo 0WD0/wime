@@ -64,6 +64,31 @@
       (should records)
       (should (cl-every (lambda (c) (= (wime-candidate-end c) 1)) records)))))
 
+(ert-deftest wime-incremental-search-matches-fresh-on-append-delete-and-aux ()
+  (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 90))
+                        ("bb" ("丙" "c" 100) ("丁" "d" 90))
+                        ("cc" ("戊" "e" 100)) ("aabb" ("甲丙" "a/c" 50)))
+    (let ((wime--search-cache nil) (wime-search-width 4))
+      (cl-letf (((symbol-function 'wime--grammar-score)
+                 (lambda (_context word rear)
+                   (if (and rear (equal word "丁")) 15.0 0.0))))
+        (dolist (input '("aabb" "aabbcc" "aabbcc" "aabbDcc" "aabbD" "aaBbbD" "aabb"))
+          (let* ((units (wime--parse input))
+                 (incremental (wime--sentence-records units))
+                 (fresh (let ((wime--search-cache nil)) (wime--sentence-records units))))
+            (should (equal incremental fresh))))))))
+
+(ert-deftest wime-search-cache-invalidates-on-scoring-settings ()
+  (wime-test--entries '(("aa" ("甲" "a" 100)) ("bb" ("乙" "b" 100))
+                        ("aabb" ("甲乙" "a/b" 1)))
+    (let ((wime--search-cache nil))
+      (wime--sentence-records (wime--parse "aabb"))
+      (let* ((wime-word-penalty 0)
+             (cached (wime--sentence-records (wime--parse "aabb")))
+             (fresh (let ((wime--search-cache nil))
+                      (wime--sentence-records (wime--parse "aabb")))))
+        (should (equal cached fresh))))))
+
 (declare-function wime-grammar-query "librime-grammar" (context word rear))
 
 ;; The database is a Bazel artifact.  Point at the build output when running
@@ -185,6 +210,14 @@
   (should (member "虐" (wime--candidates "nv")))
   (should (member "女" (wime--candidates "ny")))
   (should (member "贵" (wime--candidates "gv"))))
+
+(ert-deftest wime-polyphonic-words-remain-within-the-typed-code ()
+  (unless (wime--database) (ert-skip "word database not available"))
+  ;; 便宜 has both biàn yí (便宜行事) and pián yi; 编译 only has bian yi.
+  (should (member "便宜" (wime--candidates "bmyi")))
+  (should (member "便宜" (wime--candidates "pmyi")))
+  (should (member "编译" (wime--candidates "bmyi")))
+  (should-not (member "编译" (wime--candidates "pmyi"))))
 
 (ert-deftest wime-grammar-module ()
   (unless (wime--grammar-ready-p)

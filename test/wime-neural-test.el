@@ -68,6 +68,30 @@
       (should (= (alist-get 'end (aref candidates 2)) 1))
       (should (eq (alist-get 'dictionary (aref candidates 0)) :false)))))
 
+(ert-deftest wime-neural-filter-handles-split-lines-and-unrelated-ids ()
+  (wime-neural-test--composition
+    (let* ((process (make-pipe-process :name "wime-protocol-test" :noquery t))
+           (wime-neural--process process) (wime-neural--busy job)
+           (wime-neural--pending nil) (wime-neural--timeout-timer nil))
+      (unwind-protect
+          (progn
+            (wime-neural--filter process "{\"id\":9,\"promoted\":1}\n{\"id\":1,")
+            (should (eq wime-neural--busy job))
+            (should (equal (car wime--candidates) "甲乙"))
+            (wime-neural--filter process "\"promoted\":1,\"elapsed_ms\":2}\n")
+            (should-not wime-neural--busy)
+            (should (equal (car wime--candidates) "丙丁")))
+        (delete-process process)))))
+
+(ert-deftest wime-neural-dictionary-leader-does-not-schedule-work ()
+  (wime-neural-test--composition
+    (let ((wime-neural-model-file "model.safetensors") (wime-neural--failed nil)
+          (called nil))
+      (setf (wime-candidate-dictionary (car wime--candidate-records)) t)
+      (cl-letf (((symbol-function 'run-with-timer) (lambda (&rest _) (setq called t))))
+        (wime-neural--schedule)
+        (should-not called)))))
+
 (ert-deftest wime-neural-failure-preserves-traditional-candidates ()
   (wime-neural-test--composition
     (let ((wime-neural--process nil) (wime-neural--busy job)

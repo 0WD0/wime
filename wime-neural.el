@@ -112,13 +112,15 @@
   (unless (process-live-p wime-neural--process)
     (unless (and wime-neural-model-file (file-readable-p wime-neural-model-file))
       (error "Model file is not readable"))
-    (let ((default-directory temporary-file-directory))
+    (let ((model (expand-file-name wime-neural-model-file))
+          (program (or (executable-find wime-neural-program)
+                       (expand-file-name wime-neural-program)))
+          (default-directory temporary-file-directory))
       (setq wime-neural--process
             (make-process :name "wime-neural" :buffer nil :noquery t
                           :connection-type 'pipe :coding 'utf-8-unix
                           :stderr " *wime-neural-errors*"
-                          :command (list wime-neural-program
-                                         (expand-file-name wime-neural-model-file))
+                          :command (list program model)
                           :filter #'wime-neural--filter
                           :sentinel #'wime-neural--sentinel))))
   wime-neural--process)

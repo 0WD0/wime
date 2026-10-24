@@ -1,13 +1,13 @@
 #+title: wime
 #+options: toc:nil num:nil
 
-wime 是取代 emacs-rime 的纯 Elisp 输入法，针对万象 pro 的双拼加大写墨奇辅助码。双拼方案随数据库走：默认微软双拼，也可以用 =schemes/= 里按表生成的方案。它不链接 librime，不启动外部进程，也不需要原生模块。
+wime 是取代 emacs-rime 的纯 Elisp 输入法，针对万象 pro 的双拼加大写墨奇辅助码。双拼方案随数据库走：默认微软双拼，也可以用 =schemes/= 里按表生成的方案。输入解析和词格搜索在 Elisp 内完成；可选的原生模块提供 octagram 评分，后台进程提供本地神经重排。
 
 * 输入模型
 
 - 输入按音节解析：两个编码键构成一个音节（字母，加上方案用到的 =;,./=；它们只在方案使用的位置——声母位或韵母位——算编码，别处仍是标点），紧随其后的大写字母是该音节的墨奇辅助码；辅助码之后再出现小写就开启下一音节。因此 =yrZt= 保持原样显示，不会把 =Z= 挪到 =t= 后面。
-- 单音节直接查字表；多音节跑**词格 + Viterbi**，一次搜索同时得到整句、整词和较短前缀，再补首音节单字，顺序对齐 Rime 的翻译器（=nihk=、=yrtk= 的候选与 Rime 一致）。
-- 打分用词频对数减去每个词一个固定罚项（=wime-word-penalty=），等价于按词数惩罚过度切分。
+- 单音节直接查字表；多音节搜索词格，在每个音节边界保留最多 =wime-search-width= 条不同表记（默认 8）。整句在前，较短前缀在后；每个候选保留消耗的音节数和整词命中信息。追加、退格和辅助码修改复用仍有效的前缀路径，句尾的 octagram 分数重新计算。
+- 打分用词频对数、每词罚项（=wime-word-penalty=）和可选的 octagram 搭配分数。
 - 数字选字、空格选当前、回车提交原始输入、退格依次回退已输入的键、ESC 取消；只读缓冲区原样透传。
 
 * 数据与生成
@@ -15,13 +15,19 @@ wime 是取代 emacs-rime 的纯 Elisp 输入法，针对万象 pro 的双拼加
 Bazel 在构建期从上游 nightly 产物下载，不依赖本机安装，也不导入整个仓库：
 
 - =rime_wanxiang.bzl= 按固定 URL 与 sha256 拉取 =dict-nightly= 的 =rime-wanxiang-moqi-fuzhu.zip=（墨奇辅助码只存在于 release，git 树里的 =chaifen.txt= 是空占位）。
-- 同一个文件里的 gram 规则拉取 =RIME-LMDG= 的 =wanxiang-lts-zh-hans.gram=，随快照发布，供后续语言模型模块使用。
+- 同一个文件里的 gram 规则拉取 =RIME-LMDG= 的 =wanxiang-lts-zh-hans.gram=，随快照发布，供 octagram 模块使用。
 - =gen/update_nightly.py= 重新下载两个 nightly 资产并回写 =rime_wanxiang.bzl= 里的 sha256，用于跟随 nightly。
 - 生成器 =gen/wime_gen.py= 解析 =wanxiang_algebra.yaml= 的 =pro/微软双拼= 规则（忠实移植 Rime 的 =xform=／=derive=／=xlit=，不依赖 PyYAML），把 =wanxiang_pro.dict.yaml= 及其 =dicts/*.pro.dict.yaml= 转成按双拼码索引的库。
 - =--scheme schemes/X.json= 改用表：每个声母（=""= 为零声母）和韵母对应一个键，ü 写作 =v=，j/q/x/y 后的 u 也写作 =v=。表由 =keyboard-ergonomics/export_scheme.py= 从优化结果导出；=schemes/liangti.json= 是量体双拼——按实测击键成本优化、偏好左声右韵的布局，构建目标 =//emacs-packages/wime:database_liangti=（=wanxiang-liangti.db=）；=schemes/liangti-fast.json= 是同一批测量下不顾好记、只求最快的量体双拼·速（=database_liangti_fast=）。用 =M-x wime-select-database= 切换。
 - 每个库都带 =meta= 表（方案名、声母位与韵母位用到的键），引擎据此判断 =;,./= 是编码还是标点。
 - 产物 =wanxiang.db= 是 SQLite（约 220 万条），由 =//emacs-packages/wime:database= 生成并随快照发布；wime 用内置的 =sqlite-select= 查询。仓库不再提交生成的 Elisp 表。
 
-* 当前范围
+* 可选神经重排
 
-单字、词、以及整词缺失时的整句组合已可用。尚未实现：Rime 的 octagram collocation 语言模型（只包 LM 的原生模块，输入引擎仍是 Elisp）、上屏后的后续预测、声调输入（7890 与选字数字冲突）、自造词与调频。候选暂时作为行内 overlay 附在光标后显示。
+wdoom 快照包含 =wime-neural= 和固定摘要的 4.25M 模型，并配置好路径；用 =M-x wime-neural-mode= 启用。独立使用时设置 =wime-neural-program=、=wime-neural-model-file=，worker 可用 =bazel build -c opt //emacs-packages/wime/neural:wime-neural= 构建。模型来源与摘要在 =neural_model.bzl=，推理源码及完整上游历史在 =third_party/chinese-ime-lm/=。
+
+传统候选立即显示，停键 40 ms 后最多比较 9 个覆盖整个输入的候选；整词命中的首选保持不动。进程常驻并复用模型缓存，最多保留一个正在运行和一个待处理请求。输入、光标、缓冲区内容或选中项变化后，旧结果失效；进程失败或超时保留传统候选。模型只提升已有候选，不生成文字，也不联网推理。
+
+目前默认关闭：=test/neural-measurements.json= 记录的 28 条手写开发样例中，octagram 首选 27/28，4.25M 重排 22/28，24.9M 重排 27/28（修对一条、改错一条）。这不是独立质量评测。=test/benchmark-neural.py --help= 给出复现参数；它逐键记录实际候选，金标准只用于推理后的统计，不参与筛选。下一步需要拼音条件模型和更大、独立的评测集。
+
+尚未实现：模型前缀约束驱动的重新搜索、上屏后的后续预测、声调输入、自造词与调频。

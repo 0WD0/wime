@@ -1,0 +1,390 @@
+{
+  "date": "2026-10-25",
+  "scope": "28 handwritten development cases, not a held-out quality benchmark",
+  "baseline_revision": "56fb7dcde182f0c3ef0cfdd3dc42e6d0bd50896a",
+  "case_sha256": "f6fe00c13b24b6ce0126629e3dbe1d1cd0fc6021968d83d38578aaf006ec659d",
+  "cpu": "13th Gen Intel(R) Core(TM) i5-13600KF",
+  "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.44",
+  "dictionary_sha256": "6cd642c6562de74701bba9f5df424c707de9c9362182e6e41c1c63943246ea66",
+  "grammar_sha256": "d26da3d6fe567bcf4aad8790475356997d8bc0886b087b292c5063c0adc12bd0",
+  "upstream": "main#chinese-ime-lm@origin: 9131d16d",
+  "models": {
+    "4.25M": {
+      "sha256": "86ac529510cb3b4968a5e6ade83ec8080f5b34a0a681e75c362accbbd387d1c1",
+      "cases": 28,
+      "keystrokes": 348,
+      "model_requests": 93,
+      "grammar": true,
+      "correct": {
+        "baseline": 27,
+        "beam": 27,
+        "neural": 22
+      },
+      "covered": 28,
+      "rescued": 0,
+      "regressed": 5,
+      "search_ms": {
+        "baseline": {
+          "p50": 0.731,
+          "p95": 7.476
+        },
+        "beam": {
+          "p50": 1.82,
+          "p95": 11.044
+        }
+      },
+      "model_ms": {
+        "p50": 4.362,
+        "p95": 17.11
+      },
+      "response_ms": {
+        "p50": 4.465,
+        "p95": 17.18
+      }
+    },
+    "24.9M": {
+      "sha256": "0a6ecba69bf1d39c7eb49549c716477dd6c03fdf05757773e1f50435262fb469",
+      "cases": 28,
+      "keystrokes": 348,
+      "model_requests": 93,
+      "grammar": true,
+      "correct": {
+        "baseline": 27,
+        "beam": 27,
+        "neural": 27
+      },
+      "covered": 28,
+      "rescued": 1,
+      "regressed": 1,
+      "search_ms": {
+        "baseline": {
+          "p50": 0.39,
+          "p95": 7.589
+        },
+        "beam": {
+          "p50": 1.845,
+          "p95": 10.789
+        }
+      },
+      "model_ms": {
+        "p50": 25.202,
+        "p95": 93.619
+      },
+      "response_ms": {
+        "p50": 25.337,
+        "p95": 93.692
+      }
+    }
+  },
+  "cases": [
+    {
+      "case": "w-001",
+      "gold": [
+        "我今天去上班"
+      ],
+      "baseline": "我今天去上班",
+      "beam": "我今天去上班",
+      "covered": true,
+      "small": "我今天去上班",
+      "desktop": "我今天去上班"
+    },
+    {
+      "case": "w-002",
+      "gold": [
+        "我们正在开会"
+      ],
+      "baseline": "我们正在开会",
+      "beam": "我们正在开会",
+      "covered": true,
+      "small": "我们正在开会",
+      "desktop": "我们正在开会"
+    },
+    {
+      "case": "w-003",
+      "gold": [
+        "这是一个好主意"
+      ],
+      "baseline": "这是一个好主意",
+      "beam": "这是一个好主意",
+      "covered": true,
+      "small": "这是一个好注意",
+      "desktop": "这是一个好主意"
+    },
+    {
+      "case": "w-004",
+      "gold": [
+        "我明天早来公司"
+      ],
+      "baseline": "我明天早来公司",
+      "beam": "我明天早来公司",
+      "covered": true,
+      "small": "我明天早来公司",
+      "desktop": "我明天早来公司"
+    },
+    {
+      "case": "w-005",
+      "gold": [
+        "请你帮我看看"
+      ],
+      "baseline": "请你帮我看看",
+      "beam": "请你帮我看看",
+      "covered": true,
+      "small": "请你帮我看看",
+      "desktop": "请你帮我看看"
+    },
+    {
+      "case": "w-006",
+      "gold": [
+        "我的手机没电了"
+      ],
+      "baseline": "我的手机没电了",
+      "beam": "我的手机没电了",
+      "covered": true,
+      "small": "我的手机没电了",
+      "desktop": "我的手机没电了"
+    },
+    {
+      "case": "w-007",
+      "gold": [
+        "这个问题很重要"
+      ],
+      "baseline": "这个问题很重要",
+      "beam": "这个问题很重要",
+      "covered": true,
+      "small": "这个问题很重要",
+      "desktop": "这个问题很重要"
+    },
+    {
+      "case": "w-008",
+      "gold": [
+        "我们一起吃饭吧"
+      ],
+      "baseline": "我们一起吃饭吧",
+      "beam": "我们一起吃饭吧",
+      "covered": true,
+      "small": "我们一起吃饭吧",
+      "desktop": "我们一起吃饭吧"
+    },
+    {
+      "case": "w-009",
+      "gold": [
+        "你昨天去哪里了"
+      ],
+      "baseline": "你昨天去哪里了",
+      "beam": "你昨天去哪里了",
+      "covered": true,
+      "small": "你昨天去哪里了",
+      "desktop": "你昨天去哪里了"
+    },
+    {
+      "case": "w-010",
+      "gold": [
+        "现在几点钟"
+      ],
+      "baseline": "现在几点钟",
+      "beam": "现在几点钟",
+      "covered": true,
+      "small": "现在几点钟",
+      "desktop": "现在几点钟"
+    },
+    {
+      "case": "w-011",
+      "gold": [
+        "我想修改这段代码"
+      ],
+      "baseline": "我想修改这段代码",
+      "beam": "我想修改这段代码",
+      "covered": true,
+      "small": "我想修改这段代码",
+      "desktop": "我想修改这段代码"
+    },
+    {
+      "case": "w-012",
+      "gold": [
+        "请把文件发给我"
+      ],
+      "baseline": "请把文件发给我",
+      "beam": "请把文件发给我",
+      "covered": true,
+      "small": "请把文件发给我",
+      "desktop": "请把文件发给我"
+    },
+    {
+      "case": "w-013",
+      "gold": [
+        "这个补丁已经合并了"
+      ],
+      "baseline": "这个补丁已经合并了",
+      "beam": "这个补丁已经合并了",
+      "covered": true,
+      "small": "这个补丁已经和病了",
+      "desktop": "这个补丁已经合并了"
+    },
+    {
+      "case": "w-014",
+      "gold": [
+        "模型需要在本地运行"
+      ],
+      "baseline": "模型需要在本地运行",
+      "beam": "模型需要在本地运行",
+      "covered": true,
+      "small": "模型需要在本地运行",
+      "desktop": "模型需要在本地运行"
+    },
+    {
+      "case": "w-015",
+      "gold": [
+        "明天我们再讨论"
+      ],
+      "baseline": "明天我们在讨论",
+      "beam": "明天我们在讨论",
+      "covered": true,
+      "small": "明天我们在讨论",
+      "desktop": "明天我们再讨论"
+    },
+    {
+      "case": "w-016",
+      "gold": [
+        "数据库连接失败了"
+      ],
+      "baseline": "数据库连接失败了",
+      "beam": "数据库连接失败了",
+      "covered": true,
+      "small": "数据库链接失败了",
+      "desktop": "数据库连接失败了"
+    },
+    {
+      "case": "w-017",
+      "gold": [
+        "我们需要做一些测试"
+      ],
+      "baseline": "我们需要做一些测试",
+      "beam": "我们需要做一些测试",
+      "covered": true,
+      "small": "我们需要做一些测试",
+      "desktop": "我们需要做一些测试"
+    },
+    {
+      "case": "w-018",
+      "gold": [
+        "请保留原来的设置"
+      ],
+      "baseline": "请保留原来的设置",
+      "beam": "请保留原来的设置",
+      "covered": true,
+      "small": "请保留原来的设置",
+      "desktop": "请保留原来的设置"
+    },
+    {
+      "case": "w-019",
+      "gold": [
+        "银行今天不上班"
+      ],
+      "baseline": "银行今天不上班",
+      "beam": "银行今天不上班",
+      "covered": true,
+      "small": "银行今天不上班",
+      "desktop": "银行今天不上班"
+    },
+    {
+      "case": "w-020",
+      "gold": [
+        "我想去西安旅游"
+      ],
+      "baseline": "我想去西安旅游",
+      "beam": "我想去西安旅游",
+      "covered": true,
+      "small": "我想去西安旅游",
+      "desktop": "我想去西安旅游"
+    },
+    {
+      "case": "w-021",
+      "gold": [
+        "已经合并了"
+      ],
+      "baseline": "已经合并了",
+      "beam": "已经合并了",
+      "covered": true,
+      "small": "已经和病了",
+      "desktop": "已经合并了"
+    },
+    {
+      "case": "w-022",
+      "gold": [
+        "需要重新编译"
+      ],
+      "baseline": "需要重新编译",
+      "beam": "需要重新编译",
+      "covered": true,
+      "small": "需要重新便宜",
+      "desktop": "需要重新编一"
+    },
+    {
+      "case": "w-023",
+      "gold": [
+        "可以直接运行"
+      ],
+      "baseline": "可以直接运行",
+      "beam": "可以直接运行",
+      "covered": true,
+      "small": "可以直接运行",
+      "desktop": "可以直接运行"
+    },
+    {
+      "case": "w-024",
+      "gold": [
+        "今天不开门"
+      ],
+      "baseline": "今天不开门",
+      "beam": "今天不开门",
+      "covered": true,
+      "small": "今天不开门",
+      "desktop": "今天不开门"
+    },
+    {
+      "case": "w-025",
+      "gold": [
+        "你好"
+      ],
+      "baseline": "你好",
+      "beam": "你好",
+      "covered": true,
+      "small": "你好",
+      "desktop": "你好"
+    },
+    {
+      "case": "w-026",
+      "gold": [
+        "我们"
+      ],
+      "baseline": "我们",
+      "beam": "我们",
+      "covered": true,
+      "small": "我们",
+      "desktop": "我们"
+    },
+    {
+      "case": "w-027",
+      "gold": [
+        "合并"
+      ],
+      "baseline": "合并",
+      "beam": "合并",
+      "covered": true,
+      "small": "合并",
+      "desktop": "合并"
+    },
+    {
+      "case": "w-028",
+      "gold": [
+        "世界"
+      ],
+      "baseline": "世界",
+      "beam": "世界",
+      "covered": true,
+      "small": "世界",
+      "desktop": "世界"
+    }
+  ],
+  "execution": "Emacs source, serial per-keystroke replay; UI debounce excluded"
+}
