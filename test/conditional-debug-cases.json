@@ -1274,5 +1274,104 @@
     "gold": [
       "便宜"
     ]
+  },
+  {
+    "id": "continuation-user-split-0",
+    "context": "你模型水平咋样，到底是好是坏，推友们自己测一测就一清二楚了。你模型水平好性价比又高的话，你都不用太宣传，推友们绝对会自发地介绍最好用最划算的模型。\n你找一堆水军，强迫一堆大V去吹分数，跟 Opus 5.5 碰瓷，这叫自掘坟墓。人家 Opus5.5 那水平那口碑是",
+    "input": "vfdkvfqd",
+    "gold": [
+      "真刀真枪"
+    ],
+    "category": "commit_boundary",
+    "family": "continuation-qiang",
+    "pinyin": "zhen dao zhen qiang"
+  },
+  {
+    "id": "continuation-user-split-2",
+    "context": "你模型水平咋样，到底是好是坏，推友们自己测一测就一清二楚了。你模型水平好性价比又高的话，你都不用太宣传，推友们绝对会自发地介绍最好用最划算的模型。\n你找一堆水军，强迫一堆大V去吹分数，跟 Opus 5.5 碰瓷，这叫自掘坟墓。人家 Opus5.5 那水平那口碑是真刀",
+    "input": "vfqd",
+    "gold": [
+      "真枪"
+    ],
+    "category": "commit_boundary",
+    "family": "continuation-qiang",
+    "pinyin": "zhen qiang"
+  },
+  {
+    "id": "continuation-user-split-3",
+    "context": "你模型水平咋样，到底是好是坏，推友们自己测一测就一清二楚了。你模型水平好性价比又高的话，你都不用太宣传，推友们绝对会自发地介绍最好用最划算的模型。\n你找一堆水军，强迫一堆大V去吹分数，跟 Opus 5.5 碰瓷，这叫自掘坟墓。人家 Opus5.5 那水平那口碑是真刀真",
+    "input": "qd",
+    "gold": [
+      "枪"
+    ],
+    "category": "commit_boundary",
+    "family": "continuation-qiang",
+    "pinyin": "qiang"
+  },
+  {
+    "id": "continuation-qd-0",
+    "context": "真刀真",
+    "input": "qd",
+    "gold": [
+      "枪"
+    ],
+    "category": "commit_boundary",
+    "family": "continuation-qiang",
+    "pinyin": "qiang"
+  },
+  {
+    "id": "continuation-qd-1",
+    "context": "这面",
+    "input": "qd",
+    "gold": [
+      "墙"
+    ],
+    "category": "commit_boundary",
+    "family": "continuation-qiang",
+    "pinyin": "qiang"
+  },
+  {
+    "id": "continuation-qd-2",
+    "context": "",
+    "input": "qd",
+    "gold": [
+      "强"
+    ],
+    "category": "commit_boundary",
+    "family": "continuation-qiang",
+    "pinyin": "qiang"
+  },
+  {
+    "id": "continuation-qd-3",
+    "context": "他的实力很",
+    "input": "qd",
+    "gold": [
+      "强"
+    ],
+    "category": "commit_boundary",
+    "family": "continuation-qiang",
+    "pinyin": "qiang"
+  },
+  {
+    "id": "continuation-qd-4",
+    "context": "真刀真",
+    "input": "qdG",
+    "gold": [
+      "强"
+    ],
+    "category": "commit_boundary",
+    "family": "continuation-qiang",
+    "pinyin": "qiang"
+  },
+  {
+    "id": "continuation-qd-5",
+    "context": "真刀真",
+    "input": "qdM",
+    "gold": [
+      "枪"
+    ],
+    "category": "commit_boundary",
+    "family": "continuation-qiang",
+    "pinyin": "qiang"
   }
 ]

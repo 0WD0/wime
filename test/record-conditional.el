@@ -49,7 +49,7 @@
                       :model_evaluated ,(if wime-neural-last-latency t :false)
                       :cold_start ,(if (and cold wime-neural-last-latency) t :false)
                       :initial_search_ms ,initial-search-ms
-                      :last_inference_ms ,wime-neural-last-latency
+                      :last_inference_ms ,(or wime-neural-last-latency :null)
                       :wall_ms ,(* 1000 (- (float-time) start))) results)
               (when (zerop (% (cl-incf count) 200))
                 (message "Recorded %d compositions" count))
