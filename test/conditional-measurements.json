@@ -68,7 +68,64 @@
       }
     },
     "audit": "Zero shared documents and exact target strings across train/dev/test in each source. Technical targets shared with any LCCC split removed. 20 LCCC training targets outside the inherited vocabulary excluded.",
-    "test_selection": "First 2048 dialog test rows in source order; first 1024 technical test rows sorted by target SHA256."
+    "test_selection": "First 2048 dialog test rows in source order; first 1024 technical test rows sorted by target SHA256.",
+    "programming": {
+      "source": "https://github.com/python/python-docs-zh-cn",
+      "revision": "30950021e5c37e785a63d583628b637bdaf97fa8",
+      "archive_sha256": "e6b41c238e82821ea30f1c0be5f965ed47ae1999d29b0e100aeb5b47bb218610",
+      "license": "Python documentation license (full upstream license.po retained)",
+      "attribution": "Python Software Foundation and Chinese documentation translators, Chinese documentation (modified into pinyin/text pairs).",
+      "counts": {
+        "train_source_documents": 387,
+        "duplicates": 10710,
+        "test_source_documents": 56,
+        "other_corpus_overlap": 743,
+        "dev_source_documents": 52,
+        "train": 104710,
+        "train_documents": 772,
+        "train_chars": 1217073,
+        "dev": 12504,
+        "dev_documents": 103,
+        "dev_chars": 147801,
+        "test": 14286,
+        "test_documents": 102,
+        "test_chars": 167626
+      },
+      "pypinyin": "0.55.0",
+      "limitation": "Automatic pinyin labels; upstream pretrained-model overlap unknown.",
+      "appended_corpus": {
+        "source": "https://github.com/kubernetes/website",
+        "revision": "fe59320b9e3858bc9d41b4ad8d86b1c77568ceb4",
+        "archive_sha256": "a45f4c91c6cd1910bbb2c927b3ab49436deedd3b9290103a13a00944bbccb7b7",
+        "license": "CC-BY-4.0",
+        "attribution": "The Kubernetes Authors, Chinese documentation (modified into pinyin/text pairs).",
+        "counts": {
+          "train_documents": 421,
+          "duplicates": 3409,
+          "test_documents": 48,
+          "other_corpus_overlap": 19,
+          "dev_documents": 51,
+          "train": 39100,
+          "train_chars": 436599,
+          "dev": 3968,
+          "dev_chars": 44266,
+          "test": 4845,
+          "test_chars": 54146
+        },
+        "pypinyin": "0.55.0",
+        "limitation": "Automatic pinyin labels; upstream pretrained-model overlap unknown.",
+        "files": {
+          "train": "b45f4b3f04a1a75388139e6250c5aaa25318646a9eebc04d161d662a18c73238",
+          "dev": "c8c154015a08dee003a074268e090248305ac65adfd7a9cd128ceb29f84b71a8",
+          "test": "e84db092e2687bb051f55fd81b3603082d8be40721d09b6e51c1accb0012ce77"
+        }
+      },
+      "files": {
+        "train": "0ce4f24e2878068d1ec919860e42b8dde11fbc4f3e46b61a159ac9607cc26a4b",
+        "dev": "13508994567e794272eb8f56e7a3b50dbd74b1719ceee9c9684610ab024321fc",
+        "test": "7382d41e2fd7983fe0181df863459a7ee61333d5a3247a5330e4333839a9a937"
+      }
+    }
   },
   "models": {
     "10k": {
@@ -152,6 +209,56 @@
       },
       "attribution": "Trained on the Chinese portion of C4 (ODC-BY, https://huggingface.co/datasets/allenai/c4) and LCCC (MIT, https://github.com/thu-coai/CDial-GPT). Fine-tuned on LCCC (MIT), manifest in run.json. Fine-tuned on LCCC (MIT), manifest in run.json. The Kubernetes Authors, Chinese documentation (CC-BY-4.0), https://github.com/kubernetes/website, revision fe59320b9e3858bc9d41b4ad8d86b1c77568ceb4; modified into pinyin/text training pairs.",
       "technical_batch_share": 0.25
+    },
+    "spans": {
+      "path": "/home/_WD_/.cache/wime-conditional/run-spans/model.safetensors",
+      "sha256": "670ff3f81e3374b85146ae163ae8aeefe7f5135b5d734a4976854922121044f2",
+      "bytes": 50637936,
+      "base_sha256": "1908154b95f318bdeac221a75d06a083c4d26a5698e30c6b95c57d943abee4df",
+      "maximum_steps": 3000,
+      "selected_step": 3000,
+      "validation_loss": 0.1874771677539684,
+      "extra_share": 0.25,
+      "span_share": 0.5,
+      "seed": 20261025,
+      "training_examples": 1511847,
+      "compositions": {
+        "/home/_WD_/.cache/wime-conditional/data/short_span": 755800,
+        "/home/_WD_/.cache/wime-conditional/technical/short_span": 19431
+      },
+      "exclusions": {
+        "/home/_WD_/.cache/wime-conditional/data/train/unknown_target": 14,
+        "/home/_WD_/.cache/wime-conditional/technical/train/unknown_target": 1
+      },
+      "run": {
+        "path": "/home/_WD_/.cache/wime-conditional/run-spans/run.json",
+        "sha256": "5af246fb014e8626acbe71f5ad120b2aa184a5d5352d4abb6aef5639163251a8"
+      }
+    },
+    "programming": {
+      "path": "/home/_WD_/.cache/wime-conditional/run-programming/model.safetensors",
+      "sha256": "677285f73fd7e83044c953ef3b783895c3401512cea19b0779c32d023799e96e",
+      "bytes": 50639944,
+      "base_sha256": "1908154b95f318bdeac221a75d06a083c4d26a5698e30c6b95c57d943abee4df",
+      "maximum_steps": 4000,
+      "selected_step": 4000,
+      "validation_loss": 0.1617226071190089,
+      "extra_share": 0.35,
+      "span_share": 0.25,
+      "seed": 20261025,
+      "training_examples": 1511843,
+      "compositions": {
+        "/home/_WD_/.cache/wime-conditional/data/short_span": 377532,
+        "/home/_WD_/.cache/wime-conditional/programming/short_span": 26250
+      },
+      "exclusions": {
+        "/home/_WD_/.cache/wime-conditional/data/train/unknown_target": 18,
+        "/home/_WD_/.cache/wime-conditional/programming/train/unknown_target": 3
+      },
+      "run": {
+        "path": "/home/_WD_/.cache/wime-conditional/run-programming/run.json",
+        "sha256": "90c526cd20459e5281461efdb19400b26bc88a70ceb5ef12244e0ba4fb21f16f"
+      }
     }
   },
   "results": {
@@ -415,11 +522,11 @@
     "results_path": "/home/_WD_/.cache/wime-conditional/cpu-smoke-mixed.json"
   },
   "validation": {
-    "elisp_tests_passed": 50,
+    "elisp_tests_passed": 52,
     "rust_library_tests_passed": 61,
     "rust_performance_tests_ignored": 12,
     "rust_worker_tests_passed": 1,
-    "python_contract_tests_passed": 3,
+    "python_contract_tests_passed": 5,
     "clippy": "passed -D warnings",
     "bazel": "Worker, wime sources/autoload built; wdoom runtime_source analysis passed."
   },
@@ -437,5 +544,571 @@
     "database": "6cd642c6562de74701bba9f5df424c707de9c9362182e6e41c1c63943246ea66",
     "grammar_module": "d2feaf9e7e79b59cca4b6c7a123a9503c2f65ad94b5d0b1c9f9be1b3b3f55ba5",
     "worker": "c83a1b99ee2b884c00134cef1125c97fe3430ae649c8309ef6ca5b02e0f6b52b"
+  },
+  "composition_followup": {
+    "selected_model": "programming",
+    "prior_weight": 0.1,
+    "change": "Verify prefixes as before; select verified drafts by mean neural log probability + 0.1 * traditional path score / syllables. Weight captured when the async job is created.",
+    "selection": "Highest equal-category macro accuracy on 2304 development cases; prior grid [0, .025, .05, .1, .2, .5, 1]. No test-driven weight/model selection.",
+    "development_cases": {
+      "path": "/home/_WD_/.cache/wime-conditional/dev-programming.json",
+      "sha256": "ededd664192a8565288531ebca68cc408057a6be294b8c2554ff722c6d0b6482",
+      "construction": "Per domain: first 512 dev rows unchanged, next 256 cropped to a uniform 2-5 character span with Python Random(20261025); same original document and pinyin; prefix added to committed context."
+    },
+    "calibration": {
+      "mixed": {
+        "weight": 0.1,
+        "categories": {
+          "chat": {
+            "correct": 334,
+            "total": 512,
+            "accuracy": 0.65234375
+          },
+          "chat_short": {
+            "correct": 165,
+            "total": 256,
+            "accuracy": 0.64453125
+          },
+          "technical": {
+            "correct": 444,
+            "total": 512,
+            "accuracy": 0.8671875
+          },
+          "technical_short": {
+            "correct": 163,
+            "total": 256,
+            "accuracy": 0.63671875
+          },
+          "python": {
+            "correct": 356,
+            "total": 512,
+            "accuracy": 0.6953125
+          },
+          "python_short": {
+            "correct": 153,
+            "total": 256,
+            "accuracy": 0.59765625
+          }
+        },
+        "macro_accuracy": 0.6822916666666666,
+        "artifact": {
+          "path": "/home/_WD_/.cache/wime-conditional/calibration-all-mixed.json",
+          "sha256": "b56044666b7e1ebf0abf1512e6aac3523f582c491c74ba336047df58e68172d5"
+        }
+      },
+      "spans": {
+        "weight": 0.1,
+        "categories": {
+          "chat": {
+            "correct": 322,
+            "total": 512,
+            "accuracy": 0.62890625
+          },
+          "chat_short": {
+            "correct": 189,
+            "total": 256,
+            "accuracy": 0.73828125
+          },
+          "technical": {
+            "correct": 447,
+            "total": 512,
+            "accuracy": 0.873046875
+          },
+          "technical_short": {
+            "correct": 204,
+            "total": 256,
+            "accuracy": 0.796875
+          },
+          "python": {
+            "correct": 353,
+            "total": 512,
+            "accuracy": 0.689453125
+          },
+          "python_short": {
+            "correct": 182,
+            "total": 256,
+            "accuracy": 0.7109375
+          }
+        },
+        "macro_accuracy": 0.7395833333333334,
+        "artifact": {
+          "path": "/home/_WD_/.cache/wime-conditional/calibration-all-spans.json",
+          "sha256": "68b96ed04bd846490518d34d32a5f0ef36ea46758409baca6ae6ce8dc8a0dc92"
+        }
+      },
+      "programming": {
+        "weight": 0.1,
+        "categories": {
+          "chat": {
+            "correct": 327,
+            "total": 512,
+            "accuracy": 0.638671875
+          },
+          "chat_short": {
+            "correct": 180,
+            "total": 256,
+            "accuracy": 0.703125
+          },
+          "technical": {
+            "correct": 451,
+            "total": 512,
+            "accuracy": 0.880859375
+          },
+          "technical_short": {
+            "correct": 202,
+            "total": 256,
+            "accuracy": 0.7890625
+          },
+          "python": {
+            "correct": 430,
+            "total": 512,
+            "accuracy": 0.83984375
+          },
+          "python_short": {
+            "correct": 208,
+            "total": 256,
+            "accuracy": 0.8125
+          }
+        },
+        "macro_accuracy": 0.77734375,
+        "artifact": {
+          "path": "/home/_WD_/.cache/wime-conditional/calibration-programming.json",
+          "sha256": "d2aeb5802d8cda56acff00677ce678a35fc3f26f97f1ec5d6565cb67a1997c5a"
+        }
+      }
+    },
+    "test_cases": {
+      "path": "/home/_WD_/.cache/wime-conditional/test-programming.json",
+      "sha256": "dce1695810c7bdf524e359f861243adb3bb4fc64a717b2b2394de8d8534003e1",
+      "construction": "Chat first 2048 test rows, Kubernetes first 1024, Python first 1024; next 256 rows per domain cropped with Python Random(20261026). First two full-sentence cohorts retain the earlier benchmark rows."
+    },
+    "test_results": {
+      "path": "/home/_WD_/.cache/wime-conditional/test-programming-final/results.json",
+      "sha256": "84da74e9aa5d00087ec1bd6a8d4000c85df8f09b40d96637c6769022de0c4d67",
+      "categories": {
+        "chat": {
+          "total": 2048,
+          "octagram": {
+            "correct": 1149,
+            "percent": 56.103515625
+          },
+          "beam": {
+            "correct": 1166,
+            "percent": 56.93359375
+          },
+          "nbest": {
+            "correct": 1290,
+            "percent": 62.98828125
+          },
+          "constrained": {
+            "correct": 1345,
+            "percent": 65.673828125
+          },
+          "rescue": 320,
+          "regression": 124,
+          "outside_beam_rescue": 71,
+          "gain_pp_vs_octagram": 9.5703125,
+          "document_cluster_bootstrap_95ci_pp": [
+            7.588091894182043,
+            11.558121029085576
+          ]
+        },
+        "chat_short": {
+          "total": 256,
+          "octagram": {
+            "correct": 147,
+            "percent": 57.421875
+          },
+          "beam": {
+            "correct": 144,
+            "percent": 56.25
+          },
+          "nbest": {
+            "correct": 174,
+            "percent": 67.96875
+          },
+          "constrained": {
+            "correct": 186,
+            "percent": 72.65625
+          },
+          "rescue": 51,
+          "regression": 12,
+          "outside_beam_rescue": 14,
+          "gain_pp_vs_octagram": 15.234375,
+          "document_cluster_bootstrap_95ci_pp": [
+            8.605985717301062,
+            21.254492578671567
+          ]
+        },
+        "kubernetes": {
+          "total": 1024,
+          "octagram": {
+            "correct": 658,
+            "percent": 64.2578125
+          },
+          "beam": {
+            "correct": 708,
+            "percent": 69.140625
+          },
+          "nbest": {
+            "correct": 841,
+            "percent": 82.12890625
+          },
+          "constrained": {
+            "correct": 906,
+            "percent": 88.4765625
+          },
+          "rescue": 267,
+          "regression": 19,
+          "outside_beam_rescue": 77,
+          "gain_pp_vs_octagram": 24.21875,
+          "document_cluster_bootstrap_95ci_pp": [
+            20.10281167516896,
+            27.72745869548195
+          ]
+        },
+        "kubernetes_short": {
+          "total": 256,
+          "octagram": {
+            "correct": 138,
+            "percent": 53.90625
+          },
+          "beam": {
+            "correct": 144,
+            "percent": 56.25
+          },
+          "nbest": {
+            "correct": 189,
+            "percent": 73.828125
+          },
+          "constrained": {
+            "correct": 208,
+            "percent": 81.25
+          },
+          "rescue": 72,
+          "regression": 2,
+          "outside_beam_rescue": 22,
+          "gain_pp_vs_octagram": 27.34375,
+          "document_cluster_bootstrap_95ci_pp": [
+            22.96551522931497,
+            32.23207144761397
+          ]
+        },
+        "python": {
+          "total": 1024,
+          "octagram": {
+            "correct": 546,
+            "percent": 53.3203125
+          },
+          "beam": {
+            "correct": 583,
+            "percent": 56.93359375
+          },
+          "nbest": {
+            "correct": 749,
+            "percent": 73.14453125
+          },
+          "constrained": {
+            "correct": 844,
+            "percent": 82.421875
+          },
+          "rescue": 319,
+          "regression": 21,
+          "outside_beam_rescue": 105,
+          "gain_pp_vs_octagram": 29.1015625,
+          "document_cluster_bootstrap_95ci_pp": [
+            25.62064338555746,
+            32.43528729525192
+          ]
+        },
+        "python_short": {
+          "total": 256,
+          "octagram": {
+            "correct": 112,
+            "percent": 43.75
+          },
+          "beam": {
+            "correct": 112,
+            "percent": 43.75
+          },
+          "nbest": {
+            "correct": 158,
+            "percent": 61.71875
+          },
+          "constrained": {
+            "correct": 203,
+            "percent": 79.296875
+          },
+          "rescue": 94,
+          "regression": 3,
+          "outside_beam_rescue": 46,
+          "gain_pp_vs_octagram": 35.546875,
+          "document_cluster_bootstrap_95ci_pp": [
+            28.383174513374467,
+            42.087985114300906
+          ]
+        }
+      }
+    },
+    "debug_fixture": {
+      "path": "/home/_WD_/Projects/dev-monorepo/emacs-packages/wime/test/conditional-debug-cases.json",
+      "sha256": "a89bf1ad8832d18515b847e4f4d95013b79e2ed8e44de64f5103ac337947ae0a",
+      "note": "100 handcrafted pure-pinyin cases plus 16 paired variants with exactly one auxiliary key. Development diagnostics, not independent test accuracy; gold is never sent to inference."
+    },
+    "debug_results": {
+      "mixed": {
+        "0": {
+          "pure_pinyin": {
+            "total": 100,
+            "octagram": 86,
+            "conditional": 78
+          },
+          "single_aux": {
+            "total": 16,
+            "octagram": 14,
+            "conditional": 13
+          }
+        },
+        "0.1": {
+          "pure_pinyin": {
+            "total": 100,
+            "octagram": 86,
+            "conditional": 83
+          },
+          "single_aux": {
+            "total": 16,
+            "octagram": 14,
+            "conditional": 13
+          }
+        },
+        "artifact": {
+          "path": "/home/_WD_/.cache/wime-conditional/debug-mixed/results.json",
+          "sha256": "3c49d8f8b2cf4221c70f507c3ee7f0a4b89d878dff4500ec8be8e0a5d4772811"
+        }
+      },
+      "spans": {
+        "0": {
+          "pure_pinyin": {
+            "total": 100,
+            "octagram": 86,
+            "conditional": 74
+          },
+          "single_aux": {
+            "total": 16,
+            "octagram": 14,
+            "conditional": 14
+          }
+        },
+        "0.1": {
+          "pure_pinyin": {
+            "total": 100,
+            "octagram": 86,
+            "conditional": 82
+          },
+          "single_aux": {
+            "total": 16,
+            "octagram": 14,
+            "conditional": 14
+          }
+        },
+        "artifact": {
+          "path": "/home/_WD_/.cache/wime-conditional/debug-spans/results.json",
+          "sha256": "987b47a9d7ae6d1104bc9137f8ee4ba6810da5a556788bdc7f3d1ac537fd814d"
+        }
+      },
+      "programming": {
+        "0": {
+          "pure_pinyin": {
+            "total": 100,
+            "octagram": 86,
+            "conditional": 82
+          },
+          "single_aux": {
+            "total": 16,
+            "octagram": 14,
+            "conditional": 14
+          }
+        },
+        "0.1": {
+          "pure_pinyin": {
+            "total": 100,
+            "octagram": 86,
+            "conditional": 86
+          },
+          "single_aux": {
+            "total": 16,
+            "octagram": 14,
+            "conditional": 14
+          }
+        },
+        "artifact": {
+          "path": "/home/_WD_/.cache/wime-conditional/debug-programming/results.json",
+          "sha256": "cc0ac0c1afb4dfa2d461ea5d4596b8a9855a015fd944af76cad36b7ea0cdcd43"
+        }
+      }
+    },
+    "remaining_debug_failures": [
+      {
+        "id": "w-015",
+        "context": "",
+        "gold": [
+          "明天我们再讨论"
+        ],
+        "result": "明天我们在讨论",
+        "nbest": "明天我们在讨论"
+      },
+      {
+        "id": "d-002",
+        "context": "",
+        "gold": [
+          "这个函数返回空值"
+        ],
+        "result": "这个函数返回控制",
+        "nbest": "这个函数返回控制"
+      },
+      {
+        "id": "d-005",
+        "context": "",
+        "gold": [
+          "我们需要更新依赖"
+        ],
+        "result": "我们需要更新一来",
+        "nbest": "我们需要更新一来"
+      },
+      {
+        "id": "d-012",
+        "context": "",
+        "gold": [
+          "编译器报告了一个错误"
+        ],
+        "result": "便一起报告了一个错误",
+        "nbest": "编译器报告了一个错误"
+      },
+      {
+        "id": "d-039",
+        "context": "数据库需要支持",
+        "gold": [
+          "事务"
+        ],
+        "result": "是无",
+        "nbest": "十五"
+      },
+      {
+        "id": "d-046",
+        "context": "这个请求",
+        "gold": [
+          "超时了"
+        ],
+        "result": "超市了",
+        "nbest": "超市了"
+      },
+      {
+        "id": "d-052",
+        "context": "这件事情我们",
+        "gold": [
+          "再讨论"
+        ],
+        "result": "在讨论",
+        "nbest": "在讨论"
+      },
+      {
+        "id": "d-054",
+        "context": "这段代码还没",
+        "gold": [
+          "编译"
+        ],
+        "result": "便宜",
+        "nbest": "便宜"
+      },
+      {
+        "id": "d-060",
+        "context": "这个视频看起来很",
+        "gold": [
+          "魔性"
+        ],
+        "result": "模型",
+        "nbest": "模型"
+      },
+      {
+        "id": "d-061",
+        "context": "进程里面创建了新的",
+        "gold": [
+          "线程"
+        ],
+        "result": "现成",
+        "nbest": "线程"
+      },
+      {
+        "id": "d-062",
+        "context": "他最近搬到了附近的",
+        "gold": [
+          "县城"
+        ],
+        "result": "现成",
+        "nbest": "县城"
+      },
+      {
+        "id": "d-063",
+        "context": "数据库需要处理这个",
+        "gold": [
+          "事务"
+        ],
+        "result": "是无",
+        "nbest": "事物"
+      },
+      {
+        "id": "d-064",
+        "context": "要正确认识新的",
+        "gold": [
+          "事物"
+        ],
+        "result": "是无",
+        "nbest": "十五"
+      },
+      {
+        "id": "d-070",
+        "context": "处理工作和私人关系时应该",
+        "gold": [
+          "公私分明"
+        ],
+        "result": "公司分明",
+        "nbest": "公司分明"
+      },
+      {
+        "id": "d-039-aux",
+        "context": "数据库需要支持",
+        "gold": [
+          "事务"
+        ],
+        "result": "事物",
+        "nbest": "事务"
+      },
+      {
+        "id": "d-063-aux",
+        "context": "数据库需要处理这个",
+        "gold": [
+          "事务"
+        ],
+        "result": "事物",
+        "nbest": "事物"
+      }
+    ],
+    "cpu_validation": {
+      "path": "/home/_WD_/.cache/wime-conditional/cpu-programming.json",
+      "sha256": "503d91bf29a68922f374db7a198848659b33510b23a4cb01845f22628d0fe5ca",
+      "samples": 236,
+      "float32_prediction_agreement": 236,
+      "correct": 195,
+      "beam_baseline_correct": 176,
+      "wall_ms_p50": 60.52052974700928,
+      "wall_ms_p95": 148.76413345336914,
+      "selection": "First 20 test cases in each of six categories, then all 116 diagnostic cases; actual Emacs async + Rust CPU + lattice, zero debounce, includes first model load, no concurrent task training/evaluation."
+    },
+    "limitations": [
+      "Short common words can overlap across documents after cropping; documents remain disjoint.",
+      "The same held-out benchmark may have been measured in earlier experiments; it was not used to tune this follow-up.",
+      "Public technical documentation is still narrower than actual coding conversations.",
+      "All earlier automatic-pinyin, pretraining-overlap and context-baseline limitations apply."
+    ]
   }
 }
