@@ -119,6 +119,8 @@ def main():
                 "extra_data": str(args.extra_data) if args.extra_data else None,
                 "base_sha256": hashlib.file_digest(open(args.base, "rb"), "sha256").hexdigest(),
                 "training_examples": len(train), "validation_examples": len(dev), "data_manifest": manifest,
+                "extra_training_examples": len(extra_train) if extra_train is not None else 0,
+                "extra_validation_examples": len(extra_dev) if extra_dev is not None else 0,
                 "exclusions": dict(exclusions), "format": FORMAT, "config": dataclasses.asdict(model.cfg)}
     settings["compositions"] = dict(compositions)
     settings["parameters"] = sum(p.numel() for p in model.parameters())
