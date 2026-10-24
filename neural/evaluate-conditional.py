@@ -68,6 +68,7 @@ def main():
     p.add_argument("--limit", type=int, default=1024)
     p.add_argument("--budget", type=int, default=4)
     p.add_argument("--margin", type=float, default=0.5)
+    p.add_argument("--prior-weight", type=float, default=0.0)
     args = p.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     raw = args.cases.read_text()
@@ -96,31 +97,38 @@ def main():
             code, context, gold = case["input"], case.get("context", ""), case["gold"]
             base = search(code, width=1)
             beam = search(code)
-            candidates = [c["text"] for c in beam["candidates"] if c["end"] == len(code) // 2]
+            # The real input parser removes auxiliary codes only for the model;
+            # every dictionary search still receives the complete typed input.
+            model_code, syllables = beam["input"], beam["syllables"]
+            records = [c for c in beam["candidates"] if c["end"] == syllables]
+            candidates = [c["text"] for c in records]
             original = base["candidates"][0]["text"] if base["candidates"] else ""
             draft = candidates[0] if candidates else original
             best, nbest, best_score = draft, draft, -float("inf")
-            calls, visited, recoveries = 0, set(), []
+            calls, visited, recoveries, trace = 0, set(), [], []
             if candidates:
+                path_score = records[0]["score"]
                 start = time.monotonic()
-                scores, distributions = evaluator.evaluate(context, code, candidates)
+                scores, distributions = evaluator.evaluate(context, model_code, candidates)
                 nbest = candidates[int(np.argmax(scores))]
                 # Verification starts from traditional draft, not a gold-ranked candidate.
                 while calls < args.budget:
                     if calls:
-                        scores, distributions = evaluator.evaluate(context, code, [draft])
+                        scores, distributions = evaluator.evaluate(context, model_code, [draft])
                     calls += 1
                     visited.add(draft)
-                    if scores[0] > best_score:
-                        best, best_score = draft, scores[0]
+                    trace.append(dict(text=draft, neural=scores[0], prior=path_score / syllables))
+                    joint = scores[0] + args.prior_weight * path_score / syllables
+                    if joint > best_score:
+                        best, best_score = draft, joint
                     if calls == args.budget:
                         break
                     proposed = None
                     for prefix in evaluator.proposals(draft, distributions[0], args.margin):
                         answer = search(code, prefix)
-                        full = [c["text"] for c in answer["candidates"] if c["end"] == len(code) // 2]
-                        if full and full[0] not in visited:
-                            proposed = full[0]
+                        full = [c for c in answer["candidates"] if c["end"] == syllables]
+                        if full and full[0]["text"] not in visited:
+                            proposed, path_score = full[0]["text"], full[0]["score"]
                             if proposed not in candidates:
                                 recoveries.append(proposed)
                             break
@@ -135,17 +143,20 @@ def main():
                          regression=best not in gold and original in gold,
                          outside_beam_rescue=best in gold and best not in candidates,
                          calls=calls,
-                         oracle_reachable=any(c["end"] == len(code) // 2
+                         oracle_reachable=any(c["end"] == syllables
                                               for c in search(code, gold[0])["candidates"]))
             results.append(dict(id=case["id"], input=code, context=context, gold=gold,
                                 octagram=original, beam=(candidates or [""])[0], nbest=nbest,
-                                constrained=best, calls=calls, outside_beam= recoveries))
+                                constrained=best, calls=calls, outside_beam=recoveries,
+                                category=case.get("category"), family=case.get("family"),
+                                trace=trace))
             if (i + 1) % 100 == 0:
                 print(json.dumps(dict(stats, seconds=time.monotonic() - started)), flush=True)
     finally:
         server.stdin.close()
         server.wait(timeout=15)
-    summary = dict(stats, margin=args.margin, budget=args.budget, device=evaluator.device,
+    summary = dict(stats, margin=args.margin, budget=args.budget, prior_weight=args.prior_weight,
+                   device=evaluator.device,
                    precision="float32, TF32 disabled",
                    model=args.model, cases=str(args.cases), seconds=time.monotonic() - started,
                    combined_ms_p50=float(np.percentile(latencies, 50)) if latencies else None,

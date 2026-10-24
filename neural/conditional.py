@@ -71,3 +71,19 @@ def encode_example(row, index, window):
     target = [index.get(c, 1) for c in row["gold"][0] + EOS]
     tokens = prefix + target
     return tokens[:-1], [0] * (len(prefix) - 1) + target
+
+
+def composition_span(row, start, end):
+    """Simulate committing a prefix, then typing a shorter part of this row.
+
+    Slice the original reading, not a new isolated-character pronunciation.
+    Only already committed characters become context; the suffix stays hidden.
+    """
+    target = row["gold"][0]
+    if not 0 <= start < end <= len(target) or len(row["input"]) != 2 * len(target):
+        raise ValueError("composition span must align with complete input syllables")
+    result = dict(row, context=(row["context"] + target[:start])[-64:],
+                  input=row["input"][2 * start:2 * end], gold=[target[start:end]])
+    if "pinyin" in row:
+        result["pinyin"] = " ".join(row["pinyin"].split()[start:end])
+    return result

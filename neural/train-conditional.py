@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import random
 import time
 
 import numpy as np
@@ -14,7 +15,7 @@ import torch
 import torch.nn.functional as F
 from safetensors.torch import save_file
 
-from conditional import encode_example, load_model, FORMAT
+from conditional import composition_span, encode_example, load_model, FORMAT
 
 
 def main():
@@ -28,9 +29,12 @@ def main():
     p.add_argument("--extra-data", type=Path)
     p.add_argument("--extra-share", type=float, default=0.25)
     p.add_argument("--seed", type=int, default=20261025)
+    p.add_argument("--span-share", type=float, default=0.0,
+                   help="fraction of training rows replaced by 2-5 character composition spans")
     args = p.parse_args()
-    if args.steps < 1 or args.batch < 1 or not 0 <= args.extra_share <= 1:
-        p.error("steps/batch must be positive and extra-share must be between zero and one")
+    if (args.steps < 1 or args.batch < 1 or not 0 <= args.extra_share <= 1
+            or not 0 <= args.span_share <= 1):
+        p.error("steps/batch must be positive; extra-share and span-share must be in [0, 1]")
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     torch.set_num_threads(8)
@@ -44,13 +48,24 @@ def main():
     window = model.cfg.context
     args.out.mkdir(parents=True, exist_ok=True)
     exclusions = Counter()
+    compositions = Counter()
 
     def pack(split, directory=args.data):
         rows = []
+        span_rng = random.Random(args.seed)
         with (directory / (split + ".jsonl")).open() as f:
             for line in f:
+                row = json.loads(line)
+                # Documents retain their existing split. Common short words can
+                # occur in different splits; no held-out document is trained on.
+                # Full dev examples remain unchanged for checkpoint selection.
+                if split == "train" and span_rng.random() < args.span_share:
+                    length = span_rng.randint(2, min(5, len(row["gold"][0])))
+                    start = span_rng.randint(0, len(row["gold"][0]) - length)
+                    row = composition_span(row, start, start + length)
+                    compositions[str(directory) + "/short_span"] += 1
                 try:
-                    x, y = encode_example(json.loads(line), index, window)
+                    x, y = encode_example(row, index, window)
                 except ValueError:
                     exclusions[str(directory) + "/" + split + "/window"] += 1
                     continue
@@ -77,6 +92,7 @@ def main():
                 "base_sha256": hashlib.file_digest(open(args.base, "rb"), "sha256").hexdigest(),
                 "training_examples": len(train), "validation_examples": len(dev), "data_manifest": manifest,
                 "exclusions": dict(exclusions), "format": FORMAT, "config": dataclasses.asdict(model.cfg)}
+    settings["compositions"] = dict(compositions)
     if args.extra_data:
         settings["extra_manifest"] = json.loads((args.extra_data / "manifest.json").read_text())
     (args.out / "run.json").write_text(json.dumps(settings, ensure_ascii=False, indent=2) + "\n")

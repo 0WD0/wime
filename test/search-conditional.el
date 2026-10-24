@@ -15,14 +15,17 @@
       (let* ((request (json-parse-string (read-from-minibuffer "") :object-type 'alist))
              (wime-search-width (alist-get 'width request))
              (prefix (alist-get 'prefix request))
+             (units (wime--parse (alist-get 'input request)))
              (start (float-time))
              (records (wime--sentence-records
-                       (wime--parse (alist-get 'input request))
+                       units
                        (unless (string-empty-p prefix) prefix))))
         (princ (decode-coding-string (json-serialize
                 `(:ms ,(* 1000 (- (float-time) start))
+                  :input ,(wime--full-code units) :syllables ,(length units)
                   :candidates ,(vconcat
                                 (mapcar (lambda (c) `(:text ,(wime-candidate-text c)
+                                                     :score ,(wime-candidate-score c)
                                                      :end ,(wime-candidate-end c))) records)))) 'utf-8-unix))
         (princ "\n")))
   (end-of-file nil))

@@ -4,10 +4,23 @@ from pathlib import Path
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
-from conditional import encode_example, input_tokens, prompt, INPUT, OUTPUT, EOS
+from conditional import composition_span, encode_example, input_tokens, prompt, INPUT, OUTPUT, EOS
 
 
 class Conditioning(unittest.TestCase):
+    def test_composition_span_keeps_reading_and_only_committed_context(self):
+        row = dict(context="这个", input="bud;yij;heb;le", gold=["补丁已经合并了"],
+                   pinyin="bu ding yi jing he bing le", document="training-document")
+        span = composition_span(row, 2, 6)
+        self.assertEqual(span["context"], "这个补丁")
+        self.assertEqual(span["input"], "yij;heb;")
+        self.assertEqual(span["gold"], ["已经合并"])
+        self.assertEqual(span["pinyin"], "yi jing he bing")
+        self.assertEqual(span["document"], row["document"])
+        self.assertEqual(row["gold"], ["补丁已经合并了"])
+        with self.assertRaises(ValueError):
+            composition_span(dict(row, input="bu"), 2, 6)
+
     def test_input_never_collapses_distinct_keystrokes(self):
         self.assertNotEqual(input_tokens("bmyi"), input_tokens("pmyi"))
         self.assertEqual(len(input_tokens("m;tm")), 2)
