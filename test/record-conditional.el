@@ -9,6 +9,11 @@
       wime-neural-program (getenv "WIME_NEURAL_PROGRAM")
       wime-neural-model-file (getenv "WIME_NEURAL_MODEL")
       wime-neural-search-method 'verify wime-neural-delay 0)
+(when (getenv "WIME_SEARCH_WIDTH")
+  (setq wime-search-width (string-to-number (getenv "WIME_SEARCH_WIDTH"))))
+(when (getenv "WIME_INFERENCE_BUDGET")
+  (setq wime-neural-inference-budget (string-to-number (getenv "WIME_INFERENCE_BUDGET"))))
+(setq wime-neural-seed-candidates (equal (getenv "WIME_SEED_CANDIDATES") "1"))
 (unless (file-readable-p (expand-file-name "wanxiang-lts-zh-hans.gram" wime-grammar-shared-dir))
   (error "Missing octagram artifact"))
 (let ((cases (with-temp-buffer

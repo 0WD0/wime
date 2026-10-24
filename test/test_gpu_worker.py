@@ -37,6 +37,32 @@ class WorkerContract(unittest.TestCase):
         self.assertNotIn("score", result)
         self.assertEqual(result["prefixes"], [])
 
+    def test_seed_uses_joint_scores_and_original_complete_candidate_indices(self):
+        class Evaluator:
+            def evaluate(self, context, code, texts):
+                self.texts = texts
+                return [-1, -1.1], ["first", "second"]
+
+            def proposals(self, draft, distribution, margin):
+                self.proposed = (draft, distribution)
+                return []
+
+        evaluator = Evaluator()
+        request = self.request(seed_candidates=True, prior_weight=.1, candidates=[
+            dict(text="编译", end=2, dictionary=True, score=-10),
+            dict(text="编", end=1, dictionary=True, score=100),
+            dict(text="便宜", end=2, dictionary=True, score=-1)])
+        response = worker.respond(evaluator, request)
+        self.assertEqual(evaluator.texts, ["编译", "便宜"])
+        self.assertEqual(response["verified_index"], 2)
+        self.assertEqual(response["score"], -1.1)
+        self.assertEqual(response["evaluated"], 2)
+        self.assertEqual(evaluator.proposed, ("便宜", "second"))
+        for change in (dict(prior_weight=float("nan")), dict(prior_weight=-1),
+                       dict(seed_candidates=1), dict(candidates=[dict(request["candidates"][0], score=None)])):
+            with self.assertRaises(ValueError):
+                worker.validate(dict(request, **change))
+
 
 if __name__ == "__main__":
     unittest.main()

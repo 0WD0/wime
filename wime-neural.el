@@ -43,19 +43,28 @@ database.  Auxiliary codes continue to constrain the dictionary search."
   :type '(choice (const rerank) (const verify)) :group 'wime)
 
 (defcustom wime-neural-inference-budget 4
-  "Maximum verified drafts per composition in `verify' mode."
+  "Maximum verification rounds per composition in `verify' mode.
+The optional CUDA seed selection scores the initial candidate pool in one
+round; subsequent rounds each verify one prefix-constrained draft."
   :type 'integer :group 'wime)
+
+(defcustom wime-neural-seed-candidates nil
+  "Let the CUDA worker score the initial candidate pool to choose a draft.
+This avoids relying on single-character corrections to reach a better word.
+Requires gpu-worker.py; the Rust worker retains its traditional draft."
+  :type 'boolean :group 'wime)
 
 (defcustom wime-neural-prior-weight 0.1
   "Weight of the traditional path score in conditional draft selection.
 Both model and traditional scores are normalized by syllable count.  Zero
 selects by the model alone.  Prefix proposals still come from the model;
-this weight only selects among complete, verified drafts."
+this weight selects among complete, verified drafts, including CUDA seeds."
   :type 'number :group 'wime)
 
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
   id buffer input position tick context records syllables
   method draft best best-score (round 0) visited
+  (seed-candidates wime-neural-seed-candidates)
   (prior-weight wime-neural-prior-weight))
 
 (defvar wime-neural-mode)
@@ -167,9 +176,13 @@ this weight only selects among complete, verified drafts."
      :input ,(wime--full-code (wime--parse (wime-neural--job-input job)))
      :draft ,(if (wime-neural--job-draft job)
                  (wime-candidate-text (wime-neural--job-draft job)) "")
+     :seed_candidates ,(if (and (wime-neural--job-seed-candidates job)
+                               (= (wime-neural--job-round job) 0)) t :false)
+     :prior_weight ,(wime-neural--job-prior-weight job)
      :candidates ,(vconcat
                    (mapcar (lambda (c)
                              `(:text ,(wime-candidate-text c) :end ,(wime-candidate-end c)
+                               :score ,(wime-candidate-score c)
                                :dictionary ,(if (wime-candidate-dictionary c) t :false)))
                            (wime-neural--job-records job))))))
 
@@ -201,11 +214,19 @@ this weight only selects among complete, verified drafts."
 
 (defun wime-neural--verify-apply (job response)
   "Score JOB's draft, then search the first viable model prefix in RESPONSE."
-  (let* ((draft (wime-neural--job-draft job))
+  (let* ((index (alist-get 'verified_index response))
+         (seed (and (integerp index) (>= index 0)
+                    (wime-neural--job-seed-candidates job)
+                    (= (wime-neural--job-round job) 0)
+                    (< index (length (wime-neural--job-records job)))
+                    (nth index (wime-neural--job-records job))))
+         (draft (or seed (wime-neural--job-draft job)))
          (text (wime-candidate-text draft))
          (score (alist-get 'score response))
          (next nil))
-    (when (numberp score)
+    (when (and (numberp score)
+               (or (not (assq 'verified_index response))
+                   (and seed (= (wime-candidate-end seed) (wime-neural--job-syllables job)))))
       (setq score (+ score (* (wime-neural--job-prior-weight job)
                              (/ (wime-candidate-score draft)
                                 (float (wime-neural--job-syllables job))))))

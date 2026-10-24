@@ -55,6 +55,35 @@
         (should (equal (car wime--candidates) "甲乙"))
         (should-not wime-neural--pending)))))
 
+(ert-deftest wime-neural-cuda-seed-promotes-only-a-verified-full-pool-member ()
+  (wime-neural-test--composition
+    (let ((wime-neural--pending nil))
+      (setf (wime-neural--job-method job) 'verify
+            (wime-neural--job-seed-candidates job) t
+            (wime-neural--job-draft job) (car wime--candidate-records))
+      (dolist (index '(2 -1 99 "丙丁" nil))
+        (wime-neural--apply job `((verified_index . ,index) (score . -0.1)))
+        (should (equal (car wime--candidates) "甲乙"))
+        (should (= (wime-neural--job-round job) 0)))
+      (wime-neural--apply job '((verified_index . 1) (score . -0.1)))
+      (should (equal (car wime--candidates) "丙丁"))
+      (should (eq (wime-neural--job-best job) (nth 1 (wime-neural--job-records job)))))))
+
+(ert-deftest wime-neural-cuda-seed-is-only-requested-for-the-initial-round ()
+  (wime-neural-test--composition
+    (setf (wime-neural--job-seed-candidates job) t
+          (wime-neural--job-method job) 'verify
+          (wime-neural--job-draft job) (car wime--candidate-records))
+    (let ((request (json-parse-string (wime-neural--request job) :object-type 'alist)))
+      (should (eq (alist-get 'seed_candidates request) t))
+      (should (= (alist-get 'score (aref (alist-get 'candidates request) 1)) 0)))
+    (setf (wime-neural--job-round job) 1)
+    (let ((request (json-parse-string (wime-neural--request job) :object-type 'alist)))
+      (should (eq (alist-get 'seed_candidates request) :false)))
+    ;; A late seed index must not be mistaken for the current constrained draft.
+    (wime-neural--apply job '((verified_index . 1) (score . -0.1)))
+    (should (equal (car wime--candidates) "甲乙"))))
+
 (ert-deftest wime-neural-prior-rejects-weak-edits-but-allows-strong-corrections ()
   (dolist (neural-score '(-1.9 -1.0))
     (wime-neural-test--composition

@@ -8,6 +8,7 @@ included in errors. The model stays on the GPU until the process is stopped.
 """
 import argparse
 import json
+import math
 import sys
 import time
 
@@ -31,6 +32,16 @@ def validate(request):
     for key in ("operation", "input", "draft"):
         if not isinstance(request.get(key, ""), str):
             raise ValueError("invalid request")
+    if type(request.get("seed_candidates", False)) is not bool:
+        raise ValueError("invalid request")
+    if request.get("seed_candidates"):
+        if (type(request.get("prior_weight")) not in (int, float)
+                or not math.isfinite(request["prior_weight"]) or request["prior_weight"] < 0):
+            raise ValueError("invalid request")
+        for candidate in request["candidates"]:
+            if (type(candidate.get("score")) not in (int, float)
+                    or not math.isfinite(candidate["score"])):
+                raise ValueError("invalid request")
 
 
 def respond(evaluator, request):
@@ -44,11 +55,24 @@ def respond(evaluator, request):
     code, draft, syllables = request.get("input", ""), request.get("draft", ""), request["syllables"]
     if not syllables or len(draft) != syllables or len(code) != 2 * syllables:
         return result
+    candidates = [(i, c) for i, c in enumerate(request["candidates"])
+                  if c["end"] == syllables and len(c["text"]) == syllables]
+    seeding = request.get("seed_candidates", False) and bool(candidates)
+    texts = [c["text"] for _, c in candidates] if seeding else [draft]
     try:
-        scores, distributions = evaluator.evaluate(request["context"], code, [draft])
+        scores, distributions = evaluator.evaluate(request["context"], code, texts)
     except ValueError:
         return result  # Invalid keys or an overlong composition retain traditional candidates.
-    result.update(score=scores[0], prefixes=evaluator.proposals(draft, distributions[0], 0.5),
+    selected = (max(range(len(candidates)), key=lambda j: scores[j] +
+                    request["prior_weight"] * candidates[j][1]["score"] / syllables)
+                if seeding else 0)
+    if seeding:
+        # Return an index into the original, aux-filtered dictionary pool. The
+        # editor never accepts free-form model text as a seed candidate.
+        result["verified_index"] = candidates[selected][0]
+    result.update(score=scores[selected],
+                  prefixes=evaluator.proposals(texts[selected], distributions[selected], 0.5),
+                  evaluated=len(texts),
                   elapsed_ms=1000 * (time.perf_counter() - start))
     return result
 
