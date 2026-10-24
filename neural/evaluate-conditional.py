@@ -36,6 +36,8 @@ def main():
                    help="use joint neural/prior scoring to choose the initial complete draft")
     p.add_argument("--margin", type=float, default=0.5)
     p.add_argument("--prior-weight", type=float, default=0.0)
+    p.add_argument("--reference-baseline", type=Path,
+                   help="abort if any octagram output differs from this prior results.json")
     args = p.parse_args()
     if args.width < 1 or args.budget < 1:
         p.error("width and budget must be positive")
@@ -43,6 +45,8 @@ def main():
     raw = args.cases.read_text()
     cases = json.loads(raw) if raw.lstrip().startswith("[") else [json.loads(l) for l in raw.splitlines()]
     cases = cases[:args.limit]
+    reference = ({r["id"]: r["octagram"] for r in json.loads(args.reference_baseline.read_text())}
+                 if args.reference_baseline else None)
     env = dict(os.environ, WIME_DATABASE=str(Path(args.database).resolve()),
                WIME_GRAMMAR=args.grammar_dir, WIME_GRAMMAR_MODULE=str(Path(args.grammar_module).resolve()))
     server = subprocess.Popen(["emacs", "-Q", "--batch", "-L", str(ROOT / "emacs-packages/wime"),
@@ -73,6 +77,8 @@ def main():
             records = [c for c in beam["candidates"] if c["end"] == syllables]
             candidates = [c["text"] for c in records]
             original = base["candidates"][0]["text"] if base["candidates"] else ""
+            if reference is not None and original != reference[case["id"]]:
+                raise RuntimeError(f"octagram reference mismatch for {case['id']}; check immutable artifacts")
             draft = candidates[0] if candidates else original
             best, nbest, best_score = draft, draft, -float("inf")
             calls, visited, recoveries, trace = 0, set(), [], []
@@ -139,6 +145,7 @@ def main():
                    device=evaluator.device,
                    precision="float32, TF32 disabled",
                    model=args.model, cases=str(args.cases), seconds=time.monotonic() - started,
+                   reference_baseline=str(args.reference_baseline) if args.reference_baseline else None,
                    combined_ms_p50=float(np.percentile(latencies, 50)) if latencies else None,
                    combined_ms_p95=float(np.percentile(latencies, 95)) if latencies else None)
     (args.out / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n")
