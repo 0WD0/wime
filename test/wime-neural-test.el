@@ -15,6 +15,23 @@
           (wime-neural--schedule)
           (should-not scheduled))))))
 
+(ert-deftest wime-neural-single-character-is-opt-in-and-verify-only ()
+  (with-temp-buffer
+    (let ((wime-neural-mode t) (wime-neural--failed nil)
+          (wime-neural-single-character t)
+          (wime-neural-model-file "model.safetensors") scheduled)
+      (insert "真刀真")
+      (setq wime--input "qd" wime--candidates (wime--candidates "qd"))
+      (cl-letf (((symbol-function 'run-with-timer)
+                 (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
+        (let ((wime-neural-search-method 'rerank))
+          (wime-neural--schedule)
+          (should-not scheduled))
+        (let ((wime-neural-search-method 'verify))
+          (wime-neural--schedule)
+          (should (= (wime-neural--job-syllables scheduled) 1))
+          (should (equal (wime-neural--job-context scheduled) "真刀真")))))))
+
 (ert-deftest wime-neural-context-settings-remain-compatible ()
   (with-temp-buffer
     (insert "上段\n\n当前输入")

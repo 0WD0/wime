@@ -2,14 +2,27 @@
 import sys
 from pathlib import Path
 import unittest
+import random
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import composition_span, encode_example, input_tokens, prompt, INPUT, OUTPUT, EOS
 from conditional import CharLM, Config, grow_depth
+from conditional import augment_composition
 
 
 class Conditioning(unittest.TestCase):
+    def test_single_spans_keep_polyphonic_reading_and_short_rows_are_valid(self):
+        row = dict(context="允许", input="bmyix;ui", gold=["便宜行事"],
+                   pinyin="bian yi xing shi")
+        for seed in range(20):
+            sample = augment_composition(row, random.Random(seed), single_share=1)
+            start = len(sample["context"]) - len(row["context"])
+            self.assertEqual(sample["input"], row["input"][2 * start:2 * start + 2])
+            self.assertEqual(sample["gold"], [row["gold"][0][start]])
+        single = dict(context="前文", input="qd", gold=["枪"])
+        self.assertEqual(augment_composition(single, random.Random(1), span_share=1), single)
+
     def test_depth_growth_preserves_logits_and_can_learn(self):
         torch.manual_seed(7)
         model = CharLM(Config(vocab=32, n_layer=2, n_head=2, n_embd=8,

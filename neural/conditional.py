@@ -117,3 +117,19 @@ def composition_span(row, start, end):
     if "pinyin" in row:
         result["pinyin"] = " ".join(row["pinyin"].split()[start:end])
     return result
+
+
+def augment_composition(row, rng, span_share=0.0, single_share=0.0, whitespace_share=0.0):
+    """Sample disjoint single/short/full modes without changing the reading."""
+    target = row["gold"][0]
+    choice = rng.random()
+    if choice < single_share:
+        start = rng.randrange(len(target))
+        row = composition_span(row, start, start + 1)
+    elif choice < single_share + span_share and len(target) >= 2:
+        length = rng.randint(2, min(5, len(target)))
+        start = rng.randint(0, len(target) - length)
+        row = composition_span(row, start, start + length)
+    if row["context"] and rng.random() < whitespace_share:
+        row = dict(row, context=(row["context"] + rng.choice((" ", "\n", "\n\n")))[-64:])
+    return row

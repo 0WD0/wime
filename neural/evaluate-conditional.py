@@ -40,6 +40,8 @@ def main():
                    help="abort if any octagram output differs from this prior results.json")
     p.add_argument("--audit", action="store_true",
                    help="record candidate scores and gold reachability after prediction, for failure analysis")
+    p.add_argument("--single-character", action="store_true",
+                   help="match wime-neural-single-character for models trained on single spans")
     args = p.parse_args()
     if args.width < 1 or args.budget < 1:
         p.error("width and budget must be positive")
@@ -86,7 +88,7 @@ def main():
             best, nbest, best_score = draft, draft, -float("inf")
             calls, visited, recoveries, trace = 0, set(), [], []
             pool_scores = None
-            if candidates and syllables > 1:
+            if candidates and (syllables > 1 or (args.single_character and syllables == 1)):
                 path_score = records[0]["score"]
                 start = time.monotonic()
                 scores, distributions = evaluator.evaluate(model_context, model_code, candidates)
@@ -156,6 +158,7 @@ def main():
         server.stdin.close()
         server.wait(timeout=15)
     summary = dict(stats, margin=args.margin, budget=args.budget, prior_weight=args.prior_weight,
+                   single_character=args.single_character,
                    width=args.width, seed_draft=args.seed_draft,
                    device=evaluator.device,
                    precision="float32, TF32 disabled",

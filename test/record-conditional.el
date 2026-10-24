@@ -14,6 +14,7 @@
 (when (getenv "WIME_INFERENCE_BUDGET")
   (setq wime-neural-inference-budget (string-to-number (getenv "WIME_INFERENCE_BUDGET"))))
 (setq wime-neural-seed-candidates (equal (getenv "WIME_SEED_CANDIDATES") "1"))
+(setq wime-neural-single-character (equal (getenv "WIME_SINGLE_CHARACTER") "1"))
 (unless (file-readable-p (expand-file-name "wanxiang-lts-zh-hans.gram" wime-grammar-shared-dir))
   (error "Missing octagram artifact"))
 (let ((cases (with-temp-buffer
@@ -39,7 +40,8 @@
                 (accept-process-output wime-neural--process 0.001))
               (when (or wime-neural--failed wime-neural--busy wime-neural--pending)
                 (error "Conditional worker did not complete"))
-              (if (= (length (wime--parse wime--input)) 1)
+              (if (and (= (length (wime--parse wime--input)) 1)
+                       (not wime-neural-single-character))
                   (when wime-neural-last-latency
                     (error "Single-syllable input must retain contextual grammar ranking"))
                 (unless wime-neural-last-latency (error "Conditional model was not evaluated")))

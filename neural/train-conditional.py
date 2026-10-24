@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 from safetensors.torch import save_file
 
-from conditional import composition_span, encode_example, grow_depth, load_model, FORMAT
+from conditional import augment_composition, encode_example, grow_depth, load_model, FORMAT
 
 
 def main():
@@ -31,11 +31,16 @@ def main():
     p.add_argument("--seed", type=int, default=20261025)
     p.add_argument("--span-share", type=float, default=0.0,
                    help="fraction of training rows replaced by 2-5 character composition spans")
+    p.add_argument("--single-share", type=float, default=0.0)
+    p.add_argument("--whitespace-share", type=float, default=0.0)
+    p.add_argument("--learning-rate", type=float, default=2e-4)
     p.add_argument("--layers", type=int, help="grow depth with initially identity residual blocks")
     args = p.parse_args()
     if (args.steps < 1 or args.batch < 1 or not 0 <= args.extra_share <= 1
-            or not 0 <= args.span_share <= 1):
-        p.error("steps/batch must be positive; extra-share and span-share must be in [0, 1]")
+            or not 0 <= args.span_share <= 1 or not 0 <= args.single_share <= 1
+            or args.span_share + args.single_share > 1
+            or not 0 <= args.whitespace_share <= 1 or args.learning_rate <= 0):
+        p.error("positive steps/batch/rate required; shares in [0, 1], span + single <= 1")
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     torch.set_num_threads(8)
@@ -65,11 +70,10 @@ def main():
                 # Documents retain their existing split. Common short words can
                 # occur in different splits; no held-out document is trained on.
                 # Full dev examples remain unchanged for checkpoint selection.
-                if split == "train" and span_rng.random() < args.span_share:
-                    length = span_rng.randint(2, min(5, len(row["gold"][0])))
-                    start = span_rng.randint(0, len(row["gold"][0]) - length)
-                    row = composition_span(row, start, start + length)
-                    compositions[str(directory) + "/short_span"] += 1
+                if split == "train":
+                    row = augment_composition(row, span_rng, args.span_share,
+                                              args.single_share, args.whitespace_share)
+                    compositions[str(directory) + "/length_" + str(len(row["gold"][0]))] += 1
                 try:
                     x, y = encode_example(row, index, window)
                 except ValueError:
@@ -93,7 +97,7 @@ def main():
     # Architecture initialization consumes random numbers. Reset the sampling
     # stream so same-seed capacity controls receive the same training batches.
     torch.cuda.manual_seed_all(args.seed)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=2e-4, betas=(0.9, 0.95), weight_decay=0.1,
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.95), weight_decay=0.1,
                                  fused=True)
     manifest = json.loads((args.data / "manifest.json").read_text())
     settings = {**vars(args), "data": str(args.data), "out": str(args.out),
@@ -125,7 +129,7 @@ def main():
 
     for step in range(1, args.steps + 1):
         model.train()
-        lr = 2e-4 * min(1, step / 100) * (0.1 + 0.9 * (1 + math.cos(math.pi * step / args.steps)) / 2)
+        lr = args.learning_rate * min(1, step / 100) * (0.1 + 0.9 * (1 + math.cos(math.pi * step / args.steps)) / 2)
         for group in optimizer.param_groups:
             group["lr"] = lr
         optimizer.zero_grad(set_to_none=True)
@@ -155,7 +159,8 @@ def main():
                 info = dict(metadata, config=json.dumps(dataclasses.asdict(model.cfg)),
                             vocab=json.dumps(vocab, ensure_ascii=False), precision="f16", conditional=FORMAT,
                             validation_loss=str(best), training_steps=str(step),
-                            attribution=metadata.get("attribution", "") + " Fine-tuned on LCCC (MIT), manifest in run.json."
+                            single_character_training=str(args.single_share > 0).lower(),
+                            attribution=metadata.get("attribution", "") + " Continued training; corpus manifests in run.json."
                             + (" Additional corpus attribution and licenses: "
                                + json.dumps(settings["extra_manifest"], ensure_ascii=False)
                                if args.extra_data else ""))

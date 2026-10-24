@@ -39,10 +39,14 @@ use `wime-neural-timeout'."
 (defcustom wime-neural-search-method 'rerank
   "Use candidate reranking or conditional draft verification.
 `verify' requires a wime-ms-pinyin-v1 model and a Microsoft double-pinyin
-database.  Auxiliary codes continue to constrain the dictionary search.
-Single-syllable input retains contextual octagram ranking: the current
-conditional models have no single-character composition training."
+database.  Auxiliary codes continue to constrain the dictionary search."
   :type '(choice (const rerank) (const verify)) :group 'wime)
+
+(defcustom wime-neural-single-character nil
+  "Allow single-character compositions in conditional `verify' mode.
+Enable only with a model trained and evaluated on single-character spans.
+Older models retain contextual octagram ranking by default."
+  :type 'boolean :group 'wime)
 
 (defcustom wime-neural-inference-budget 4
   "Maximum verification rounds per composition in `verify' mode.
@@ -111,10 +115,9 @@ this weight selects among complete, verified drafts, including CUDA seeds."
     (let* ((records wime--candidate-records)
            (n (length (wime--parse wime--input)))
            (full (seq-filter (lambda (c) (= n (wime-candidate-end c))) records)))
-      ;; Single-syllable records now carry contextual grammar scores, but the
-      ;; current conditional training spans start at two characters.  Keep
-      ;; octagram's continuation rather than overriding it out of distribution.
-      (when (and (> n 1) full (eq (car full) (car records))
+      (when (and (or (> n 1) (and (= n 1) wime-neural-single-character
+                                  (eq wime-neural-search-method 'verify)))
+                 full (eq (car full) (car records))
                  (if (eq wime-neural-search-method 'verify)
                      (condition-case nil
                          (equal (caar (sqlite-select (wime--database)
