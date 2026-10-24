@@ -127,6 +127,7 @@ def main():
                                 constrained=best, calls=calls, outside_beam=recoveries,
                                 document=case.get("document"),
                                 category=case.get("category"), family=case.get("family"),
+                                seed_draft=args.seed_draft,
                                 trace=trace))
             if (i + 1) % 100 == 0:
                 print(json.dumps(dict(stats, seconds=time.monotonic() - started)), flush=True)

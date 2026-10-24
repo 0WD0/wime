@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Select a traditional-score weight from development-only search traces.
 
-The weight changes only final selection among verified drafts, so it does not
-require replaying search. Each category receives equal weight, regardless of
+For a traditional seed the weight changes only final selection among verified
+drafts, so it does not require replaying search. Neural seed selection must be
+rerun for each weight instead. Each category receives equal weight, regardless of
 its size. Do not supply test or handcrafted diagnostic results for calibration.
 """
 import argparse
@@ -31,6 +32,8 @@ def main():
     p.add_argument("--weights", type=float, nargs="+", default=[0, 0.025, 0.05, 0.1, 0.2, 0.5, 1])
     args = p.parse_args()
     rows = json.loads(args.dev_results.read_text())
+    if any(r.get("seed_draft", "traditional") != "traditional" for r in rows):
+        p.error("neural seeds depend on the prior weight; replay search for each weight")
     if not rows or any(not r.get("category") for r in rows) or min(args.weights) < 0:
         p.error("nonempty categorized development results and nonnegative weights required")
     grid = [summarize(rows, w) for w in sorted(set(args.weights))]

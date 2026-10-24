@@ -26,9 +26,11 @@
           (with-temp-buffer
             (insert (alist-get 'context case))
             (setq wime--input (alist-get 'input case))
-            (let ((start (float-time)) (cold (not (process-live-p wime-neural--process))) baseline)
+            (let ((start (float-time)) (cold (not (process-live-p wime-neural--process)))
+                  baseline initial-search-ms)
               (wime--refresh)
-              (setq baseline (car wime--candidates))
+              (setq baseline (car wime--candidates)
+                    initial-search-ms (* 1000 (- (float-time) start)))
               (while (and (< (- (float-time) start) 20)
                           (or (memq wime-neural--timer timer-list)
                               wime-neural--busy wime-neural--pending))
@@ -42,6 +44,7 @@
                       :gold ,(vconcat (alist-get 'gold case))
                       :baseline ,baseline :result ,(car wime--candidates)
                       :cold_start ,(if cold t :false)
+                      :initial_search_ms ,initial-search-ms
                       :last_inference_ms ,wime-neural-last-latency
                       :wall_ms ,(* 1000 (- (float-time) start))) results)
               (wime--reset))))
