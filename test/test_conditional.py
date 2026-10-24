@@ -9,10 +9,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import composition_span, encode_example, input_tokens, prompt, INPUT, OUTPUT, EOS
 from conditional import CharLM, Config, grow_depth
 from conditional import augment_composition
-from inference import anchored_prompt
+from inference import anchored_prompt, ConditionalEvaluator
 
 
 class Conditioning(unittest.TestCase):
+    def test_proposal_order_can_prioritize_stronger_later_evidence(self):
+        evaluator = object.__new__(ConditionalEvaluator)
+        evaluator.device = "cpu"
+        evaluator.index = {c: i for i, c in enumerate("甲乙丙丁")}
+        evaluator.chinese = torch.arange(4)
+        evaluator.chinese_chars = list("甲乙丙丁")
+        distribution = torch.tensor([[-1., -.4, -10., -10.], [-4., -.2, -10., -10.]])
+        evaluator.proposal_order = "position"
+        position = evaluator.proposals("甲甲", distribution, .5)
+        evaluator.proposal_order = "gain"
+        gain = evaluator.proposals("甲甲", distribution, .5)
+        self.assertEqual(position, ["乙", "甲乙"])
+        self.assertEqual(gain, ["甲乙", "乙"])
+
     def test_anchor_keeps_committed_prefix_and_actual_distinct_keys(self):
         known = dict(text="便宜", input="bmyi")
         actual = anchored_prompt("允许便宜", "x;ui", 128, 2, known)

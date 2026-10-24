@@ -44,6 +44,7 @@ def main():
                    help="match wime-neural-single-character for models trained on single spans")
     p.add_argument("--context-anchor", type=int, choices=range(0, 9), default=0,
                    help="keep up to this many committed characters as a fixed decoded prefix")
+    p.add_argument("--proposal-order", choices=("position", "gain"), default="position")
     args = p.parse_args()
     if args.width < 1 or args.budget < 1:
         p.error("width and budget must be positive")
@@ -69,7 +70,8 @@ def main():
             raise RuntimeError("search process exited")
         return json.loads(line)
 
-    evaluator = ConditionalEvaluator(args.model, context_anchor=args.context_anchor)
+    evaluator = ConditionalEvaluator(args.model, context_anchor=args.context_anchor,
+                                     proposal_order=args.proposal_order)
     stats, results, latencies = Counter(), [], []
     started = time.monotonic()
     try:
@@ -162,6 +164,7 @@ def main():
     summary = dict(stats, margin=args.margin, budget=args.budget, prior_weight=args.prior_weight,
                    single_character=args.single_character,
                    context_anchor=args.context_anchor,
+                   proposal_order=args.proposal_order,
                    width=args.width, seed_draft=args.seed_draft,
                    device=evaluator.device,
                    precision="float32, TF32 disabled",

@@ -54,7 +54,9 @@ def anchored_prompt(context, code, window, limit=0, known_reading=None):
 
 
 class ConditionalEvaluator:
-    def __init__(self, path, device="cuda", context_anchor=0):
+    def __init__(self, path, device="cuda", context_anchor=0, proposal_order="position"):
+        if proposal_order not in ("position", "gain"):
+            raise ValueError("unknown proposal order")
         torch.set_num_threads(4)
         torch.backends.cuda.matmul.allow_tf32 = False
         self.model, self.vocab, self.metadata = load_model(path)
@@ -63,6 +65,7 @@ class ConditionalEvaluator:
         self.model.to(device).eval()
         self.device = device
         self.context_anchor = context_anchor
+        self.proposal_order = proposal_order
         self.index = {c: i for i, c in enumerate(self.vocab)}
         chinese = [i for i, c in enumerate(self.vocab)
                    if len(c) == 1 and "\u3400" <= c <= "\u9fff"]
@@ -99,6 +102,10 @@ class ConditionalEvaluator:
             for score, token in zip(row[1:], tokens):
                 replacement = self.chinese_chars[token]
                 if score > row[0] + margin and replacement != draft[position]:
-                    edits.append(draft[:position] + replacement)
-        return edits[:16]
+                    edits.append((score - row[0], draft[:position] + replacement))
+        if self.proposal_order == "gain":
+            # Prioritize stronger local evidence without changing the model,
+            # dictionary constraints, threshold or verification budget.
+            edits.sort(key=lambda edit: edit[0], reverse=True)
+        return [prefix for _, prefix in edits[:16]]
 
