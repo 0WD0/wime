@@ -148,6 +148,7 @@ def main():
             results.append(dict(id=case["id"], input=code, context=context, gold=gold,
                                 octagram=original, beam=(candidates or [""])[0], nbest=nbest,
                                 constrained=best, calls=calls, outside_beam=recoveries,
+                                document=case.get("document"),
                                 category=case.get("category"), family=case.get("family"),
                                 trace=trace))
             if (i + 1) % 100 == 0:
