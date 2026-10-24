@@ -5,6 +5,7 @@ One PUA token represents one *typed* Microsoft double-pinyin syllable. It
 preserves keyboard ambiguities; no gold pronunciation is used at inference.
 Auxiliary codes remain hard constraints in wime's dictionary search.
 """
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -64,6 +65,35 @@ def load_model(path, extend=False):
     model = CharLM(config)
     model.load_state_dict(weights)
     return model, vocab, metadata
+
+
+def grow_depth(model, layers):
+    """Interleave identity residual blocks, preserving the starting function.
+
+    Existing blocks retain their order and weights. New attention and MLP
+    output projections start at zero; their internal weights remain random so
+    the projections can learn immediately without duplicating block symmetry.
+    """
+    old = model.cfg.n_layer
+    if layers < old:
+        raise ValueError("depth growth cannot remove pretrained blocks")
+    if layers == old:
+        return model
+    grown = CharLM(dataclasses.replace(model.cfg, n_layer=layers))
+    grown.tok.load_state_dict(model.tok.state_dict())
+    grown.pos.load_state_dict(model.pos.state_dict())
+    grown.ln_f.load_state_dict(model.ln_f.state_dict())
+    retained = {i * layers // old: block for i, block in enumerate(model.blocks)}
+    with torch.no_grad():
+        for i, block in enumerate(grown.blocks):
+            if i in retained:
+                grown.blocks[i] = retained[i]
+            else:
+                for projection in (block.proj, block.out):
+                    projection.weight.zero_()
+                    projection.bias.zero_()
+    grown.train(model.training)
+    return grown
 
 
 def encode_example(row, index, window):

@@ -31,9 +31,14 @@ def main():
     p.add_argument("--grammar-module", required=True)
     p.add_argument("--limit", type=int, default=1024)
     p.add_argument("--budget", type=int, default=4)
+    p.add_argument("--width", type=int, default=8)
+    p.add_argument("--seed-draft", choices=["traditional", "neural"], default="traditional",
+                   help="use joint neural/prior scoring to choose the initial complete draft")
     p.add_argument("--margin", type=float, default=0.5)
     p.add_argument("--prior-weight", type=float, default=0.0)
     args = p.parse_args()
+    if args.width < 1 or args.budget < 1:
+        p.error("width and budget must be positive")
     args.out.mkdir(parents=True, exist_ok=True)
     raw = args.cases.read_text()
     cases = json.loads(raw) if raw.lstrip().startswith("[") else [json.loads(l) for l in raw.splitlines()]
@@ -45,7 +50,8 @@ def main():
                                str(ROOT / "emacs-packages/wime/test/search-conditional.el")],
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
 
-    def search(code, prefix="", width=8):
+    def search(code, prefix="", width=None):
+        width = args.width if width is None else width
         server.stdin.write(json.dumps(dict(input=code, prefix=prefix, width=width)) + "\n")
         server.stdin.flush()
         line = server.stdout.readline()
@@ -75,20 +81,27 @@ def main():
                 start = time.monotonic()
                 scores, distributions = evaluator.evaluate(context, model_code, candidates)
                 nbest = candidates[int(np.argmax(scores))]
-                # Verification starts from traditional draft, not a gold-ranked candidate.
+                seed_index = (max(range(len(records)), key=lambda j: scores[j] +
+                                  args.prior_weight * records[j]["score"] / syllables)
+                              if args.seed_draft == "neural" else 0)
+                draft, path_score = candidates[seed_index], records[seed_index]["score"]
+                # All seeds are real dictionary candidates; no gold enters selection.
                 while calls < args.budget:
                     if calls:
                         scores, distributions = evaluator.evaluate(context, model_code, [draft])
+                        index = 0
+                    else:
+                        index = seed_index
                     calls += 1
                     visited.add(draft)
-                    trace.append(dict(text=draft, neural=scores[0], prior=path_score / syllables))
-                    joint = scores[0] + args.prior_weight * path_score / syllables
+                    trace.append(dict(text=draft, neural=scores[index], prior=path_score / syllables))
+                    joint = scores[index] + args.prior_weight * path_score / syllables
                     if joint > best_score:
                         best, best_score = draft, joint
                     if calls == args.budget:
                         break
                     proposed = None
-                    for prefix in evaluator.proposals(draft, distributions[0], args.margin):
+                    for prefix in evaluator.proposals(draft, distributions[index], args.margin):
                         answer = search(code, prefix)
                         full = [c for c in answer["candidates"] if c["end"] == syllables]
                         if full and full[0]["text"] not in visited:
@@ -121,6 +134,7 @@ def main():
         server.stdin.close()
         server.wait(timeout=15)
     summary = dict(stats, margin=args.margin, budget=args.budget, prior_weight=args.prior_weight,
+                   width=args.width, seed_draft=args.seed_draft,
                    device=evaluator.device,
                    precision="float32, TF32 disabled",
                    model=args.model, cases=str(args.cases), seconds=time.monotonic() - started,

@@ -2,12 +2,30 @@
 import sys
 from pathlib import Path
 import unittest
+import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import composition_span, encode_example, input_tokens, prompt, INPUT, OUTPUT, EOS
+from conditional import CharLM, Config, grow_depth
 
 
 class Conditioning(unittest.TestCase):
+    def test_depth_growth_preserves_logits_and_can_learn(self):
+        torch.manual_seed(7)
+        model = CharLM(Config(vocab=32, n_layer=2, n_head=2, n_embd=8,
+                              context=8, dropout=0)).eval()
+        inputs = torch.randint(32, (2, 8))
+        expected = model(inputs)[0].detach()
+        grown = grow_depth(model, 6)
+        torch.testing.assert_close(grown(inputs)[0], expected, rtol=0, atol=0)
+        self.assertIs(grown.head.weight, grown.tok.weight)
+        self.assertGreater(sum(p.numel() for p in grown.parameters()),
+                           sum(p.numel() for p in model.parameters()))
+        grown(inputs, inputs)[1].backward()
+        self.assertGreater(grown.blocks[1].out.weight.grad.abs().sum().item(), 0)
+        with self.assertRaises(ValueError):
+            grow_depth(model, 1)
+
     def test_composition_span_keeps_reading_and_only_committed_context(self):
         row = dict(context="这个", input="bud;yij;heb;le", gold=["补丁已经合并了"],
                    pinyin="bu ding yi jing he bing le", document="training-document")

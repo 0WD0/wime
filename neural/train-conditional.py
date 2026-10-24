@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 from safetensors.torch import save_file
 
-from conditional import composition_span, encode_example, load_model, FORMAT
+from conditional import composition_span, encode_example, grow_depth, load_model, FORMAT
 
 
 def main():
@@ -31,6 +31,7 @@ def main():
     p.add_argument("--seed", type=int, default=20261025)
     p.add_argument("--span-share", type=float, default=0.0,
                    help="fraction of training rows replaced by 2-5 character composition spans")
+    p.add_argument("--layers", type=int, help="grow depth with initially identity residual blocks")
     args = p.parse_args()
     if (args.steps < 1 or args.batch < 1 or not 0 <= args.extra_share <= 1
             or not 0 <= args.span_share <= 1):
@@ -44,6 +45,11 @@ def main():
     for module in model.modules():
         if isinstance(module, torch.nn.Dropout):
             module.p = 0.0
+    original_layers = model.cfg.n_layer
+    if args.layers is not None:
+        if args.layers < original_layers:
+            p.error("--layers must not remove pretrained blocks")
+        model = grow_depth(model, args.layers)
     index = {c: i for i, c in enumerate(vocab)}
     window = model.cfg.context
     args.out.mkdir(parents=True, exist_ok=True)
@@ -84,6 +90,9 @@ def main():
     extra_train = pack("train", args.extra_data) if args.extra_data else None
     extra_dev = pack("dev", args.extra_data) if args.extra_data else None
     model = model.cuda()
+    # Architecture initialization consumes random numbers. Reset the sampling
+    # stream so same-seed capacity controls receive the same training batches.
+    torch.cuda.manual_seed_all(args.seed)
     optimizer = torch.optim.AdamW(model.parameters(), lr=2e-4, betas=(0.9, 0.95), weight_decay=0.1,
                                  fused=True)
     manifest = json.loads((args.data / "manifest.json").read_text())
@@ -93,6 +102,11 @@ def main():
                 "training_examples": len(train), "validation_examples": len(dev), "data_manifest": manifest,
                 "exclusions": dict(exclusions), "format": FORMAT, "config": dataclasses.asdict(model.cfg)}
     settings["compositions"] = dict(compositions)
+    settings["parameters"] = sum(p.numel() for p in model.parameters())
+    settings["depth_growth"] = dict(original_layers=original_layers,
+                                  retained_positions=[i * model.cfg.n_layer // original_layers
+                                                      for i in range(original_layers)],
+                                  initialization="zero residual output projections")
     if args.extra_data:
         settings["extra_manifest"] = json.loads((args.extra_data / "manifest.json").read_text())
     (args.out / "run.json").write_text(json.dumps(settings, ensure_ascii=False, indent=2) + "\n")
