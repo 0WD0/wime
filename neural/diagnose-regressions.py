@@ -17,6 +17,11 @@ from conditional import ROOT
 from inference import ConditionalEvaluator
 
 
+def digest(path):
+    with open(path, "rb") as source:
+        return hashlib.file_digest(source, "sha256").hexdigest()
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     for name in ("before", "middle", "after", "old-model", "new-model", "database",
@@ -97,7 +102,7 @@ def main():
         server.wait(timeout=15)
     args.out.mkdir(parents=True, exist_ok=True)
     metadata = dict(counts=counts, scope="diagnostic only; union contains labels, never a deployable accuracy",
-                    hashes={str(f): hashlib.file_digest(f.open("rb"), "sha256").hexdigest()
+                    hashes={str(f): digest(f)
                             for f in files + [args.old_model, args.new_model]})
     (args.out / "cases.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2) + "\n")
     (args.out / "summary.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")

@@ -21,6 +21,11 @@ from conditional import ROOT
 from inference import ConditionalEvaluator
 
 
+def digest(path):
+    with open(path, "rb") as source:
+        return hashlib.file_digest(source, "sha256").hexdigest()
+
+
 def interpolate(old_path, new_path, alpha, output):
     if not 0 <= alpha <= 1:
         raise ValueError("alpha must be in [0, 1]")
@@ -37,7 +42,7 @@ def interpolate(old_path, new_path, alpha, output):
                 raise ValueError("incompatible tensors")
             tensors[key] = torch.lerp(a.float(), b.float(), alpha).to(b.dtype).contiguous()
         metadata = dict(new.metadata(), retained_update=str(alpha),
-                        parent_checkpoints=json.dumps({str(p):hashlib.file_digest(open(p,"rb"),"sha256").hexdigest()
+                        parent_checkpoints=json.dumps({str(p):digest(p)
                                                        for p in (old_path, new_path)}))
         save_file(tensors, str(output), metadata=metadata)
 
@@ -105,7 +110,7 @@ def main():
                   selection="mean of old/new domain accuracy; old-dev accuracy >= current; N-best only",
                   grid=[dict(retained_update=a, prior_weight=w, objective=objective(c), counts=c)
                         for (a, w), c in grid.items()],
-                  hashes={str(f):hashlib.file_digest(f.open("rb"),"sha256").hexdigest()
+                  hashes={str(f):digest(f)
                           for f in (args.old_model, args.new_model, args.old_dev, args.new_dev)})
     (args.out / "results.json").write_text(json.dumps(results, ensure_ascii=False) + "\n")
     (args.out / "summary.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
