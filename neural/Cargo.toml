@@ -1,0 +1,13 @@
+[package]
+name = "wime-neural"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chinese-ime-lm = { path = "../../../third_party/chinese-ime-lm/reference" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
+

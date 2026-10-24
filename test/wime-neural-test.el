@@ -1,0 +1,98 @@
+;;; wime-neural-test.el --- Async candidate lifecycle tests -*- lexical-binding: t; -*-
+(require 'ert)
+(require 'wime-neural)
+
+(defmacro wime-neural-test--composition (&rest body)
+  (declare (indent 0))
+  `(with-temp-buffer
+     (let ((wime-neural-mode t))
+       (setq wime--input "aabb"
+             wime--selected 0
+             wime--candidate-records
+             (list (wime--make-candidate :text "甲乙" :end 2 :score 1)
+                   (wime--make-candidate :text "丙丁" :end 2 :score 0)
+                   (wime--make-candidate :text "甲" :end 1 :score 2))
+             wime--candidates '("甲乙" "丙丁" "甲"))
+       (let ((job (wime-neural--make-job
+                   :id 1 :buffer (current-buffer) :input wime--input
+                   :position (point) :tick (buffer-chars-modified-tick)
+                   :context "" :records wime--candidate-records :syllables 2)))
+         (unwind-protect (progn ,@body) (wime--reset))))))
+
+(ert-deftest wime-neural-promotes-only-a-current-full-reading ()
+  (wime-neural-test--composition
+    (wime-neural--apply job '((promoted . 2)))
+    (should (equal (car wime--candidates) "甲乙"))
+    (wime-neural--apply job '((promoted . 1) (elapsed_ms . 3.5)))
+    (should (equal wime--candidates '("丙丁" "甲乙" "甲")))
+    (should (= wime-neural-last-latency 3.5))))
+
+(ert-deftest wime-neural-rejects-replaced-compositions ()
+  (wime-neural-test--composition
+    ;; Same input after backspace and retyping still has different candidate records.
+    (setq wime--candidate-records (copy-sequence wime--candidate-records))
+    (wime-neural--apply job '((promoted . 1)))
+    (should (equal (car wime--candidates) "甲乙"))))
+
+(ert-deftest wime-neural-rejects-buffer-edits-and-manual-selection ()
+  (wime-neural-test--composition
+    (setq wime--selected 1)
+    (should-not (wime-neural--valid-p job))
+    (setq wime--selected 0)
+    (insert "新")
+    (delete-char -1)
+    (should-not (wime-neural--valid-p job))))
+
+(ert-deftest wime-neural-cancel-and-commit-invalidate-replies ()
+  (wime-neural-test--composition
+    (wime--commit "甲乙")
+    (wime-neural--apply job '((promoted . 1)))
+    (should (equal (buffer-string) "甲乙"))
+    (should-not wime--candidates)))
+
+(ert-deftest wime-neural-busy-worker-retains-only-latest-request ()
+  (wime-neural-test--composition
+    (let ((wime-neural--busy job) (wime-neural--pending nil)
+          (wime-neural--failed nil))
+      (wime-neural--enqueue job)
+      (let ((new (copy-wime-neural--job job)))
+        (setf (wime-neural--job-id new) 2)
+        (wime-neural--enqueue new)
+        (should (eq wime-neural--pending new))))))
+
+(ert-deftest wime-neural-request-encodes-runtime-coverage ()
+  (wime-neural-test--composition
+    (let* ((request (json-parse-string (wime-neural--request job) :object-type 'alist))
+           (candidates (alist-get 'candidates request)))
+      (should (= (alist-get 'syllables request) 2))
+      (should (= (alist-get 'end (aref candidates 2)) 1))
+      (should (eq (alist-get 'dictionary (aref candidates 0)) :false)))))
+
+(ert-deftest wime-neural-failure-preserves-traditional-candidates ()
+  (wime-neural-test--composition
+    (let ((wime-neural--process nil) (wime-neural--busy job)
+          (wime-neural--pending job) (wime-neural--failed nil))
+      (wime-neural--fail "test failure")
+      (should wime-neural--failed)
+      (should-not wime-neural--pending)
+      (should (equal (car wime--candidates) "甲乙")))))
+
+(ert-deftest wime-neural-real-worker-protocol ()
+  (let ((program (getenv "WIME_NEURAL_PROGRAM"))
+        (model (getenv "WIME_NEURAL_MODEL")))
+    (unless (and program model) (ert-skip "model and worker not configured"))
+    (wime-neural-test--composition
+      (let ((wime-neural-program program) (wime-neural-model-file model)
+            (wime-neural--process nil) (wime-neural--pending nil)
+            (wime-neural--busy nil) (wime-neural--failed nil)
+            (wime-neural--timeout-timer nil))
+        (unwind-protect
+            (progn
+              (wime-neural--enqueue job)
+              (let ((deadline (+ (float-time) 5)))
+                (while (and wime-neural--busy (< (float-time) deadline))
+                  (accept-process-output wime-neural--process 0.05)))
+              (should-not wime-neural--failed)
+              (should-not wime-neural--busy)
+              (should (numberp wime-neural-last-latency)))
+          (wime-neural--stop))))))

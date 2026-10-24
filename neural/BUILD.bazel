@@ -1,0 +1,14 @@
+load("@rules_rust//rust:defs.bzl", "rust_binary")
+load("@wime_neural_crates//:defs.bzl", "aliases", "all_crate_deps")
+
+exports_files(["Cargo.toml", "Cargo.lock"], visibility = ["//visibility:public"])
+
+rust_binary(
+    name = "wime-neural",
+    srcs = ["src/main.rs"],
+    aliases = aliases(),
+    edition = "2021",
+    rustc_flags = ["-Copt-level=3"],
+    visibility = ["//visibility:public"],
+    deps = all_crate_deps(normal = True),
+)
