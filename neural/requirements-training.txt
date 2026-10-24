@@ -1,5 +1,4 @@
-# Training/evaluation only. The deployed Rust worker does not need Python/CUDA.
-torch>=2.0
+# Preparation/training/evaluation. The Rust CPU worker needs none of these.
+-r requirements-gpu.txt
 numpy>=1.26
-safetensors>=0.4
 pypinyin==0.55.0

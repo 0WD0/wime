@@ -28,7 +28,9 @@ wdoom 快照包含 =wime-neural= 和固定摘要的 4.25M 模型，并配置好�
 
 传统候选立即显示，停键 40 ms 后请求模型。默认的 =rerank= 方法最多比较 9 个完整候选，整词命中的首选保持不动。进程常驻并复用模型缓存，最多保留一个正在运行和一个待处理请求。输入、光标、缓冲区内容或选中项变化后，旧结果失效；进程失败或超时保留传统候选。
 
-设置 =wime-neural-search-method= 为 =verify=，并选择 =wime-ms-pinyin-v1= 条件模型，可使用 Zenzai 式的草稿验证与前缀约束重搜。模型读取上文和完整双拼音节序列，一次验证草稿各位置，提出更可能的前缀；Elisp 在词格剪枝前应用约束，因此能找回原候选表之外的读法。默认最多验证 4 次，按模型平均对数概率加上 =wime-neural-prior-weight= 倍的每音节传统评分，选择已验证的完整候选；权重由开发集校准，设为零则只用模型评分。双拼按键和辅助码始终是硬约束；目前条件模型只支持微软双拼，其他方案不启动验证。全部推理在本地 CPU 上执行。
+设置 =wime-neural-search-method= 为 =verify=，并选择 =wime-ms-pinyin-v1= 条件模型，可使用 Zenzai 式的草稿验证与前缀约束重搜。模型读取上文和完整双拼音节序列，一次验证草稿各位置，提出更可能的前缀；Elisp 在词格剪枝前应用约束，因此能找回原候选表之外的读法。默认最多验证 4 次，按模型平均对数概率加上 =wime-neural-prior-weight= 倍的每音节传统评分，选择已验证的完整候选；权重由开发集校准，设为零则只用模型评分。双拼按键和辅助码始终是硬约束；目前条件模型只支持微软双拼，其他方案不启动验证。
+
+默认 worker 使用本地 Rust CPU 推理。可将 =wime-neural-program= 设为本仓库 =neural/gpu-worker.py= 的绝对路径，使用同一条件模型进行本地 CUDA FP32 推理；该脚本需要完整源码目录，以及 PATH 中 Python 提供 =neural/requirements-gpu.txt= 的依赖和可用 CUDA。GPU 模式只支持 =verify=，不使用半精度或 TF32，模型随进程常驻显存。切换 worker 或模型后重新启用 =wime-neural-mode=。首次请求允许 =wime-neural-startup-timeout=（默认 10 秒）完成加载和 CUDA 初始化，后续请求使用普通 2 秒超时；等待或失败时传统候选仍可用。CPU/GPU 对照见 =test/gpu-measurements.json=。
 
 神经功能仍默认关闭。旧的无条件重排结果见 =test/neural-measurements.json=；条件模型的数据、对照实验和限制见 =test/conditional-measurements.json=。=neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，跨集合重复目标被排除。=neural/train-conditional.py= 只对目标文字计算损失，可用 =--span-share= 将部分训练句子改成接在已提交前缀后的 2～5 字片段；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步 CPU 路径。=test/conditional-debug-cases.json= 保留 100 条纯双拼及 16 条单辅助键对照，属于开发诊断而非独立测试集。金标准不参与模型决策，仅在输出后统计及独立检查词格覆盖率。自动注音和未知的上游预训练重合意味着这些数据不能等同于人工标注的真实按键评测。
 

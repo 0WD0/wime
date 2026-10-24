@@ -27,7 +27,9 @@
               (while (and (< (- (float-time) start) 20)
                           (or (memq wime-neural--timer timer-list)
                               wime-neural--busy wime-neural--pending))
-                (accept-process-output nil 0.01))
+                ;; A 10 ms polling interval masks the latency of a warm GPU
+                ;; request. Wait on the worker, with 1 ms for the initial timer.
+                (accept-process-output wime-neural--process 0.001))
               (when (or wime-neural--failed wime-neural--busy wime-neural--pending)
                 (error "Conditional worker did not complete"))
               (unless wime-neural-last-latency (error "Conditional model was not evaluated"))
