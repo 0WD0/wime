@@ -9,10 +9,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import composition_span, encode_example, input_tokens, prompt, INPUT, OUTPUT, EOS
 from conditional import CharLM, Config, grow_depth
 from conditional import augment_composition
-from inference import anchored_prompt, ConditionalEvaluator
+from inference import anchored_prompt, ConditionalEvaluator, effective_prior_weight
 
 
 class Conditioning(unittest.TestCase):
+    def test_prior_gate_uses_full_candidate_probability_and_can_be_disabled(self):
+        self.assertEqual(effective_prior_weight([-.1, -.2], 1, .1, .5), 0)
+        self.assertEqual(effective_prior_weight([-.1, -.2], 8, .1, .5), .1)
+        self.assertEqual(effective_prior_weight([0], 1, .1, 1), .1)
+        self.assertEqual(effective_prior_weight([-1000], 100, .1, .5), .1)
+        with self.assertRaises(ValueError):
+            effective_prior_weight([-.1], 1, .1, 0)
+
     def test_proposal_order_can_prioritize_stronger_later_evidence(self):
         evaluator = object.__new__(ConditionalEvaluator)
         evaluator.device = "cpu"

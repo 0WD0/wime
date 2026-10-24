@@ -2,10 +2,24 @@
 import torch
 from functools import lru_cache
 import json
+import math
 from pathlib import Path
 import re
 
 from conditional import FORMAT, load_model, prompt
+
+
+def effective_prior_weight(scores, syllables, weight, confidence=1.0):
+    """Use the model alone when its full-candidate probability is high enough.
+
+    Select once from the initial complete pool, then keep it fixed for all
+    verification rounds. One disables the gate for compatibility.
+    """
+    if not 0 < confidence <= 1:
+        raise ValueError("confidence must be in (0, 1]")
+    if confidence < 1 and max(scores) * syllables >= math.log(confidence):
+        return 0.0
+    return weight
 
 
 @lru_cache(maxsize=4096)

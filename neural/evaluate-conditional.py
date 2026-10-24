@@ -16,7 +16,7 @@ import time
 import numpy as np
 
 from conditional import ROOT
-from inference import ConditionalEvaluator
+from inference import ConditionalEvaluator, effective_prior_weight
 
 
 
@@ -36,6 +36,8 @@ def main():
                    help="use joint neural/prior scoring to choose the initial complete draft")
     p.add_argument("--margin", type=float, default=0.5)
     p.add_argument("--prior-weight", type=float, default=0.0)
+    p.add_argument("--prior-confidence", type=float, default=1.0,
+                   help="full-candidate probability above which the initial pool disables the prior")
     p.add_argument("--reference-baseline", type=Path,
                    help="abort if any octagram output differs from this prior results.json")
     p.add_argument("--audit", action="store_true",
@@ -46,7 +48,7 @@ def main():
                    help="keep up to this many committed characters as a fixed decoded prefix")
     p.add_argument("--proposal-order", choices=("position", "gain"), default="position")
     args = p.parse_args()
-    if args.width < 1 or args.budget < 1:
+    if args.width < 1 or args.budget < 1 or not 0 < args.prior_confidence <= 1:
         p.error("width and budget must be positive")
     args.out.mkdir(parents=True, exist_ok=True)
     raw = args.cases.read_text()
@@ -92,14 +94,16 @@ def main():
             best, nbest, best_score = draft, draft, -float("inf")
             calls, visited, recoveries, trace = 0, set(), [], []
             pool_scores = None
+            prior_weight = args.prior_weight
             if candidates and (syllables > 1 or (args.single_character and syllables == 1)):
                 path_score = records[0]["score"]
                 start = time.monotonic()
                 scores, distributions = evaluator.evaluate(model_context, model_code, candidates)
                 pool_scores = scores.copy()
+                prior_weight = effective_prior_weight(scores, syllables, args.prior_weight, args.prior_confidence)
                 nbest = candidates[int(np.argmax(scores))]
                 seed_index = (max(range(len(records)), key=lambda j: scores[j] +
-                                  args.prior_weight * records[j]["score"] / syllables)
+                                  prior_weight * records[j]["score"] / syllables)
                               if args.seed_draft == "neural" else 0)
                 draft, path_score = candidates[seed_index], records[seed_index]["score"]
                 # All seeds are real dictionary candidates; no gold enters selection.
@@ -112,7 +116,7 @@ def main():
                     calls += 1
                     visited.add(draft)
                     trace.append(dict(text=draft, neural=scores[index], prior=path_score / syllables))
-                    joint = scores[index] + args.prior_weight * path_score / syllables
+                    joint = scores[index] + prior_weight * path_score / syllables
                     if joint > best_score:
                         best, best_score = draft, joint
                     if calls == args.budget:
@@ -147,6 +151,7 @@ def main():
                                 document=case.get("document"),
                                 category=case.get("category"), family=case.get("family"),
                                 seed_draft=args.seed_draft,
+                                effective_prior_weight=prior_weight,
                                 trace=trace))
             if args.audit:
                 results[-1].update(
@@ -165,6 +170,7 @@ def main():
                    single_character=args.single_character,
                    context_anchor=args.context_anchor,
                    proposal_order=args.proposal_order,
+                   prior_confidence=args.prior_confidence,
                    width=args.width, seed_draft=args.seed_draft,
                    device=evaluator.device,
                    precision="float32, TF32 disabled",
