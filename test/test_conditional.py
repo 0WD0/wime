@@ -9,9 +9,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import composition_span, encode_example, input_tokens, prompt, INPUT, OUTPUT, EOS
 from conditional import CharLM, Config, grow_depth
 from conditional import augment_composition
+from inference import anchored_prompt
 
 
 class Conditioning(unittest.TestCase):
+    def test_anchor_keeps_committed_prefix_and_actual_distinct_keys(self):
+        known = dict(text="便宜", input="bmyi")
+        actual = anchored_prompt("允许便宜", "x;ui", 128, 2, known)
+        self.assertEqual(actual, prompt("允许", "bmyix;ui") + "便宜")
+        self.assertNotEqual(actual, anchored_prompt("允许便宜", "x;ui", 128, 2,
+                                                    dict(text="便宜", input="pmyi")))
+        self.assertEqual(anchored_prompt("真刀真", "qd", 128, 0), prompt("真刀真", "qd"))
+        self.assertEqual(anchored_prompt("真刀真。", "qd", 128, 2), prompt("真刀真。", "qd"))
+        self.assertEqual(anchored_prompt("真刀真", "qd", 128, 2), prompt("真", "dkvfqd") + "刀真")
+        # Long current input consumes the budget; fixed context is shortened
+        # rather than dropping any newly typed syllables or scored characters.
+        pre = anchored_prompt("已确认的中文前缀" * 12, "aa" * 60, 128, 8)
+        self.assertLessEqual(1 + len(pre) + 60, 128)
+
     def test_single_spans_keep_polyphonic_reading_and_short_rows_are_valid(self):
         row = dict(context="允许", input="bmyix;ui", gold=["便宜行事"],
                    pinyin="bian yi xing shi")

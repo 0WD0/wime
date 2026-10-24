@@ -18,7 +18,11 @@ class WorkerContract(unittest.TestCase):
 
     def test_malformed_envelopes_are_rejected(self):
         for request in [None, [], {}, self.request(id=True), self.request(syllables=-1),
-                        self.request(context=[]), self.request(candidates=[{}])]:
+                        self.request(context=[]), self.request(candidates=[{}]),
+                        self.request(context_anchor=-1), self.request(context_anchor=9),
+                        self.request(context_anchor=True),
+                        self.request(context_reading=dict(text="便宜", input="bm")),
+                        self.request(context_reading=dict(text="便宜", input="bmyi"))]:
             with self.assertRaises(ValueError):
                 worker.validate(request)
 

@@ -10,6 +10,7 @@
       wime-search-width 16 wime-neural-inference-budget 4
       wime-neural-seed-candidates t
       wime-neural-single-character (equal (getenv "WIME_SINGLE_CHARACTER") "1"))
+(setq wime-neural-context-anchor (string-to-number (or (getenv "WIME_CONTEXT_ANCHOR") "0")))
 
 (defun wime-stress--wait ()
   (let ((deadline (+ (float-time) 20)))
@@ -56,6 +57,12 @@
                 (error "Typing/replay mismatch: %s" (alist-get 'id case)))
               (cl-incf checks)
               (dolist (mutation '(selection edit boundary cancel))
+                ;; With empty context, narrowing to point changes nothing.
+                ;; Add temporary editable text so this really invalidates the
+                ;; captured context, then restore it before the next scenario.
+                (let ((boundary-text (and (eq mutation 'boundary)
+                                          (string-empty-p (wime--context)))))
+                (when boundary-text (insert "边界测试"))
                 (wime--refresh)
                 (wime-stress--dispatch)
                 (cl-incf requests)
@@ -72,7 +79,8 @@
                     (error "Stale reply applied after %s: %s" mutation (alist-get 'id case)))
                   (cl-incf checks)
                   (when (eq mutation 'edit) (delete-region position (point)))
-                  (setq wime-context-start-function nil wime--selected 0)))
+                  (setq wime-context-start-function nil wime--selected 0))
+                (when boundary-text (delete-region (- (point) 4) (point)))))
               ;; Re-enter the same code after cancellation; the earlier reply
               ;; must not poison the new composition's snapshot or cache.
               (mapc #'wime-input-method (string-to-list code))

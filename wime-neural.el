@@ -48,6 +48,12 @@ Enable only with a model trained and evaluated on single-character spans.
 Older models retain contextual octagram ranking by default."
   :type 'boolean :group 'wime)
 
+(defcustom wime-neural-context-anchor 0
+  "Committed characters retained as a fixed decoder prefix by the CUDA worker.
+Zero uses the original context/composition separation.  Actual recently
+committed keys override inferred context readings; only new text is scored."
+  :type 'integer :group 'wime)
+
 (defcustom wime-neural-inference-budget 4
   "Maximum verification rounds per composition in `verify' mode.
 The optional CUDA seed selection scores the initial candidate pool in one
@@ -70,6 +76,7 @@ this weight selects among complete, verified drafts, including CUDA seeds."
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
   id buffer input position tick context records syllables
   method draft best best-score (round 0) visited
+  context-reading (context-anchor wime-neural-context-anchor)
   (seed-candidates wime-neural-seed-candidates)
   (prior-weight wime-neural-prior-weight))
 
@@ -130,6 +137,7 @@ this weight selects among complete, verified drafts, including CUDA seeds."
                     :id (cl-incf wime-neural--serial) :buffer (current-buffer)
                     :input wime--input :position (point)
                     :tick (buffer-chars-modified-tick) :context (wime-neural--context)
+                    :context-reading (wime--context-reading (wime-neural--context))
                     :records records :syllables n :method wime-neural-search-method
                     :draft (car full))))
           (setq wime-neural--timer
@@ -188,6 +196,8 @@ this weight selects among complete, verified drafts, including CUDA seeds."
      :seed_candidates ,(if (and (wime-neural--job-seed-candidates job)
                                (= (wime-neural--job-round job) 0)) t :false)
      :prior_weight ,(wime-neural--job-prior-weight job)
+     :context_anchor ,(wime-neural--job-context-anchor job)
+     :context_reading ,(or (wime-neural--job-context-reading job) :null)
      :candidates ,(vconcat
                    (mapcar (lambda (c)
                              `(:text ,(wime-candidate-text c) :end ,(wime-candidate-end c)

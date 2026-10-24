@@ -34,6 +34,17 @@ def validate(request):
             raise ValueError("invalid request")
     if type(request.get("seed_candidates", False)) is not bool:
         raise ValueError("invalid request")
+    anchor = request.get("context_anchor", 0)
+    if type(anchor) is not int or not 0 <= anchor <= 8:
+        raise ValueError("invalid request")
+    known = request.get("context_reading")
+    if known is not None:
+        if (not isinstance(known, dict) or not isinstance(known.get("text"), str)
+                or not isinstance(known.get("input"), str)
+                or len(known["input"]) != 2 * len(known["text"])
+                or any(c not in "abcdefghijklmnopqrstuvwxyz;" for c in known["input"])
+                or not request["context"].endswith(known["text"])):
+            raise ValueError("invalid request")
     if request.get("seed_candidates"):
         if (type(request.get("prior_weight")) not in (int, float)
                 or not math.isfinite(request["prior_weight"]) or request["prior_weight"] < 0):
@@ -60,7 +71,10 @@ def respond(evaluator, request):
     seeding = request.get("seed_candidates", False) and bool(candidates)
     texts = [c["text"] for _, c in candidates] if seeding else [draft]
     try:
-        scores, distributions = evaluator.evaluate(request["context"], code, texts)
+        options = (dict(context_anchor=request["context_anchor"],
+                        known_reading=request.get("context_reading"))
+                   if request.get("context_anchor") else {})
+        scores, distributions = evaluator.evaluate(request["context"], code, texts, **options)
     except ValueError:
         return result  # Invalid keys or an overlong composition retain traditional candidates.
     selected = (max(range(len(candidates)), key=lambda j: scores[j] +

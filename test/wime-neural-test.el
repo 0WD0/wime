@@ -2,6 +2,45 @@
 (require 'ert)
 (require 'wime-neural)
 
+(ert-deftest wime-neural-committed-reading-retains-typed-polyphonic-keys ()
+  (with-temp-buffer
+    (setq wime--input "bmyi"
+          wime--candidate-records (list (wime--make-candidate :text "便宜" :end 2)))
+    (wime--commit "便宜")
+    (should (equal (wime--context-reading (wime--context)) '((text . "便宜") (input . "bmyi"))))
+    (setq wime--input "x;ui"
+          wime--candidate-records (list (wime--make-candidate :text "行事" :end 2)))
+    (wime--commit "行事")
+    (should (equal (alist-get 'input (wime--context-reading (wime--context))) "bmyix;ui"))
+    (let ((wime-database-file "another-scheme.db"))
+      (should-not (wime--context-reading (wime--context))))
+    (setq-local wime-context-start-function (lambda () (- (point) 1)))
+    (should (equal (wime--context-reading (wime--context)) '((text . "事") (input . "ui"))))
+    (setq-local wime-context-start-function #'point)
+    (should-not (wime--context-reading (wime--context)))
+    (setq-local wime-context-start-function nil)
+    (insert " ")
+    (should-not (wime--context-reading (wime--context)))
+    (delete-char -1)
+    (should-not (wime--context-reading (wime--context)))))
+
+(ert-deftest wime-neural-request-snapshots-the-committed-reading ()
+  (with-temp-buffer
+    (setq wime--input "bmyi"
+          wime--candidate-records (list (wime--make-candidate :text "便宜" :end 2)))
+    (wime--commit "便宜")
+    (setq wime--input "x;ui"
+          wime--candidate-records (list (wime--make-candidate :text "行事" :end 2 :score 0)))
+    (let ((wime-neural-mode t) (wime-neural-model-file "model") (wime-neural--failed nil)
+          (wime-neural-search-method 'verify) (wime-neural-context-anchor 2) scheduled)
+      (cl-letf (((symbol-function 'run-with-timer)
+                 (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
+        (wime-neural--schedule))
+      (let ((request (json-parse-string (wime-neural--request scheduled) :object-type 'alist)))
+        (should (= (alist-get 'context_anchor request) 2))
+        (should (equal (alist-get 'input (alist-get 'context_reading request)) "bmyi"))
+        (should (equal (alist-get 'input request) "x;ui"))))))
+
 (ert-deftest wime-neural-single-syllable-retains-contextual-grammar-ranking ()
   (with-temp-buffer
     (let ((wime-neural-mode t) (wime-neural--failed nil)

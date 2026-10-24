@@ -609,11 +609,43 @@ Rime completes partial pinyin."
   (wime--clear-overlay)
   (run-hooks 'wime-reset-hook))
 
+(defvar-local wime--committed-reading nil
+  "Recent confirmed text, its actual keys, endpoint and modification tick.")
+
+(defun wime--context-reading (context)
+  "Return actual keys for the still-valid committed suffix within CONTEXT."
+  (pcase wime--committed-reading
+    (`(,text ,code ,end ,tick ,database)
+     (when (and (= end (point)) (= tick (buffer-chars-modified-tick))
+                (equal database wime-database-file))
+       (let* ((n (min (length context) (length text)))
+              (suffix (substring text (- (length text) n))))
+         (when (and (> n 0) (string-suffix-p suffix context))
+           `((text . ,suffix) (input . ,(substring code (- (length code) (* 2 n)))))))))))
+
 (defun wime--commit (text)
   "Commit TEXT, or the raw typed input when TEXT is nil."
-  (let ((fallback (or wime--input "")))
+  (let* ((fallback (or wime--input ""))
+         (units (wime--parse fallback))
+         (record (seq-find (lambda (c) (equal text (wime-candidate-text c)))
+                           wime--candidate-records))
+         (old (wime--context-reading (wime--context)))
+         (code (when (and record (string-match-p "\\`[一-鿿]+\\'" text)
+                          (= (length text) (wime-candidate-end record))
+                          (>= (length units) (length text))
+                          (cl-every (lambda (u) (= (length (car u)) 2))
+                                    (seq-take units (length text))))
+                 (wime--full-code (seq-take units (length text))))))
     (wime--reset)
-    (insert (or text fallback))))
+    (insert (or text fallback))
+    (setq wime--committed-reading
+          (when code
+            (let* ((joined (concat (alist-get 'text old) text))
+                   (keys (concat (alist-get 'input old) code))
+                   (n (min 16 (length joined))))
+              (list (substring joined (- (length joined) n))
+                    (substring keys (- (length keys) (* 2 n)))
+                    (point) (buffer-chars-modified-tick) wime-database-file))))))
 
 (defun wime--select-digit (key)
   "Select the candidate for digit KEY, or commit nothing when out of range."
