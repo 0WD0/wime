@@ -55,6 +55,37 @@
         (should (equal (car wime--candidates) "甲乙"))
         (should-not wime-neural--pending)))))
 
+(ert-deftest wime-neural-prior-rejects-weak-edits-but-allows-strong-corrections ()
+  (dolist (neural-score '(-1.9 -1.0))
+    (wime-neural-test--composition
+      (let ((wime-neural--pending nil) (wime-neural-inference-budget 2))
+        (setf (wime-neural--job-method job) 'verify
+              (wime-neural--job-prior-weight job) 0.1
+              (wime-neural--job-draft job) (car wime--candidate-records))
+        (cl-letf (((symbol-function 'wime--sentence-records)
+                   (lambda (&rest _)
+                     (list (wime--make-candidate :text "丙乙" :end 2 :score -3)))))
+          (wime-neural--apply job '((score . -2.0) (prefixes . ["丙"])))
+          (let ((continuation wime-neural--pending))
+            (setq wime-neural--pending nil)
+            (wime-neural--apply continuation `((score . ,neural-score)))
+            (should (equal (car wime--candidates)
+                           (if (= neural-score -1.0) "丙乙" "甲乙")))))))))
+
+(ert-deftest wime-neural-auxiliary-key-constrains-search-but-not-pinyin-conditioning ()
+  (wime-neural-test--composition
+    (let ((wime-neural--pending nil) (wime-neural-inference-budget 2) searched)
+      (setq wime--input "moMx;")
+      (setf (wime-neural--job-input job) wime--input
+            (wime-neural--job-method job) 'verify
+            (wime-neural--job-draft job) (car wime--candidate-records))
+      (should (equal (alist-get 'input (json-parse-string (wime-neural--request job)
+                                                        :object-type 'alist)) "mox;"))
+      (cl-letf (((symbol-function 'wime--sentence-records)
+                 (lambda (units _prefix) (setq searched units) nil)))
+        (wime-neural--apply job '((score . -1.0) (prefixes . ["模"])))
+        (should (equal searched '(("mo" . "M") ("x;" . ""))))))))
+
 (ert-deftest wime-neural-conditional-scheduling-requires-the-trained-keyboard-scheme ()
   (wime-neural-test--composition
     (let ((wime-neural-search-method 'verify) (wime-neural-model-file "model.safetensors")

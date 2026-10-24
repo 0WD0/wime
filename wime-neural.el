@@ -40,9 +40,17 @@ database.  Auxiliary codes continue to constrain the dictionary search."
   "Maximum verified drafts per composition in `verify' mode."
   :type 'integer :group 'wime)
 
+(defcustom wime-neural-prior-weight 0.1
+  "Weight of the traditional path score in conditional draft selection.
+Both model and traditional scores are normalized by syllable count.  Zero
+selects by the model alone.  Prefix proposals still come from the model;
+this weight only selects among complete, verified drafts."
+  :type 'number :group 'wime)
+
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
   id buffer input position tick context records syllables
-  method draft best best-score (round 0) visited)
+  method draft best best-score (round 0) visited
+  (prior-weight wime-neural-prior-weight))
 
 (defvar wime-neural-mode)
 (defvar wime-neural--process nil)
@@ -191,6 +199,9 @@ database.  Auxiliary codes continue to constrain the dictionary search."
          (score (alist-get 'score response))
          (next nil))
     (when (numberp score)
+      (setq score (+ score (* (wime-neural--job-prior-weight job)
+                             (/ (wime-candidate-score draft)
+                                (float (wime-neural--job-syllables job))))))
       (cl-incf (wime-neural--job-round job))
       (push text (wime-neural--job-visited job))
       (when (or (null (wime-neural--job-best-score job))
