@@ -12,13 +12,15 @@
       (should (= position (point)))
       (should (= tick (buffer-chars-modified-tick))))))
 
-(ert-deftest wime-neural-context-stops-at-paragraphs-but-keeps-sentences-and-newlines ()
+(ert-deftest wime-neural-context-preserves-paragraphs-unless-explicitly-bounded ()
   (dolist (separator '("\n\n" "\n \t\n" "\f"))
     (with-temp-buffer
       (insert "上一段无关内容" separator "这个函数。\n返回")
-      (should (equal (wime-neural--context) "这个函数。\n返回"))
-      (insert "\n\n")
-      (should (equal (wime-neural--context) "")))))
+      (should (equal (wime-neural--context) (buffer-string)))
+      (let ((wime-neural-context-paragraph-only t))
+        (should (equal (wime-neural--context) "这个函数。\n返回"))
+        (insert "\n\n")
+        (should (equal (wime-neural--context) ""))))))
 
 (ert-deftest wime-neural-context-respects-narrowing-and-field-edges ()
   (with-temp-buffer
@@ -152,7 +154,7 @@
 
 (ert-deftest wime-neural-scheduled-request-contains-only-bounded-editable-context ()
   (wime-neural-test--composition
-    (insert "旧段落\n\n这个函数")
+    (insert (propertize "提示符> " 'read-only t 'rear-nonsticky t) "这个函数")
     (let ((wime-neural-model-file "model.safetensors") (wime-neural--failed nil) scheduled)
       (cl-letf (((symbol-function 'run-with-timer)
                  (lambda (_delay _repeat _function job) (setq scheduled job) nil)))

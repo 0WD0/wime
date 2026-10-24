@@ -61,6 +61,13 @@ selects by the model alone.  Prefix proposals still come from the model;
 this weight selects among complete, verified drafts, including CUDA seeds."
   :type 'number :group 'wime)
 
+(defcustom wime-neural-context-paragraph-only nil
+  "When non-nil, stop context at a blank line or form feed.
+By default paragraph separators are preserved within the editable input
+area and 64-character limit: an earlier paragraph can help disambiguation.
+Modes can set this buffer-locally when paragraphs are independent inputs."
+  :type 'boolean :group 'wime)
+
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
   id buffer input position tick context records syllables
   method draft best best-score (round 0) visited
@@ -113,10 +120,10 @@ Return point to disable context.  Errors or invalid markers also yield none.")
     (max (point-min) (min (point) start))))
 
 (defun wime-neural--context ()
-  "Return the visible, editable paragraph suffix before the insertion point.
+  "Return the visible, editable suffix before the insertion point.
 Honor narrowing, input-area and field boundaries; stop at protected or
-hidden characters instead of joining text across them.  Blank lines and
-form feeds end a paragraph; punctuation and single newlines are retained.
+hidden characters instead of joining text across them.  Paragraph limits
+are optional; punctuation and single newlines are retained.
 The model was trained with at most 64 preceding characters."
   (save-excursion
     (save-match-data
@@ -135,7 +142,8 @@ The model was trained with at most 64 preceding characters."
             (cl-decf position))
           (setq start position)
           (goto-char end)
-          (when (re-search-backward "\n[ \t]*\n\\|\f" start t)
+          (when (and wime-neural-context-paragraph-only
+                     (re-search-backward "\n[ \t]*\n\\|\f" start t))
             (setq start (match-end 0)))
           (buffer-substring-no-properties start end))))))
 
