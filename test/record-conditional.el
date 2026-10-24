@@ -18,7 +18,7 @@
   (error "Missing octagram artifact"))
 (let ((cases (with-temp-buffer
                (insert-file-contents (getenv "WIME_CASES"))
-               (json-parse-buffer :object-type 'alist :array-type 'list))) results)
+               (json-parse-buffer :object-type 'alist :array-type 'list))) results (count 0))
   (unwind-protect
       (progn
         (wime-neural-mode 1)
@@ -47,6 +47,8 @@
                       :initial_search_ms ,initial-search-ms
                       :last_inference_ms ,wime-neural-last-latency
                       :wall_ms ,(* 1000 (- (float-time) start))) results)
+              (when (zerop (% (cl-incf count) 200))
+                (message "Recorded %d compositions" count))
               (wime--reset))))
         (with-temp-file (getenv "WIME_RECORDING")
           (insert (json-serialize (vconcat (nreverse results))))))

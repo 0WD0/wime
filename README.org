@@ -32,6 +32,8 @@ wdoom 快照包含 =wime-neural= 和固定摘要的 4.25M 模型，并配置好�
 
 默认 worker 使用本地 Rust CPU 推理。可将 =wime-neural-program= 设为本仓库 =neural/gpu-worker.py= 的绝对路径，使用同一条件模型进行本地 CUDA FP32 推理；该脚本需要完整源码目录，以及 PATH 中 Python 提供 =neural/requirements-gpu.txt= 的依赖和可用 CUDA。GPU 模式只支持 =verify=，不使用半精度或 TF32，模型随进程常驻显存。切换 worker 或模型后重新启用 =wime-neural-mode=。首次请求允许 =wime-neural-startup-timeout=（默认 10 秒）完成加载和 CUDA 初始化，后续请求使用普通 2 秒超时；等待或失败时传统候选仍可用。CPU/GPU 对照见 =test/gpu-measurements.json=。
 
-神经功能仍默认关闭。旧的无条件重排结果见 =test/neural-measurements.json=；条件模型的数据、对照实验和限制见 =test/conditional-measurements.json=。=neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，跨集合重复目标被排除。=neural/train-conditional.py= 只对目标文字计算损失，可用 =--span-share= 将部分训练句子改成接在已提交前缀后的 2～5 字片段；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步 CPU 路径。=test/conditional-debug-cases.json= 保留 100 条纯双拼及 16 条单辅助键对照，属于开发诊断而非独立测试集。金标准不参与模型决策，仅在输出后统计及独立检查词格覆盖率。自动注音和未知的上游预训练重合意味着这些数据不能等同于人工标注的真实按键评测。
+CUDA 可设置 =wime-neural-seed-candidates= 为 =t=，批量评分满足拼音和辅助码约束的完整候选，再从联合评分最高者开始前缀修正。这能处理单字修正漏掉的整词候选；初始批次计一轮验证，预算不等于评分候选总数。当前实验选中继续训练的 25M 模型、=wime-search-width= 16 和验证预算 4。45M 扩容与宽度 32 没有显示更好的开发集结果，完整准确率、真实路径延迟和限制见 =test/scaling-measurements.json=。这些选项仍需主动启用；Rust worker 保留传统草稿。
+
+神经功能仍默认关闭。旧的无条件重排结果见 =test/neural-measurements.json=；条件模型的数据、对照实验和限制见 =test/conditional-measurements.json=。=neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，跨集合重复目标被排除。=neural/train-conditional.py= 只对目标文字计算损失，可用 =--span-share= 将部分训练句子改成接在已提交前缀后的 2～5 字片段，或用 =--layers= 插入初始输出为零的残差层来扩容；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步 CPU/GPU 路径。评测应使用固定产物副本，避免构建替换正在读取的词典；=--reference-baseline= 可检查每条 octagram 输出是否一致。=test/conditional-debug-cases.json= 保留 100 条纯双拼及 16 条单辅助键对照，属于开发诊断而非独立测试集。金标准不参与模型决策，仅在输出后统计及独立检查词格覆盖率。自动注音和未知的上游预训练重合意味着这些数据不能等同于人工标注的真实按键评测。
 
 尚未实现：上屏后的后续预测、声调输入、自造词与调频。
