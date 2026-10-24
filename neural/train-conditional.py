@@ -8,6 +8,7 @@ import json
 import math
 from pathlib import Path
 import random
+import re
 import time
 
 import numpy as np
@@ -34,6 +35,8 @@ def main():
     p.add_argument("--single-share", type=float, default=0.0)
     p.add_argument("--whitespace-share", type=float, default=0.0)
     p.add_argument("--learning-rate", type=float, default=2e-4)
+    p.add_argument("--exclude-cases", type=Path, action="append", default=[],
+                   help="exclude exact normalized context/answer pairs after span augmentation")
     p.add_argument("--layers", type=int, help="grow depth with initially identity residual blocks")
     args = p.parse_args()
     if (args.steps < 1 or args.batch < 1 or not 0 <= args.extra_share <= 1
@@ -60,6 +63,13 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     exclusions = Counter()
     compositions = Counter()
+    normalize = lambda text: re.sub(r"[^\u4e00-\u9fff]", "", text)
+    protected = set()
+    for path in args.exclude_cases:
+        raw = path.read_text()
+        cases = json.loads(raw) if raw.lstrip().startswith("[") else map(json.loads, raw.splitlines())
+        for case in cases:
+            protected.update((normalize(case.get("context", ""))[-64:], normalize(g)) for g in case["gold"])
 
     def pack(split, directory=args.data):
         rows = []
@@ -73,6 +83,9 @@ def main():
                 if split == "train":
                     row = augment_composition(row, span_rng, args.span_share,
                                               args.single_share, args.whitespace_share)
+                    if (normalize(row["context"])[-64:], normalize(row["gold"][0])) in protected:
+                        exclusions[str(directory) + "/protected_pair"] += 1
+                        continue
                     compositions[str(directory) + "/length_" + str(len(row["gold"][0]))] += 1
                 try:
                     x, y = encode_example(row, index, window)
@@ -101,6 +114,8 @@ def main():
                                  fused=True)
     manifest = json.loads((args.data / "manifest.json").read_text())
     settings = {**vars(args), "data": str(args.data), "out": str(args.out),
+                "exclude_cases": {str(p): hashlib.file_digest(p.open("rb"), "sha256").hexdigest()
+                                  for p in args.exclude_cases},
                 "extra_data": str(args.extra_data) if args.extra_data else None,
                 "base_sha256": hashlib.file_digest(open(args.base, "rb"), "sha256").hexdigest(),
                 "training_examples": len(train), "validation_examples": len(dev), "data_manifest": manifest,
@@ -127,6 +142,19 @@ def main():
             logits, _ = model(x)
             return F.cross_entropy(logits.flatten(0, 1).float(), y.flatten(), ignore_index=0)
 
+    def validate(step):
+        model.eval()
+        with torch.no_grad(), torch.random.fork_rng(devices=[0]):
+            torch.manual_seed(42)
+            primary = sum(loss(*batch(dev, 64)).item() for _ in range(16)) / 16
+            extra = sum(loss(*batch(extra_dev, 64)).item() for _ in range(16)) / 16 if extra_dev is not None else None
+        combined = (1 - args.extra_share) * primary + args.extra_share * extra if extra is not None else primary
+        print(json.dumps(dict(step=step, validation_loss=combined,
+                              primary_validation=primary, extra_validation=extra)), flush=True)
+        return combined
+
+    validate(0)
+
     for step in range(1, args.steps + 1):
         model.train()
         lr = args.learning_rate * min(1, step / 100) * (0.1 + 0.9 * (1 + math.cos(math.pi * step / args.steps)) / 2)
@@ -143,15 +171,8 @@ def main():
         if step % 100 == 0 or step == 1:
             print(json.dumps(dict(step=step, loss=value.item(), seconds=time.monotonic() - start)), flush=True)
         if step % 500 == 0 or step == args.steps:
-            model.eval()
-            # Fixed validation batches; model selection never reads test.jsonl.
-            with torch.no_grad(), torch.random.fork_rng(devices=[0]):
-                torch.manual_seed(42)
-                validation = sum(loss(*batch(dev, 64)).item() for _ in range(16)) / 16
-                if extra_dev is not None:
-                    technical_validation = sum(loss(*batch(extra_dev, 64)).item() for _ in range(16)) / 16
-                    validation = (1 - args.extra_share) * validation + args.extra_share * technical_validation
-            print(json.dumps(dict(step=step, validation_loss=validation)), flush=True)
+            # Fixed validation batches; held-out tests only filter leakage.
+            validation = validate(step)
             if validation < best:
                 best = validation
                 tensors = {k: v.detach().half().cpu().contiguous() for k, v in model.state_dict().items()
