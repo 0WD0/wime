@@ -9,6 +9,114 @@
 (require 'ert)
 (require 'wime)
 
+(ert-deftest wime-context-uses-existing-text-at-point-not-only-ime-commits ()
+  (with-temp-buffer
+    (insert (propertize (concat (make-string 70 ?前) "这个函数") 'face 'bold) "后面的文字")
+    (backward-char 5)
+    (let ((wime--input "fhhv") (position (point)) (tick (buffer-chars-modified-tick)))
+      (should (equal (wime--context) (concat (make-string 60 ?前) "这个函数")))
+      (should-not (text-properties-at 0 (wime--context)))
+      (should (= position (point)))
+      (should (= tick (buffer-chars-modified-tick))))))
+
+(ert-deftest wime-context-preserves-paragraphs-unless-explicitly-bounded ()
+  (dolist (separator '("\n\n" "\n \t\n" "\f"))
+    (with-temp-buffer
+      (insert "上一段无关内容" separator "这个函数。\n返回")
+      (should (equal (wime--context) (buffer-string)))
+      (let ((wime-context-paragraph-only t))
+        (should (equal (wime--context) "这个函数。\n返回"))
+        (insert "\n\n")
+        (should (equal (wime--context) ""))))))
+
+(ert-deftest wime-context-respects-narrowing-and-field-edges ()
+  (with-temp-buffer
+    (insert "历史当前输入")
+    (narrow-to-region 3 (point-max))
+    (should (equal (wime--context) "当前输入"))
+    (widen)
+    (add-text-properties 1 3 '(field history rear-nonsticky t))
+    (let ((inhibit-field-text-motion t))
+      (should (equal (wime--context) "当前输入"))
+      (goto-char 3)
+      (should (equal (wime--context) "")))))
+
+(ert-deftest wime-context-stops-at-read-only-text-and-overlays ()
+  (dolist (overlay '(nil t))
+    (with-temp-buffer
+      (insert "旧内容|当前输入")
+      (if overlay
+          (overlay-put (make-overlay 4 5) 'read-only t)
+        (put-text-property 4 5 'read-only t))
+      (should (equal (wime--context) "当前输入"))
+      (let ((buffer-read-only t) (inhibit-read-only t))
+        (should (equal (wime--context) "")))))
+  (with-temp-buffer
+    (insert (propertize "提示>" 'read-only t 'rear-nonsticky t))
+    (should (equal (wime--context) ""))
+    (insert "输入")
+    (should (equal (wime--context) "输入"))
+    (goto-char 2)
+    (should (equal (wime--context) ""))))
+
+(ert-deftest wime-context-does-not-join-across-hidden-text ()
+  (dolist (overlay '(nil t))
+    (with-temp-buffer
+      (insert "之前隐藏当前")
+      (if overlay
+          (overlay-put (make-overlay 3 5 nil t) 'invisible t)
+        (put-text-property 3 5 'invisible t))
+      (let ((buffer-invisibility-spec t))
+        (should (equal (wime--context) "当前"))
+        ;; Insertion before a non-front-sticky hidden span is still visible.
+        (save-excursion
+          (goto-char 3)
+          (should (equal (wime--context) "之前"))))
+      (let ((buffer-invisibility-spec nil))
+        (should (equal (wime--context) "之前隐藏当前"))))))
+
+(ert-deftest wime-context-excludes-even-an-unprotected-minibuffer-prompt ()
+  (with-temp-buffer
+    (insert "查找文字：当前输入")
+    (cl-letf (((symbol-function 'minibuffer-prompt-end) (lambda () 6)))
+      (should (equal (wime--context) "当前输入"))
+      (goto-char 6)
+      (should (equal (wime--context) "")))))
+
+(ert-deftest wime-context-honors-current-comint-input-without-text-properties ()
+  (require 'comint)
+  (with-temp-buffer
+    (comint-mode)
+    (insert "历史输出\n提示> 输入\n第二行")
+    (let ((process (make-pipe-process :name "wime-context-comint-test"
+                                      :buffer (current-buffer) :noquery t)))
+      (unwind-protect
+          (progn
+            (set-marker (process-mark process) 10)
+            (should (equal (wime--context) "输入\n第二行"))
+            (goto-char 5)
+            (should (equal (wime--context) "")))
+        (delete-process process)))))
+
+(ert-deftest wime-context-honors-eshell-input-and-a-buffer-local-provider ()
+  (with-temp-buffer
+    (insert "历史输出 当前输入")
+    (setq-local major-mode 'eshell-mode
+                eshell-last-output-end (copy-marker 6))
+    (should (equal (wime--context) "当前输入"))
+    (setq-local wime-context-start-function (lambda () 8))
+    (should (equal (wime--context) "输入"))
+    (setq-local wime-context-start-function (lambda () (goto-char 8) (point)))
+    (should (equal (wime--context) "输入"))
+    (should (= (point) (point-max)))
+    ;; A provider can narrow but cannot reopen the shell's history.
+    (setq-local wime-context-start-function (lambda () 1))
+    (should (equal (wime--context) "当前输入"))
+    (setq-local wime-context-start-function (lambda () (error "unavailable")))
+    (should (equal (wime--context) ""))
+    (setq-local wime-context-start-function (lambda () (make-marker)))
+    (should (equal (wime--context) ""))))
+
 (defmacro wime-test--entries (entries &rest body)
   "Run BODY with a small in-memory dictionary ENTRIES."
   (declare (indent 1))
@@ -17,6 +125,69 @@
              ((symbol-function 'wime--grammar-score)
               (lambda (&rest _) 0.0)))
      ,@body))
+
+(ert-deftest wime-search-cache-follows-editable-context-and-boundaries ()
+  (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 1))
+                        ("bb" ("丙" "c" 100)))
+    (cl-letf (((symbol-function 'wime--grammar-score)
+               (lambda (context word _rear)
+                 (if (and (equal context "前") (equal word "乙")) 20.0 0.0))))
+      (with-temp-buffer
+        (let ((units (wime--parse "aabb")))
+          (should (equal (car (wime--candidates "aabb")) "甲丙"))
+          (insert "前")
+          (should (equal (car (wime--candidates "aabb")) "乙丙"))
+          (should (equal (wime--sentence-records units)
+                         (let ((wime--search-cache nil)) (wime--sentence-records units)))))
+        ;; The text and point do not change, only what belongs to this input.
+        (setq-local wime-context-start-function #'point)
+        (should (equal (car (wime--candidates "aabb")) "甲丙"))))))
+
+(ert-deftest wime-single-syllable-keeps-display-slots-and-auxiliary-constraints ()
+  (with-temp-buffer
+    (let ((wime-search-width 1) (wime-candidates-max 10))
+      (should (= (length (wime--candidates "qd")) 10))
+      (should (cl-every (lambda (c) (and (= (wime-candidate-end c) 1)
+                                        (wime-candidate-dictionary c)))
+                       wime--candidate-records))
+      (insert "真刀真")
+      (should (equal (car (wime--candidates "qdM")) "枪"))
+      (should (equal (car (wime--candidates "qdG")) "强"))
+      (should-not (member "枪" (wime--candidates "qdG")))
+      (wime--candidates "q")
+      (should-not wime--candidate-records))))
+
+(ert-deftest wime-committed-prefix-continues-the-same-word ()
+  (unless (and (wime--database) (wime--grammar-ready-p))
+    (ert-skip "word database and octagram required"))
+  (let ((context (concat "你模型水平咋样，到底是好是坏，推友们自己测一测就一清二楚了。"
+                         "你模型水平好性价比又高的话，你都不用太宣传，推友们绝对会自发地介绍最好用最划算的模型。\n"
+                         "你找一堆水军，强迫一堆大V去吹分数，跟 Opus 5.5 碰瓷，这叫自掘坟墓。"
+                         "人家 Opus5.5 那水平那口碑是")))
+    (dolist (split '(0 2 3))
+      (with-temp-buffer
+        (insert context)
+        (let* ((word "真刀真枪") (code "vfdkvfqd")
+               (prefix (substring word 0 split)))
+          (when (> split 0)
+            (mapc #'wime-input-method (string-to-list (substring code 0 (* 2 split))))
+            (should (member prefix wime--candidates))
+            (wime--commit prefix))
+          (mapc #'wime-input-method (string-to-list (substring code (* 2 split))))
+          (should (equal (car wime--candidates) (substring word split)))
+          (wime-input-method ?\s)
+          (should (equal (buffer-string) (concat context word))))))))
+
+(ert-deftest wime-single-character-context-is-local-to-the-insertion-point ()
+  (unless (and (wime--database) (wime--grammar-ready-p))
+    (ert-skip "word database and octagram required"))
+  (with-temp-buffer
+    (insert "真刀真这面")
+    (should (equal (car (wime--candidates "qd")) "墙"))
+    (backward-char 2)
+    (should (equal (car (wime--candidates "qd")) "枪"))
+    (narrow-to-region (point) (point-max))
+    (should (equal (car (wime--candidates "qd")) "强"))))
 
 (ert-deftest wime-prefix-search-recovers-pruned-reading-without-changing-cache ()
   (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 1))

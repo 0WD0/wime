@@ -39,7 +39,9 @@ use `wime-neural-timeout'."
 (defcustom wime-neural-search-method 'rerank
   "Use candidate reranking or conditional draft verification.
 `verify' requires a wime-ms-pinyin-v1 model and a Microsoft double-pinyin
-database.  Auxiliary codes continue to constrain the dictionary search."
+database.  Auxiliary codes continue to constrain the dictionary search.
+Single-syllable input retains contextual octagram ranking: the current
+conditional models have no single-character composition training."
   :type '(choice (const rerank) (const verify)) :group 'wime)
 
 (defcustom wime-neural-inference-budget 4
@@ -61,13 +63,6 @@ selects by the model alone.  Prefix proposals still come from the model;
 this weight selects among complete, verified drafts, including CUDA seeds."
   :type 'number :group 'wime)
 
-(defcustom wime-neural-context-paragraph-only nil
-  "When non-nil, stop context at a blank line or form feed.
-By default paragraph separators are preserved within the editable input
-area and 64-character limit: an earlier paragraph can help disambiguation.
-Modes can set this buffer-locally when paragraphs are independent inputs."
-  :type 'boolean :group 'wime)
-
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
   id buffer input position tick context records syllables
   method draft best best-score (round 0) visited
@@ -85,67 +80,7 @@ Modes can set this buffer-locally when paragraphs are independent inputs."
 (defvar-local wime-neural-last-latency nil
   "Milliseconds spent in the most recently accepted model evaluation.")
 
-(defvar-local wime-neural-context-start-function nil
-  "Optional function returning the start of this buffer's editable input.
-Called without arguments at the insertion point.  Return a position or a
-marker in this buffer, or nil for no additional boundary.  Modes with custom
-editors can set this in their mode hook.  It can only narrow the context;
-field, prompt, visibility, read-only and model-length limits still apply.
-Return point to disable context.  Errors or invalid markers also yield none.")
-
-(defvar eshell-last-output-end)
-
-(defun wime-neural--input-start ()
-  "Return the current input area's lower bound, clamped to accessible text."
-  (let ((start (minibuffer-prompt-end))
-        (mode-start
-         (cond ((derived-mode-p 'comint-mode)
-                (when-let* ((process (get-buffer-process (current-buffer))))
-                  (process-mark process)))
-               ((derived-mode-p 'eshell-mode)
-                (and (boundp 'eshell-last-output-end) eshell-last-output-end))))
-        (custom-start
-         (when wime-neural-context-start-function
-           (condition-case nil
-               (save-excursion
-                 (save-restriction
-                   (funcall wime-neural-context-start-function)))
-             (error (point))))))
-    (dolist (bound (list mode-start custom-start))
-      (cond ((null bound))
-            ((integerp bound) (setq start (max start bound)))
-            ((and (markerp bound) (eq (marker-buffer bound) (current-buffer)))
-             (setq start (max start (marker-position bound))))
-            (t (setq start (point)))))
-    (max (point-min) (min (point) start))))
-
-(defun wime-neural--context ()
-  "Return the visible, editable suffix before the insertion point.
-Honor narrowing, input-area and field boundaries; stop at protected or
-hidden characters instead of joining text across them.  Paragraph limits
-are optional; punctuation and single newlines are retained.
-The model was trained with at most 64 preceding characters."
-  (save-excursion
-    (save-match-data
-      (if (or buffer-read-only (get-pos-property (point) 'read-only)
-              (invisible-p (get-pos-property (point) 'invisible)))
-          ""
-        (let* ((end (point))
-               (start (max (- end 64) (wime-neural--input-start)))
-               (start (max start (field-beginning end nil start)))
-               (position end))
-          ;; At most 64 characters, including overlay properties.  A read-only
-          ;; prompt can abut an editable insertion point via rear-nonsticky.
-          (while (and (> position start)
-                      (not (get-char-property (1- position) 'read-only))
-                      (not (invisible-p (1- position))))
-            (cl-decf position))
-          (setq start position)
-          (goto-char end)
-          (when (and wime-neural-context-paragraph-only
-                     (re-search-backward "\n[ \t]*\n\\|\f" start t))
-            (setq start (match-end 0)))
-          (buffer-substring-no-properties start end))))))
+(defalias 'wime-neural--context #'wime--context)
 
 (defun wime-neural--valid-p (job)
   "Whether JOB still belongs to the current unselected composition."
@@ -176,7 +111,10 @@ The model was trained with at most 64 preceding characters."
     (let* ((records wime--candidate-records)
            (n (length (wime--parse wime--input)))
            (full (seq-filter (lambda (c) (= n (wime-candidate-end c))) records)))
-      (when (and full (eq (car full) (car records))
+      ;; Single-syllable records now carry contextual grammar scores, but the
+      ;; current conditional training spans start at two characters.  Keep
+      ;; octagram's continuation rather than overriding it out of distribution.
+      (when (and (> n 1) full (eq (car full) (car records))
                  (if (eq wime-neural-search-method 'verify)
                      (condition-case nil
                          (equal (caar (sqlite-select (wime--database)

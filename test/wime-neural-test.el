@@ -2,113 +2,27 @@
 (require 'ert)
 (require 'wime-neural)
 
-(ert-deftest wime-neural-context-uses-existing-text-at-point-not-only-ime-commits ()
+(ert-deftest wime-neural-single-syllable-retains-contextual-grammar-ranking ()
   (with-temp-buffer
-    (insert (propertize (concat (make-string 70 ?前) "这个函数") 'face 'bold) "后面的文字")
-    (backward-char 5)
-    (let ((wime--input "fhhv") (position (point)) (tick (buffer-chars-modified-tick)))
-      (should (equal (wime-neural--context) (concat (make-string 60 ?前) "这个函数")))
-      (should-not (text-properties-at 0 (wime-neural--context)))
-      (should (= position (point)))
-      (should (= tick (buffer-chars-modified-tick))))))
+    (let ((wime-neural-mode t) (wime-neural--failed nil)
+          (wime-neural-model-file "model.safetensors") scheduled)
+      (insert "真刀真")
+      (setq wime--input "qd" wime--candidates (wime--candidates "qd"))
+      (should wime--candidate-records)
+      (cl-letf (((symbol-function 'run-with-timer)
+                 (lambda (&rest _) (setq scheduled t))))
+        (dolist (wime-neural-search-method '(rerank verify))
+          (wime-neural--schedule)
+          (should-not scheduled))))))
 
-(ert-deftest wime-neural-context-preserves-paragraphs-unless-explicitly-bounded ()
-  (dolist (separator '("\n\n" "\n \t\n" "\f"))
-    (with-temp-buffer
-      (insert "上一段无关内容" separator "这个函数。\n返回")
-      (should (equal (wime-neural--context) (buffer-string)))
-      (let ((wime-neural-context-paragraph-only t))
-        (should (equal (wime-neural--context) "这个函数。\n返回"))
-        (insert "\n\n")
-        (should (equal (wime-neural--context) ""))))))
-
-(ert-deftest wime-neural-context-respects-narrowing-and-field-edges ()
+(ert-deftest wime-neural-context-settings-remain-compatible ()
   (with-temp-buffer
-    (insert "历史当前输入")
-    (narrow-to-region 3 (point-max))
+    (insert "上段\n\n当前输入")
+    (setq-local wime-neural-context-paragraph-only t)
+    (should wime-context-paragraph-only)
     (should (equal (wime-neural--context) "当前输入"))
-    (widen)
-    (add-text-properties 1 3 '(field history rear-nonsticky t))
-    (let ((inhibit-field-text-motion t))
-      (should (equal (wime-neural--context) "当前输入"))
-      (goto-char 3)
-      (should (equal (wime-neural--context) "")))))
-
-(ert-deftest wime-neural-context-stops-at-read-only-text-and-overlays ()
-  (dolist (overlay '(nil t))
-    (with-temp-buffer
-      (insert "旧内容|当前输入")
-      (if overlay
-          (overlay-put (make-overlay 4 5) 'read-only t)
-        (put-text-property 4 5 'read-only t))
-      (should (equal (wime-neural--context) "当前输入"))
-      (let ((buffer-read-only t) (inhibit-read-only t))
-        (should (equal (wime-neural--context) "")))))
-  (with-temp-buffer
-    (insert (propertize "提示>" 'read-only t 'rear-nonsticky t))
-    (should (equal (wime-neural--context) ""))
-    (insert "输入")
-    (should (equal (wime-neural--context) "输入"))
-    (goto-char 2)
-    (should (equal (wime-neural--context) ""))))
-
-(ert-deftest wime-neural-context-does-not-join-across-hidden-text ()
-  (dolist (overlay '(nil t))
-    (with-temp-buffer
-      (insert "之前隐藏当前")
-      (if overlay
-          (overlay-put (make-overlay 3 5 nil t) 'invisible t)
-        (put-text-property 3 5 'invisible t))
-      (let ((buffer-invisibility-spec t))
-        (should (equal (wime-neural--context) "当前"))
-        ;; Insertion before a non-front-sticky hidden span is still visible.
-        (save-excursion
-          (goto-char 3)
-          (should (equal (wime-neural--context) "之前"))))
-      (let ((buffer-invisibility-spec nil))
-        (should (equal (wime-neural--context) "之前隐藏当前"))))))
-
-(ert-deftest wime-neural-context-excludes-even-an-unprotected-minibuffer-prompt ()
-  (with-temp-buffer
-    (insert "查找文字：当前输入")
-    (cl-letf (((symbol-function 'minibuffer-prompt-end) (lambda () 6)))
-      (should (equal (wime-neural--context) "当前输入"))
-      (goto-char 6)
-      (should (equal (wime-neural--context) "")))))
-
-(ert-deftest wime-neural-context-honors-current-comint-input-without-text-properties ()
-  (require 'comint)
-  (with-temp-buffer
-    (comint-mode)
-    (insert "历史输出\n提示> 输入\n第二行")
-    (let ((process (make-pipe-process :name "wime-context-comint-test"
-                                      :buffer (current-buffer) :noquery t)))
-      (unwind-protect
-          (progn
-            (set-marker (process-mark process) 10)
-            (should (equal (wime-neural--context) "输入\n第二行"))
-            (goto-char 5)
-            (should (equal (wime-neural--context) "")))
-        (delete-process process)))))
-
-(ert-deftest wime-neural-context-honors-eshell-input-and-a-buffer-local-provider ()
-  (with-temp-buffer
-    (insert "历史输出 当前输入")
-    (setq-local major-mode 'eshell-mode
-                eshell-last-output-end (copy-marker 6))
-    (should (equal (wime-neural--context) "当前输入"))
-    (setq-local wime-neural-context-start-function (lambda () 8))
-    (should (equal (wime-neural--context) "输入"))
-    (setq-local wime-neural-context-start-function (lambda () (goto-char 8) (point)))
-    (should (equal (wime-neural--context) "输入"))
-    (should (= (point) (point-max)))
-    ;; A provider can narrow but cannot reopen the shell's history.
-    (setq-local wime-neural-context-start-function (lambda () 1))
-    (should (equal (wime-neural--context) "当前输入"))
-    (setq-local wime-neural-context-start-function (lambda () (error "unavailable")))
-    (should (equal (wime-neural--context) ""))
-    (setq-local wime-neural-context-start-function (lambda () (make-marker)))
-    (should (equal (wime-neural--context) ""))))
+    (setq-local wime-neural-context-start-function (lambda () (- (point) 2)))
+    (should (equal (wime--context) "输入"))))
 
 (defmacro wime-neural-test--composition (&rest body)
   (declare (indent 0))

@@ -54,9 +54,9 @@ def main():
                                str(ROOT / "emacs-packages/wime/test/search-conditional.el")],
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
 
-    def search(code, prefix="", width=None):
+    def search(code, context, prefix="", width=None):
         width = args.width if width is None else width
-        server.stdin.write(json.dumps(dict(input=code, prefix=prefix, width=width)) + "\n")
+        server.stdin.write(json.dumps(dict(input=code, context=context, prefix=prefix, width=width)) + "\n")
         server.stdin.flush()
         line = server.stdout.readline()
         if not line:
@@ -69,8 +69,8 @@ def main():
     try:
         for i, case in enumerate(cases):
             code, context, gold = case["input"], case.get("context", ""), case["gold"]
-            base = search(code, width=1)
-            beam = search(code)
+            base = search(code, context, width=1)
+            beam = search(code, context)
             # The real input parser removes auxiliary codes only for the model;
             # every dictionary search still receives the complete typed input.
             model_code, syllables = beam["input"], beam["syllables"]
@@ -82,7 +82,7 @@ def main():
             draft = candidates[0] if candidates else original
             best, nbest, best_score = draft, draft, -float("inf")
             calls, visited, recoveries, trace = 0, set(), [], []
-            if candidates:
+            if candidates and syllables > 1:
                 path_score = records[0]["score"]
                 start = time.monotonic()
                 scores, distributions = evaluator.evaluate(context, model_code, candidates)
@@ -108,7 +108,7 @@ def main():
                         break
                     proposed = None
                     for prefix in evaluator.proposals(draft, distributions[index], args.margin):
-                        answer = search(code, prefix)
+                        answer = search(code, context, prefix)
                         full = [c for c in answer["candidates"] if c["end"] == syllables]
                         if full and full[0]["text"] not in visited:
                             proposed, path_score = full[0]["text"], full[0]["score"]
@@ -127,7 +127,7 @@ def main():
                          outside_beam_rescue=best in gold and best not in candidates,
                          calls=calls,
                          oracle_reachable=any(c["end"] == syllables
-                                              for c in search(code, gold[0])["candidates"]))
+                                              for c in search(code, context, gold[0])["candidates"]))
             results.append(dict(id=case["id"], input=code, context=context, gold=gold,
                                 octagram=original, beam=(candidates or [""])[0], nbest=nbest,
                                 constrained=best, calls=calls, outside_beam=recoveries,

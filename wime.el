@@ -98,6 +98,79 @@ is nil or unreadable, wime falls back to the committed Elisp tables."
   :type '(integer :tag "Paths (at least 1)")
   :group 'wime)
 
+;; Preserve settings from when editable context was neural-only.
+(defvaralias 'wime-neural-context-paragraph-only 'wime-context-paragraph-only)
+(defvaralias 'wime-neural-context-start-function 'wime-context-start-function)
+
+(defcustom wime-context-paragraph-only nil
+  "When non-nil, stop context at a blank line or form feed.
+By default paragraph separators are preserved within the editable input
+area and 64-character limit: an earlier paragraph can help disambiguation.
+Modes can set this buffer-locally when paragraphs are independent inputs."
+  :type 'boolean :group 'wime)
+
+(defvar-local wime-context-start-function nil
+  "Optional function returning the start of this buffer's editable input.
+Called without arguments at the insertion point.  Return a position or a
+marker in this buffer, or nil for no additional boundary.  Modes with custom
+editors can set this in their mode hook.  It can only narrow the context;
+field, prompt, visibility, read-only and length limits still apply.
+Return point to disable context.  Errors or invalid markers also yield none.")
+
+(defvar eshell-last-output-end)
+
+(defun wime--input-start ()
+  "Return the current input area's lower bound, clamped to accessible text."
+  (let ((start (minibuffer-prompt-end))
+        (mode-start
+         (cond ((derived-mode-p 'comint-mode)
+                (when-let* ((process (get-buffer-process (current-buffer))))
+                  (process-mark process)))
+               ((derived-mode-p 'eshell-mode)
+                (and (boundp 'eshell-last-output-end) eshell-last-output-end))))
+        (custom-start
+         (when wime-context-start-function
+           (condition-case nil
+               (save-excursion
+                 (save-restriction
+                   (funcall wime-context-start-function)))
+             (error (point))))))
+    (dolist (bound (list mode-start custom-start))
+      (cond ((null bound))
+            ((integerp bound) (setq start (max start bound)))
+            ((and (markerp bound) (eq (marker-buffer bound) (current-buffer)))
+             (setq start (max start (marker-position bound))))
+            (t (setq start (point)))))
+    (max (point-min) (min (point) start))))
+
+(defun wime--context ()
+  "Return the visible, editable suffix before the insertion point.
+Honor narrowing, input-area and field boundaries; stop at protected or
+hidden characters instead of joining text across them.  Paragraph limits
+are optional; punctuation and single newlines are retained.
+Keep at most 64 characters, matching the neural model's training window."
+  (save-excursion
+    (save-match-data
+      (if (or buffer-read-only (get-pos-property (point) 'read-only)
+              (invisible-p (get-pos-property (point) 'invisible)))
+          ""
+        (let* ((end (point))
+               (start (max (- end 64) (wime--input-start)))
+               (start (max start (field-beginning end nil start)))
+               (position end))
+          ;; At most 64 characters, including overlay properties.  A read-only
+          ;; prompt can abut an editable insertion point via rear-nonsticky.
+          (while (and (> position start)
+                      (not (get-char-property (1- position) 'read-only))
+                      (not (invisible-p (1- position))))
+            (cl-decf position))
+          (setq start position)
+          (goto-char end)
+          (when (and wime-context-paragraph-only
+                     (re-search-backward "\n[ \t]*\n\\|\f" start t))
+            (setq start (match-end 0)))
+          (buffer-substring-no-properties start end))))))
+
 (cl-defstruct (wime-candidate (:constructor wime--make-candidate))
   "A reading and the input it consumes; END counts parsed syllables."
   text score end dictionary)
@@ -367,9 +440,12 @@ prefix of one of its comma-separated groups."
 (defun wime--sentence-records (units &optional required-prefix)
   "Search UNITS, optionally requiring the output to start with REQUIRED-PREFIX.
 Filter extensions before beam pruning, including constraints ending inside
-a dictionary word.  Constrained searches never replace the typing cache."
-  (let* ((n (length units)) (paths (make-vector (1+ n) nil))
-         (signature (list wime-database-file wime--db wime-database-limit
+a dictionary word.  Constrained searches never replace the typing cache.
+Include the editable text before point in collocation scores and the cache
+signature."
+  (let* ((n (length units)) (context (wime--context))
+         (paths (make-vector (1+ n) nil))
+         (signature (list context wime-database-file wime--db wime-database-limit
                           wime-word-penalty wime-max-word-syllables wime-search-width
                           wime-grammar-module wime-grammar-shared-dir wime-grammar-language
                           wime--grammar-ready wime--grammar-failed
@@ -409,7 +485,7 @@ a dictionary word.  Constrained searches never replace the typing cache."
                                        :score (+ (wime-candidate-score path)
                                                  (log (max 1 (nth 2 entry)))
                                                  (- wime-word-penalty)
-                                                 (wime--grammar-score prefix word (= end n))))
+                                                 (wime--grammar-score (concat context prefix) word (= end n))))
                                       extensions)))))))
                (aset paths end (wime--best-paths (nreverse extensions)))))
     (unless required-prefix (setq wime--search-cache (list signature units paths)))
@@ -449,15 +525,20 @@ a complete syllable precedes it, longer words are allowed.
 (defun wime--candidates (input)
   "Return candidates for the raw INPUT string.
 
-A complete single syllable goes straight to the character table; longer
-complete input runs the word lattice.  An incomplete trailing syllable
-falls back to a prefix search, the way Rime completes partial pinyin."
+Complete input, including a single syllable, uses contextual word scores.
+An incomplete trailing syllable falls back to a prefix search, the way
+Rime completes partial pinyin."
   (let* ((units (wime--parse input))
          (last (car (last units)))
          (complete (cl-every (lambda (unit) (= (length (car unit)) 2)) units)))
     (setq wime--candidate-records
-          (when (and complete (> (length units) 1))
-            (wime--sentence-records units)))
+          (when (and units complete)
+            ;; Preserve all display slots for single characters even with a
+            ;; narrower sentence beam (e.g. width 1 or the default width 8).
+            (let ((wime-search-width (if (= (length units) 1)
+                                        (max wime-candidates-max wime-search-width)
+                                      wime-search-width)))
+              (wime--sentence-records units))))
     (seq-take
      (cond
       ((null units) nil)

@@ -17,9 +17,13 @@
              (prefix (alist-get 'prefix request))
              (units (wime--parse (alist-get 'input request)))
              (start (float-time))
-             (records (wime--sentence-records
-                       units
-                       (unless (string-empty-p prefix) prefix))))
+             (records (with-temp-buffer
+                        (insert (or (alist-get 'context request) ""))
+                        (if (string-empty-p prefix)
+                            (progn
+                              (wime--candidates (alist-get 'input request))
+                              wime--candidate-records)
+                          (wime--sentence-records units prefix)))))
         (princ (decode-coding-string (json-serialize
                 `(:ms ,(* 1000 (- (float-time) start))
                   :input ,(wime--full-code units) :syllables ,(length units)

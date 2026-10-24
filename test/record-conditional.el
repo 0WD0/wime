@@ -39,11 +39,15 @@
                 (accept-process-output wime-neural--process 0.001))
               (when (or wime-neural--failed wime-neural--busy wime-neural--pending)
                 (error "Conditional worker did not complete"))
-              (unless wime-neural-last-latency (error "Conditional model was not evaluated"))
+              (if (= (length (wime--parse wime--input)) 1)
+                  (when wime-neural-last-latency
+                    (error "Single-syllable input must retain contextual grammar ranking"))
+                (unless wime-neural-last-latency (error "Conditional model was not evaluated")))
               (push `(:id ,(alist-get 'id case) :input ,wime--input
                       :gold ,(vconcat (alist-get 'gold case))
                       :baseline ,baseline :result ,(car wime--candidates)
-                      :cold_start ,(if cold t :false)
+                      :model_evaluated ,(if wime-neural-last-latency t :false)
+                      :cold_start ,(if (and cold wime-neural-last-latency) t :false)
                       :initial_search_ms ,initial-search-ms
                       :last_inference_ms ,wime-neural-last-latency
                       :wall_ms ,(* 1000 (- (float-time) start))) results)
