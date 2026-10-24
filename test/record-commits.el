@@ -12,6 +12,7 @@
       wime-search-width 16 wime-neural-inference-budget 4
       wime-neural-seed-candidates t wime-neural-single-character t
       wime-neural-context-anchor 2)
+(setq wime-neural-prior-confidence (string-to-number (or (getenv "WIME_PRIOR_CONFIDENCE") "1")))
 (let ((cases (with-temp-buffer
                (insert-file-contents (getenv "WIME_CASES"))
                (json-parse-buffer :object-type 'alist :array-type 'list))) results)

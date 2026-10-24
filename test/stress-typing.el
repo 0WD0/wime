@@ -11,6 +11,7 @@
       wime-neural-seed-candidates t
       wime-neural-single-character (equal (getenv "WIME_SINGLE_CHARACTER") "1"))
 (setq wime-neural-context-anchor (string-to-number (or (getenv "WIME_CONTEXT_ANCHOR") "0")))
+(setq wime-neural-prior-confidence (string-to-number (or (getenv "WIME_PRIOR_CONFIDENCE") "1")))
 
 (defun wime-stress--wait ()
   (let ((deadline (+ (float-time) 20)))

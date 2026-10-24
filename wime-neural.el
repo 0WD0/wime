@@ -73,11 +73,19 @@ selects by the model alone.  Prefix proposals still come from the model;
 this weight selects among complete, verified drafts, including CUDA seeds."
   :type 'number :group 'wime)
 
+(defcustom wime-neural-prior-confidence 1.0
+  "Full-candidate model probability that disables traditional score mixing.
+One disables this optional CUDA seed-selection rule.  Lower values must be
+calibrated for the model.  The selected weight stays fixed for all rounds
+of one composition; dictionary and auxiliary constraints remain mandatory."
+  :type 'number :group 'wime)
+
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
   id buffer input position tick context records syllables
   method draft best best-score (round 0) visited
   context-reading (context-anchor wime-neural-context-anchor)
   (seed-candidates wime-neural-seed-candidates)
+  (prior-confidence wime-neural-prior-confidence)
   (prior-weight wime-neural-prior-weight))
 
 (defvar wime-neural-mode)
@@ -196,6 +204,7 @@ this weight selects among complete, verified drafts, including CUDA seeds."
      :seed_candidates ,(if (and (wime-neural--job-seed-candidates job)
                                (= (wime-neural--job-round job) 0)) t :false)
      :prior_weight ,(wime-neural--job-prior-weight job)
+     :prior_confidence ,(wime-neural--job-prior-confidence job)
      :context_anchor ,(wime-neural--job-context-anchor job)
      :context_reading ,(or (wime-neural--job-context-reading job) :null)
      :candidates ,(vconcat
@@ -246,6 +255,13 @@ this weight selects among complete, verified drafts, including CUDA seeds."
     (when (and (numberp score)
                (or (not (assq 'verified_index response))
                    (and seed (= (wime-candidate-end seed) (wime-neural--job-syllables job)))))
+      ;; Only the initial, validated seed batch may disable the configured
+      ;; weight.  Keep it on the job so later drafts use comparable scores.
+      (when (and seed (= (wime-neural--job-round job) 0)
+                 (< (wime-neural--job-prior-confidence job) 1)
+                 (numberp (alist-get 'effective_prior_weight response))
+                 (= (alist-get 'effective_prior_weight response) 0))
+        (setf (wime-neural--job-prior-weight job) 0.0))
       (setq score (+ score (* (wime-neural--job-prior-weight job)
                              (/ (wime-candidate-score draft)
                                 (float (wime-neural--job-syllables job))))))

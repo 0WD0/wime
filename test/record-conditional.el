@@ -16,6 +16,7 @@
 (setq wime-neural-seed-candidates (equal (getenv "WIME_SEED_CANDIDATES") "1"))
 (setq wime-neural-single-character (equal (getenv "WIME_SINGLE_CHARACTER") "1"))
 (setq wime-neural-context-anchor (string-to-number (or (getenv "WIME_CONTEXT_ANCHOR") "0")))
+(setq wime-neural-prior-confidence (string-to-number (or (getenv "WIME_PRIOR_CONFIDENCE") "1")))
 (unless (file-readable-p (expand-file-name "wanxiang-lts-zh-hans.gram" wime-grammar-shared-dir))
   (error "Missing octagram artifact"))
 (let ((cases (with-temp-buffer

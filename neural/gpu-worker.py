@@ -12,7 +12,7 @@ import math
 import sys
 import time
 
-from inference import ConditionalEvaluator
+from inference import ConditionalEvaluator, effective_prior_weight
 
 
 def validate(request):
@@ -33,6 +33,9 @@ def validate(request):
         if not isinstance(request.get(key, ""), str):
             raise ValueError("invalid request")
     if type(request.get("seed_candidates", False)) is not bool:
+        raise ValueError("invalid request")
+    confidence = request.get("prior_confidence", 1.0)
+    if type(confidence) not in (int, float) or not 0 < confidence <= 1:
         raise ValueError("invalid request")
     anchor = request.get("context_anchor", 0)
     if type(anchor) is not int or not 0 <= anchor <= 8:
@@ -77,13 +80,16 @@ def respond(evaluator, request):
         scores, distributions = evaluator.evaluate(request["context"], code, texts, **options)
     except ValueError:
         return result  # Invalid keys or an overlong composition retain traditional candidates.
+    prior_weight = (effective_prior_weight(scores, syllables, request["prior_weight"],
+                                           request.get("prior_confidence", 1.0)) if seeding else 0.0)
     selected = (max(range(len(candidates)), key=lambda j: scores[j] +
-                    request["prior_weight"] * candidates[j][1]["score"] / syllables)
+                    prior_weight * candidates[j][1]["score"] / syllables)
                 if seeding else 0)
     if seeding:
         # Return an index into the original, aux-filtered dictionary pool. The
         # editor never accepts free-form model text as a seed candidate.
         result["verified_index"] = candidates[selected][0]
+        result["effective_prior_weight"] = prior_weight
     result.update(score=scores[selected],
                   prefixes=evaluator.proposals(texts[selected], distributions[selected], 0.5),
                   evaluated=len(texts),

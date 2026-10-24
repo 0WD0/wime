@@ -21,6 +21,8 @@ class WorkerContract(unittest.TestCase):
                         self.request(context=[]), self.request(candidates=[{}]),
                         self.request(context_anchor=-1), self.request(context_anchor=9),
                         self.request(context_anchor=True),
+                        self.request(prior_confidence=0), self.request(prior_confidence=True),
+                        self.request(prior_confidence=float("nan")),
                         self.request(context_reading=dict(text="便宜", input="bm")),
                         self.request(context_reading=dict(text="便宜", input="bmyi"))]:
             with self.assertRaises(ValueError):
@@ -66,6 +68,24 @@ class WorkerContract(unittest.TestCase):
                        dict(seed_candidates=1), dict(candidates=[dict(request["candidates"][0], score=None)])):
             with self.assertRaises(ValueError):
                 worker.validate(dict(request, **change))
+
+    def test_confident_seed_reports_the_weight_used_for_later_rounds(self):
+        class Evaluator:
+            def evaluate(self, context, code, texts):
+                return [-.05, -.2], [None, None]
+
+            def proposals(self, draft, distribution, margin):
+                return []
+
+        request = self.request(seed_candidates=True, prior_weight=.1, candidates=[
+            dict(text="编译", end=2, dictionary=True, score=-10),
+            dict(text="便宜", end=2, dictionary=True, score=-1)])
+        default = worker.respond(Evaluator(), request)
+        self.assertEqual(default["verified_index"], 1)
+        self.assertEqual(default["effective_prior_weight"], .1)
+        confident = worker.respond(Evaluator(), dict(request, prior_confidence=.5))
+        self.assertEqual(confident["verified_index"], 0)
+        self.assertEqual(confident["effective_prior_weight"], 0)
 
 
 if __name__ == "__main__":

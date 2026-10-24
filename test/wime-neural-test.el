@@ -352,3 +352,35 @@
               (should-not wime-neural--busy)
               (should (numberp wime-neural-last-latency)))
           (wime-neural--stop))))))
+
+(ert-deftest wime-neural-confident-seed-keeps-the-same-prior-for-later-rounds ()
+  (wime-neural-test--composition
+    (let ((wime-neural--pending nil)
+          (wime-neural-inference-budget 4)
+          (candidate (wime--make-candidate :text "丙丁" :end 2 :score -100)))
+      (setf (wime-neural--job-seed-candidates job) t
+            (wime-neural--job-prior-confidence job) .5
+            (wime-neural--job-prior-weight job) .1)
+      (cl-letf (((symbol-function 'wime--sentence-records)
+                 (lambda (&rest _) (list candidate))))
+        (wime-neural--verify-apply
+         job '((verified_index . 0) (score . -.05) (effective_prior_weight . 0)
+               (prefixes . ("丙")))))
+      (should (= (wime-neural--job-prior-weight job) 0))
+      (should (= (wime-neural--job-best-score job) -.05))
+      (let ((next wime-neural--pending))
+        (setq wime-neural--pending nil)
+        (should (= (wime-neural--job-prior-weight next) 0))
+        (should (= (alist-get 'prior_weight
+                              (json-parse-string (wime-neural--request next) :object-type 'alist)) 0))
+        (wime-neural--verify-apply next '((score . -.04)))
+        (should (equal (car wime--candidates) "丙丁"))))))
+
+(ert-deftest wime-neural-prior-cannot-be-disabled-without-opt-in ()
+  (wime-neural-test--composition
+    (setf (wime-neural--job-seed-candidates job) t
+          (wime-neural--job-prior-confidence job) 1.0
+          (wime-neural--job-prior-weight job) .1)
+    (wime-neural--verify-apply
+     job '((verified_index . 0) (score . -.05) (effective_prior_weight . 0)))
+    (should (= (wime-neural--job-prior-weight job) .1))))
