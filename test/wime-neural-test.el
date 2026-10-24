@@ -30,7 +30,10 @@
         (let ((wime-neural-search-method 'verify))
           (wime-neural--schedule)
           (should (= (wime-neural--job-syllables scheduled) 1))
-          (should (equal (wime-neural--job-context scheduled) "真刀真")))))))
+          (should (equal (wime-neural--job-context scheduled) "真刀真"))
+          (setq scheduled nil wime--input "q" wime--candidates (wime--candidates "q"))
+          (wime-neural--schedule)
+          (should-not scheduled))))))
 
 (ert-deftest wime-neural-context-settings-remain-compatible ()
   (with-temp-buffer

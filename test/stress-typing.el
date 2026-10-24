@@ -8,7 +8,8 @@
       wime-neural-model-file (getenv "WIME_NEURAL_MODEL")
       wime-neural-search-method 'verify wime-neural-delay 0
       wime-search-width 16 wime-neural-inference-budget 4
-      wime-neural-seed-candidates t)
+      wime-neural-seed-candidates t
+      wime-neural-single-character (equal (getenv "WIME_SINGLE_CHARACTER") "1"))
 
 (defun wime-stress--wait ()
   (let ((deadline (+ (float-time) 20)))
