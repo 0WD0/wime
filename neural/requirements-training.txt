@@ -1,0 +1,5 @@
+# Training/evaluation only. The deployed Rust worker does not need Python/CUDA.
+torch>=2.0
+numpy>=1.26
+safetensors>=0.4
+pypinyin==0.55.0

@@ -1,0 +1,441 @@
+{
+  "date": "2026-10-25",
+  "status": "experimental, disabled by default",
+  "scope": "Complete Microsoft double-pinyin syllables; uppercase auxiliary codes enforced by dictionary search.",
+  "method": "Context + one token per typed double-pinyin syllable; output-only fine-tuning loss; batched draft verification; up to 16 prefix proposals and 4 verified drafts; highest-scoring verified full reading wins.",
+  "environment": {
+    "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.44",
+    "processor": "",
+    "python": "3.14.8",
+    "torch": "2.14.1",
+    "numpy": "2.5.4",
+    "safetensors": "0.7.0",
+    "pypinyin": "0.55.0",
+    "gpu": "NVIDIA GeForce RTX 4090 (48 GiB)"
+  },
+  "data": {
+    "dialog": {
+      "source": "https://huggingface.co/datasets/silver/lccc",
+      "upstream": "https://github.com/thu-coai/CDial-GPT",
+      "license": "MIT",
+      "source_sha256": "2162e0ed923fba62329cabf7e1493fbe59248afc94a62508e4abdea61e624627",
+      "algebra_sha256": "0a070b2c00f1e351687090c040fa779cbdc15439b45a438284aa1e4f4ac39e0d",
+      "dialogs": 500000,
+      "counts": {
+        "repetitive": 28424,
+        "duplicate": 73382,
+        "train": 1511861,
+        "train_chars": 14953265,
+        "overlap_target_removed": 2107,
+        "test": 14685,
+        "test_chars": 145097,
+        "dev": 15143,
+        "dev_chars": 150075
+      },
+      "pypinyin": "0.55.0",
+      "limitation": "Automatically derived pinyin; upstream pretraining overlap unknown.",
+      "files": {
+        "train": "77b657962282dccebe622a242d7b68d74c0356246ca419260623261c344a2050",
+        "dev": "21efb8bcce27be7e9bec351995f4499a96d54653f2158199801d7ac6024a52e3",
+        "test": "f09c5a3ca4a372f9b7ea8d17e5431ba7658895235bb624a8dc55e3d7b6503099"
+      }
+    },
+    "technical": {
+      "source": "https://github.com/kubernetes/website",
+      "revision": "fe59320b9e3858bc9d41b4ad8d86b1c77568ceb4",
+      "archive_sha256": "a45f4c91c6cd1910bbb2c927b3ab49436deedd3b9290103a13a00944bbccb7b7",
+      "license": "CC-BY-4.0",
+      "attribution": "The Kubernetes Authors, Chinese documentation (modified into pinyin/text pairs).",
+      "counts": {
+        "train_documents": 421,
+        "duplicates": 3409,
+        "test_documents": 48,
+        "other_corpus_overlap": 19,
+        "dev_documents": 51,
+        "train": 39100,
+        "train_chars": 436599,
+        "dev": 3968,
+        "dev_chars": 44266,
+        "test": 4845,
+        "test_chars": 54146
+      },
+      "pypinyin": "0.55.0",
+      "limitation": "Automatic pinyin labels; upstream pretrained-model overlap unknown.",
+      "files": {
+        "train": "b45f4b3f04a1a75388139e6250c5aaa25318646a9eebc04d161d662a18c73238",
+        "dev": "c8c154015a08dee003a074268e090248305ac65adfd7a9cd128ceb29f84b71a8",
+        "test": "e84db092e2687bb051f55fd81b3603082d8be40721d09b6e51c1accb0012ce77"
+      }
+    },
+    "audit": "Zero shared documents and exact target strings across train/dev/test in each source. Technical targets shared with any LCCC split removed. 20 LCCC training targets outside the inherited vocabulary excluded.",
+    "test_selection": "First 2048 dialog test rows in source order; first 1024 technical test rows sorted by target SHA256."
+  },
+  "models": {
+    "10k": {
+      "path": "/home/_WD_/.cache/wime-conditional/run-10k/model.safetensors",
+      "sha256": "1069e6387dab83ba098d0dc74c69a54fb0ff3214a0447a0dbc1b6288ae984c7b",
+      "bytes": 50637456,
+      "base_sha256": "0a6ecba69bf1d39c7eb49549c716477dd6c03fdf05757773e1f50435262fb469",
+      "training_examples": 10000,
+      "seed": 20261025,
+      "maximum_steps": 3000,
+      "selected_step": 1000,
+      "validation_loss": 0.7413476891815662,
+      "config": {
+        "vocab": 13131,
+        "n_layer": 8,
+        "n_head": 8,
+        "n_embd": 448,
+        "context": 128,
+        "dropout": 0.0
+      },
+      "attribution": "Trained on the Chinese portion of C4 (ODC-BY, https://huggingface.co/datasets/allenai/c4) and LCCC (MIT, https://github.com/thu-coai/CDial-GPT). Fine-tuned on LCCC (MIT), manifest in run.json.",
+      "sampling": "First 10,000 encodable training examples; prefix-subset ablation."
+    },
+    "full": {
+      "path": "/home/_WD_/.cache/wime-conditional/run-full/model.safetensors",
+      "sha256": "24165fbc7513f74c5e61624660cfa775470e529afd1771c71e8817b3bc33cfad",
+      "bytes": 50637456,
+      "base_sha256": "0a6ecba69bf1d39c7eb49549c716477dd6c03fdf05757773e1f50435262fb469",
+      "training_examples": 1511841,
+      "seed": 20261025,
+      "maximum_steps": 3000,
+      "selected_step": 3000,
+      "validation_loss": 0.23469327483326197,
+      "config": {
+        "vocab": 13131,
+        "n_layer": 8,
+        "n_head": 8,
+        "n_embd": 448,
+        "context": 128,
+        "dropout": 0.0
+      },
+      "attribution": "Trained on the Chinese portion of C4 (ODC-BY, https://huggingface.co/datasets/allenai/c4) and LCCC (MIT, https://github.com/thu-coai/CDial-GPT). Fine-tuned on LCCC (MIT), manifest in run.json."
+    },
+    "full-12k": {
+      "path": "/home/_WD_/.cache/wime-conditional/run-full-12k/model.safetensors",
+      "sha256": "3ed26a8cb1417d22ad4d9f1ba05d138ddabd1ba44f591d57176e5f5ee8873bd0",
+      "bytes": 50637464,
+      "base_sha256": "0a6ecba69bf1d39c7eb49549c716477dd6c03fdf05757773e1f50435262fb469",
+      "training_examples": 1511841,
+      "seed": 20261025,
+      "maximum_steps": 12000,
+      "selected_step": 11500,
+      "validation_loss": 0.16928633535280824,
+      "config": {
+        "vocab": 13131,
+        "n_layer": 8,
+        "n_head": 8,
+        "n_embd": 448,
+        "context": 128,
+        "dropout": 0.0
+      },
+      "attribution": "Trained on the Chinese portion of C4 (ODC-BY, https://huggingface.co/datasets/allenai/c4) and LCCC (MIT, https://github.com/thu-coai/CDial-GPT). Fine-tuned on LCCC (MIT), manifest in run.json."
+    },
+    "mixed": {
+      "path": "/home/_WD_/.cache/wime-conditional/run-mixed/model.safetensors",
+      "sha256": "1908154b95f318bdeac221a75d06a083c4d26a5698e30c6b95c57d943abee4df",
+      "bytes": 50637696,
+      "base_sha256": "24165fbc7513f74c5e61624660cfa775470e529afd1771c71e8817b3bc33cfad",
+      "training_examples": 1511841,
+      "seed": 20261025,
+      "maximum_steps": 3000,
+      "selected_step": 3000,
+      "validation_loss": 0.17959921003784984,
+      "config": {
+        "vocab": 13131,
+        "n_layer": 8,
+        "n_head": 8,
+        "n_embd": 448,
+        "context": 128,
+        "dropout": 0.0
+      },
+      "attribution": "Trained on the Chinese portion of C4 (ODC-BY, https://huggingface.co/datasets/allenai/c4) and LCCC (MIT, https://github.com/thu-coai/CDial-GPT). Fine-tuned on LCCC (MIT), manifest in run.json. Fine-tuned on LCCC (MIT), manifest in run.json. The Kubernetes Authors, Chinese documentation (CC-BY-4.0), https://github.com/kubernetes/website, revision fe59320b9e3858bc9d41b4ad8d86b1c77568ceb4; modified into pinyin/text training pairs.",
+      "technical_batch_share": 0.25
+    }
+  },
+  "results": {
+    "eval-fp32-test-mixed": {
+      "total": 2048,
+      "octagram": 1149,
+      "beam": 1166,
+      "nbest": 1305,
+      "constrained": 1288,
+      "beam_oracle": 1590,
+      "rescue": 341,
+      "regression": 202,
+      "outside_beam_rescue": 91,
+      "calls": 3566,
+      "oracle_reachable": 2046,
+      "margin": 0.5,
+      "budget": 4,
+      "device": "cuda",
+      "precision": "float32, TF32 disabled",
+      "model": "/home/_WD_/.cache/wime-conditional/run-mixed/model.safetensors",
+      "cases": "/home/_WD_/.cache/wime-conditional/data/test.jsonl",
+      "seconds": 67.39372354299849,
+      "combined_ms_p50": 6.770769501599716,
+      "combined_ms_p95": 42.528871050308204,
+      "results_path": "/home/_WD_/.cache/wime-conditional/eval-fp32-test-mixed/results.json",
+      "results_sha256": "a6deebaadeecdd16f0253891678d37561804def79c778fb957da522c1c639bb4",
+      "top1_percent": {
+        "octagram": 56.104,
+        "beam": 56.934,
+        "nbest": 63.721,
+        "constrained": 62.891
+      },
+      "documents": 618,
+      "paired_gain_percentage_points": 6.787,
+      "document_bootstrap_95_percent_interval": [
+        4.581,
+        8.995
+      ]
+    },
+    "eval-fp32-technical-mixed": {
+      "total": 1024,
+      "octagram": 658,
+      "beam": 708,
+      "nbest": 826,
+      "constrained": 866,
+      "beam_oracle": 891,
+      "rescue": 255,
+      "regression": 47,
+      "outside_beam_rescue": 75,
+      "calls": 1526,
+      "oracle_reachable": 1024,
+      "margin": 0.5,
+      "budget": 4,
+      "device": "cuda",
+      "precision": "float32, TF32 disabled",
+      "model": "/home/_WD_/.cache/wime-conditional/run-mixed/model.safetensors",
+      "cases": "/home/_WD_/.cache/wime-conditional/technical/test.jsonl",
+      "seconds": 36.405859220998536,
+      "combined_ms_p50": 7.238026500999695,
+      "combined_ms_p95": 36.3610363951011,
+      "results_path": "/home/_WD_/.cache/wime-conditional/eval-fp32-technical-mixed/results.json",
+      "results_sha256": "ee69b56035851b5b5373c87978f460b5634311fc33854fdef645e377f526aaaa",
+      "top1_percent": {
+        "octagram": 64.258,
+        "beam": 69.141,
+        "nbest": 80.664,
+        "constrained": 84.57
+      },
+      "documents": 48,
+      "paired_gain_percentage_points": 20.312,
+      "document_bootstrap_95_percent_interval": [
+        16.738,
+        23.325
+      ]
+    },
+    "eval-fp32-test-full-12k": {
+      "total": 2048,
+      "octagram": 1149,
+      "beam": 1166,
+      "nbest": 1331,
+      "constrained": 1348,
+      "beam_oracle": 1590,
+      "rescue": 369,
+      "regression": 170,
+      "outside_beam_rescue": 107,
+      "calls": 3463,
+      "oracle_reachable": 2046,
+      "margin": 0.5,
+      "budget": 4,
+      "device": "cuda",
+      "precision": "float32, TF32 disabled",
+      "model": "/home/_WD_/.cache/wime-conditional/run-full-12k/model.safetensors",
+      "cases": "/home/_WD_/.cache/wime-conditional/data/test.jsonl",
+      "seconds": 65.81726988800074,
+      "combined_ms_p50": 6.414909501472721,
+      "combined_ms_p95": 41.550516047209335,
+      "results_path": "/home/_WD_/.cache/wime-conditional/eval-fp32-test-full-12k/results.json",
+      "results_sha256": "23d29c8e9a1c4db050c475bf16ceeede03ac1fbea4356d5659ae4efd1d6b46de",
+      "top1_percent": {
+        "octagram": 56.104,
+        "beam": 56.934,
+        "nbest": 64.99,
+        "constrained": 65.82
+      },
+      "documents": 618,
+      "paired_gain_percentage_points": 9.717,
+      "document_bootstrap_95_percent_interval": [
+        7.555,
+        11.856
+      ]
+    },
+    "eval-fp32-technical-full-12k": {
+      "total": 1024,
+      "octagram": 658,
+      "beam": 708,
+      "nbest": 502,
+      "constrained": 356,
+      "beam_oracle": 891,
+      "rescue": 43,
+      "regression": 345,
+      "outside_beam_rescue": 4,
+      "calls": 2372,
+      "oracle_reachable": 1024,
+      "margin": 0.5,
+      "budget": 4,
+      "device": "cuda",
+      "precision": "float32, TF32 disabled",
+      "model": "/home/_WD_/.cache/wime-conditional/run-full-12k/model.safetensors",
+      "cases": "/home/_WD_/.cache/wime-conditional/technical/test.jsonl",
+      "seconds": 47.28135316100088,
+      "combined_ms_p50": 15.72630900045624,
+      "combined_ms_p95": 66.97207950346636,
+      "results_path": "/home/_WD_/.cache/wime-conditional/eval-fp32-technical-full-12k/results.json",
+      "results_sha256": "cfaec50636bc8900fffef3ac7b3142be927791e0f76fe23d0e3b8ba17872adb9",
+      "top1_percent": {
+        "octagram": 64.258,
+        "beam": 69.141,
+        "nbest": 49.023,
+        "constrained": 34.766
+      },
+      "documents": 48,
+      "paired_gain_percentage_points": -29.492,
+      "document_bootstrap_95_percent_interval": [
+        -33.297,
+        -26.38
+      ]
+    }
+  },
+  "exploratory_bfloat16_ablation": {
+    "eval-test-10k": {
+      "total": 2048,
+      "octagram": 1149,
+      "beam": 1166,
+      "nbest": 1043,
+      "constrained": 795,
+      "beam_oracle": 1590,
+      "rescue": 162,
+      "regression": 516,
+      "outside_beam_rescue": 30,
+      "calls": 4802,
+      "oracle_reachable": 2046,
+      "margin": 0.5,
+      "budget": 4,
+      "device": "cuda",
+      "model": "/home/_WD_/.cache/wime-conditional/run-10k/model.safetensors",
+      "cases": "/home/_WD_/.cache/wime-conditional/data/test.jsonl",
+      "seconds": 150.1599051029989,
+      "combined_ms_p50": 52.44395600311691,
+      "combined_ms_p95": 118.68553245149079
+    },
+    "eval-test-full": {
+      "total": 2048,
+      "octagram": 1149,
+      "beam": 1166,
+      "nbest": 1283,
+      "constrained": 1243,
+      "beam_oracle": 1590,
+      "rescue": 315,
+      "regression": 221,
+      "outside_beam_rescue": 76,
+      "calls": 3642,
+      "oracle_reachable": 2046,
+      "margin": 0.5,
+      "budget": 4,
+      "device": "cuda",
+      "model": "/home/_WD_/.cache/wime-conditional/run-full/model.safetensors",
+      "cases": "/home/_WD_/.cache/wime-conditional/data/test.jsonl",
+      "seconds": 58.21841449299973,
+      "combined_ms_p50": 2.7414965006755665,
+      "combined_ms_p95": 36.812123097479336
+    },
+    "eval-technical-chat3k": {
+      "total": 1024,
+      "octagram": 658,
+      "beam": 708,
+      "nbest": 444,
+      "constrained": 272,
+      "beam_oracle": 891,
+      "rescue": 25,
+      "regression": 411,
+      "outside_beam_rescue": 1,
+      "calls": 2601,
+      "oracle_reachable": 1024,
+      "margin": 0.5,
+      "budget": 4,
+      "device": "cuda",
+      "model": "/home/_WD_/.cache/wime-conditional/run-full/model.safetensors",
+      "cases": "/home/_WD_/.cache/wime-conditional/technical/test.jsonl",
+      "seconds": 132.27160742999695,
+      "combined_ms_p50": 114.24909950073925,
+      "combined_ms_p95": 222.7183017006609
+    }
+  },
+  "cpu_validation": {
+    "samples": 128,
+    "float32_prediction_agreement": 128,
+    "correct": 90,
+    "beam_baseline_correct": 81,
+    "wall_ms_p50": 131.0964822769165,
+    "wall_ms_p95": 225.99682807922358,
+    "includes": "Actual Emacs async adapter, Rust CPU worker, dictionary search, IPC and first model load; debounce set to zero (normal default adds 40 ms). No other task training/evaluation ran concurrently.",
+    "results_path": "/home/_WD_/.cache/wime-conditional/cpu-mixed-isolated.json",
+    "sha256": "d121f68d8d1ea922db31e2b4ec355cb97840ca7de8a5d68dff5e83b1f7566953"
+  },
+  "development_smoke": {
+    "samples": 28,
+    "octagram": 27,
+    "conditional": 25,
+    "failures": [
+      {
+        "id": "w-014",
+        "input": "mox;xuykzlbfdiypx;",
+        "gold": [
+          "模型需要在本地运行"
+        ],
+        "baseline": "模型需要在本地运行",
+        "result": "魔性需要在本地运行",
+        "wall_ms": 95.3836441040039
+      },
+      {
+        "id": "w-015",
+        "input": "m;tmwomfzltklp",
+        "gold": [
+          "明天我们再讨论"
+        ],
+        "baseline": "明天我们在讨论",
+        "result": "明天我们在讨论",
+        "wall_ms": 44.46220397949219
+      },
+      {
+        "id": "w-021",
+        "input": "yij;heb;le",
+        "gold": [
+          "已经合并了"
+        ],
+        "baseline": "已经合并了",
+        "result": "已经喝冰了",
+        "wall_ms": 77.61979103088379
+      }
+    ],
+    "results_path": "/home/_WD_/.cache/wime-conditional/cpu-smoke-mixed.json"
+  },
+  "validation": {
+    "elisp_tests_passed": 50,
+    "rust_library_tests_passed": 61,
+    "rust_performance_tests_ignored": 12,
+    "rust_worker_tests_passed": 1,
+    "python_contract_tests_passed": 3,
+    "clippy": "passed -D warnings",
+    "bazel": "Worker, wime sources/autoload built; wdoom runtime_source analysis passed."
+  },
+  "limitations": [
+    "Pinyin is automatically derived from text, not recorded human keystrokes or manually checked pronunciation.",
+    "Splits are disjoint for this fine-tuning run; upstream pretrained-model and octagram training overlap is unknown.",
+    "Exact target deduplication does not prove absence of near duplicates.",
+    "Exact-sentence matching can reject other reasonable homophone spellings.",
+    "Neural context includes committed text; the current octagram path only uses the composition prefix.",
+    "Primary accuracy compares final complete compositions, not partial keystrokes, typos, or other keyboard schemes.",
+    "The 28 handcrafted development examples were never training data but were repeatedly inspected during development."
+  ],
+  "baseline_artifact_record": "test/neural-measurements.json (same dictionary and octagram artifacts)",
+  "artifact_hashes": {
+    "database": "6cd642c6562de74701bba9f5df424c707de9c9362182e6e41c1c63943246ea66",
+    "grammar_module": "d2feaf9e7e79b59cca4b6c7a123a9503c2f65ad94b5d0b1c9f9be1b3b3f55ba5",
+    "worker": "c83a1b99ee2b884c00134cef1125c97fe3430ae649c8309ef6ca5b02e0f6b52b"
+  }
+}

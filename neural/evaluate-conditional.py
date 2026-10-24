@@ -22,6 +22,7 @@ from conditional import load_model, prompt, ROOT
 class Evaluator:
     def __init__(self, path, device="cuda"):
         torch.set_num_threads(4)
+        torch.backends.cuda.matmul.allow_tf32 = False
         self.model, self.vocab, self.metadata = load_model(path)
         self.model.to(device).eval()
         self.device = device
@@ -37,8 +38,9 @@ class Evaluator:
             raise ValueError("candidate exceeds model window")
         size = max(map(len, encoded)) + len(pre) - 1
         inputs = [pre + tail[:-1] + [0] * (size - len(pre) - len(tail) + 1) for tail in encoded]
-        with torch.autocast(self.device, dtype=torch.bfloat16, enabled=self.device == "cuda"):
-            logits, _ = self.model(torch.tensor(inputs, device=self.device))
+        # Match the deployed float32 CPU worker. BF16 can flip close candidate
+        # comparisons and prefix thresholds even with the same saved weights.
+        logits, _ = self.model(torch.tensor(inputs, device=self.device))
         distributions = logits[:, len(pre) - 1:].float().log_softmax(-1)
         scores = [float(distributions[i, torch.arange(len(t)), t].mean()) for i, t in enumerate(encoded)]
         return scores, distributions
@@ -144,6 +146,7 @@ def main():
         server.stdin.close()
         server.wait(timeout=15)
     summary = dict(stats, margin=args.margin, budget=args.budget, device=evaluator.device,
+                   precision="float32, TF32 disabled",
                    model=args.model, cases=str(args.cases), seconds=time.monotonic() - started,
                    combined_ms_p50=float(np.percentile(latencies, 50)) if latencies else None,
                    combined_ms_p95=float(np.percentile(latencies, 95)) if latencies else None)
