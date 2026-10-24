@@ -43,7 +43,7 @@ const KEYS: &str = "abcdefghijklmnopqrstuvwxyz;";
 
 fn prompt(context: &str, input: &str, window: usize) -> Option<String> {
     let keys: Vec<char> = input.chars().collect();
-    if keys.is_empty() || keys.len() % 2 != 0 {
+    if keys.is_empty() || !keys.len().is_multiple_of(2) {
         return None;
     }
     let room = window.checked_sub(keys.len() + 4)?.min(64);
@@ -53,7 +53,7 @@ fn prompt(context: &str, input: &str, window: usize) -> Option<String> {
         .collect();
     let mut result: String = clean[clean.len().saturating_sub(room)..].iter().collect();
     result.push(INPUT);
-    for pair in keys.chunks_exact(2) {
+    for pair in keys.as_chunks::<2>().0 {
         let first = KEYS.find(pair[0])?;
         let second = KEYS.find(pair[1])?;
         result.push(char::from_u32(0xe000 + (27 * first + second) as u32)?);

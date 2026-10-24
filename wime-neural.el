@@ -90,7 +90,7 @@ database.  Auxiliary codes continue to constrain the dictionary search."
                      (condition-case nil
                          (equal (caar (sqlite-select (wime--database)
                                                     "SELECT value FROM meta WHERE key = 'scheme'"))
-                                "微软双拼")
+                                "mspy")
                        (error nil))
                    (and (> (length full) 1)
                         (not (wime-candidate-dictionary (car records))))))
