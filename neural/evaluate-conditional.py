@@ -38,6 +38,8 @@ def main():
     p.add_argument("--prior-weight", type=float, default=0.0)
     p.add_argument("--reference-baseline", type=Path,
                    help="abort if any octagram output differs from this prior results.json")
+    p.add_argument("--audit", action="store_true",
+                   help="record candidate scores and gold reachability after prediction, for failure analysis")
     args = p.parse_args()
     if args.width < 1 or args.budget < 1:
         p.error("width and budget must be positive")
@@ -74,6 +76,7 @@ def main():
             # The real input parser removes auxiliary codes only for the model;
             # every dictionary search still receives the complete typed input.
             model_code, syllables = beam["input"], beam["syllables"]
+            model_context = beam["context"]
             records = [c for c in beam["candidates"] if c["end"] == syllables]
             candidates = [c["text"] for c in records]
             original = base["candidates"][0]["text"] if base["candidates"] else ""
@@ -82,10 +85,12 @@ def main():
             draft = candidates[0] if candidates else original
             best, nbest, best_score = draft, draft, -float("inf")
             calls, visited, recoveries, trace = 0, set(), [], []
+            pool_scores = None
             if candidates and syllables > 1:
                 path_score = records[0]["score"]
                 start = time.monotonic()
-                scores, distributions = evaluator.evaluate(context, model_code, candidates)
+                scores, distributions = evaluator.evaluate(model_context, model_code, candidates)
+                pool_scores = scores.copy()
                 nbest = candidates[int(np.argmax(scores))]
                 seed_index = (max(range(len(records)), key=lambda j: scores[j] +
                                   args.prior_weight * records[j]["score"] / syllables)
@@ -94,7 +99,7 @@ def main():
                 # All seeds are real dictionary candidates; no gold enters selection.
                 while calls < args.budget:
                     if calls:
-                        scores, distributions = evaluator.evaluate(context, model_code, [draft])
+                        scores, distributions = evaluator.evaluate(model_context, model_code, [draft])
                         index = 0
                     else:
                         index = seed_index
@@ -119,6 +124,9 @@ def main():
                         break
                     draft = proposed
                 latencies.append(1000 * (time.monotonic() - start))
+            # Gold-constrained lookup is diagnostic only, after prediction is fixed.
+            oracle = search(code, context, gold[0])
+            oracle_reachable = any(c["end"] == syllables for c in oracle["candidates"])
             stats.update(total=1, octagram=original in gold, beam=(candidates or [""])[0] in gold,
                          nbest=nbest in gold, constrained=best in gold,
                          beam_oracle=any(t in gold for t in candidates),
@@ -126,8 +134,7 @@ def main():
                          regression=best not in gold and original in gold,
                          outside_beam_rescue=best in gold and best not in candidates,
                          calls=calls,
-                         oracle_reachable=any(c["end"] == syllables
-                                              for c in search(code, context, gold[0])["candidates"]))
+                         oracle_reachable=oracle_reachable)
             results.append(dict(id=case["id"], input=code, context=context, gold=gold,
                                 octagram=original, beam=(candidates or [""])[0], nbest=nbest,
                                 constrained=best, calls=calls, outside_beam=recoveries,
@@ -135,6 +142,14 @@ def main():
                                 category=case.get("category"), family=case.get("family"),
                                 seed_draft=args.seed_draft,
                                 trace=trace))
+            if args.audit:
+                results[-1].update(
+                    variant=case.get("variant"), parent=case.get("parent"),
+                    syllables=syllables, oracle_reachable=oracle_reachable,
+                    gold_in_beam=any(t in gold for t in candidates),
+                    pool=[dict(text=c["text"], prior=c["score"] / syllables,
+                               neural=pool_scores[j] if pool_scores is not None else None)
+                          for j, c in enumerate(records)])
             if (i + 1) % 100 == 0:
                 print(json.dumps(dict(stats, seconds=time.monotonic() - started)), flush=True)
     finally:

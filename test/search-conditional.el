@@ -17,8 +17,10 @@
              (prefix (alist-get 'prefix request))
              (units (wime--parse (alist-get 'input request)))
              (start (float-time))
+             bounded-context
              (records (with-temp-buffer
                         (insert (or (alist-get 'context request) ""))
+                        (setq bounded-context (wime--context))
                         (if (string-empty-p prefix)
                             (progn
                               (wime--candidates (alist-get 'input request))
@@ -27,6 +29,7 @@
         (princ (decode-coding-string (json-serialize
                 `(:ms ,(* 1000 (- (float-time) start))
                   :input ,(wime--full-code units) :syllables ,(length units)
+                  :context ,bounded-context
                   :candidates ,(vconcat
                                 (mapcar (lambda (c) `(:text ,(wime-candidate-text c)
                                                      :score ,(wime-candidate-score c)

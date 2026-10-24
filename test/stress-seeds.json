@@ -1,0 +1,1192 @@
+[
+  {
+    "id": "stress-001",
+    "category": "idiom",
+    "context": "这次实战比拼完全是",
+    "gold": [
+      "真刀真枪"
+    ],
+    "input": "vfdkvfqd",
+    "pinyin": "zhen dao zhen qiang"
+  },
+  {
+    "id": "stress-002",
+    "category": "idiom",
+    "context": "他把工具整理得",
+    "gold": [
+      "井井有条"
+    ],
+    "input": "j;j;ybtc",
+    "pinyin": "jing jing you tiao"
+  },
+  {
+    "id": "stress-003",
+    "category": "idiom",
+    "context": "小事也要算得清清楚楚，未免太",
+    "gold": [
+      "斤斤计较"
+    ],
+    "input": "jnjnjijc",
+    "pinyin": "jin jin ji jiao"
+  },
+  {
+    "id": "stress-004",
+    "category": "idiom",
+    "context": "这道菜吃起来让人",
+    "gold": [
+      "津津有味"
+    ],
+    "input": "jnjnybwz",
+    "pinyin": "jin jin you wei"
+  },
+  {
+    "id": "stress-005",
+    "category": "idiom",
+    "context": "新开的工厂效益",
+    "gold": [
+      "蒸蒸日上"
+    ],
+    "input": "vgvgriuh",
+    "pinyin": "zheng zheng ri shang"
+  },
+  {
+    "id": "stress-006",
+    "category": "idiom",
+    "context": "春天的田野呈现出",
+    "gold": [
+      "欣欣向荣"
+    ],
+    "input": "xnxnxdrs",
+    "pinyin": "xin xin xiang rong"
+  },
+  {
+    "id": "stress-007",
+    "category": "idiom",
+    "context": "老师引导学生时总是",
+    "gold": [
+      "循循善诱"
+    ],
+    "input": "xpxpujyb",
+    "pinyin": "xun xun shan you"
+  },
+  {
+    "id": "stress-008",
+    "category": "idiom",
+    "context": "画中的小鸟简直",
+    "gold": [
+      "栩栩如生"
+    ],
+    "input": "xuxuruug",
+    "pinyin": "xu xu ru sheng"
+  },
+  {
+    "id": "stress-009",
+    "category": "idiom",
+    "context": "他明明理亏却仍然",
+    "gold": [
+      "振振有词"
+    ],
+    "input": "vfvfybci",
+    "pinyin": "zhen zhen you ci"
+  },
+  {
+    "id": "stress-010",
+    "category": "idiom",
+    "context": "谈到自己的研究，他就",
+    "gold": [
+      "滔滔不绝"
+    ],
+    "input": "tktkbujt",
+    "pinyin": "tao tao bu jue"
+  },
+  {
+    "id": "stress-011",
+    "category": "idiom",
+    "context": "救援物资正在",
+    "gold": [
+      "源源不断"
+    ],
+    "input": "yryrbudr",
+    "pinyin": "yuan yuan bu duan"
+  },
+  {
+    "id": "stress-012",
+    "category": "idiom",
+    "context": "这个孩子待人接物十分",
+    "gold": [
+      "彬彬有礼"
+    ],
+    "input": "bnbnybli",
+    "pinyin": "bin bin you li"
+  },
+  {
+    "id": "stress-013",
+    "category": "idiom",
+    "context": "环境变化与生活质量",
+    "gold": [
+      "息息相关"
+    ],
+    "input": "xixixdgr",
+    "pinyin": "xi xi xiang guan"
+  },
+  {
+    "id": "stress-014",
+    "category": "idiom",
+    "context": "她第一次上台就表现得",
+    "gold": [
+      "落落大方"
+    ],
+    "input": "lolodafh",
+    "pinyin": "luo luo da fang"
+  },
+  {
+    "id": "stress-015",
+    "category": "idiom",
+    "context": "他在基层工作多年却一直",
+    "gold": [
+      "默默无闻"
+    ],
+    "input": "momowuwf",
+    "pinyin": "mo mo wu wen"
+  },
+  {
+    "id": "stress-016",
+    "category": "idiom",
+    "context": "对待工作，他始终",
+    "gold": [
+      "兢兢业业"
+    ],
+    "input": "j;j;yeye",
+    "pinyin": "jing jing ye ye"
+  },
+  {
+    "id": "stress-017",
+    "category": "idiom",
+    "context": "怕说错话，他回答时",
+    "gold": [
+      "战战兢兢"
+    ],
+    "input": "vjvjj;j;",
+    "pinyin": "zhan zhan jing jing"
+  },
+  {
+    "id": "stress-018",
+    "category": "idiom",
+    "context": "久别重逢的情景让我",
+    "gold": [
+      "念念不忘"
+    ],
+    "input": "nmnmbuwh",
+    "pinyin": "nian nian bu wang"
+  },
+  {
+    "id": "stress-019",
+    "category": "idiom",
+    "context": "房间里没人，他还在",
+    "gold": [
+      "自言自语"
+    ],
+    "input": "ziyjziyu",
+    "pinyin": "zi yan zi yu"
+  },
+  {
+    "id": "stress-020",
+    "category": "idiom",
+    "context": "这次长谈持续了很久，时间就在",
+    "gold": [
+      "不知不觉"
+    ],
+    "input": "buvibujt",
+    "pinyin": "bu zhi bu jue"
+  },
+  {
+    "id": "stress-021",
+    "category": "idiom",
+    "context": "真相迟早会",
+    "gold": [
+      "水落石出"
+    ],
+    "input": "uvlouiiu",
+    "pinyin": "shui luo shi chu"
+  },
+  {
+    "id": "stress-022",
+    "category": "idiom",
+    "context": "没有根据的指责完全是",
+    "gold": [
+      "无稽之谈"
+    ],
+    "input": "wujivitj",
+    "pinyin": "wu ji zhi tan"
+  },
+  {
+    "id": "stress-023",
+    "category": "idiom",
+    "context": "不要误解别人的话，更不要",
+    "gold": [
+      "断章取义"
+    ],
+    "input": "drvhquyi",
+    "pinyin": "duan zhang qu yi"
+  },
+  {
+    "id": "stress-024",
+    "category": "idiom",
+    "context": "这两件事根本不能",
+    "gold": [
+      "混为一谈"
+    ],
+    "input": "hpwzyitj",
+    "pinyin": "hun wei yi tan"
+  },
+  {
+    "id": "stress-025",
+    "category": "idiom",
+    "context": "双方做法看似不同，最终却",
+    "gold": [
+      "殊途同归"
+    ],
+    "input": "uututsgv",
+    "pinyin": "shu tu tong gui"
+  },
+  {
+    "id": "stress-026",
+    "category": "idiom",
+    "context": "只顾眼前利益，无异于",
+    "gold": [
+      "饮鸩止渴"
+    ],
+    "input": "ynvfvike",
+    "pinyin": "yin zhen zhi ke"
+  },
+  {
+    "id": "stress-027",
+    "category": "idiom",
+    "context": "这个结论缺少证据，实在",
+    "gold": [
+      "牵强附会"
+    ],
+    "input": "qmqdfuhv",
+    "pinyin": "qian qiang fu hui"
+  },
+  {
+    "id": "stress-028",
+    "category": "idiom",
+    "context": "情况突然逆转，让人",
+    "gold": [
+      "措手不及"
+    ],
+    "input": "coubbuji",
+    "pinyin": "cuo shou bu ji"
+  },
+  {
+    "id": "stress-029",
+    "category": "idiom",
+    "context": "面对失败，仍要坚持",
+    "gold": [
+      "百折不挠"
+    ],
+    "input": "blvebunk",
+    "pinyin": "bai zhe bu nao"
+  },
+  {
+    "id": "stress-030",
+    "category": "idiom",
+    "context": "方法选对了，工作就能",
+    "gold": [
+      "事半功倍"
+    ],
+    "input": "uibjgsbz",
+    "pinyin": "shi ban gong bei"
+  },
+  {
+    "id": "stress-031",
+    "category": "idiom",
+    "context": "方法不对，付出很多也会",
+    "gold": [
+      "事倍功半"
+    ],
+    "input": "uibzgsbj",
+    "pinyin": "shi bei gong ban"
+  },
+  {
+    "id": "stress-032",
+    "category": "idiom",
+    "context": "两种说法完全相反，明显",
+    "gold": [
+      "自相矛盾"
+    ],
+    "input": "zixdmkdp",
+    "pinyin": "zi xiang mao dun"
+  },
+  {
+    "id": "stress-033",
+    "category": "idiom",
+    "context": "这个例子非常贴切，真是",
+    "gold": [
+      "恰如其分"
+    ],
+    "input": "qwruqiff",
+    "pinyin": "qia ru qi fen"
+  },
+  {
+    "id": "stress-034",
+    "category": "idiom",
+    "context": "虽有遗憾，结果也算",
+    "gold": [
+      "差强人意"
+    ],
+    "input": "iaqdrfyi",
+    "pinyin": "cha qiang ren yi"
+  },
+  {
+    "id": "stress-035",
+    "category": "idiom",
+    "context": "面对明确的问题，他却回答得",
+    "gold": [
+      "模棱两可"
+    ],
+    "input": "molgldke",
+    "pinyin": "mo leng liang ke"
+  },
+  {
+    "id": "stress-036",
+    "category": "idiom",
+    "context": "为了名声故意做作，这叫",
+    "gold": [
+      "沽名钓誉"
+    ],
+    "input": "gum;dcyu",
+    "pinyin": "gu ming diao yu"
+  },
+  {
+    "id": "stress-037",
+    "category": "idiom",
+    "context": "既然已经开了头，就不能",
+    "gold": [
+      "半途而废"
+    ],
+    "input": "bjtuorfz",
+    "pinyin": "ban tu er fei"
+  },
+  {
+    "id": "stress-038",
+    "category": "idiom",
+    "context": "言语可以克制，批评仍应",
+    "gold": [
+      "实事求是"
+    ],
+    "input": "uiuiqqui",
+    "pinyin": "shi shi qiu shi"
+  },
+  {
+    "id": "stress-039",
+    "category": "homophone",
+    "context": "数据库提交之前需要开启一个",
+    "gold": [
+      "事务"
+    ],
+    "input": "uiwu",
+    "pinyin": "shi wu"
+  },
+  {
+    "id": "stress-040",
+    "category": "homophone",
+    "context": "认识世界就是不断认识新的",
+    "gold": [
+      "事物"
+    ],
+    "input": "uiwu",
+    "pinyin": "shi wu"
+  },
+  {
+    "id": "stress-041",
+    "category": "homophone",
+    "context": "这个后台任务运行在独立的",
+    "gold": [
+      "线程"
+    ],
+    "input": "xmig",
+    "pinyin": "xian cheng"
+  },
+  {
+    "id": "stress-042",
+    "category": "homophone",
+    "context": "返乡的大巴终于到达了",
+    "gold": [
+      "县城"
+    ],
+    "input": "xmig",
+    "pinyin": "xian cheng"
+  },
+  {
+    "id": "stress-043",
+    "category": "homophone",
+    "context": "饭已经做好，可以吃",
+    "gold": [
+      "现成"
+    ],
+    "input": "xmig",
+    "pinyin": "xian cheng"
+  },
+  {
+    "id": "stress-044",
+    "category": "homophone",
+    "context": "计算机程序发布前必须进行",
+    "gold": [
+      "编译"
+    ],
+    "input": "bmyi",
+    "pinyin": "bian yi"
+  },
+  {
+    "id": "stress-045",
+    "category": "homophone",
+    "context": "这家商店打折后价格特别",
+    "gold": [
+      "便宜"
+    ],
+    "input": "pmyi",
+    "pinyin": "pian yi"
+  },
+  {
+    "id": "stress-046",
+    "category": "homophone",
+    "context": "紧急情况下可以酌情",
+    "gold": [
+      "便宜行事"
+    ],
+    "input": "bmyix;ui",
+    "pinyin": "bian yi xing shi"
+  },
+  {
+    "id": "stress-047",
+    "category": "homophone",
+    "context": "不要只看表面，应当面对",
+    "gold": [
+      "现实"
+    ],
+    "input": "xmui",
+    "pinyin": "xian shi"
+  },
+  {
+    "id": "stress-048",
+    "category": "homophone",
+    "context": "屏幕右上角会自动",
+    "gold": [
+      "显示"
+    ],
+    "input": "xmui",
+    "pinyin": "xian shi"
+  },
+  {
+    "id": "stress-049",
+    "category": "homophone",
+    "context": "更改配置后需要重启",
+    "gold": [
+      "服务"
+    ],
+    "input": "fuwu",
+    "pinyin": "fu wu"
+  },
+  {
+    "id": "stress-050",
+    "category": "homophone",
+    "context": "为了恢复误删的文件，先检查",
+    "gold": [
+      "备份"
+    ],
+    "input": "bzff",
+    "pinyin": "bei fen"
+  },
+  {
+    "id": "stress-051",
+    "category": "homophone",
+    "context": "两个节点的数据必须保持",
+    "gold": [
+      "一致"
+    ],
+    "input": "yivi",
+    "pinyin": "yi zhi"
+  },
+  {
+    "id": "stress-052",
+    "category": "homophone",
+    "context": "这是一封措辞严谨的正式",
+    "gold": [
+      "通知"
+    ],
+    "input": "tsvi",
+    "pinyin": "tong zhi"
+  },
+  {
+    "id": "stress-053",
+    "category": "homophone",
+    "context": "这位作家在文学领域积累了丰富的",
+    "gold": [
+      "知识"
+    ],
+    "input": "viui",
+    "pinyin": "zhi shi"
+  },
+  {
+    "id": "stress-054",
+    "category": "homophone",
+    "context": "那个证人愿意当庭进行",
+    "gold": [
+      "指认"
+    ],
+    "input": "virf",
+    "pinyin": "zhi ren"
+  },
+  {
+    "id": "stress-055",
+    "category": "homophone",
+    "context": "证据不足时不应轻易作出",
+    "gold": [
+      "指控"
+    ],
+    "input": "viks",
+    "pinyin": "zhi kong"
+  },
+  {
+    "id": "stress-056",
+    "category": "homophone",
+    "context": "他要去银行办理贷款，预约见",
+    "gold": [
+      "行长"
+    ],
+    "input": "hhvh",
+    "pinyin": "hang zhang"
+  },
+  {
+    "id": "stress-057",
+    "category": "homophone",
+    "context": "这份成绩让他进入了优秀学生的",
+    "gold": [
+      "行列"
+    ],
+    "input": "hhlx",
+    "pinyin": "hang lie"
+  },
+  {
+    "id": "stress-058",
+    "category": "homophone",
+    "context": "文件损坏以后只能从头",
+    "gold": [
+      "重新"
+    ],
+    "input": "isxn",
+    "pinyin": "chong xin"
+  },
+  {
+    "id": "stress-059",
+    "category": "homophone",
+    "context": "这几块石头的总",
+    "gold": [
+      "重量"
+    ],
+    "input": "vsld",
+    "pinyin": "zhong liang"
+  },
+  {
+    "id": "stress-060",
+    "category": "homophone",
+    "context": "为了保护隐私，需要对数据进行",
+    "gold": [
+      "加密"
+    ],
+    "input": "jwmi",
+    "pinyin": "jia mi"
+  },
+  {
+    "id": "stress-061",
+    "category": "homophone",
+    "context": "这个字符串中间有一个",
+    "gold": [
+      "空格"
+    ],
+    "input": "ksge",
+    "pinyin": "kong ge"
+  },
+  {
+    "id": "stress-062",
+    "category": "homophone",
+    "context": "医生告诉病人必须按时",
+    "gold": [
+      "服药"
+    ],
+    "input": "fuyk",
+    "pinyin": "fu yao"
+  },
+  {
+    "id": "stress-063",
+    "category": "homophone",
+    "context": "这件事的后果非常",
+    "gold": [
+      "严重"
+    ],
+    "input": "yjvs",
+    "pinyin": "yan zhong"
+  },
+  {
+    "id": "stress-064",
+    "category": "homophone",
+    "context": "这篇论文缺乏有力的",
+    "gold": [
+      "论据"
+    ],
+    "input": "lpju",
+    "pinyin": "lun ju"
+  },
+  {
+    "id": "stress-065",
+    "category": "homophone",
+    "context": "会议讨论的核心是资金如何",
+    "gold": [
+      "分配"
+    ],
+    "input": "ffpz",
+    "pinyin": "fen pei"
+  },
+  {
+    "id": "stress-066",
+    "category": "homophone",
+    "context": "玻璃打碎之后只能小心收拾",
+    "gold": [
+      "碎片"
+    ],
+    "input": "svpm",
+    "pinyin": "sui pian"
+  },
+  {
+    "id": "stress-067",
+    "category": "homophone",
+    "context": "把一整块任务拆成许多小块叫",
+    "gold": [
+      "分片"
+    ],
+    "input": "ffpm",
+    "pinyin": "fen pian"
+  },
+  {
+    "id": "stress-068",
+    "category": "homophone",
+    "context": "应用从请求中提取身份",
+    "gold": [
+      "凭证"
+    ],
+    "input": "p;vg",
+    "pinyin": "ping zheng"
+  },
+  {
+    "id": "stress-069",
+    "category": "homophone",
+    "context": "描述事件发生先后顺序的是",
+    "gold": [
+      "时序"
+    ],
+    "input": "uixu",
+    "pinyin": "shi xu"
+  },
+  {
+    "id": "stress-070",
+    "category": "homophone",
+    "context": "他对这段往事还有清晰的",
+    "gold": [
+      "记忆"
+    ],
+    "input": "jiyi",
+    "pinyin": "ji yi"
+  },
+  {
+    "id": "stress-071",
+    "category": "homophone",
+    "context": "医生用仪器记录心脏活动的",
+    "gold": [
+      "频率"
+    ],
+    "input": "pnly",
+    "pinyin": "pin lv"
+  },
+  {
+    "id": "stress-072",
+    "category": "homophone",
+    "context": "合法访问系统需要事先获得",
+    "gold": [
+      "授权"
+    ],
+    "input": "ubqr",
+    "pinyin": "shou quan"
+  },
+  {
+    "id": "stress-073",
+    "category": "homophone",
+    "context": "两个相邻字符的位置发生了",
+    "gold": [
+      "交换"
+    ],
+    "input": "jchr",
+    "pinyin": "jiao huan"
+  },
+  {
+    "id": "stress-074",
+    "category": "technical",
+    "context": "HTTP 429 Too Many Requests 通常表示服务端正在",
+    "gold": [
+      "限流"
+    ],
+    "input": "xmlq",
+    "pinyin": "xian liu"
+  },
+  {
+    "id": "stress-075",
+    "category": "technical",
+    "context": "SIGSEGV 是访问非法地址引发的",
+    "gold": [
+      "段错误"
+    ],
+    "input": "drcowu",
+    "pinyin": "duan cuo wu"
+  },
+  {
+    "id": "stress-076",
+    "category": "technical",
+    "context": "torch.cuda.OutOfMemoryError 表示不足的是",
+    "gold": [
+      "显存"
+    ],
+    "input": "xmcp",
+    "pinyin": "xian cun"
+  },
+  {
+    "id": "stress-077",
+    "category": "technical",
+    "context": "SELECT 查询变慢时可以检查数据库",
+    "gold": [
+      "索引"
+    ],
+    "input": "soyn",
+    "pinyin": "suo yin"
+  },
+  {
+    "id": "stress-078",
+    "category": "technical",
+    "context": "C++ 中用来表示类型参数化代码的是",
+    "gold": [
+      "模板"
+    ],
+    "input": "mobj",
+    "pinyin": "mo ban"
+  },
+  {
+    "id": "stress-079",
+    "category": "technical",
+    "context": "git rebase 过程中可能遇到需要手动解决的",
+    "gold": [
+      "冲突"
+    ],
+    "input": "istu",
+    "pinyin": "chong tu"
+  },
+  {
+    "id": "stress-080",
+    "category": "technical",
+    "context": "线程 A 等待 B，B 又等待 A，这种情况称为",
+    "gold": [
+      "死锁"
+    ],
+    "input": "siso",
+    "pinyin": "si suo"
+  },
+  {
+    "id": "stress-081",
+    "category": "technical",
+    "context": "多个请求同时访问同一变量可能造成",
+    "gold": [
+      "竞态条件"
+    ],
+    "input": "j;tltcjm",
+    "pinyin": "jing tai tiao jian"
+  },
+  {
+    "id": "stress-082",
+    "category": "technical",
+    "context": "数据库事务全部成功或全部失败，这体现了",
+    "gold": [
+      "原子性"
+    ],
+    "input": "yrzix;",
+    "pinyin": "yuan zi xing"
+  },
+  {
+    "id": "stress-083",
+    "category": "technical",
+    "context": "多次执行同一请求不会改变最终结果，这称为",
+    "gold": [
+      "幂等性"
+    ],
+    "input": "midgx;",
+    "pinyin": "mi deng xing"
+  },
+  {
+    "id": "stress-084",
+    "category": "technical",
+    "context": "消息队列中堆积了尚未处理的",
+    "gold": [
+      "任务"
+    ],
+    "input": "rfwu",
+    "pinyin": "ren wu"
+  },
+  {
+    "id": "stress-085",
+    "category": "technical",
+    "context": "Rust 编译器会检查引用的",
+    "gold": [
+      "生命周期"
+    ],
+    "input": "ugm;vbqi",
+    "pinyin": "sheng ming zhou qi"
+  },
+  {
+    "id": "stress-086",
+    "category": "technical",
+    "context": "访问已释放的地址可能产生",
+    "gold": [
+      "悬垂指针"
+    ],
+    "input": "xrivvivf",
+    "pinyin": "xuan chui zhi zhen"
+  },
+  {
+    "id": "stress-087",
+    "category": "technical",
+    "context": "JSON 解析失败可能是因为缺少闭合的",
+    "gold": [
+      "括号"
+    ],
+    "input": "kohk",
+    "pinyin": "kuo hao"
+  },
+  {
+    "id": "stress-088",
+    "category": "technical",
+    "context": "UTF-8 编码中汉字通常占用三个",
+    "gold": [
+      "字节"
+    ],
+    "input": "zijx",
+    "pinyin": "zi jie"
+  },
+  {
+    "id": "stress-089",
+    "category": "technical",
+    "context": "Linux 内核通过调度器切换不同的",
+    "gold": [
+      "进程"
+    ],
+    "input": "jnig",
+    "pinyin": "jin cheng"
+  },
+  {
+    "id": "stress-090",
+    "category": "technical",
+    "context": "为了快速恢复之前的状态，需要创建",
+    "gold": [
+      "快照"
+    ],
+    "input": "kyvk",
+    "pinyin": "kuai zhao"
+  },
+  {
+    "id": "stress-091",
+    "category": "technical",
+    "context": "撤销已经应用的变更通常称为",
+    "gold": [
+      "回滚"
+    ],
+    "input": "hvgp",
+    "pinyin": "hui gun"
+  },
+  {
+    "id": "stress-092",
+    "category": "technical",
+    "context": "需要把用户输入与数据库语句中的参数进行",
+    "gold": [
+      "绑定"
+    ],
+    "input": "bhd;",
+    "pinyin": "bang ding"
+  },
+  {
+    "id": "stress-093",
+    "category": "technical",
+    "context": "这台服务器有 64 GB 内存，但仍需检查是否发生",
+    "gold": [
+      "内存泄漏"
+    ],
+    "input": "nzcpxxlb",
+    "pinyin": "nei cun xie lou"
+  },
+  {
+    "id": "stress-094",
+    "category": "technical",
+    "context": "日志中的 2026-10-25T08:30:00Z 是一个",
+    "gold": [
+      "时间戳"
+    ],
+    "input": "uijmio",
+    "pinyin": "shi jian chuo"
+  },
+  {
+    "id": "stress-095",
+    "category": "technical",
+    "context": "比较两个不同输入是否产生同一哈希值，这种情况叫",
+    "gold": [
+      "碰撞"
+    ],
+    "input": "pgvd",
+    "pinyin": "peng zhuang"
+  },
+  {
+    "id": "stress-096",
+    "category": "technical",
+    "context": "把运行结果保存起来避免重复计算，这种机制叫",
+    "gold": [
+      "缓存"
+    ],
+    "input": "hrcp",
+    "pinyin": "huan cun"
+  },
+  {
+    "id": "stress-097",
+    "category": "technical",
+    "context": "异步任务完成后会调用注册的",
+    "gold": [
+      "回调函数"
+    ],
+    "input": "hvdchjuu",
+    "pinyin": "hui diao han shu"
+  },
+  {
+    "id": "stress-098",
+    "category": "technical",
+    "context": "测试未发现问题，不代表程序完全没有",
+    "gold": [
+      "缺陷"
+    ],
+    "input": "qtxm",
+    "pinyin": "que xian"
+  },
+  {
+    "id": "stress-099",
+    "category": "technical",
+    "context": "网络连接突然中断后客户端需要自动",
+    "gold": [
+      "重连"
+    ],
+    "input": "islm",
+    "pinyin": "chong lian"
+  },
+  {
+    "id": "stress-100",
+    "category": "technical",
+    "context": "进程结束之前应该释放所有占用的",
+    "gold": [
+      "资源"
+    ],
+    "input": "ziyr",
+    "pinyin": "zi yuan"
+  },
+  {
+    "id": "stress-101",
+    "category": "technical",
+    "context": "失败的请求按时间间隔递增重试，称为",
+    "gold": [
+      "指数退避"
+    ],
+    "input": "viuutvbi",
+    "pinyin": "zhi shu tui bi"
+  },
+  {
+    "id": "stress-102",
+    "category": "technical",
+    "context": "必须先确认用户的身份，再检查访问",
+    "gold": [
+      "权限"
+    ],
+    "input": "qrxm",
+    "pinyin": "quan xian"
+  },
+  {
+    "id": "stress-103",
+    "category": "technical",
+    "context": "每次输入都同步计算会增加交互",
+    "gold": [
+      "延迟"
+    ],
+    "input": "yjii",
+    "pinyin": "yan chi"
+  },
+  {
+    "id": "stress-104",
+    "category": "proper",
+    "context": "《赤壁赋》的作者是",
+    "gold": [
+      "苏轼"
+    ],
+    "input": "suui",
+    "pinyin": "su shi"
+  },
+  {
+    "id": "stress-105",
+    "category": "proper",
+    "context": "《醉翁亭记》的作者是",
+    "gold": [
+      "欧阳修"
+    ],
+    "input": "obyhxq",
+    "pinyin": "ou yang xiu"
+  },
+  {
+    "id": "stress-106",
+    "category": "proper",
+    "context": "《青玉案元夕》的作者是",
+    "gold": [
+      "辛弃疾"
+    ],
+    "input": "xnqiji",
+    "pinyin": "xin qi ji"
+  },
+  {
+    "id": "stress-107",
+    "category": "proper",
+    "context": "提出计算机抽象模型的英国数学家是",
+    "gold": [
+      "图灵"
+    ],
+    "input": "tul;",
+    "pinyin": "tu ling"
+  },
+  {
+    "id": "stress-108",
+    "category": "proper",
+    "context": "信息论的奠基人是",
+    "gold": [
+      "香农"
+    ],
+    "input": "xdns",
+    "pinyin": "xiang nong"
+  },
+  {
+    "id": "stress-109",
+    "category": "proper",
+    "context": "以猫的思想实验闻名的物理学家是",
+    "gold": [
+      "薛定谔"
+    ],
+    "input": "xtd;oe",
+    "pinyin": "xue ding e"
+  },
+  {
+    "id": "stress-110",
+    "category": "proper",
+    "context": "写作《变形记》的作家是",
+    "gold": [
+      "卡夫卡"
+    ],
+    "input": "kafuka",
+    "pinyin": "ka fu ka"
+  },
+  {
+    "id": "stress-111",
+    "category": "proper",
+    "context": "创作《第九交响曲》的作曲家是",
+    "gold": [
+      "贝多芬"
+    ],
+    "input": "bzdoff",
+    "pinyin": "bei duo fen"
+  },
+  {
+    "id": "stress-112",
+    "category": "proper",
+    "context": "写作《边城》的作家是",
+    "gold": [
+      "沈从文"
+    ],
+    "input": "ufcswf",
+    "pinyin": "shen cong wen"
+  },
+  {
+    "id": "stress-113",
+    "category": "proper",
+    "context": "《三国演义》中字孔明的人物是",
+    "gold": [
+      "诸葛亮"
+    ],
+    "input": "vugeld",
+    "pinyin": "zhu ge liang"
+  },
+  {
+    "id": "stress-114",
+    "category": "proper",
+    "context": "《滕王阁序》的作者是",
+    "gold": [
+      "王勃"
+    ],
+    "input": "whbo",
+    "pinyin": "wang bo"
+  },
+  {
+    "id": "stress-115",
+    "category": "proper",
+    "context": "《兰亭集序》的作者是",
+    "gold": [
+      "王羲之"
+    ],
+    "input": "whxivi",
+    "pinyin": "wang xi zhi"
+  },
+  {
+    "id": "stress-116",
+    "category": "proper",
+    "context": "以开普勒三定律闻名的天文学家是",
+    "gold": [
+      "开普勒"
+    ],
+    "input": "klpule",
+    "pinyin": "kai pu le"
+  },
+  {
+    "id": "stress-117",
+    "category": "proper",
+    "context": "提出不完全性定理的数学家是",
+    "gold": [
+      "哥德尔"
+    ],
+    "input": "gedeor",
+    "pinyin": "ge de er"
+  },
+  {
+    "id": "stress-118",
+    "category": "proper",
+    "context": "与代数逻辑相关的数学家是",
+    "gold": [
+      "布尔"
+    ],
+    "input": "buor",
+    "pinyin": "bu er"
+  },
+  {
+    "id": "stress-119",
+    "category": "proper",
+    "context": "创作《魔笛》的奥地利作曲家是",
+    "gold": [
+      "莫扎特"
+    ],
+    "input": "movate",
+    "pinyin": "mo zha te"
+  }
+]
