@@ -2,11 +2,15 @@
 import importlib.util
 from pathlib import Path
 import sqlite3
+import tempfile
 import unittest
 
 spec = importlib.util.spec_from_file_location("stress_cases", Path(__file__).with_name("make-stress-cases.py"))
 stress = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(stress)
+audit_spec = importlib.util.spec_from_file_location("stress_audit", Path(__file__).with_name("analyze-stress.py"))
+audit = importlib.util.module_from_spec(audit_spec)
+audit_spec.loader.exec_module(audit)
 
 
 class StressCases(unittest.TestCase):
@@ -40,6 +44,23 @@ class StressCases(unittest.TestCase):
         self.assertEqual(self.rows["test/aux-3-2"]["input"], "vfdkvfqdMV")
         self.assertTrue(all(row["input"].lower() != "vfdkvfqd" for row in self.rows.values()
                             if row["variant"] == "auxiliary"))
+
+    def test_independent_audit_rejects_wrong_keys_aux_and_promoted_partial_readings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "dictionary.db"
+            db = sqlite3.connect(path)
+            db.execute("CREATE TABLE entry (code, word, aux, weight)")
+            db.executemany("INSERT INTO entry VALUES (?, ?, ?, ?)",
+                           [("aa", "甲", "a", 10), ("aabb", "甲乙", "a/b", 10)])
+            db.commit()
+            db.close()
+            rows = [dict(id="word", input="aaAbbB", constrained="甲乙", calls=1),
+                    dict(id="partial", input="aabb", constrained="甲", calls=0),
+                    dict(id="bad_aux", input="aaZbb", constrained="甲乙", calls=1),
+                    dict(id="bad_code", input="aacc", constrained="甲乙", calls=1),
+                    dict(id="bad_coverage", input="aabb", constrained="甲", calls=1)]
+            errors = audit.check_constraints(rows, path)["violations"]
+            self.assertEqual([r["id"] for r in errors], ["bad_aux", "bad_code", "bad_coverage"])
 
 
 if __name__ == "__main__":
