@@ -9,6 +9,61 @@
 (require 'ert)
 (require 'wime)
 
+(defmacro wime-test--entries (entries &rest body)
+  "Run BODY with a small in-memory dictionary ENTRIES."
+  (declare (indent 1))
+  `(cl-letf (((symbol-function 'wime--entries-for)
+              (lambda (code) (cdr (assoc code ,entries))))
+             ((symbol-function 'wime--grammar-score)
+              (lambda (&rest _) 0.0)))
+     ,@body))
+
+(ert-deftest wime-beam-keeps-alternative-full-readings ()
+  (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 90))
+                        ("bb" ("丙" "c" 100) ("丁" "d" 90)))
+    (let* ((wime-search-width 4)
+           (records (wime--sentence-records (wime--parse "aabb")))
+           (full (seq-filter (lambda (c) (= (wime-candidate-end c) 2)) records)))
+      (should (= (length full) 4))
+      (should (member "乙丁" (mapcar #'wime-candidate-text full)))
+      (should (seq-some (lambda (c) (= (wime-candidate-end c) 1)) records))
+      (should-not (seq-some #'wime-candidate-dictionary full)))))
+
+(ert-deftest wime-beam-respects-auxiliary-codes-and-budget ()
+  (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 90))
+                        ("bb" ("丙" "c" 100) ("丁" "d" 90)))
+    (let ((wime-search-width 1))
+      (should (equal (car (wime--sentence-candidates (wime--parse "aaBbbD")))
+                     "乙丁"))
+      (should (= 1 (length (seq-filter
+                            (lambda (c) (= (wime-candidate-end c) 2))
+                            (wime--sentence-records (wime--parse "aabb")))))))))
+
+(ert-deftest wime-beam-retains-prefix-until-later-context-disambiguates ()
+  (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 90))
+                        ("bb" ("丙" "c" 100)))
+    (cl-letf (((symbol-function 'wime--grammar-score)
+               (lambda (context _word _rear) (if (equal context "乙") 10.0 0.0))))
+      (let ((wime-search-width 2))
+        (should (equal (car (wime--sentence-candidates (wime--parse "aabb")))
+                       "乙丙"))))))
+
+(ert-deftest wime-beam-deduplicates-and-retains-dictionary-provenance ()
+  (wime-test--entries '(("aa" ("甲" "a" 100)) ("bb" ("乙" "b" 100))
+                        ("aabb" ("甲乙" "a/b" 1)))
+    ;; Even when composition beats the dictionary path, retain exact-hit evidence.
+    (let* ((wime-word-penalty 0)
+           (records (wime--sentence-records (wime--parse "aabb")))
+           (full (seq-filter (lambda (c) (= (wime-candidate-end c) 2)) records)))
+      (should (= (length full) 1))
+      (should (wime-candidate-dictionary (car full))))))
+
+(ert-deftest wime-beam-does-not-label-partial-reading-as-full ()
+  (wime-test--entries '(("aa" ("甲" "a" 100)))
+    (let ((records (wime--sentence-records (wime--parse "aabb"))))
+      (should records)
+      (should (cl-every (lambda (c) (= (wime-candidate-end c) 1)) records)))))
+
 (declare-function wime-grammar-query "librime-grammar" (context word rear))
 
 ;; The database is a Bazel artifact.  Point at the build output when running

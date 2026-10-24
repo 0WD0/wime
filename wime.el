@@ -93,6 +93,24 @@ is nil or unreadable, wime falls back to the committed Elisp tables."
   :type 'natnum
   :group 'wime)
 
+(defcustom wime-search-width 8
+  "Maximum distinct paths retained at each syllable boundary."
+  :type '(integer :tag "Paths (at least 1)")
+  :group 'wime)
+
+(cl-defstruct (wime-candidate (:constructor wime--make-candidate))
+  "A reading and the input it consumes; END counts parsed syllables."
+  text score end dictionary)
+
+(defvar-local wime--candidate-records nil
+  "Candidates with scores, input coverage and dictionary provenance.")
+
+(defvar wime-candidates-updated-hook nil
+  "Hook run after refreshing the traditional candidates.")
+
+(defvar wime-reset-hook nil
+  "Hook run when a composition is discarded or committed.")
+
 (defcustom wime-grammar-module nil
   "Path to the librime-grammar module, or nil to disable the language model."
   :type '(choice (const nil) file)
@@ -331,65 +349,55 @@ prefix of one of its comma-separated groups."
   "Return the concatenated code of UNITS from START to END."
   (mapconcat (lambda (unit) (car unit)) (seq-subseq units start end) ""))
 
-(defun wime--sentence-path (back end)
-  "Reconstruct the word list of the best path to boundary END."
-  (let (words)
-    (while (> end 0)
-      (let ((arc (aref back end)))
-        (push (nth 0 (cdr arc)) words)
-        (setq end (car arc))))
-    words))
+(defun wime--best-paths (paths)
+  "Deduplicate PATHS by surface, preserving dictionary evidence, then prune."
+  (let ((seen (make-hash-table :test #'equal)) result)
+    (dolist (path (cl-stable-sort paths #'> :key #'wime-candidate-score))
+      (let* ((text (wime-candidate-text path)) (previous (gethash text seen)))
+        (if previous
+            (when (wime-candidate-dictionary path)
+              (setf (wime-candidate-dictionary previous) t))
+          (puthash text path seen)
+          (push path result))))
+    (seq-take (nreverse result) (max 1 wime-search-width))))
+
+(defun wime--sentence-records (units)
+  "Search UNITS with a bounded beam of distinct readings at each boundary."
+  (let* ((n (length units)) (paths (make-vector (1+ n) nil)))
+    (aset paths 0 (list (wime--make-candidate :text "" :score 0.0 :end 0)))
+    (cl-loop for end from 1 to n do
+             (let (extensions)
+               (cl-loop for start from (max 0 (- end wime-max-word-syllables))
+                        to (1- end) do
+                        (when (aref paths start)
+                          (dolist (entry (wime--matching-entries
+                                          (wime--entries-for
+                                           (wime--span-code units start end))
+                                          (seq-subseq units start end)))
+                            (dolist (path (aref paths start))
+                              (let* ((word (car entry))
+                                     (prefix (wime-candidate-text path)))
+                                (push (wime--make-candidate
+                                       :text (concat prefix word) :end end
+                                       :dictionary (= start 0)
+                                       :score (+ (wime-candidate-score path)
+                                                 (log (max 1 (nth 2 entry)))
+                                                 (- wime-word-penalty)
+                                                 (wime--grammar-score prefix word (= end n))))
+                                      extensions))))))
+               (aset paths end (wime--best-paths (nreverse extensions)))))
+    ;; Full readings lead; shorter prefixes remain available after the beam.
+    (let ((seen (make-hash-table :test #'equal)) result)
+      (cl-loop for end from n downto 1 do
+               (dolist (path (aref paths end))
+                 (unless (gethash (wime-candidate-text path) seen)
+                   (puthash (wime-candidate-text path) t seen)
+                   (push path result))))
+      (nreverse result))))
 
 (defun wime--sentence-candidates (units)
-  "Return sentence candidates for UNITS using a word lattice and Viterbi."
-  (let* ((n (length units))
-         (best (make-vector (1+ n) nil))
-         (text (make-vector (1+ n) nil))
-         (back (make-vector (1+ n) nil)))
-    (aset best 0 0.0)
-    (aset text 0 "")
-    (cl-loop for end from 1 to n do
-             (cl-loop for start from (max 0 (- end wime-max-word-syllables))
-                      to (1- end) do
-                      (when (aref best start)
-                        (let* ((subunits (seq-subseq units start end))
-                               (entries (wime--matching-entries
-                                         (wime--entries-for
-                                          (wime--span-code units start end))
-                                         subunits)))
-                          (dolist (entry entries)
-                            (let* ((word (nth 0 entry))
-                                   (score (+ (aref best start)
-                                             (log (max 1 (nth 2 entry)))
-                                             (- wime-word-penalty)
-                                             (wime--grammar-score
-                                              (aref text start) word
-                                              (= end n)))))
-                              (when (or (null (aref best end))
-                                        (> score (aref best end)))
-                                (aset best end score)
-                                (aset text end (concat (aref text start) word))
-                                (aset back end (cons start entry)))))))))
-    (let ((top (cl-loop for end from n downto 1
-                        when (aref best end) return end)))
-      (when top
-        (let (result)
-          (cl-labels ((add (text)
-                        (when (and text (not (member text result)))
-                          (push text result))))
-            (add (mapconcat #'identity (wime--sentence-path back top) ""))
-            (dolist (word (seq-take
-                           (wime--filter
-                            (wime--entries-for (wime--span-code units 0 top))
-                            (seq-subseq units 0 top))
-                           wime-candidates-max))
-              (add word))
-            (cl-loop for end from (1- top) downto 1 do
-                     (when (aref best end)
-                       (add (mapconcat #'identity (wime--sentence-path back end) ""))))
-            (dolist (word (wime--unit-words (car units)))
-              (add word)))
-          (nreverse result))))))
+  "Return sentence candidate strings for UNITS."
+  (mapcar #'wime-candidate-text (wime--sentence-records units)))
 
 (defun wime--prefix-entries (code)
   "Return completion entries whose code starts with CODE."
@@ -420,10 +428,13 @@ falls back to a prefix search, the way Rime completes partial pinyin."
   (let* ((units (wime--parse input))
          (last (car (last units)))
          (complete (cl-every (lambda (unit) (= (length (car unit)) 2)) units)))
+    (setq wime--candidate-records
+          (when (and complete (> (length units) 1))
+            (wime--sentence-records units)))
     (seq-take
      (cond
       ((null units) nil)
-      ((and complete (> (length units) 1)) (wime--sentence-candidates units))
+      (wime--candidate-records (mapcar #'wime-candidate-text wime--candidate-records))
       ((and last (not complete)) (wime--prefix-candidates units))
       (t (wime--unit-words (car units))))
      wime-candidates-max)))
@@ -476,15 +487,18 @@ falls back to a prefix search, the way Rime completes partial pinyin."
   (setq wime--candidates (wime--candidates wime--input)
         wime--selected 0)
   (wime-active-mode (if (wime--active-p) 1 -1))
-  (wime--display))
+  (wime--display)
+  (run-hooks 'wime-candidates-updated-hook))
 
 (defun wime--reset ()
   "Discard the current composition and its display."
   (setq wime--input nil
+        wime--candidate-records nil
         wime--candidates nil
         wime--selected 0)
   (wime-active-mode -1)
-  (wime--clear-overlay))
+  (wime--clear-overlay)
+  (run-hooks 'wime-reset-hook))
 
 (defun wime--commit (text)
   "Commit TEXT, or the raw typed input when TEXT is nil."
