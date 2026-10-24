@@ -364,8 +364,10 @@ prefix of one of its comma-separated groups."
           (push path result))))
     (seq-take (nreverse result) (max 1 wime-search-width))))
 
-(defun wime--sentence-records (units)
-  "Search UNITS with a bounded beam of distinct readings at each boundary."
+(defun wime--sentence-records (units &optional required-prefix)
+  "Search UNITS, optionally requiring the output to start with REQUIRED-PREFIX.
+Filter extensions before beam pruning, including constraints ending inside
+a dictionary word.  Constrained searches never replace the typing cache."
   (let* ((n (length units)) (paths (make-vector (1+ n) nil))
          (signature (list wime-database-file wime--db wime-database-limit
                           wime-word-penalty wime-max-word-syllables wime-search-width
@@ -373,7 +375,8 @@ prefix of one of its comma-separated groups."
                           wime--grammar-ready wime--grammar-failed
                           (symbol-function 'wime--entries-for)
                           (symbol-function 'wime--grammar-score)))
-         (cache (and (equal signature (car wime--search-cache)) wime--search-cache))
+         (cache (and (not required-prefix)
+                     (equal signature (car wime--search-cache)) wime--search-cache))
          (old-units (nth 1 cache)) (old-paths (nth 2 cache))
          (common (cl-loop for old in old-units for new in units
                           while (equal old new) count t))
@@ -394,17 +397,22 @@ prefix of one of its comma-separated groups."
                                           (seq-subseq units start end)))
                             (dolist (path (aref paths start))
                               (let* ((word (car entry))
-                                     (prefix (wime-candidate-text path)))
-                                (push (wime--make-candidate
-                                       :text (concat prefix word) :end end
+                                     (prefix (wime-candidate-text path))
+                                     (text (concat prefix word)))
+                                (when (or (not required-prefix)
+                                          (string-prefix-p required-prefix text)
+                                          (and (< end n)
+                                               (string-prefix-p text required-prefix)))
+                                  (push (wime--make-candidate
+                                       :text text :end end
                                        :dictionary (= start 0)
                                        :score (+ (wime-candidate-score path)
                                                  (log (max 1 (nth 2 entry)))
                                                  (- wime-word-penalty)
                                                  (wime--grammar-score prefix word (= end n))))
-                                      extensions))))))
+                                      extensions)))))))
                (aset paths end (wime--best-paths (nreverse extensions)))))
-    (setq wime--search-cache (list signature units paths))
+    (unless required-prefix (setq wime--search-cache (list signature units paths)))
     ;; Full readings lead; shorter prefixes remain available after the beam.
     (let ((seen (make-hash-table :test #'equal)) result)
       (cl-loop for end from n downto 1 do
