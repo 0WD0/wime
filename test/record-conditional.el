@@ -1,4 +1,4 @@
-;;; record-conditional.el --- Exercise the deployed asynchronous CPU path -*- lexical-binding: t; -*-
+;;; record-conditional.el --- Exercise the actual asynchronous worker path -*- lexical-binding: t; -*-
 (require 'wime-neural)
 (require 'json)
 (set-language-environment "UTF-8")
@@ -8,8 +8,7 @@
       wime-grammar-shared-dir (getenv "WIME_GRAMMAR")
       wime-neural-program (getenv "WIME_NEURAL_PROGRAM")
       wime-neural-model-file (getenv "WIME_NEURAL_MODEL")
-      wime-neural-search-method 'verify wime-neural-delay 0
-      wime-neural-timeout 10)
+      wime-neural-search-method 'verify wime-neural-delay 0)
 (unless (file-readable-p (expand-file-name "wanxiang-lts-zh-hans.gram" wime-grammar-shared-dir))
   (error "Missing octagram artifact"))
 (let ((cases (with-temp-buffer
@@ -22,7 +21,7 @@
           (with-temp-buffer
             (insert (alist-get 'context case))
             (setq wime--input (alist-get 'input case))
-            (let ((start (float-time)) baseline)
+            (let ((start (float-time)) (cold (not (process-live-p wime-neural--process))) baseline)
               (wime--refresh)
               (setq baseline (car wime--candidates))
               (while (and (< (- (float-time) start) 20)
@@ -35,6 +34,8 @@
               (push `(:id ,(alist-get 'id case) :input ,wime--input
                       :gold ,(vconcat (alist-get 'gold case))
                       :baseline ,baseline :result ,(car wime--candidates)
+                      :cold_start ,(if cold t :false)
+                      :last_inference_ms ,wime-neural-last-latency
                       :wall_ms ,(* 1000 (- (float-time) start))) results)
               (wime--reset))))
         (with-temp-file (getenv "WIME_RECORDING")

@@ -2,8 +2,8 @@
 """Compare octagram, conditioned N-best, and draft/verify/constrained search.
 
 The Emacs process owns the real dictionary lattice. Gold labels are read only
-for metrics, never sent to search or model. CUDA is for experiment throughput;
-production uses the Rust CPU worker, measured separately.
+for metrics, never sent to search or model. The optional CUDA worker shares this inference implementation; actual Emacs
+CPU/GPU latency is measured separately.
 """
 import argparse
 from collections import Counter
@@ -14,47 +14,11 @@ import subprocess
 import time
 
 import numpy as np
-import torch
 
-from conditional import load_model, prompt, ROOT
+from conditional import ROOT
+from inference import ConditionalEvaluator
 
 
-class Evaluator:
-    def __init__(self, path, device="cuda"):
-        torch.set_num_threads(4)
-        torch.backends.cuda.matmul.allow_tf32 = False
-        self.model, self.vocab, self.metadata = load_model(path)
-        self.model.to(device).eval()
-        self.device = device
-        self.index = {c: i for i, c in enumerate(self.vocab)}
-        self.chinese = torch.tensor([i for i, c in enumerate(self.vocab)
-                                     if len(c) == 1 and "\u3400" <= c <= "\u9fff"], device=device)
-
-    @torch.inference_mode()
-    def evaluate(self, context, code, texts):
-        pre = [2] + [self.index.get(c, 1) for c in prompt(context, code, self.model.cfg.context)]
-        encoded = [[self.index.get(c, 1) for c in text] for text in texts]
-        if any(len(pre) + len(t) > self.model.cfg.context for t in encoded):
-            raise ValueError("candidate exceeds model window")
-        size = max(map(len, encoded)) + len(pre) - 1
-        inputs = [pre + tail[:-1] + [0] * (size - len(pre) - len(tail) + 1) for tail in encoded]
-        # Match the deployed float32 CPU worker. BF16 can flip close candidate
-        # comparisons and prefix thresholds even with the same saved weights.
-        logits, _ = self.model(torch.tensor(inputs, device=self.device))
-        distributions = logits[:, len(pre) - 1:].float().log_softmax(-1)
-        scores = [float(distributions[i, torch.arange(len(t)), t].mean()) for i, t in enumerate(encoded)]
-        return scores, distributions
-
-    def proposals(self, draft, distribution, margin):
-        edits = []
-        values, indices = distribution[:len(draft), self.chinese].topk(4, dim=-1)
-        for position, char in enumerate(draft):
-            current = float(distribution[position, self.index.get(char, 1)])
-            for score, token in zip(values[position].tolist(), indices[position].tolist()):
-                replacement = self.vocab[int(self.chinese[token])]
-                if score > current + margin and replacement != char:
-                    edits.append(draft[:position] + replacement)
-        return edits[:16]
 
 
 def main():
@@ -89,7 +53,7 @@ def main():
             raise RuntimeError("search process exited")
         return json.loads(line)
 
-    evaluator = Evaluator(args.model)
+    evaluator = ConditionalEvaluator(args.model)
     stats, results, latencies = Counter(), [], []
     started = time.monotonic()
     try:

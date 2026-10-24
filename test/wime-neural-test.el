@@ -173,6 +173,27 @@
       (should-not wime-neural--pending)
       (should (equal (car wime--candidates) "甲乙")))))
 
+(ert-deftest wime-neural-only-initialization-gets-the-longer-timeout ()
+  (wime-neural-test--composition
+    (let* ((process (make-pipe-process :name "wime-timeout-test" :noquery t))
+           (wime-neural--process process) (wime-neural--busy nil)
+           (wime-neural--pending nil) (wime-neural--failed nil)
+           (wime-neural--timeout-timer nil)
+           (wime-neural-startup-timeout 10) (wime-neural-timeout 2) delays)
+      (unwind-protect
+          (cl-letf (((symbol-function 'wime-neural--start) (lambda () process))
+                    ((symbol-function 'run-with-timer)
+                     (lambda (delay &rest _) (push delay delays) nil))
+                    ((symbol-function 'process-send-string) #'ignore))
+            (wime-neural--enqueue job)
+            (wime-neural--reply '((id . 99)))
+            (should-not (process-get process 'wime-initialized))
+            (wime-neural--reply '((id . 1)))
+            (should (process-get process 'wime-initialized))
+            (wime-neural--enqueue job)
+            (should (equal delays '(2 10))))
+        (delete-process process)))))
+
 (ert-deftest wime-neural-real-worker-protocol ()
   (let ((program (getenv "WIME_NEURAL_PROGRAM"))
         (model (getenv "WIME_NEURAL_MODEL")))

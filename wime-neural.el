@@ -27,7 +27,13 @@
   :type 'number :group 'wime)
 
 (defcustom wime-neural-timeout 2.0
-  "Seconds allowed for a worker response, including initial model loading."
+  "Seconds allowed for a response from an already running worker."
+  :type 'number :group 'wime)
+
+(defcustom wime-neural-startup-timeout 10.0
+  "Seconds allowed for the first response, including model and CUDA setup.
+Traditional candidates remain usable during initialization.  Later requests
+use `wime-neural-timeout'."
   :type 'number :group 'wime)
 
 (defcustom wime-neural-search-method 'rerank
@@ -176,7 +182,8 @@ this weight only selects among complete, verified drafts."
           (let ((process (wime-neural--start)))
             (setq wime-neural--busy job
                   wime-neural--timeout-timer
-                  (run-with-timer wime-neural-timeout nil
+                  (run-with-timer (if (process-get process 'wime-initialized)
+                                      wime-neural-timeout wime-neural-startup-timeout) nil
                                   #'wime-neural--fail "worker timed out"))
             (process-send-string process (concat (wime-neural--request job) "\n")))
         (error (wime-neural--fail "worker could not start or receive input"))))))
@@ -246,6 +253,8 @@ this weight only selects among complete, verified drafts."
   "Complete the matching request with RESPONSE and dispatch latest pending work."
   (when (and wime-neural--busy
              (equal (alist-get 'id response) (wime-neural--job-id wime-neural--busy)))
+    (when (processp wime-neural--process)
+      (process-put wime-neural--process 'wime-initialized t))
     (when (timerp wime-neural--timeout-timer) (cancel-timer wime-neural--timeout-timer))
     (setq wime-neural--timeout-timer nil)
     (wime-neural--apply wime-neural--busy response)
