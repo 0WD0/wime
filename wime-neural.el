@@ -5,7 +5,8 @@
 ;;; Commentary:
 ;; A persistent worker loads the character model once.  There is at most one
 ;; running request and one pending request; typing replaces pending work.
-;; Replies only promote existing full-input candidates in the same composition.
+;; Conditional verification can ask the dictionary lattice for new prefixes;
+;; only complete, verified readings in the same composition may be promoted.
 
 ;;; Code:
 
@@ -29,8 +30,19 @@
   "Seconds allowed for a worker response, including initial model loading."
   :type 'number :group 'wime)
 
+(defcustom wime-neural-search-method 'rerank
+  "Use candidate reranking or conditional draft verification.
+`verify' requires a wime-ms-pinyin-v1 model and a Microsoft double-pinyin
+database.  Auxiliary codes continue to constrain the dictionary search."
+  :type '(choice (const rerank) (const verify)) :group 'wime)
+
+(defcustom wime-neural-inference-budget 4
+  "Maximum verified drafts per composition in `verify' mode."
+  :type 'integer :group 'wime)
+
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
-  id buffer input position tick context records syllables)
+  id buffer input position tick context records syllables
+  method draft best best-score (round 0) visited)
 
 (defvar wime-neural-mode)
 (defvar wime-neural--process nil)
@@ -73,14 +85,21 @@
     (let* ((records wime--candidate-records)
            (n (length (wime--parse wime--input)))
            (full (seq-filter (lambda (c) (= n (wime-candidate-end c))) records)))
-      (when (and (> (length full) 1)
-                 (eq (car full) (car records))
-                 (not (wime-candidate-dictionary (car records))))
+      (when (and full (eq (car full) (car records))
+                 (if (eq wime-neural-search-method 'verify)
+                     (condition-case nil
+                         (equal (caar (sqlite-select (wime--database)
+                                                    "SELECT value FROM meta WHERE key = 'scheme'"))
+                                "微软双拼")
+                       (error nil))
+                   (and (> (length full) 1)
+                        (not (wime-candidate-dictionary (car records))))))
         (let ((job (wime-neural--make-job
                     :id (cl-incf wime-neural--serial) :buffer (current-buffer)
                     :input wime--input :position (point)
                     :tick (buffer-chars-modified-tick) :context (wime-neural--context)
-                    :records records :syllables n)))
+                    :records records :syllables n :method wime-neural-search-method
+                    :draft (car full))))
           (setq wime-neural--timer
                 (run-with-timer wime-neural-delay nil #'wime-neural--enqueue job)))))))
 
@@ -130,6 +149,10 @@
   (json-serialize
    `(:id ,(wime-neural--job-id job) :context ,(wime-neural--job-context job)
      :syllables ,(wime-neural--job-syllables job)
+     :operation ,(if (eq (wime-neural--job-method job) 'verify) "verify" "rerank")
+     :input ,(wime--full-code (wime--parse (wime-neural--job-input job)))
+     :draft ,(if (wime-neural--job-draft job)
+                 (wime-candidate-text (wime-neural--job-draft job)) "")
      :candidates ,(vconcat
                    (mapcar (lambda (c)
                              `(:text ,(wime-candidate-text c) :end ,(wime-candidate-end c)
@@ -150,6 +173,51 @@
             (process-send-string process (concat (wime-neural--request job) "\n")))
         (error (wime-neural--fail "worker could not start or receive input"))))))
 
+(defun wime-neural--publish (job candidate)
+  "Promote a complete CANDIDATE validated against JOB's input."
+  (when (and candidate (= (wime-candidate-end candidate) (wime-neural--job-syllables job)))
+    (setq wime--candidate-records
+          (cons candidate (seq-remove
+                           (lambda (c) (equal (wime-candidate-text c) (wime-candidate-text candidate)))
+                           (wime-neural--job-records job)))
+          wime--candidates (seq-take (mapcar #'wime-candidate-text wime--candidate-records)
+                                    wime-candidates-max))
+    (wime--display)))
+
+(defun wime-neural--verify-apply (job response)
+  "Score JOB's draft, then search the first viable model prefix in RESPONSE."
+  (let* ((draft (wime-neural--job-draft job))
+         (text (wime-candidate-text draft))
+         (score (alist-get 'score response))
+         (next nil))
+    (when (numberp score)
+      (cl-incf (wime-neural--job-round job))
+      (push text (wime-neural--job-visited job))
+      (when (or (null (wime-neural--job-best-score job))
+                (> score (wime-neural--job-best-score job)))
+        (setf (wime-neural--job-best job) draft
+              (wime-neural--job-best-score job) score))
+      (when (and (< (wime-neural--job-round job) (max 1 wime-neural-inference-budget))
+                 (not wime-neural--pending))
+        (catch 'found
+          (seq-doseq (prefix (seq-take (alist-get 'prefixes response) 16))
+            (when (and (stringp prefix) (> (length prefix) 0)
+                       (<= (length prefix) (wime-neural--job-syllables job)))
+              (let ((candidate (car (wime--sentence-records
+                                     (wime--parse (wime-neural--job-input job)) prefix))))
+                (when (and candidate
+                           (= (wime-candidate-end candidate) (wime-neural--job-syllables job))
+                           (not (member (wime-candidate-text candidate) (wime-neural--job-visited job))))
+                  (setq next candidate)
+                  (throw 'found t))))))))
+    (if next
+        (let ((continuation (copy-wime-neural--job job)))
+          (setf (wime-neural--job-id continuation) (cl-incf wime-neural--serial)
+                (wime-neural--job-draft continuation) next)
+          (setq wime-neural--pending continuation))
+      ;; The last proposed draft has not been verified and is never displayed.
+      (wime-neural--publish job (wime-neural--job-best job)))))
+
 (defun wime-neural--apply (job response)
   "Apply RESPONSE only if JOB is current and its promoted reading covers input."
   (when (wime-neural--valid-p job)
@@ -159,12 +227,9 @@
              (candidate (and (integerp index) (> index 0) (< index (length records))
                              (nth index records))))
         (setq wime-neural-last-latency (alist-get 'elapsed_ms response))
-        (when (and candidate
-                   (= (wime-candidate-end candidate) (wime-neural--job-syllables job)))
-          (setq wime--candidate-records (cons candidate (remq candidate (copy-sequence records)))
-                wime--candidates (seq-take (mapcar #'wime-candidate-text wime--candidate-records)
-                                          wime-candidates-max))
-          (wime--display))))))
+        (if (eq (wime-neural--job-method job) 'verify)
+            (wime-neural--verify-apply job response)
+          (when candidate (wime-neural--publish job candidate)))))))
 
 (defun wime-neural--reply (response)
   "Complete the matching request with RESPONSE and dispatch latest pending work."

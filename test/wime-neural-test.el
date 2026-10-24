@@ -27,6 +27,34 @@
     (should (equal wime--candidates '("丙丁" "甲乙" "甲")))
     (should (= wime-neural-last-latency 3.5))))
 
+(ert-deftest wime-neural-verification-only-publishes-the-best-verified-draft ()
+  (wime-neural-test--composition
+    (let ((wime-neural--pending nil) (wime-neural-inference-budget 2))
+      (setf (wime-neural--job-method job) 'verify
+            (wime-neural--job-draft job) (car wime--candidate-records))
+      (cl-letf (((symbol-function 'wime--sentence-records)
+                 (lambda (_units prefix)
+                   (when (equal prefix "丙")
+                     (list (wime--make-candidate :text "丙乙" :end 2 :score -1))))))
+        (wime-neural--apply job '((score . -2.0) (prefixes . ["错" "丙"])))
+        (should (equal (car wime--candidates) "甲乙"))
+        (should wime-neural--pending)
+        (let ((continuation wime-neural--pending))
+          (setq wime-neural--pending nil)
+          (wime-neural--apply continuation '((score . -1.0) (prefixes . ["丁"])))
+          (should (equal (car wime--candidates) "丙乙"))
+          (should-not wime-neural--pending))))))
+
+(ert-deftest wime-neural-verification-retains-baseline-on-regression-or-impossible-prefix ()
+  (wime-neural-test--composition
+    (let ((wime-neural--pending nil) (wime-neural-inference-budget 2))
+      (setf (wime-neural--job-method job) 'verify
+            (wime-neural--job-draft job) (car wime--candidate-records))
+      (cl-letf (((symbol-function 'wime--sentence-records) (lambda (&rest _) nil)))
+        (wime-neural--apply job '((score . -1.0) (prefixes . ["无解"])))
+        (should (equal (car wime--candidates) "甲乙"))
+        (should-not wime-neural--pending)))))
+
 (ert-deftest wime-neural-rejects-replaced-compositions ()
   (wime-neural-test--composition
     ;; Same input after backspace and retyping still has different candidate records.
