@@ -22,12 +22,14 @@ Bazel 在构建期从上游 nightly 产物下载，不依赖本机安装，也�
 - 每个库都带 =meta= 表（方案名、声母位与韵母位用到的键），引擎据此判断 =;,./= 是编码还是标点。
 - 产物 =wanxiang.db= 是 SQLite（约 220 万条），由 =//emacs-packages/wime:database= 生成并随快照发布；wime 用内置的 =sqlite-select= 查询。仓库不再提交生成的 Elisp 表。
 
-* 可选神经重排
+* 可选神经搜索
 
 wdoom 快照包含 =wime-neural= 和固定摘要的 4.25M 模型，并配置好路径；用 =M-x wime-neural-mode= 启用。独立使用时设置 =wime-neural-program=、=wime-neural-model-file=，worker 可用 =bazel build -c opt //emacs-packages/wime/neural:wime-neural= 构建。模型来源与摘要在 =neural_model.bzl=，推理源码及完整上游历史在 =third_party/chinese-ime-lm/=。
 
-传统候选立即显示，停键 40 ms 后最多比较 9 个覆盖整个输入的候选；整词命中的首选保持不动。进程常驻并复用模型缓存，最多保留一个正在运行和一个待处理请求。输入、光标、缓冲区内容或选中项变化后，旧结果失效；进程失败或超时保留传统候选。模型只提升已有候选，不生成文字，也不联网推理。
+传统候选立即显示，停键 40 ms 后请求模型。默认的 =rerank= 方法最多比较 9 个完整候选，整词命中的首选保持不动。进程常驻并复用模型缓存，最多保留一个正在运行和一个待处理请求。输入、光标、缓冲区内容或选中项变化后，旧结果失效；进程失败或超时保留传统候选。
 
-目前默认关闭：=test/neural-measurements.json= 记录的 28 条手写开发样例中，octagram 首选 27/28，4.25M 重排 22/28，24.9M 重排 27/28（修对一条、改错一条）。这不是独立质量评测。=test/benchmark-neural.py --help= 给出复现参数；它逐键记录实际候选，金标准只用于推理后的统计，不参与筛选。下一步需要拼音条件模型和更大、独立的评测集。
+设置 =wime-neural-search-method= 为 =verify=，并选择 =wime-ms-pinyin-v1= 条件模型，可使用 Zenzai 式的草稿验证与前缀约束重搜。模型读取上文和完整双拼音节序列，一次验证草稿各位置，提出更可能的前缀；Elisp 在词格剪枝前应用约束，因此能找回原候选表之外的读法。默认最多验证 4 次，只发布其中得分最高的完整候选。双拼按键和辅助码始终是硬约束；目前条件模型只支持微软双拼，其他方案不启动验证。全部推理在本地 CPU 上执行。
 
-尚未实现：模型前缀约束驱动的重新搜索、上屏后的后续预测、声调输入、自造词与调频。
+神经功能仍默认关闭。旧的无条件重排结果见 =test/neural-measurements.json=；条件模型的数据、对照实验和限制见 =test/conditional-measurements.json=。=neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的中文技术文档，跨集合重复目标被排除。=neural/train-conditional.py= 只对目标文字计算损失，=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索；=test/record-conditional.el= 验证实际异步 CPU 路径。金标准不参与模型决策，仅在输出后统计及独立检查词格覆盖率。自动注音和未知的上游预训练重合意味着这些数据不能等同于人工标注的真实按键评测。
+
+尚未实现：上屏后的后续预测、声调输入、自造词与调频。

@@ -55,6 +55,19 @@
         (should (equal (car wime--candidates) "甲乙"))
         (should-not wime-neural--pending)))))
 
+(ert-deftest wime-neural-conditional-scheduling-requires-the-trained-keyboard-scheme ()
+  (wime-neural-test--composition
+    (let ((wime-neural-search-method 'verify) (wime-neural-model-file "model.safetensors")
+          (wime-neural--failed nil) (scheduled nil) (scheme "liangti"))
+      (cl-letf (((symbol-function 'wime--database) (lambda () 'database))
+                ((symbol-function 'sqlite-select) (lambda (&rest _) (list (list scheme))))
+                ((symbol-function 'run-with-timer) (lambda (&rest _) (setq scheduled t))))
+        (wime-neural--schedule)
+        (should-not scheduled)
+        (setq scheme "mspy")
+        (wime-neural--schedule)
+        (should scheduled)))))
+
 (ert-deftest wime-neural-rejects-replaced-compositions ()
   (wime-neural-test--composition
     ;; Same input after backspace and retyping still has different candidate records.
