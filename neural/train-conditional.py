@@ -142,9 +142,8 @@ def main():
                             vocab=json.dumps(vocab, ensure_ascii=False), precision="f16", conditional=FORMAT,
                             validation_loss=str(best), training_steps=str(step),
                             attribution=metadata.get("attribution", "") + " Fine-tuned on LCCC (MIT), manifest in run.json."
-                            + (" The Kubernetes Authors, Chinese documentation (CC-BY-4.0), "
-                               + settings["extra_manifest"]["source"] + ", revision "
-                               + settings["extra_manifest"]["revision"] + "; modified into pinyin/text training pairs."
+                            + (" Additional corpus attribution and licenses: "
+                               + json.dumps(settings["extra_manifest"], ensure_ascii=False)
                                if args.extra_data else ""))
                 save_file(tensors, str(args.out / "model.safetensors"), metadata=info)
     print(json.dumps(dict(best_validation_loss=best, seconds=time.monotonic() - start)), flush=True)
