@@ -126,6 +126,87 @@
               (lambda (&rest _) 0.0)))
      ,@body))
 
+(defmacro wime-test--memory (entries &rest body)
+  "Run BODY with dictionary ENTRIES and an empty user database file."
+  (declare (indent 1))
+  `(let* ((wime-user-database (make-temp-file "wime-user" nil ".sqlite3"))
+          (wime--user-db nil) (wime--memory (make-hash-table :test #'equal)))
+     (unwind-protect
+         (cl-letf (((symbol-function 'wime--database-entries)
+                    (lambda (code) (cdr (assoc code ,entries))))
+                   ((symbol-function 'wime--grammar-score) (lambda (&rest _) 0.0)))
+           ,@body)
+       (when wime--user-db (sqlite-close (cdr wime--user-db)))
+       (delete-file wime-user-database))))
+
+(defconst wime-test--homophones
+  '(("dl" ("代" "a" 100) ("待" "b" 50)) ("xr" ("选" "d" 100)) ("xd" ("项" "e" 100))
+    ("dlxr" ("代选" "a/d" 30) ("待选" "b/d" 20)) ("xrxd" ("选项" "d/e" 1000))))
+
+(ert-deftest wime-correction-learns-the-covering-word-until-contradicted ()
+  (wime-test--memory wime-test--homophones
+    (let ((units (wime--parse "dlxrxd")) (tick wime--memory-tick))
+      (should (equal (car (wime--sentence-candidates units)) "代选项"))
+      (wime--learn "待选项" units "代选项")
+      ;; One differing character becomes the dictionary word, never a lone 待.
+      (should (equal (gethash "dlxr" wime--memory) '(("待选" . "b/d"))))
+      (should-not (gethash "dl" wime--memory))
+      (should (> wime--memory-tick tick))
+      (should (equal (car (wime--sentence-candidates units)) "待选项"))
+      (should (= (wime--memory-coverage "待选项" units) (/ 2.0 3)))
+      (should (= (wime--memory-coverage "代选项" units) 0.0))
+      ;; Persisted across sessions.
+      (sqlite-close (cdr wime--user-db))
+      (setq wime--user-db nil)
+      (clrhash wime--memory)
+      (should (equal (car (wime--sentence-candidates units)) "待选项"))
+      ;; Committing another reading for the same keys replaces the preference.
+      (wime--learn "代选项" units "待选项")
+      (should (equal (gethash "dlxr" wime--memory) '(("代选" . "a/d"))))
+      (should (equal (sqlite-select (wime--user-db) "SELECT code, text FROM memory")
+                     '(("dlxr" "代选")))))))
+
+(ert-deftest wime-span-pin-correction-is-learned-against-the-unpinned-offer ()
+  (wime-test--memory wime-test--homophones
+    (with-temp-buffer
+      (setq wime--input "dlxrxd")
+      (wime--refresh)
+      (wime--choose-span 0 1 "待")
+      (should (equal (car wime--candidates) "待选项"))
+      (should (equal wime--default-reading "代选项"))
+      (wime-input-method ?\s)
+      (should (equal (gethash "dlxr" wime--memory) '(("待选" . "b/d")))))))
+
+(ert-deftest wime-correction-learns-the-frequent-word-not-one-across-a-boundary ()
+  (wime-test--memory '(("ru" ("入" "a" 100)) ("ui" ("是" "b" 100) ("时" "c" 90)) ("hb" ("候" "d" 100))
+                       ("ruui" ("入时" "a/c" 50)) ("uihb" ("时候" "c/d" 9000)))
+    (let ((units (wime--parse "ruuihb")))
+      (wime--learn "入时候" units "入是候")
+      (should (equal (gethash "uihb" wime--memory) '(("时候" . "c/d"))))
+      (should-not (gethash "ruui" wime--memory)))))
+
+(ert-deftest wime-commit-logs-the-offer-and-learns-only-corrections ()
+  (wime-test--memory wime-test--homophones
+    (with-temp-buffer
+      (insert "按数字键选择")
+      (setq wime--input "dlxrxd")
+      (wime--refresh)
+      (should (equal wime--default-reading "代选项"))
+      (wime--commit "代选项")
+      (should (zerop (hash-table-count wime--memory)))
+      (setq wime--input "dlxrxd")
+      (wime--refresh)
+      (setq wime--candidate-records
+            (append wime--candidate-records
+                    (list (wime--make-candidate :text "待选项" :end 3 :score -1)))
+            wime--candidates (mapcar #'wime-candidate-text wime--candidate-records))
+      (wime--select-digit (+ ?1 (seq-position wime--candidates "待选项")))
+      (should (equal (sqlite-select (wime--user-db)
+                                    "SELECT input, keys, text, default_reading, context FROM commits")
+                     '(("dlxrxd" "dlxrxd" "代选项" "代选项" "按数字键选择")
+                       ("dlxrxd" "dlxrxd" "待选项" "代选项" "按数字键选择代选项"))))
+      (should (equal (gethash "dlxr" wime--memory) '(("待选" . "b/d")))))))
+
 (ert-deftest wime-search-cache-follows-editable-context-and-boundaries ()
   (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 1))
                         ("bb" ("丙" "c" 100)))

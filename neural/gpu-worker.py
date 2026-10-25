@@ -33,6 +33,9 @@ def validate(request):
                 or type(candidate.get("end")) is not int or not 0 <= candidate["end"] < 2**64
                 or type(candidate.get("dictionary")) is not bool):
             raise ValueError("invalid request")
+        bonus = candidate.get("bonus", 0)
+        if type(bonus) not in (int, float) or not math.isfinite(bonus):
+            raise ValueError("invalid request")
     for key in ("operation", "input", "draft"):
         if not isinstance(request.get(key, ""), str):
             raise ValueError("invalid request")
@@ -89,8 +92,11 @@ def respond(evaluator, request, rescorer=None):
     if rescorer:
         # The confidence gate above stays a model-probability rule.
         scores = rescorer.combine(request["context"], texts, scores)
+    # The editor's learned-reading bonus joins the choice but never the scores
+    # returned, to which the editor adds it again.
     selected = (max(range(len(candidates)), key=lambda j: scores[j] +
-                    prior_weight * candidates[j][1]["score"] / syllables)
+                    prior_weight * candidates[j][1]["score"] / syllables +
+                    candidates[j][1].get("bonus", 0))
                 if seeding else 0)
     if seeding:
         # Return an index into the original, aux-filtered dictionary pool. The

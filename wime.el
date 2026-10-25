@@ -457,9 +457,127 @@ prefix of one of its comma-separated groups."
       (wime-grammar-query (or context "") word rear)
     0.0))
 
+(defcustom wime-user-database nil
+  "SQLite file of this user's commit log and learned readings, or nil.
+Each committed complete reading records its raw input, keys, text, the
+reading wime offered first and the context before it.  Where the text
+differs from that default, the differing span, widened to the shortest
+dictionary word under the same keys, becomes a learned reading.  Committing
+another reading for those keys forgets it."
+  :type '(choice (const nil) file) :group 'wime)
+
+(defcustom wime-user-weight 1e7
+  "Dictionary weight of a learned reading, above any wanxiang entry."
+  :type 'number :group 'wime)
+
+(defvar wime--user-db nil
+  "Open `wime-user-database', as (FILE . CONNECTION).")
+
+(defvar wime--memory (make-hash-table :test #'equal)
+  "Learned readings: code -> list of (TEXT . AUX).")
+
+(defvar wime--memory-tick 0
+  "Incremented whenever learned readings change; part of the search cache key.")
+
+(defvar-local wime--default-reading nil
+  "First candidate offered for this input, before any pin or selection.")
+
+(defun wime--user-db ()
+  "Return the user database connection, loading learned readings once."
+  (when wime-user-database
+    (unless (equal (car wime--user-db) wime-user-database)
+      (make-directory (file-name-directory (expand-file-name wime-user-database)) t)
+      (let ((db (sqlite-open wime-user-database)))
+        (sqlite-execute db (concat "CREATE TABLE IF NOT EXISTS commits (time REAL, input TEXT, keys TEXT, "
+                                   "text TEXT, default_reading TEXT, context TEXT)"))
+        (sqlite-execute db (concat "CREATE TABLE IF NOT EXISTS memory (code TEXT, text TEXT, aux TEXT, "
+                                   "count INTEGER, updated REAL, PRIMARY KEY (code, text))"))
+        (clrhash wime--memory)
+        (pcase-dolist (`(,code ,text ,aux) (sqlite-select db "SELECT code, text, aux FROM memory"))
+          (push (cons text aux) (gethash code wime--memory)))
+        (setq wime--user-db (cons wime-user-database db))
+        (cl-incf wime--memory-tick)))
+    (cdr wime--user-db)))
+
+(defun wime--memory-entries (code)
+  "Learned readings for CODE, as database entries."
+  (when (wime--user-db)
+    (mapcar (lambda (m) (list (car m) (cdr m) wime-user-weight)) (gethash code wime--memory))))
+
+(defun wime--memory-coverage (text units)
+  "Fraction of TEXT's syllables covered by learned readings for UNITS."
+  (let* ((n (min (length text) (length units))) (covered (make-bool-vector n nil)))
+    (when (and (> n 1) (wime--user-db) (> (hash-table-count wime--memory) 0))
+      (dotimes (s n)
+        (cl-loop for e from (+ s 2) to (min n (+ s 16))
+                 when (assoc (substring text s e) (gethash (wime--span-code units s e) wime--memory))
+                 do (cl-loop for i from s below e do (aset covered i t)))))
+    (if (zerop n) 0.0 (/ (float (cl-count t covered)) n))))
+
+(defun wime--dictionary-word-p (word units)
+  "Whether WORD is a dictionary entry for the keys of UNITS."
+  (seq-find (lambda (entry) (equal (car entry) word))
+            (wime--database-entries (wime--span-code units 0 (length units)))))
+
+(defun wime--learned-aux (word units)
+  "Auxiliary codes of WORD read as UNITS, from the dictionary."
+  (or (nth 1 (wime--dictionary-word-p word units))
+      (mapconcat (lambda (i)
+                   (or (nth 1 (wime--dictionary-word-p (string (aref word i)) (list (nth i units)))) ""))
+                 (number-sequence 0 (1- (length word))) "/")))
+
+(defun wime--learned-span (text units start end)
+  "Shortest dictionary word of TEXT covering START..END under UNITS' keys.
+Among equally short words the most frequent wins, so 输入时候 learns 时候
+rather than 入时 across the word boundary.  Without one, at least two
+characters, so a single-character correction never becomes a preference
+for that syllable everywhere."
+  (let ((n (length text)))
+    (or (cl-loop for size from (max 2 (- end start)) to (min n wime-max-word-syllables)
+                 thereis (cdr (car (sort (cl-loop for s from (max 0 (- end size)) to (min start (- n size))
+                                                  for entry = (wime--dictionary-word-p
+                                                               (substring text s (+ s size))
+                                                               (seq-subseq units s (+ s size)))
+                                                  when entry collect (cons (nth 2 entry) (cons s (+ s size))))
+                                         (lambda (a b) (> (car a) (car b)))))))
+        (if (>= (- end start) 2) (cons start end)
+          (let ((s (min start (- n 2)))) (cons s (+ s 2)))))))
+
+(defun wime--learn (text units default)
+  "Forget readings TEXT contradicts under UNITS, then learn where it left DEFAULT."
+  (let ((db (wime--user-db)) (n (length text)) (changed nil))
+    (dotimes (s n)
+      (cl-loop for e from (+ s 2) to (min n (+ s 16)) do
+               (let ((code (wime--span-code units s e)) (span (substring text s e)))
+                 (dolist (m (copy-sequence (gethash code wime--memory)))
+                   (unless (equal (car m) span)
+                     (sqlite-execute db "DELETE FROM memory WHERE code = ? AND text = ?" (list code (car m)))
+                     (setf (gethash code wime--memory) (delete m (gethash code wime--memory))
+                           changed t))))))
+    (when (and default (> n 1) (>= (length default) n) (not (equal (substring default 0 n) text)))
+      (let ((i 0))
+        (while (< i n)
+          (if (eq (aref text i) (aref default i))
+              (cl-incf i)
+            (let ((j i))
+              (while (and (< j n) (not (eq (aref text j) (aref default j))))
+                (cl-incf j))
+              (pcase-let* ((`(,s . ,e) (wime--learned-span text units i j))
+                           (word (substring text s e)) (code (wime--span-code units s e))
+                           (aux (wime--learned-aux word (seq-subseq units s e))))
+                (sqlite-execute db (concat "INSERT INTO memory VALUES (?, ?, ?, 1, ?) ON CONFLICT (code, text) "
+                                           "DO UPDATE SET count = count + 1, updated = excluded.updated")
+                                (list code word aux (float-time)))
+                (unless (assoc word (gethash code wime--memory))
+                  (push (cons word aux) (gethash code wime--memory)))
+                (setq changed t))
+              (setq i j))))))
+    (when changed (cl-incf wime--memory-tick))))
+
 (defun wime--entries-for (code)
-  "Return the word entries for CODE from the database."
-  (and code (not (string-empty-p code)) (wime--database-entries code)))
+  "Return the learned and dictionary word entries for CODE."
+  (and code (not (string-empty-p code))
+       (append (wime--memory-entries code) (wime--database-entries code))))
 
 (defun wime--matching-entries (entries units)
   "Return the entries of ENTRIES whose auxiliary codes match UNITS."
@@ -508,7 +626,7 @@ signature."
          (signature (list context wime-database-file wime--db wime-database-limit
                           wime-word-penalty wime-max-word-syllables wime-search-width
                           wime-grammar-module wime-grammar-shared-dir wime-grammar-language
-                          wime--grammar-ready wime--grammar-failed wime--pins
+                          wime--grammar-ready wime--grammar-failed wime--pins wime--memory-tick
                           (symbol-function 'wime--entries-for)
                           (symbol-function 'wime--grammar-score)))
          (cache (and (not required-prefix)
@@ -735,6 +853,9 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
   (setq wime--candidate-scores nil
         wime--candidates (wime--candidates wime--input)
         wime--selected 0)
+  ;; A pinned refresh shows the user's own correction, not wime's offer.
+  (unless wime--pins
+    (setq wime--default-reading (car wime--candidates)))
   (wime-active-mode (if (wime--active-p) 1 -1))
   (wime--display)
   (run-hooks 'wime-candidates-updated-hook))
@@ -749,6 +870,7 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
         wime--span-choices nil
         wime--pins nil
         wime--list-view nil
+        wime--default-reading nil
         wime--selected 0)
   (wime-active-mode -1)
   (wime--clear-overlay)
@@ -781,6 +903,10 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
                           (cl-every (lambda (u) (= (length (car u)) 2))
                                     (seq-take units (length text))))
                  (wime--full-code (seq-take units (length text))))))
+    (when (and code (wime--user-db))
+      (sqlite-execute (wime--user-db) "INSERT INTO commits VALUES (?, ?, ?, ?, ?, ?)"
+                      (list (float-time) fallback code text (or wime--default-reading "") (wime--context)))
+      (wime--learn text (seq-take units (length text)) wime--default-reading))
     (wime--reset)
     (insert (or text fallback))
     (setq wime--committed-reading

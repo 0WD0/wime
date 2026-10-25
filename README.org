@@ -39,4 +39,8 @@ CUDA worker 只支持 =verify=，使用 FP32、不启用 TF32，模型随进程�
 
 =neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，=neural/prepare-diverse.py= 准备额外成语、专名与正文语料，=neural/prepare-domain.py= 按文档划分本地文档与 =neural/domain-sources.json= 中固定版本的外部中文技术文档，作为输入法/开发领域语料。=neural/train-conditional.py= 可训练单字、短片段和完整输入；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步路径。评测使用固定产物，=--reference-baseline= 检查传统搜索输出是否一致。金标准不参与模型决策；自动注音、相关压力样例和未知的预训练重合仍是评测限制。
 
-尚未实现：上屏后的后续预测、声调输入、自造词与调频。
+* 纠错学习
+
+设置 =wime-user-database= 后（wdoom 为 =$XDG_DATA_HOME/wime/user.sqlite3=），每次上屏完整读音都记录原始按键、双拼码、上屏文本、wime 首先给出的读音和光标前文，作为真实使用的评测数据，只存本机。上屏文本与首选不同时（数字选字、移动选择后上屏、在分段视图里固定字），把不同的片段扩展到同键下最短的词典词（同长取词频最高者，至少两字），记为学到的读音；同一按键再上屏别的读音即忘记它。学到的读音以 =wime-user-weight= 进入词格，神经阶段按覆盖音节比例加 =wime-neural-memory-weight=，CUDA 种子选择和草稿验证都计入，模型不会推翻用户为同一按键做的纠正。
+
+尚未实现：上屏后的后续预测、声调输入、按使用频率调频。

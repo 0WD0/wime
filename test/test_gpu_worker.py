@@ -118,6 +118,24 @@ class WorkerContract(unittest.TestCase):
         self.assertEqual(evaluator.proposed, "second")
         self.assertEqual(response["prefixes"], ["变", "便利", "便"])
 
+    def test_learned_reading_bonus_chooses_the_seed_without_changing_its_score(self):
+        class Evaluator:
+            def evaluate(self, context, code, texts):
+                return [-1, -3], [None, None]
+
+            def proposals(self, draft, distribution, margin):
+                return []
+
+        request = self.request(seed_candidates=True, prior_weight=.1, candidates=[
+            dict(text="编译", end=2, dictionary=True, score=-1),
+            dict(text="便宜", end=2, dictionary=True, score=-1, bonus=10.0)])
+        response = worker.respond(Evaluator(), request)
+        self.assertEqual(response["verified_index"], 1)
+        self.assertEqual(response["score"], -3)
+        for bonus in (float("nan"), "10", None):
+            with self.assertRaises(ValueError):
+                worker.validate(dict(request, candidates=[dict(request["candidates"][1], bonus=bonus)]))
+
 
 if __name__ == "__main__":
     unittest.main()

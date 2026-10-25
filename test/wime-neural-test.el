@@ -400,6 +400,29 @@
             (should (equal (car wime--candidates) "戊己")))
         (delete-process process)))))
 
+(ert-deftest wime-neural-learned-readings-earn-the-bonus-and-pool-scores-map-to-the-pool ()
+  (wime-neural-test--composition
+    (let* ((wime-user-database (make-temp-file "wime-user" nil ".sqlite3")) (wime--user-db nil)
+           (wime--memory (make-hash-table :test #'equal)) (wime-neural-memory-weight 10.0)
+           (pool (list (wime--make-candidate :text "丙丁" :end 2 :score 0)
+                       (wime--make-candidate :text "甲乙" :end 2 :score 1))))
+      (unwind-protect
+          (progn
+            (wime--user-db)
+            (puthash "aabb" '(("丙丁" . "")) wime--memory)
+            (setf (wime-neural--job-pool job) pool (wime-neural--job-seed-candidates job) t)
+            (should (equal (mapcar (lambda (c) (alist-get 'bonus c))
+                                   (alist-get 'candidates (json-parse-string (wime-neural--request job)
+                                                                             :object-type 'alist :array-type 'list)))
+                           '(10.0 0.0)))
+            (wime-neural--verify-apply job '((verified_index . 1) (score . -1.0) (prefixes . [])
+                                             (candidate_scores . [[0 -2.0] [1 -1.0]])))
+            ;; Worker indices name pool members, not the display records.
+            (should (assoc "丙丁" (wime-neural--job-scored job)))
+            (should (= (cdr (assoc "丙丁" (wime-neural--job-scored job))) 8.0)))
+        (sqlite-close (cdr wime--user-db))
+        (delete-file wime-user-database)))))
+
 (ert-deftest wime-neural-real-worker-protocol ()
   (let ((program (getenv "WIME_NEURAL_PROGRAM"))
         (model (getenv "WIME_NEURAL_MODEL")))

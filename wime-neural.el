@@ -43,6 +43,13 @@ Typing keeps `wime-search-width'; this wider search runs once per pause, when
 the request is sent, with its own incremental cache."
   :type '(choice (const nil) integer) :group 'wime)
 
+(defcustom wime-neural-memory-weight 10.0
+  "Score bonus for a verified reading fully covered by learned readings.
+Partial coverage earns the covered fraction of syllables.  The bonus joins
+CUDA seed selection and draft verification, so the models cannot outvote a
+correction the user made for the same keys; see `wime-user-database'."
+  :type 'number :group 'wime)
+
 (defcustom wime-neural-delay 0.04
   "Seconds without a new input key before requesting neural reranking."
   :type 'number :group 'wime)
@@ -241,8 +248,14 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                    (mapcar (lambda (c)
                              `(:text ,(wime-candidate-text c) :end ,(wime-candidate-end c)
                                :score ,(wime-candidate-score c)
+                               :bonus ,(wime-neural--bonus job (wime-candidate-text c))
                                :dictionary ,(if (wime-candidate-dictionary c) t :false)))
                            (wime-neural--candidates job))))))
+
+(defun wime-neural--bonus (job text)
+  "Learned-reading bonus of TEXT for JOB's keys."
+  (* wime-neural-memory-weight
+     (wime--memory-coverage text (wime--parse (wime-neural--job-input job)))))
 
 (defun wime-neural--candidates (job)
   "Readings sent with JOB: its wider pool once searched, else the display's."
@@ -286,6 +299,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                            (wime-neural--job-records job)))
           wime--candidates (seq-take (mapcar #'wime-candidate-text wime--candidate-records)
                                     wime-candidates-max))
+    (unless wime--pins
+      (setq wime--default-reading (car wime--candidates)))
     (wime--display)))
 
 (defun wime-neural--verify-apply (job response)
@@ -312,15 +327,18 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
         (setf (wime-neural--job-prior-weight job) 0.0))
       (let ((weight (wime-neural--job-prior-weight job))
             (n (float (wime-neural--job-syllables job)))
-            (records (wime-neural--job-records job)))
-        (setq score (+ score (* weight (/ (wime-candidate-score draft) n))))
+            ;; Worker indices refer to the readings sent: the wider pool.
+            (records (wime-neural--candidates job)))
+        (setq score (+ score (* weight (/ (wime-candidate-score draft) n))
+                       (wime-neural--bonus job text)))
         ;; The same joint score ranks verified drafts and estimates confidence.
         (when seed
           (seq-doseq (pair (alist-get 'candidate_scores response))
             (let ((record (and (integerp (aref pair 0)) (nth (aref pair 0) records))))
               (when (and record (numberp (aref pair 1)))
                 (push (cons (wime-candidate-text record)
-                            (+ (aref pair 1) (* weight (/ (wime-candidate-score record) n))))
+                            (+ (aref pair 1) (* weight (/ (wime-candidate-score record) n))
+                               (wime-neural--bonus job (wime-candidate-text record))))
                       (wime-neural--job-scored job))))))
         (push (cons text score) (wime-neural--job-scored job)))
       (cl-incf (wime-neural--job-round job))
