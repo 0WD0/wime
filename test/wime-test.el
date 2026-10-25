@@ -208,6 +208,68 @@
       (should-not (wime--sentence-records units "甲乙丙"))
       (should-not (wime--sentence-records units "甲丁")))))
 
+;; Character positions disagree where readings compete; marks follow the
+;; posterior and alternatives come from every scored reading.
+(ert-deftest wime-uncertain-spans-follow-the-reranker-posterior ()
+  (let ((wime-confidence-temperature 3.0) (wime-confidence-threshold 0.9)
+        (wime-span-alternatives 3))
+    (should (equal (wime--uncertain-spans
+                    "甲乙丙" '(("甲乙丙" . -0.1) ("甲丁丙" . -0.3) ("甲戊丙" . -2.0) ("短" . 0.0)))
+                   '((1 2 ("丁" "戊")))))
+    (should-not (wime--uncertain-spans "甲乙丙" '(("甲乙丙" . -0.1) ("甲丁丙" . -9.0))))
+    (should-not (wime--uncertain-spans "甲乙丙" nil))))
+
+(ert-deftest wime-span-choice-pins-characters-and-decodes-the-rest ()
+  (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 90))
+                        ("bb" ("丙" "c" 100) ("丁" "d" 90))
+                        ("aabb" ("乙丁" "bd" 50))
+                        ("cc" ("戊" "e" 100)))
+    (with-temp-buffer
+      (let ((wime-candidate-style 'spans) (wime-search-width 8)
+            (wime-candidates-updated-hook nil))
+        (setq wime--input "aabb")
+        (wime--refresh)
+        (should (equal (car wime--candidates) "甲丙"))
+        ;; Without reranker scores there is nothing to mark or number.
+        (should (string-suffix-p " 甲丙" (wime--format)))
+        (should-not wime--span-choices)
+        (setq wime--candidate-scores '(("甲丙" . -0.1) ("乙丁" . -0.15) ("甲丁" . -2.0)))
+        (let ((text (wime--format)))
+          (should (equal (substring-no-properties text) "aabb 甲丙1乙丁2甲丁"))
+          (should (eq (get-text-property 5 'face text) 'wime-uncertain-face)))
+        (should (equal wime--span-choices '((0 2 "乙丁") (0 2 "甲丁"))))
+        ;; Digit 1 fixes the span; the search keeps it and scores are stale.
+        (wime--select-digit ?1)
+        (should (equal wime--input "aabb"))
+        (should (equal (mapcar #'car wime--pins) '(0 1)))
+        (should (equal (car wime--candidates) "乙丁"))
+        (should (seq-every-p (lambda (c) (string-prefix-p (substring (wime-candidate-text c) 0 1) "乙"))
+                             wime--candidate-records))
+        (should-not wime--candidate-scores)
+        ;; Typing on keeps the pins; changing a pinned syllable's keys drops it.
+        (setq wime--input "aabbcc")
+        (wime--refresh)
+        (should (equal (car wime--candidates) "乙丁戊"))
+        (should (eq (get-text-property 7 'face (wime--format)) 'wime-pinned-face))
+        (setq wime--input "aa")
+        (wime--refresh)
+        (should (equal (mapcar #'car wime--pins) '(0)))
+        (wime--reset)
+        (should-not wime--pins)))))
+
+(ert-deftest wime-span-view-toggles-to-the-sentence-list ()
+  (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 90))
+                        ("bb" ("丙" "c" 100) ("丁" "d" 90)))
+    (with-temp-buffer
+      (let ((wime-candidate-style 'spans) (wime-candidates-updated-hook nil))
+        (setq wime--input "aabb")
+        (wime--refresh)
+        (setq wime--candidate-scores '(("甲丙" . -0.1) ("乙丙" . -0.12)))
+        (wime-toggle-candidate-list)
+        (should (string-match-p "1\\.甲丙 2\\." (substring-no-properties (wime--format))))
+        (wime--select-digit ?2)
+        (should-not wime--input)))))
+
 (ert-deftest wime-beam-keeps-alternative-full-readings ()
   (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 90))
                         ("bb" ("丙" "c" 100) ("丁" "d" 90)))

@@ -63,6 +63,7 @@ class WorkerContract(unittest.TestCase):
         self.assertEqual(response["verified_index"], 2)
         self.assertEqual(response["score"], -1.1)
         self.assertEqual(response["evaluated"], 2)
+        self.assertEqual(response["candidate_scores"], [[0, -1], [2, -1.1]])
         self.assertEqual(evaluator.proposed, ("便宜", "second"))
         for change in (dict(prior_weight=float("nan")), dict(prior_weight=-1),
                        dict(seed_candidates=1), dict(candidates=[dict(request["candidates"][0], score=None)])):

@@ -97,7 +97,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
   id buffer input position tick context records syllables
-  method draft best best-score (round 0) visited
+  method draft best best-score (round 0) visited scored
   context-reading (context-anchor wime-neural-context-anchor)
   (seed-candidates wime-neural-seed-candidates)
   (prior-confidence wime-neural-prior-confidence)
@@ -254,7 +254,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 (defun wime-neural--publish (job candidate)
   "Promote a complete CANDIDATE validated against JOB's input."
   (when (and candidate (= (wime-candidate-end candidate) (wime-neural--job-syllables job)))
-    (setq wime--candidate-records
+    (setq wime--candidate-scores (wime-neural--job-scored job)
+          wime--candidate-records
           (cons candidate (seq-remove
                            (lambda (c) (equal (wime-candidate-text c) (wime-candidate-text candidate)))
                            (wime-neural--job-records job)))
@@ -284,9 +285,19 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                  (numberp (alist-get 'effective_prior_weight response))
                  (= (alist-get 'effective_prior_weight response) 0))
         (setf (wime-neural--job-prior-weight job) 0.0))
-      (setq score (+ score (* (wime-neural--job-prior-weight job)
-                             (/ (wime-candidate-score draft)
-                                (float (wime-neural--job-syllables job))))))
+      (let ((weight (wime-neural--job-prior-weight job))
+            (n (float (wime-neural--job-syllables job)))
+            (records (wime-neural--job-records job)))
+        (setq score (+ score (* weight (/ (wime-candidate-score draft) n))))
+        ;; The same joint score ranks verified drafts and estimates confidence.
+        (when seed
+          (seq-doseq (pair (alist-get 'candidate_scores response))
+            (let ((record (and (integerp (aref pair 0)) (nth (aref pair 0) records))))
+              (when (and record (numberp (aref pair 1)))
+                (push (cons (wime-candidate-text record)
+                            (+ (aref pair 1) (* weight (/ (wime-candidate-score record) n))))
+                      (wime-neural--job-scored job))))))
+        (push (cons text score) (wime-neural--job-scored job)))
       (cl-incf (wime-neural--job-round job))
       (push text (wime-neural--job-visited job))
       (when (or (null (wime-neural--job-best-score job))

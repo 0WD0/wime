@@ -22,6 +22,7 @@
 
 (require 'cl-lib)
 (require 'seq)
+(require 'subr-x)
 (require 'sqlite)
 
 (declare-function wime-grammar-open "librime-grammar"
@@ -50,6 +51,21 @@
 (defface wime-selected-face
   '((t (:inherit highlight)))
   "Face for the selected candidate."
+  :group 'wime)
+
+(defface wime-uncertain-face
+  '((t (:underline (:style wave :color "orange"))))
+  "Face for characters whose reading a reranker is unsure of."
+  :group 'wime)
+
+(defface wime-pinned-face
+  '((t (:underline t)))
+  "Face for characters fixed by span selection."
+  :group 'wime)
+
+(defface wime-label-face
+  '((t (:inherit shadow)))
+  "Face for the digit before an inline span alternative."
   :group 'wime)
 
 (defface wime-indicator-face
@@ -181,6 +197,18 @@ Keep at most 64 characters, matching the neural model's training window."
 (defvar-local wime--search-cache nil
   "Last complete search, as (SIGNATURE UNITS PATHS).")
 
+(defvar-local wime--pins nil
+  "Characters fixed by span selection, as (POSITION CHAR CODE) lists.
+Every search keeps them; a pin is dropped once the keys at POSITION change.")
+
+(defun wime--pins-allow-p (word start)
+  "Whether WORD, read from syllable START, keeps every pin it covers."
+  (cl-every (lambda (pin)
+              (let ((offset (- (car pin) start)))
+                (or (< offset 0) (>= offset (length word))
+                    (eq (aref word offset) (nth 1 pin)))))
+            wime--pins))
+
 (defvar wime-candidates-updated-hook nil
   "Hook run after refreshing the traditional candidates.")
 
@@ -232,6 +260,29 @@ Keep at most 64 characters, matching the neural model's training window."
   :type 'boolean
   :group 'wime)
 
+(defcustom wime-candidate-style 'list
+  "How a complete multi-syllable composition shows its candidates.
+`list' numbers whole sentences.  `spans' shows the best reading once,
+marks characters a reranker is unsure of, and numbers alternatives for
+those spans only; a digit fixes that span and the rest is decoded again.
+\\<wime-active-mode-map>\\[wime-toggle-candidate-list] switches one
+composition back to the sentence list."
+  :type '(choice (const list) (const spans)) :group 'wime)
+
+(defcustom wime-confidence-threshold 0.9
+  "Characters with a lower estimated probability are marked uncertain."
+  :type 'number :group 'wime)
+
+(defcustom wime-confidence-temperature 3.0
+  "Temperature turning per-character reranker scores into probabilities.
+3.0 is calibrated on development pools for the conditional model with the
+Qwen3.5-2B rescorer."
+  :type 'number :group 'wime)
+
+(defcustom wime-span-alternatives 3
+  "Maximum inline alternatives shown for one uncertain span."
+  :type 'natnum :group 'wime)
+
 (defvar-local wime--input nil
   "Raw typed string, preserving the case and order of the keys.")
 
@@ -240,6 +291,15 @@ Keep at most 64 characters, matching the neural model's training window."
 
 (defvar-local wime--selected 0
   "Index into `wime--candidates' of the selected candidate.")
+
+(defvar-local wime--candidate-scores nil
+  "Reranker scores for the current records, as (TEXT . PER-CHARACTER SCORE).")
+
+(defvar-local wime--span-choices nil
+  "Displayed span alternatives in label order, as (START END TEXT) lists.")
+
+(defvar-local wime--list-view nil
+  "Non-nil shows the sentence list despite `wime-candidate-style'.")
 
 (defvar-local wime--overlay nil
   "Overlay showing the preedit and candidates.")
@@ -448,7 +508,7 @@ signature."
          (signature (list context wime-database-file wime--db wime-database-limit
                           wime-word-penalty wime-max-word-syllables wime-search-width
                           wime-grammar-module wime-grammar-shared-dir wime-grammar-language
-                          wime--grammar-ready wime--grammar-failed
+                          wime--grammar-ready wime--grammar-failed wime--pins
                           (symbol-function 'wime--entries-for)
                           (symbol-function 'wime--grammar-score)))
          (cache (and (not required-prefix)
@@ -475,10 +535,11 @@ signature."
                               (let* ((word (car entry))
                                      (prefix (wime-candidate-text path))
                                      (text (concat prefix word)))
-                                (when (or (not required-prefix)
-                                          (string-prefix-p required-prefix text)
-                                          (and (< end n)
-                                               (string-prefix-p text required-prefix)))
+                                (when (and (wime--pins-allow-p word start)
+                                           (or (not required-prefix)
+                                               (string-prefix-p required-prefix text)
+                                               (and (< end n)
+                                                    (string-prefix-p text required-prefix))))
                                   (push (wime--make-candidate
                                        :text text :end end
                                        :dictionary (= start 0)
@@ -561,8 +622,79 @@ Rime completes partial pinyin."
     (delete-overlay wime--overlay))
   (setq wime--overlay nil))
 
+(defun wime--uncertain-spans (top scores)
+  "Return (START END ALTERNATIVES) for runs of TOP that SCORES leave uncertain.
+SCORES are (TEXT . PER-CHARACTER SCORE).  Readings of TOP's length form a
+posterior; a character is uncertain below `wime-confidence-threshold'.
+ALTERNATIVES are other substrings at that span, most probable first."
+  (let* ((n (length top))
+         (aligned (seq-filter (lambda (s) (= (length (car s)) n)) scores))
+         (best (and aligned (apply #'max (mapcar #'cdr aligned))))
+         (weights (mapcar (lambda (s)
+                            (cons (car s) (exp (/ (* n (- (cdr s) best))
+                                                  wime-confidence-temperature))))
+                          aligned))
+         (total (apply #'+ (mapcar #'cdr weights)))
+         (sure (lambda (i)
+                 (>= (/ (cl-loop for (text . w) in weights
+                                 when (eq (aref text i) (aref top i)) sum w)
+                        total)
+                     wime-confidence-threshold)))
+         (i 0) spans)
+    (when aligned
+      (while (< i n)
+        (if (funcall sure i)
+            (cl-incf i)
+          (let ((j i) (mass (make-hash-table :test #'equal)))
+            (while (and (< j n) (not (funcall sure j))) (cl-incf j))
+            (pcase-dolist (`(,text . ,w) weights)
+              (let ((part (substring text i j)))
+                (unless (equal part (substring top i j))
+                  (puthash part (+ w (gethash part mass 0)) mass))))
+            (push (list i j (seq-take (sort (hash-table-keys mass)
+                                            (lambda (a b) (> (gethash a mass) (gethash b mass))))
+                                      wime-span-alternatives))
+                  spans)
+            (setq i j)))))
+    (nreverse spans)))
+
+(defun wime--format-spans (top)
+  "Return TOP with uncertain spans marked and their alternatives numbered.
+Set `wime--span-choices' to the labeled alternatives, in label order."
+  (let ((spans (wime--uncertain-spans top wime--candidate-scores))
+        (pinned (mapcar #'car wime--pins))
+        (label 0) parts choices)
+    (dotimes (i (length top))
+      (push (propertize (substring top i (1+ i)) 'face
+                        (cond ((memq i pinned) 'wime-pinned-face)
+                              ((seq-find (lambda (span) (and (<= (car span) i) (< i (nth 1 span))))
+                                         spans)
+                               'wime-uncertain-face)
+                              (t 'wime-candidate-face)))
+            parts)
+      (pcase-dolist (`(,start ,end ,alternatives) spans)
+        (when (= (1+ i) end)
+          (dolist (alternative alternatives)
+            (when (< label 10)
+              (cl-incf label)
+              (push (concat (propertize (number-to-string (% label 10)) 'face 'wime-label-face)
+                            (propertize alternative 'face 'wime-candidate-face))
+                    parts)
+              (push (list start end alternative) choices))))))
+    (setq wime--span-choices (nreverse choices))
+    (apply #'concat (nreverse parts))))
+
+(defun wime--spans-p ()
+  "Whether the current composition renders as one marked reading."
+  (and (eq wime-candidate-style 'spans) (not wime--list-view)
+       wime--candidate-records
+       (> (wime-candidate-end (car wime--candidate-records)) 1)
+       (= (wime-candidate-end (car wime--candidate-records))
+          (length (wime--parse wime--input)))))
+
 (defun wime--format ()
   "Return the preedit string, including candidates when enabled."
+  (setq wime--span-choices nil)
   (concat
    (apply #'concat
           (mapcar (lambda (key)
@@ -571,7 +703,10 @@ Rime completes partial pinyin."
                                           'wime-aux-face
                                         'wime-preedit-face)))
                   (string-to-list (or wime--input ""))))
-   (when (and wime-show-candidates wime--candidates)
+   (cond
+    ((not (and wime-show-candidates wime--candidates)) nil)
+    ((wime--spans-p) (concat " " (wime--format-spans (car wime--candidates))))
+    (t
      (concat
       " "
       (cl-loop for candidate in wime--candidates
@@ -579,7 +714,7 @@ Rime completes partial pinyin."
                concat (propertize (format "%d.%s " index candidate)
                                   'face (if (= (1- index) wime--selected)
                                             'wime-selected-face
-                                          'wime-candidate-face)))))))
+                                          'wime-candidate-face))))))))
 
 (defun wime--display ()
   "Render the preedit and candidate list at point."
@@ -592,7 +727,13 @@ Rime completes partial pinyin."
 
 (defun wime--refresh ()
   "Recompute candidates from the raw input and refresh the display."
-  (setq wime--candidates (wime--candidates wime--input)
+  (let ((units (wime--parse wime--input)))
+    ;; A pin survives only while the syllable it fixed keeps its keys.
+    (setq wime--pins (seq-filter (lambda (pin)
+                                   (equal (car (nth (car pin) units)) (nth 2 pin)))
+                                 wime--pins)))
+  (setq wime--candidate-scores nil
+        wime--candidates (wime--candidates wime--input)
         wime--selected 0)
   (wime-active-mode (if (wime--active-p) 1 -1))
   (wime--display)
@@ -604,6 +745,10 @@ Rime completes partial pinyin."
         wime--candidate-records nil
         wime--search-cache nil
         wime--candidates nil
+        wime--candidate-scores nil
+        wime--span-choices nil
+        wime--pins nil
+        wime--list-view nil
         wime--selected 0)
   (wime-active-mode -1)
   (wime--clear-overlay)
@@ -648,10 +793,30 @@ Rime completes partial pinyin."
                     (point) (buffer-chars-modified-tick) wime-database-file))))))
 
 (defun wime--select-digit (key)
-  "Select the candidate for digit KEY, or commit nothing when out of range."
+  "Apply the span alternative or commit the candidate numbered KEY.
+In the span view only numbered alternatives respond; others do nothing."
   (let ((index (if (= key ?0) 9 (- key ?1))))
-    (when (< index (length wime--candidates))
-      (wime--commit (nth index wime--candidates)))))
+    (if (wime--spans-p)
+        (when-let* ((choice (nth index wime--span-choices)))
+          (apply #'wime--choose-span choice))
+      (when (< index (length wime--candidates))
+        (wime--commit (nth index wime--candidates))))))
+
+(defun wime--choose-span (start end text)
+  "Fix TEXT at syllables START..END and decode the rest of the input again."
+  (let ((units (wime--parse wime--input)))
+    (setq wime--pins
+          (append (cl-loop for i from start below end
+                           collect (list i (aref text (- i start)) (car (nth i units))))
+                  (seq-remove (lambda (pin) (and (<= start (car pin)) (< (car pin) end)))
+                              wime--pins))))
+  (wime--refresh))
+
+(defun wime-toggle-candidate-list ()
+  "Switch the current composition between span view and the sentence list."
+  (interactive)
+  (setq wime--list-view (not wime--list-view))
+  (wime--display))
 
 (defun wime--text-read-only-p ()
   "Return non-nil when inserting at point would fail."
@@ -736,6 +901,7 @@ Rime completes partial pinyin."
     (define-key map (kbd "RET") #'wime-commit-raw)
     (define-key map (kbd "<return>") #'wime-commit-raw)
     (define-key map (kbd "<escape>") #'wime-cancel)
+    (define-key map (kbd "TAB") #'wime-toggle-candidate-list)
     map)
   "Keymap installed while a wime composition is active.")
 

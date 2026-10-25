@@ -179,6 +179,20 @@
       (should (equal (car wime--candidates) "丙丁"))
       (should (eq (wime-neural--job-best job) (nth 1 (wime-neural--job-records job)))))))
 
+(ert-deftest wime-neural-publishes-joint-scores-for-the-pool-and-drafts ()
+  (wime-neural-test--composition
+    (let ((wime-neural--pending nil))
+      (setf (wime-neural--job-method job) 'verify
+            (wime-neural--job-seed-candidates job) t
+            (wime-neural--job-draft job) (car wime--candidate-records))
+      (wime-neural--apply job '((verified_index . 1) (score . -0.2)
+                                (candidate_scores . [[0 -0.5] [1 -0.2] [7 -0.1]])))
+      (should (equal (car wime--candidates) "丙丁"))
+      ;; Prior weight 0.1 times the per-syllable path score, as in selection.
+      (should (equal (sort (copy-sequence wime--candidate-scores)
+                           (lambda (a b) (string< (car a) (car b))))
+                     '(("丙丁" . -0.2) ("丙丁" . -0.2) ("甲乙" . -0.45)))))))
+
 (ert-deftest wime-neural-cuda-seed-is-only-requested-for-the-initial-round ()
   (wime-neural-test--composition
     (setf (wime-neural--job-seed-candidates job) t

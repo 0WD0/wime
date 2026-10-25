@@ -96,6 +96,8 @@ def respond(evaluator, request, rescorer=None):
         # editor never accepts free-form model text as a seed candidate.
         result["verified_index"] = candidates[selected][0]
         result["effective_prior_weight"] = prior_weight
+        # Model scores for the whole pool let the editor estimate confidence.
+        result["candidate_scores"] = [[i, score] for (i, _), score in zip(candidates, scores)]
     result.update(score=scores[selected],
                   prefixes=evaluator.proposals(texts[selected], distributions[selected], 0.5),
                   evaluated=len(texts),
