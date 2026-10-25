@@ -1,48 +1,163 @@
 #+title: wime
 #+options: toc:nil num:nil
 
-wime 是取代 emacs-rime 的纯 Elisp 输入法，针对万象 pro 的双拼加大写墨奇辅助码。双拼方案随数据库走：默认微软双拼，也可以用 =schemes/= 里按表生成的方案。输入解析和词格搜索在 Elisp 内完成；可选的原生模块提供 octagram 评分，后台进程提供本地神经重排。
+wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
+输入方式是双拼（默认微软双拼）加大写的墨奇辅助码，词库取自万象拼音。
+打字时先由词典词格给出候选；
+停键后，本地神经模型在后台重新解码，并从你的纠正中学习。
 
-* 输入模型
+* 使用
 
-- 输入按音节解析：两个编码键构成一个音节（字母，加上方案用到的 =;,./=；它们只在方案使用的位置——声母位或韵母位——算编码，别处仍是标点），紧随其后的大写字母是该音节的墨奇辅助码；辅助码之后再出现小写就开启下一音节。因此 =yrZt= 保持原样显示，不会把 =Z= 挪到 =t= 后面。
-- 单音节直接查字表；多音节搜索词格，在每个音节边界保留最多 =wime-search-width= 条不同表记（默认 8）。整句在前，较短前缀在后；每个候选保留消耗的音节数和整词命中信息。追加、退格和辅助码修改复用仍有效的前缀路径，句尾的 octagram 分数重新计算。
-- 打分用词频对数、每词罚项（=wime-word-penalty=）和可选的 octagram 搭配分数。
-- 数字选字、空格选当前、回车提交原始输入、退格依次回退已输入的键、ESC 取消；只读缓冲区原样透传。
-- =wime-candidate-style= 设为 =spans= 时，完整的多音节输入只显示一条最佳整句：神经重排给出的各候选分数折算成逐字后验（温度 =wime-confidence-temperature=），低于 =wime-confidence-threshold= 的连续字加波浪线，其后紧跟带数字的同位置替代写法。数字把该段钉住（键位改变时自动失效），词格搜索和神经验证在约束下重解其余部分；TAB 切回整句列表。
+** 按键
 
-* 数据与生成
+| 按键                          | 作用                               |
+|-------------------------------+------------------------------------|
+| 小写字母，及方案用到的 =;,./= | 双拼编码，两键一个音节             |
+| 大写字母                      | 前一个音节的辅助码，如 =niK=       |
+| 数字                          | 选候选；分段视图里选该段的替代写法 |
+| 空格                          | 上屏当前候选                       |
+| =RET=                         | 上屏原始按键                       |
+| =DEL=                         | 删掉最后一个键                     |
+| =ESC=                         | 取消                               |
+| =TAB=                         | 在分段视图和整句列表之间切换       |
 
-Bazel 在构建期从上游 nightly 产物下载，不依赖本机安装，也不导入整个仓库：
+=;,./= 只在方案用到的位置（声母位或韵母位）算编码，别处仍是标点。
+标点默认上屏全角，=M-x wime-toggle-punctuation= 切换为半角。
+只读缓冲区里按键原样透传。
 
-- =rime_wanxiang.bzl= 按固定 URL 与 sha256 拉取 =dict-nightly= 的 =rime-wanxiang-moqi-fuzhu.zip=（墨奇辅助码只存在于 release，git 树里的 =chaifen.txt= 是空占位）。
-- 同一个文件里的 gram 规则拉取 =RIME-LMDG= 的 =wanxiang-lts-zh-hans.gram=，随快照发布，供 octagram 模块使用。
-- =gen/update_nightly.py= 重新下载两个 nightly 资产并回写 =rime_wanxiang.bzl= 里的 sha256，用于跟随 nightly。
-- 生成器 =gen/wime_gen.py= 解析 =wanxiang_algebra.yaml= 的 =pro/微软双拼= 规则（忠实移植 Rime 的 =xform=／=derive=／=xlit=，不依赖 PyYAML），把 =wanxiang_pro.dict.yaml= 及其 =dicts/*.pro.dict.yaml= 转成按双拼码索引的库。
-- =--scheme schemes/X.json= 改用表：每个声母（=""= 为零声母）和韵母对应一个键，ü 写作 =v=，j/q/x/y 后的 u 也写作 =v=。表由 =keyboard-ergonomics/export_scheme.py= 从优化结果导出；=schemes/liangti.json= 是量体双拼——按实测击键成本优化、偏好左声右韵的布局，构建目标 =//emacs-packages/wime:database_liangti=（=wanxiang-liangti.db=）；=schemes/liangti-fast.json= 是同一批测量下不顾好记、只求最快的量体双拼·速（=database_liangti_fast=）。用 =M-x wime-select-database= 切换。
-- 每个库都带 =meta= 表（方案名、声母位与韵母位用到的键），引擎据此判断 =;,./= 是编码还是标点。
-- 产物 =wanxiang.db= 是 SQLite（约 220 万条），由 =//emacs-packages/wime:database= 生成并随快照发布；wime 用内置的 =sqlite-select= 查询。仓库不再提交生成的 Elisp 表。
+** 分段视图
 
-* 神经搜索
+=wime-candidate-style= 为 =spans= 时（wdoom 装了重排模型后的默认），
+多音节输入只显示一条整句。
+模型拿不准的字加波浪线，后面跟着带编号的替代写法。
+按数字把那一段固定下来，其余部分重新解码；
+固定的字在它的按键改变前一直有效。
 
-wdoom 默认启用经过评测的 25M 拼音条件模型和 CUDA worker：=verify=、搜索宽度 16、验证预算 4、完整候选批量评分、单字预测、两字前缀锚定。若 =$XDG_DATA_HOME/wime/rescorers/Qwen3.5-2B-Base= 与独立 Python 环境 =$XDG_DATA_HOME/wime/python= 都存在，改用 =decode=（Qwen3.5-2B 权重 1.5，启动超时 30 秒）；否则 =verify=、传统评分权重 0.1。两者都不进快照。Python 环境与系统包隔离：=uv venv --python 3.12 ~/.local/share/wime/python && uv pip install --python ~/.local/share/wime/python/bin/python torch==2.11.0 transformers==5.17.0 safetensors==0.8.0=。=wime-neural-prior-confidence= 保持 1.0，关闭有回退的置信度排序实验。选型与限制见 =test/diverse-measurements.json= 和 =test/regression-analysis.json=。
+** 启用
 
-=wdoom-prepare= 把模型和 =native/wime-cuda/= 推理代码打包进不可变快照，重启后自动生效。模型 SHA256 固定在 =neural_model.bzl=，训练产物存放于 =$XDG_DATA_HOME/wime/models/<sha256>.safetensors=（默认 =~/.local/share/=）；也可用 =WIME_CONDITIONAL_MODEL= 指定同一产物，构建会核验哈希。快照包含固定版本的 pypinyin、模型实现和许可证，不依赖训练缓存或源码目录；PATH 中的 Python 仍需提供可用 CUDA 的 PyTorch 和 safetensors。
+wdoom 的 =wdoom-input= 模块会配置好一切。单独使用时：
 
-单独使用 wime 包时，设置 =wime-neural-program=、=wime-neural-model-file= 后用 =M-x wime-neural-mode= 开启。Rust CPU worker 仍可用 =bazel build -c opt //emacs-packages/wime/neural:wime-neural= 构建；其通用 =rerank= 方法需要相应的无条件模型。推理源码及完整上游历史在 =third_party/chinese-ime-lm/=。
+#+begin_src emacs-lisp
+(require 'wime)
+(setq wime-database-file "/path/to/wanxiang.db")
+(wime-setup)                            ; default-input-method 设为 "wime"
+#+end_src
 
-传统候选立即显示，停键 40 ms 后请求模型。模型读取光标前的可编辑文本和完整双拼音节序列，验证草稿并提出更可能的前缀；Elisp 在词格剪枝前应用约束。最终按模型平均对数概率加上每音节传统评分选择已验证的完整候选。双拼按键和辅助码始终是硬约束；条件模型只支持微软双拼，其他方案不启动验证。实际已上屏的双拼键会随前缀保留，因此 =bmyi= 和 =pmyi= 不会被重新注音混为一谈。
+可选的 octagram 搭配评分需要 =wime-grammar-module= 和 =wime-grammar-shared-dir=。
+神经模型见下文。
 
-可选的最终重排：=wime-neural-rescorer= 指向一个 transformers 因果语言模型目录（如 Qwen3.5-2B-Base）时，CUDA worker 把它对候选的逐字平均对数概率乘以 =wime-neural-rescorer-weight=（默认 1.5）加到每个已验证完整候选的模型分上，种子池也参与；它还在草稿的 token 边界提出更可能的 token 作为前缀，与条件模型的逐字提议交替，词典仍按按键校验；置信度门控仍只看条件模型概率。=wime-neural-pool-width= 让停键后的验证池和前缀搜索使用更宽的词格（独立的增量缓存），逐键显示仍用 =wime-search-width=。配合 =wime-neural-prior-weight= 0.05 使用；需要带 qwen3_5 支持的 transformers，可用 =wime-neural-interpreter= 指定 Python。该配置随 Wime Lab 推理配置保存，=evaluate-conditional.py --rescorer= 与实际异步路径输出一致。
+* 工作方式
 
-=decode= 不再经过词格：worker 用重排模型的 token 直接拼出按键（字的读音取自词库单字条目），每步与条件模型融合（条件模型对数概率加 1.5 倍语言模型对数概率），按字同步的 beam 宽 16（=neural/decoder.py=）。每个音节只扩展最新位置，并用当前全部按键给保留的整句重新打分；语言模型分布按 token 前缀缓存，每个音节一次前向。半个音节也解码，末字读音须以已敲的键开头。分段视图固定的字和辅助码是该位置的硬约束（辅助码须是该字墨奇辅助码某一组的前缀，与词格相同），学到的读音按覆盖的字数加 =wime-neural-memory-weight=。解码出的整句排在词格候选之前，词格的词和补全仍可上屏。未配置重排模型时退回 =verify=。worker 需要 =--database=，=wime-neural--command= 会自动传入；Wime Lab 配置的 =search_method= 与 =evaluate-conditional.py --search-method decode= 对应。
+** 词格
 
-CUDA worker 只支持 =verify= 和 =decode=，使用 FP32、不启用 TF32，模型随进程常驻显存。切换 worker 或模型后需要停止旧进程再启用 =wime-neural-mode=，wdoom 的输入初始化会执行这个切换。首次请求允许 =wime-neural-startup-timeout=（默认 10 秒）完成加载和 CUDA 初始化，后续请求使用普通 2 秒超时。最多保留一个正在运行和一个待处理请求；输入、光标、缓冲区内容或选中项变化后，旧结果失效。等待、进程失败或超时时，传统候选仍可用。
+词库是按双拼码索引的 SQLite。
+多音节输入在词格上做 beam 搜索，每个音节边界保留 =wime-search-width= 条读法，
+打分是词频对数、每词罚项 =wime-word-penalty= 和可选的 octagram 分数。
+追加、退格、改辅助码时复用仍然有效的前缀。
+辅助码在词格里是硬约束。
 
-=neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，=neural/prepare-diverse.py= 准备额外成语、专名与正文语料，=neural/prepare-domain.py= 按文档划分本地文档与 =neural/domain-sources.json= 中固定版本的外部中文技术文档，作为输入法/开发领域语料。=neural/train-conditional.py= 可训练单字、短片段和完整输入；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步路径。评测使用固定产物，=--reference-baseline= 检查传统搜索输出是否一致。金标准不参与模型决策；自动注音、相关压力样例和未知的预训练重合仍是评测限制。
+** 神经阶段
 
-* 纠错学习
+停键 40 ms 后，wime 把输入发给常驻的 CUDA worker（=neural/gpu-worker.py=），
+结果回来时如果输入没变，就替换显示的候选。
+worker 出错或超时，词格候选照常可用。
+=wime-neural-search-method= 选择做法：
 
-设置 =wime-user-database= 后（wdoom 为 =$XDG_DATA_HOME/wime/user.sqlite3=），每次上屏完整读音都记录原始按键、双拼码、上屏文本、wime 首先给出的读音和光标前文，作为真实使用的评测数据，只存本机。上屏文本与首选不同时（数字选字、移动选择后上屏、在分段视图里固定字），把不同的片段扩展到同键下最短的词典词（同长取词频最高者，至少两字），记为学到的读音；同一按键再上屏别的读音即忘记它。学到的读音以 =wime-user-weight= 进入词格，神经阶段按覆盖音节比例加 =wime-neural-memory-weight=，CUDA 种子选择、草稿验证和 =decode= 的 beam 都计入，模型不会推翻用户为同一按键做的纠正。
+- =decode= :: 不经过词格。
+  Qwen3.5-2B 的 token 在读音约束下直接拼出按键，
+  每一步与 25M 拼音条件模型的分数融合（=neural/decoder.py=）。
+  逐音节增量解码，半个音节也能出整句；
+  辅助码和分段视图里固定的字都是硬约束。
+  wdoom 在装了 Qwen 时默认用它。
+- =verify= :: 词格给出候选池，25M 模型（可再加 Qwen 重排）从中挑选，
+  并提出更可能的前缀交给词格重搜。没有 Qwen 时 wdoom 用它。
+- =rerank= :: 旧的 Rust CPU worker 的无条件重排，需要相应的模型。
 
-尚未实现：上屏后的后续预测、声调输入、按使用频率调频。
+条件模型只支持微软双拼；其他方案只用词格。
+
+** 纠错学习
+
+设置 =wime-user-database= 后（wdoom 为 =$XDG_DATA_HOME/wime/user.sqlite3=），
+每次上屏完整读音都记录按键、上屏文本、wime 首先给出的读音和光标前文。
+这份日志只存本机，也是真实使用的评测数据。
+
+上屏的文本与首选不同时，不同的片段会被扩展成同键下最短的词典词
+（至少两字），记为学到的读音；同样的按键再上屏别的读音，就忘掉它。
+学到的读音在词格和神经阶段都有强偏好，模型不会推翻你的纠正。
+
+* 安装神经模型
+
+wdoom 需要三样东西，都放在 =$XDG_DATA_HOME/wime/= （默认 =~/.local/share/wime/= ），
+不进快照：
+
+- 25M 条件模型 :: =models/<sha256>.safetensors=。
+  打包用的 SHA256 固定在 =neural_model.bzl=；
+  也可以用环境变量 =WIME_CONDITIONAL_MODEL= 指向同一个文件。
+- Qwen3.5-2B-Base :: =rescorers/Qwen3.5-2B-Base/=，从 Hugging Face 下载。
+- Python 环境 :: =python/=，与系统包隔离：
+
+#+begin_src sh
+uv venv --python 3.12 ~/.local/share/wime/python
+uv pip install --python ~/.local/share/wime/python/bin/python \
+    torch==2.11.0 transformers==5.17.0 safetensors==0.8.0
+#+end_src
+
+缺少 Qwen 或 Python 环境时，wdoom 退回只用 25M 的 =verify=。
+
+=./wdoom/bin/wdoom-prepare --native= 把 worker 代码和 25M 模型打包进新快照，
+重启 wdoom 后生效。
+=M-x wime-lab= 用来比较、切换模型和推理配置（=appkit-apps/wime-lab.el/=）；
+在那里选定的启动配置会覆盖 wdoom 的默认值。
+
+* 词库
+
+Bazel 在构建时下载上游 nightly 产物，不依赖本机安装：
+
+- =rime_wanxiang.bzl= 按固定 URL 和 sha256 拉取万象的墨奇辅助码词库
+  和 octagram 模型 =wanxiang-lts-zh-hans.gram=。
+  =gen/update_nightly.py= 更新到最新的 nightly 并改写 sha256。
+- =gen/wime_gen.py= 移植万象的拼写运算，把词库转成按双拼码索引的 SQLite。
+- =//emacs-packages/wime:database= 生成 =wanxiang.db= （微软双拼）。
+  =schemes/= 下的表生成其他方案：
+  =database_liangti= 是按实测击键成本优化的量体双拼，
+  =database_liangti_fast= 是只求最快的量体双拼·速。
+  用 =M-x wime-select-database= 切换。
+
+每个库的 =meta= 表记录方案名和声母位、韵母位用到的键。
+
+* 开发
+
+ERT 测试在仓库根目录运行，词库取自 =bazel-bin/=：
+
+#+begin_src sh
+emacs -Q --batch -L emacs-packages/wime --eval '(setq load-prefer-newer t)' \
+  -l ert -l emacs-packages/wime/test/wime-test.el \
+  -l emacs-packages/wime/test/wime-neural-test.el -f ert-run-tests-batch-and-exit
+#+end_src
+
+Python 测试不需要 GPU 和模型，但需要 =neural/requirements-training.txt= 里的依赖：
+
+#+begin_src sh
+cd emacs-packages/wime/test && python -m unittest
+#+end_src
+
+模型训练与评测在 =neural/=：
+
+- =prepare-*.py= :: 准备语料：对话（LCCC）、技术文档、成语专名，
+  以及本地和 =domain-sources.json= 中固定版本的外部技术文档。
+  都按原始对话或文档划分训练、验证和测试集。
+- =train-conditional.py= :: 训练 25M 条件模型。
+- =evaluate-conditional.py= :: 用真实词库和 octagram 评测，
+  =--search-method decode= 评测 =decode=。
+
+=test/record-conditional.el= 经过真实的异步路径评测，
+设置 =WIME_TYPING_INTERVAL= 时逐键输入。
+
+=test/*-measurements.json= 等文件记录了各项选型背后的测量。
+模型实现及其上游历史在 =third_party/chinese-ime-lm/=。
+
+* 尚未实现
+
+- 上屏后的后续预测
+- 声调输入
+- 按使用频率调频
