@@ -6,7 +6,7 @@ from inference import anchored_prompt
 from conditional import composition_span
 
 
-def ranking_composition(row, rng):
+def ranking_composition(row, rng, whole_share=0.0):
     """Commit a prefix and preserve the original corpus row's endpoint.
 
     Further cutting off its end can turn a valid alternate continuation into
@@ -14,9 +14,18 @@ def ranking_composition(row, rng):
     this prevents adding another hidden suffix during augmentation.
     """
     size = len(row["gold"][0])
-    choice = rng.random()
-    length = 1 if choice < .2 else rng.randint(2, min(5, size)) if choice < .65 and size >= 2 else min(size, 10)
-    result = composition_span(row, size-length, size)
+    if whole_share and rng.random() < whole_share:
+        length = min(size, 16)
+    else:
+        choice = rng.random()
+        length = 1 if choice < .2 else rng.randint(2, min(5, size)) if choice < .65 and size >= 2 else min(size, 10)
+    start = size - length
+    result = composition_span(row, start, size)
+    result["composition"] = "whole" if start == 0 else "suffix"
+    if start:
+        # The committed prefix has real keys; do not re-infer a polyphone.
+        result["known_reading"] = dict(text=row["gold"][0][:start][-16:],
+                                       input=row["input"][:2*start][-32:])
     if result["context"] and rng.random() < .1:
         result = dict(result, context=(result["context"] + rng.choice((" ", "\n", "\n\n")))[-64:])
     return result

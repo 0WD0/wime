@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 import torch
 
@@ -25,6 +26,20 @@ class Ranking(unittest.TestCase):
             self.assertEqual(selected["input"], row["input"][-2*length:])
         self.assertTrue(spelling_equivalent("好哦", "好喔"))
         self.assertFalse(spelling_equivalent("的", "地"))
+
+    def test_mining_keeps_whole_phrases_and_actual_committed_polyphone_keys(self):
+        row = dict(context="允许", input="bmyix;ui", gold=["便宜行事"])
+        rng = Mock()
+        rng.random.side_effect = [.4, .9]
+        rng.randint.return_value = 2
+        suffix = ranking_composition(row, rng)
+        self.assertEqual(suffix["gold"], ["行事"])
+        self.assertEqual(suffix["known_reading"], dict(text="便宜", input="bmyi"))
+        whole = ranking_composition(row, random.Random(0), whole_share=1)
+        self.assertEqual(whole["input"], row["input"])
+        self.assertEqual(whole["gold"], row["gold"])
+        self.assertEqual(whole["context"], row["context"])
+        self.assertEqual(whole["composition"], "whole")
 
     def test_scores_match_deployed_evaluator_and_mask_fixed_prefix(self):
         row = dict(context="允许便宜", input="x;ui", gold=["行事"],

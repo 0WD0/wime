@@ -23,7 +23,12 @@ def main():
     parser.add_argument("--protect", type=Path, action="append", required=True)
     parser.add_argument("--per-domain", type=int, default=6000)
     parser.add_argument("--width", type=int, default=16)
+    parser.add_argument("--seed", type=int, help="independent deterministic source/augmentation sample")
+    parser.add_argument("--whole-share", type=float, default=0,
+                        help="fraction keeping full compositions up to 16 characters")
     args = parser.parse_args()
+    if args.per_domain < 5 or not 0 <= args.whole_share <= 1:
+        parser.error("positive per-domain quota and whole-share in [0,1] required")
     protection = Protection(args.protect)
     heaps = defaultdict(list)
     counts = Counter()
@@ -37,8 +42,9 @@ def main():
             if protection.contains(row):
                 counts["protected_source"] += 1
                 continue
-            rng = random.Random(row["id"])
-            row = ranking_composition(row, rng)
+            sample_key = row["id"] if args.seed is None else f'{args.seed}:{row["id"]}'
+            rng = random.Random(sample_key)
+            row = ranking_composition(row, rng, args.whole_share)
             # A bare one-character homophone has no reliable intended reading.
             if len(row["gold"][0]) == 1 and not row["context"]:
                 continue
@@ -47,7 +53,7 @@ def main():
                 continue
             category = row.get("category", "chat")
             row = dict(row, domain=name)
-            key = -int(hashlib.sha256(row["id"].encode()).hexdigest(), 16)
+            key = -int(hashlib.sha256(sample_key.encode()).hexdigest(), 16)
             item = (key, row["id"], row)
             heap = heaps[name, category]
             limit = args.per_domain // (2 if name == "old" else 5)
@@ -97,7 +103,11 @@ def main():
                 texts = [gold] + negatives
                 # Use exactly the context accepted by the editable-buffer policy.
                 row = dict(row, context=answer["context"], input=answer["input"])
-                scores, _ = evaluator.evaluate(row["context"], row["input"], texts)
+                if protection.contains(row):
+                    counts["protected_effective_context"] += 1
+                    continue
+                scores, _ = evaluator.evaluate(row["context"], row["input"], texts,
+                                               known_reading=row.get("known_reading"))
                 joint = [s + .1*candidates[t] for s, t in zip(scores, texts)]
                 hard = max(range(1, len(texts)), key=lambda j:joint[j])
                 gap = joint[0] - joint[hard]
@@ -112,6 +122,7 @@ def main():
                 counts["domain/"+row["domain"]] += 1
                 counts["category/"+row.get("category", "chat")] += 1
                 counts["length/"+str(n)] += 1
+                counts["composition/"+row["composition"]] += 1
                 counts["already_wrong"] += gap <= 0
                 if (i+1) % 500 == 0:
                     print(json.dumps(dict(visited=i+1, counts=counts, seconds=time.monotonic()-start)), flush=True)
@@ -122,6 +133,7 @@ def main():
                     source_files={str(p):fingerprint(p) for p in (args.model, args.replay, args.diverse, args.database)},
                     protected_files=protection.files, width=args.width, context_anchor=2,
                     compositions="whole source row or suffix; original row endpoint preserved",
+                    seed=args.seed, whole_share=args.whole_share, preserve_committed_reading=True,
                     limitations="Source windows and automatic readings can still be ambiguous; observed text is not proof that every alternate candidate is semantically wrong.",
                     prior_weight=.1, max_initial_margin=.5,
                     sha256=fingerprint(args.out / "train.jsonl"))
