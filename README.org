@@ -22,18 +22,18 @@ Bazel 在构建期从上游 nightly 产物下载，不依赖本机安装，也�
 - 每个库都带 =meta= 表（方案名、声母位与韵母位用到的键），引擎据此判断 =;,./= 是编码还是标点。
 - 产物 =wanxiang.db= 是 SQLite（约 220 万条），由 =//emacs-packages/wime:database= 生成并随快照发布；wime 用内置的 =sqlite-select= 查询。仓库不再提交生成的 Elisp 表。
 
-* 可选神经搜索
+* 神经搜索
 
-wdoom 快照包含 =wime-neural= 和固定摘要的 4.25M 模型，并配置好路径；用 =M-x wime-neural-mode= 启用。独立使用时设置 =wime-neural-program=、=wime-neural-model-file=，worker 可用 =bazel build -c opt //emacs-packages/wime/neural:wime-neural= 构建。模型来源与摘要在 =neural_model.bzl=，推理源码及完整上游历史在 =third_party/chinese-ime-lm/=。
+wdoom 默认启用经过评测的 25M 拼音条件模型和 CUDA worker：=verify=、搜索宽度 16、验证预算 4、完整候选批量评分、单字预测、两字前缀锚定、传统评分权重 0.1。=wime-neural-prior-confidence= 保持 1.0，关闭有回退的置信度排序实验。选型与限制见 =test/diverse-measurements.json= 和 =test/regression-analysis.json=。
 
-传统候选立即显示，停键 40 ms 后请求模型。默认的 =rerank= 方法最多比较 9 个完整候选，整词命中的首选保持不动。进程常驻并复用模型缓存，最多保留一个正在运行和一个待处理请求。输入、光标、缓冲区内容或选中项变化后，旧结果失效；进程失败或超时保留传统候选。
+=wdoom-prepare= 把模型和 =native/wime-cuda/= 推理代码打包进不可变快照，重启后自动生效。模型 SHA256 固定在 =neural_model.bzl=，训练产物存放于 =$XDG_DATA_HOME/wime/models/<sha256>.safetensors=（默认 =~/.local/share/=）；也可用 =WIME_CONDITIONAL_MODEL= 指定同一产物，构建会核验哈希。快照包含固定版本的 pypinyin、模型实现和许可证，不依赖训练缓存或源码目录；PATH 中的 Python 仍需提供可用 CUDA 的 PyTorch 和 safetensors。
 
-设置 =wime-neural-search-method= 为 =verify=，并选择 =wime-ms-pinyin-v1= 条件模型，可使用 Zenzai 式的草稿验证与前缀约束重搜。模型读取上文和完整双拼音节序列，一次验证草稿各位置，提出更可能的前缀；Elisp 在词格剪枝前应用约束，因此能找回原候选表之外的读法。默认最多验证 4 次，按模型平均对数概率加上 =wime-neural-prior-weight= 倍的每音节传统评分，选择已验证的完整候选；权重由开发集校准，设为零则只用模型评分。双拼按键和辅助码始终是硬约束；目前条件模型只支持微软双拼，其他方案不启动验证。
+单独使用 wime 包时，设置 =wime-neural-program=、=wime-neural-model-file= 后用 =M-x wime-neural-mode= 开启。Rust CPU worker 仍可用 =bazel build -c opt //emacs-packages/wime/neural:wime-neural= 构建；其通用 =rerank= 方法需要相应的无条件模型。推理源码及完整上游历史在 =third_party/chinese-ime-lm/=。
 
-默认 worker 使用本地 Rust CPU 推理。可将 =wime-neural-program= 设为本仓库 =neural/gpu-worker.py= 的绝对路径，使用同一条件模型进行本地 CUDA FP32 推理；该脚本需要完整源码目录，以及 PATH 中 Python 提供 =neural/requirements-gpu.txt= 的依赖和可用 CUDA。GPU 模式只支持 =verify=，不使用半精度或 TF32，模型随进程常驻显存。切换 worker 或模型后重新启用 =wime-neural-mode=。首次请求允许 =wime-neural-startup-timeout=（默认 10 秒）完成加载和 CUDA 初始化，后续请求使用普通 2 秒超时；等待或失败时传统候选仍可用。CPU/GPU 对照见 =test/gpu-measurements.json=。
+传统候选立即显示，停键 40 ms 后请求模型。模型读取光标前的可编辑文本和完整双拼音节序列，验证草稿并提出更可能的前缀；Elisp 在词格剪枝前应用约束。最终按模型平均对数概率加上每音节传统评分选择已验证的完整候选。双拼按键和辅助码始终是硬约束；条件模型只支持微软双拼，其他方案不启动验证。实际已上屏的双拼键会随前缀保留，因此 =bmyi= 和 =pmyi= 不会被重新注音混为一谈。
 
-CUDA 可设置 =wime-neural-seed-candidates= 为 =t=，批量评分满足拼音和辅助码约束的完整候选，再从联合评分最高者开始前缀修正。这能处理单字修正漏掉的整词候选；初始批次计一轮验证，预算不等于评分候选总数。当前实验选中继续训练的 25M 模型、=wime-search-width= 16 和验证预算 4。45M 扩容与宽度 32 没有显示更好的开发集结果，完整准确率、真实路径延迟和限制见 =test/scaling-measurements.json=。这些选项仍需主动启用；Rust worker 保留传统草稿。
+CUDA worker 只支持 =verify=，使用 FP32、不启用 TF32，模型随进程常驻显存。切换 worker 或模型后需要停止旧进程再启用 =wime-neural-mode=，wdoom 的输入初始化会执行这个切换。首次请求允许 =wime-neural-startup-timeout=（默认 10 秒）完成加载和 CUDA 初始化，后续请求使用普通 2 秒超时。最多保留一个正在运行和一个待处理请求；输入、光标、缓冲区内容或选中项变化后，旧结果失效。等待、进程失败或超时时，传统候选仍可用。
 
-神经功能仍默认关闭。旧的无条件重排结果见 =test/neural-measurements.json=；条件模型的数据、对照实验和限制见 =test/conditional-measurements.json=。=neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，跨集合重复目标被排除。=neural/train-conditional.py= 只对目标文字计算损失，可用 =--span-share= 将部分训练句子改成接在已提交前缀后的 2～5 字片段，或用 =--layers= 插入初始输出为零的残差层来扩容；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步 CPU/GPU 路径。评测应使用固定产物副本，避免构建替换正在读取的词典；=--reference-baseline= 可检查每条 octagram 输出是否一致。=test/conditional-debug-cases.json= 保留 100 条纯双拼及 16 条单辅助键对照，属于开发诊断而非独立测试集。金标准不参与模型决策，仅在输出后统计及独立检查词格覆盖率。自动注音和未知的上游预训练重合意味着这些数据不能等同于人工标注的真实按键评测。
+=neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，=neural/prepare-diverse.py= 准备额外成语、专名与正文语料。=neural/train-conditional.py= 可训练单字、短片段和完整输入；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步路径。评测使用固定产物，=--reference-baseline= 检查传统搜索输出是否一致。金标准不参与模型决策；自动注音、相关压力样例和未知的预训练重合仍是评测限制。
 
 尚未实现：上屏后的后续预测、声调输入、自造词与调频。
