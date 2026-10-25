@@ -364,9 +364,10 @@
     "traditional_dictionary_outputs_unchanged": true
   },
   "decision": {
-    "promoted": false,
-    "live_model_unchanged": true,
-    "reason": "Fixed test +16 and failure set +6, but stress -7 and independent -5 versus deployed model. Retain the deployed checkpoint."
+    "selection": "user-switchable-checkpoints",
+    "packaged_checkpoint": "1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e",
+    "reason": "Both baseline and ranking checkpoints remain available in Wime Lab. Select a checkpoint and inference profile explicitly; suite regressions do not block switching.",
+    "known_failure": "Blank iazo still prefers 茶座 over 插座; tracked separately, not claimed fixed."
   },
   "findings": [
     "With identical CE batches, adding the candidate preference loss improves fixed-test top-1 by 9 and independent top-1 by 6 versus CE-only continuation. This is a modest gain, not a consistent win over deployment.",
@@ -465,16 +466,5 @@
       "path": "/home/_WD_/.cache/wime-conditional/coverage-control-eval-independent/results.json",
       "sha256": "67f972e07cec5928c42ab3ff924c268c79edbcdfb73f57bef853ae5bba094af7"
     }
-  },
-  "promotion": {
-    "decision": "promote",
-    "reason": "User accepts small suite regressions in return for development, fixed-suite and prior-failure improvements. Architecture and inference settings are unchanged.",
-    "fixed_net": 16,
-    "stress_net": -7,
-    "independent_net": -5,
-    "prior_failures_net": 6,
-    "user_cases": "9/9",
-    "runtime_cases": "17/17",
-    "known_failure": "Blank iazo still prefers 茶座 over 插座; tracked separately, not claimed fixed."
   }
 }
