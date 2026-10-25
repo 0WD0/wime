@@ -1,7 +1,27 @@
 load("@rules_rust//rust:defs.bzl", "rust_binary")
 load("@wime_neural_crates//:defs.bzl", "aliases", "all_crate_deps")
+load("@rules_python//python:defs.bzl", "py_binary")
+load(":gpu_runtime.bzl", "gpu_runtime")
 
 exports_files(["Cargo.toml", "Cargo.lock"], visibility = ["//visibility:public"])
+
+py_binary(
+    name = "bundle-gpu",
+    srcs = ["bundle-gpu.py"],
+    main = "bundle-gpu.py",
+)
+
+gpu_runtime(
+    name = "cuda-runtime",
+    srcs = [
+        "gpu-worker.py",
+        "inference.py",
+        "conditional.py",
+        "context-pinyin.json",
+        "//third_party/chinese-ime-lm/neural:model.py",
+    ],
+    visibility = ["//wdoom/bazel/native:__pkg__"],
+)
 
 rust_binary(
     name = "wime-neural",

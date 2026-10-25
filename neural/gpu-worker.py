@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S python3 -B
 """Optional persistent CUDA worker using the existing wime JSON-lines protocol.
 
 Select this executable as wime-neural-program, with a conditional model and
