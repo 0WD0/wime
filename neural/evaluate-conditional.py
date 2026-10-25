@@ -8,6 +8,7 @@ CPU/GPU latency is measured separately.
 import argparse
 from collections import Counter
 import json
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -166,6 +167,10 @@ def main():
     finally:
         server.stdin.close()
         server.wait(timeout=15)
+    def fingerprint(path):
+        with open(path, "rb") as source:
+            return hashlib.file_digest(source, "sha256").hexdigest()
+
     summary = dict(stats, margin=args.margin, budget=args.budget, prior_weight=args.prior_weight,
                    single_character=args.single_character,
                    context_anchor=args.context_anchor,
@@ -175,6 +180,8 @@ def main():
                    device=evaluator.device,
                    precision="float32, TF32 disabled",
                    model=args.model, cases=str(args.cases), seconds=time.monotonic() - started,
+                   model_sha256=fingerprint(args.model), database_sha256=fingerprint(args.database),
+                   grammar_sha256=fingerprint(Path(args.grammar_dir) / "wanxiang-lts-zh-hans.gram"),
                    reference_baseline=str(args.reference_baseline) if args.reference_baseline else None,
                    combined_ms_p50=float(np.percentile(latencies, 50)) if latencies else None,
                    combined_ms_p95=float(np.percentile(latencies, 95)) if latencies else None)

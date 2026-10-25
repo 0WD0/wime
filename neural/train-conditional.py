@@ -6,6 +6,7 @@ import dataclasses
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import random
 import time
@@ -290,9 +291,14 @@ def main():
                                + json.dumps(settings["extra_manifest"], ensure_ascii=False)
                                if args.extra_data else ""))
                 if improved:
-                    save_file(tensors, str(args.out / "model.safetensors"), metadata=info)
+                    temporary = args.out / "model.safetensors.part"
+                    save_file(tensors, str(temporary), metadata=info)
+                    os.replace(temporary, args.out / "model.safetensors")
                 if checkpoint:
-                    save_file(tensors, str(args.out / f"step-{step}.safetensors"), metadata=info)
+                    target = args.out / f"step-{step}.safetensors"
+                    temporary = target.with_suffix(".part")
+                    save_file(tensors, str(temporary), metadata=info)
+                    os.replace(temporary, target)
     settings["seen_training_rows"] = {"primary":int(seen[id(train)].sum()),
                                       "extra":int(seen[id(extra_train)].sum()) if extra_train is not None else 0}
     if primary_groups is not None:
