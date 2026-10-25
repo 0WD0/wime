@@ -1,6 +1,6 @@
 {
   "date": "2026-10-25",
-  "status": "completed_not_promoted",
+  "status": "selected_for_deployment",
   "baseline_model": {
     "path": "/home/_WD_/.cache/wime-conditional/run-diverse/model.safetensors",
     "sha256": "335640a3bc8a664bc3fe48e715b418b6139f38b18c0d252e27e6af81b947539c"
@@ -465,5 +465,16 @@
       "path": "/home/_WD_/.cache/wime-conditional/coverage-control-eval-independent/results.json",
       "sha256": "67f972e07cec5928c42ab3ff924c268c79edbcdfb73f57bef853ae5bba094af7"
     }
+  },
+  "promotion": {
+    "decision": "promote",
+    "reason": "User accepts small suite regressions in return for development, fixed-suite and prior-failure improvements. Architecture and inference settings are unchanged.",
+    "fixed_net": 16,
+    "stress_net": -7,
+    "independent_net": -5,
+    "prior_failures_net": 6,
+    "user_cases": "9/9",
+    "runtime_cases": "17/17",
+    "known_failure": "Blank iazo still prefers 茶座 over 插座; tracked separately, not claimed fixed."
   }
 }

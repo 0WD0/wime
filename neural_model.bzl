@@ -1,8 +1,8 @@
 """Pinned local conditional checkpoint and the CUDA worker's Python data."""
 
-# Selected by the frozen evaluations in test/diverse-measurements.json and
-# test/regression-analysis.json. Never follow a mutable training output here.
-_SHA256 = "335640a3bc8a664bc3fe48e715b418b6139f38b18c0d252e27e6af81b947539c"
+# Selected on development data and checked by test/ranking-measurements.json.
+# Small suite regressions are recorded; never follow a mutable training output.
+_SHA256 = "1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e"
 
 def _model_impl(ctx):
     data = ctx.getenv("XDG_DATA_HOME") or (ctx.getenv("HOME") + "/.local/share")
