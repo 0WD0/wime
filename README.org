@@ -25,7 +25,7 @@ Bazel 在构建期从上游 nightly 产物下载，不依赖本机安装，也�
 
 * 神经搜索
 
-wdoom 默认启用经过评测的 25M 拼音条件模型和 CUDA worker：=verify=、搜索宽度 16、验证预算 4、完整候选批量评分、单字预测、两字前缀锚定。若 =$XDG_DATA_HOME/wime/rescorers/Qwen3.5-2B-Base= 与独立 Python 环境 =$XDG_DATA_HOME/wime/python= 都存在，另启用 Qwen3.5-2B 最终重排（权重 1.5，传统评分权重 0.05，验证池宽度 32，启动超时 30 秒）；否则传统评分权重 0.1。两者都不进快照。Python 环境与系统包隔离：=uv venv --python 3.12 ~/.local/share/wime/python && uv pip install --python ~/.local/share/wime/python/bin/python torch==2.11.0 transformers==5.17.0 safetensors==0.8.0=。=wime-neural-prior-confidence= 保持 1.0，关闭有回退的置信度排序实验。选型与限制见 =test/diverse-measurements.json= 和 =test/regression-analysis.json=。
+wdoom 默认启用经过评测的 25M 拼音条件模型和 CUDA worker：=verify=、搜索宽度 16、验证预算 4、完整候选批量评分、单字预测、两字前缀锚定。若 =$XDG_DATA_HOME/wime/rescorers/Qwen3.5-2B-Base= 与独立 Python 环境 =$XDG_DATA_HOME/wime/python= 都存在，改用 =decode=（Qwen3.5-2B 权重 1.5，启动超时 30 秒；带辅助码时退回的 =verify= 用传统评分权重 0.05、验证池宽度 32）；否则 =verify=、传统评分权重 0.1。两者都不进快照。Python 环境与系统包隔离：=uv venv --python 3.12 ~/.local/share/wime/python && uv pip install --python ~/.local/share/wime/python/bin/python torch==2.11.0 transformers==5.17.0 safetensors==0.8.0=。=wime-neural-prior-confidence= 保持 1.0，关闭有回退的置信度排序实验。选型与限制见 =test/diverse-measurements.json= 和 =test/regression-analysis.json=。
 
 =wdoom-prepare= 把模型和 =native/wime-cuda/= 推理代码打包进不可变快照，重启后自动生效。模型 SHA256 固定在 =neural_model.bzl=，训练产物存放于 =$XDG_DATA_HOME/wime/models/<sha256>.safetensors=（默认 =~/.local/share/=）；也可用 =WIME_CONDITIONAL_MODEL= 指定同一产物，构建会核验哈希。快照包含固定版本的 pypinyin、模型实现和许可证，不依赖训练缓存或源码目录；PATH 中的 Python 仍需提供可用 CUDA 的 PyTorch 和 safetensors。
 
