@@ -136,6 +136,24 @@ class WorkerContract(unittest.TestCase):
             with self.assertRaises(ValueError):
                 worker.validate(dict(request, candidates=[dict(request["candidates"][1], bonus=bonus)]))
 
+    def test_decode_passes_pins_and_learned_readings_and_needs_a_decoder(self):
+        class Decoder:
+            def decode(self, *args):
+                self.args = args
+                return [("便宜", -.5)]
+
+        request = self.request(operation="decode", input="bmy", syllables=2, draft="",
+                               context_anchor=2, pins=[[0, "便"]], learned=[[0, "便宜"]], memory_weight=10.0)
+        decoder = Decoder()
+        self.assertEqual(worker.respond(None, request, None, decoder)["candidates"], [["便宜", -.5]])
+        self.assertEqual(decoder.args, ("", "bmy", 2, None, [(0, "便")], [(0, "便宜")], 10.0))
+        self.assertEqual(worker.respond(None, request)["candidates"], [])
+        for change in (dict(input="bmA"), dict(pins=[[0, "便宜"]]), dict(pins=[["0", "便"]]),
+                       dict(learned=[[0, ""]]), dict(learned=[0]), dict(memory_weight=-1),
+                       dict(memory_weight=float("inf"))):
+            with self.assertRaises(ValueError):
+                worker.validate(dict(request, **change))
+
 
 if __name__ == "__main__":
     unittest.main()

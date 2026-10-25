@@ -65,10 +65,14 @@ use `wime-neural-timeout'."
   :type 'number :group 'wime)
 
 (defcustom wime-neural-search-method 'rerank
-  "Use candidate reranking or conditional draft verification.
+  "Use candidate reranking, conditional draft verification or decoding.
 `verify' requires a wime-ms-pinyin-v1 model and a Microsoft double-pinyin
-database.  Auxiliary codes continue to constrain the dictionary search."
-  :type '(choice (const rerank) (const verify)) :group 'wime)
+database.  Auxiliary codes continue to constrain the dictionary search.
+`decode' also needs `wime-neural-rescorer': the CUDA worker spells the keys
+with the rescorer's tokens, fused with the model, without the lattice, one
+syllable at a time and including a trailing half syllable.  Input with
+auxiliary codes, or without a rescorer, is verified instead."
+  :type '(choice (const rerank) (const verify) (const decode)) :group 'wime)
 
 (defcustom wime-neural-single-character nil
   "Allow single-character compositions in conditional `verify' mode.
@@ -109,7 +113,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   :type 'number :group 'wime)
 
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
-  id buffer input position tick context records pool syllables
+  id buffer input position tick context records pool syllables pins
   method draft best best-score (round 0) visited scored
   context-reading (context-anchor wime-neural-context-anchor)
   (seed-candidates wime-neural-seed-candidates)
@@ -152,31 +156,42 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
              (eq (current-buffer) (wime-neural--job-buffer wime-neural--pending)))
     (setq wime-neural--pending nil)))
 
+(defun wime-neural--decodable-p (units)
+  "Whether `decode' reads UNITS: plain keys, one complete syllable or more."
+  (and wime-neural-rescorer
+       (cl-every (lambda (unit) (string-empty-p (cdr unit))) units)
+       (= (length (caar units)) 2)
+       (or (> (length units) 1) wime-neural-single-character)))
+
 (defun wime-neural--schedule ()
   "Schedule a bounded comparison after the traditional candidates appear."
   (wime-neural--reset)
-  (when (and wime-neural-mode (not wime-neural--failed)
-             wime-neural-model-file wime--candidate-records)
+  (when (and wime-neural-mode (not wime-neural--failed) wime-neural-model-file)
     (let* ((records wime--candidate-records)
-           (n (length (wime--parse wime--input)))
+           (units (wime--parse wime--input))
+           (n (length units))
+           (method (if (eq wime-neural-search-method 'decode)
+                       (if (wime-neural--decodable-p units) 'decode 'verify)
+                     wime-neural-search-method))
            (full (seq-filter (lambda (c) (= n (wime-candidate-end c))) records)))
-      (when (and (or (> n 1) (and (= n 1) wime-neural-single-character
-                                  (eq wime-neural-search-method 'verify)))
-                 full (eq (car full) (car records))
-                 (if (eq wime-neural-search-method 'verify)
+      (when (and (or (eq method 'decode)
+                     (and (or (> n 1) (and (= n 1) wime-neural-single-character (eq method 'verify)))
+                          full (eq (car full) (car records))
+                          (or (eq method 'verify)
+                              (and (> (length full) 1)
+                                   (not (wime-candidate-dictionary (car records)))))))
+                 (or (eq method 'rerank)
                      (condition-case nil
                          (equal (caar (sqlite-select (wime--database)
                                                     "SELECT value FROM meta WHERE key = 'scheme'"))
                                 "mspy")
-                       (error nil))
-                   (and (> (length full) 1)
-                        (not (wime-candidate-dictionary (car records))))))
+                       (error nil))))
         (let ((job (wime-neural--make-job
                     :id (cl-incf wime-neural--serial) :buffer (current-buffer)
                     :input wime--input :position (point)
                     :tick (buffer-chars-modified-tick) :context (wime-neural--context)
                     :context-reading (wime--context-reading (wime-neural--context))
-                    :records records :syllables n :method wime-neural-search-method
+                    :records records :syllables n :method method :pins wime--pins
                     :draft (car full))))
           (setq wime-neural--timer
                 (run-with-timer wime-neural-delay nil #'wime-neural--enqueue job)))))))
@@ -212,6 +227,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
           (and wime-neural-rescorer
                (list "--rescorer" (expand-file-name wime-neural-rescorer)
                      "--rescorer-weight" (number-to-string wime-neural-rescorer-weight)))
+          (and wime-neural-rescorer (eq wime-neural-search-method 'decode) wime-database-file
+               (list "--database" (expand-file-name wime-database-file)))
           (list (expand-file-name model))))
 
 (defun wime-neural--start ()
@@ -231,6 +248,26 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 
 (defun wime-neural--request (job)
   "Encode JOB with explicit coverage and dictionary provenance."
+  (if (eq (wime-neural--job-method job) 'decode)
+      (wime-neural--decode-request job)
+    (wime-neural--verify-request job)))
+
+(defun wime-neural--decode-request (job)
+  "Encode JOB's whole input, pins and learned readings for decoding."
+  (let ((units (wime--parse (wime-neural--job-input job))))
+    (json-serialize
+     `(:id ,(wime-neural--job-id job) :operation "decode" :context ,(wime-neural--job-context job)
+       :syllables ,(length units) :input ,(wime--full-code units)
+       :context_anchor ,(wime-neural--job-context-anchor job)
+       :context_reading ,(or (wime-neural--job-context-reading job) :null)
+       :pins ,(vconcat (mapcar (lambda (pin) (vector (car pin) (string (nth 1 pin))))
+                               (wime-neural--job-pins job)))
+       :learned ,(vconcat (mapcar (lambda (span) (vector (car span) (cdr span)))
+                                  (wime--memory-spans units)))
+       :memory_weight ,wime-neural-memory-weight :candidates []))))
+
+(defun wime-neural--verify-request (job)
+  "Encode JOB's candidates and draft for verification or reranking."
   (json-serialize
    `(:id ,(wime-neural--job-id job) :context ,(wime-neural--job-context job)
      :syllables ,(wime-neural--job-syllables job)
@@ -277,15 +314,19 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   (when (and (not wime-neural--failed) (wime-neural--valid-p job))
     (if wime-neural--busy
         (setq wime-neural--pending job)
-      (unless (wime-neural--job-pool job)
+      (unless (or (wime-neural--job-pool job) (eq (wime-neural--job-method job) 'decode))
         (setf (wime-neural--job-pool job) (wime-neural--pool job)))
       (condition-case nil
           (let ((process (wime-neural--start)))
             (setq wime-neural--busy job
                   wime-neural--timeout-timer
-                  (run-with-timer (if (process-get process 'wime-initialized)
-                                      wime-neural-timeout wime-neural-startup-timeout) nil
-                                  #'wime-neural--fail "worker timed out"))
+                  (run-with-timer (+ (if (process-get process 'wime-initialized)
+                                         wime-neural-timeout wime-neural-startup-timeout)
+                                     ;; Decoding from scratch, as after a new
+                                     ;; composition's pause, costs per syllable.
+                                     (if (eq (wime-neural--job-method job) 'decode)
+                                         (* 0.1 (wime-neural--job-syllables job)) 0))
+                                  nil #'wime-neural--fail "worker timed out"))
             (process-send-string process (concat (wime-neural--request job) "\n")))
         (error (wime-neural--fail "worker could not start or receive input"))))))
 
@@ -379,9 +420,33 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
              (candidate (and (integerp index) (> index 0) (< index (length records))
                              (nth index records))))
         (setq wime-neural-last-latency (alist-get 'elapsed_ms response))
-        (if (eq (wime-neural--job-method job) 'verify)
-            (wime-neural--verify-apply job response)
-          (when candidate (wime-neural--publish job candidate)))))))
+        (pcase (wime-neural--job-method job)
+          ('decode (wime-neural--decode-apply job response))
+          ('verify (wime-neural--verify-apply job response))
+          (_ (when candidate (wime-neural--publish job candidate))))))))
+
+(defun wime-neural--decode-apply (job response)
+  "Show RESPONSE's readings of JOB's whole input ahead of the lattice's.
+Each must cover every syllable, be Chinese and keep the pins; the lattice's
+words and completions stay after them, so a prefix can still be committed."
+  (let* ((n (wime-neural--job-syllables job))
+         (decoded (cl-loop for pair across (or (alist-get 'candidates response) [])
+                           for text = (and (vectorp pair) (= (length pair) 2) (aref pair 0))
+                           when (and (stringp text) (= (length text) n) (numberp (aref pair 1))
+                                     (string-match-p "\\`[㐀-鿿]+\\'" text)
+                                     (wime--pins-allow-p text 0))
+                           collect (wime--make-candidate :text text :score (aref pair 1) :end n)))
+         (texts (mapcar #'wime-candidate-text decoded)))
+    (when decoded
+      (setq wime--candidate-scores (mapcar (lambda (c) (cons (wime-candidate-text c) (wime-candidate-score c)))
+                                           decoded)
+            wime--candidate-records
+            (append decoded (seq-remove (lambda (c) (member (wime-candidate-text c) texts))
+                                        (wime-neural--job-records job)))
+            wime--candidates (seq-take (seq-uniq (append texts wime--candidates)) wime-candidates-max))
+      (unless wime--pins
+        (setq wime--default-reading (car wime--candidates)))
+      (wime--display))))
 
 (defun wime-neural--reply (response)
   "Complete the matching request with RESPONSE and dispatch latest pending work."

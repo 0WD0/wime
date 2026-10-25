@@ -53,7 +53,12 @@ def main():
     p.add_argument("--rescorer-weight", type=float, default=1.5)
     p.add_argument("--pool-width", type=int,
                    help="lattice width of the verify pool and prefix searches, as wime-neural-pool-width")
+    p.add_argument("--search-method", choices=("verify", "decode"), default="verify",
+                   help="decode: the rescorer spells the keys, fused with the model (decoder.py); "
+                        "input with auxiliary codes is still verified, as in the editor")
     args = p.parse_args()
+    if args.search_method == "decode" and not args.rescorer:
+        p.error("decode requires --rescorer")
     if args.width < 1 or args.budget < 1 or not 0 < args.prior_confidence <= 1:
         p.error("width and budget must be positive")
     args.out.mkdir(parents=True, exist_ok=True)
@@ -81,6 +86,10 @@ def main():
     evaluator = ConditionalEvaluator(args.model, context_anchor=args.context_anchor,
                                      proposal_order=args.proposal_order)
     rescorer = Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
+    decoder = None
+    if args.search_method == "decode":
+        from decoder import Decoder, Units, readings
+        decoder = Decoder(evaluator, rescorer, Units(rescorer.tokenizer, readings(args.database)))
     stats, results, latencies = Counter(), [], []
     started = time.monotonic()
     try:
@@ -102,7 +111,16 @@ def main():
             calls, visited, recoveries, trace = 0, set(), [], []
             pool_scores = rescored = None
             prior_weight = args.prior_weight
-            if candidates and (syllables > 1 or (args.single_character and syllables == 1)):
+            if decoder and code == model_code and (syllables > 1 or (args.single_character and syllables == 1)):
+                start = time.monotonic()
+                decoded = decoder.decode(model_context, model_code, args.context_anchor)
+                if decoded:
+                    best = nbest = decoded[0][0]
+                    if best not in candidates:
+                        recoveries.append(best)
+                    trace.append(dict(text=best, decoded=decoded[0][1]))
+                latencies.append(1000 * (time.monotonic() - start))
+            elif candidates and (syllables > 1 or (args.single_character and syllables == 1)):
                 path_score = records[0]["score"]
                 start = time.monotonic()
                 scores, distributions = evaluator.evaluate(model_context, model_code, candidates)
@@ -190,7 +208,7 @@ def main():
                    context_anchor=args.context_anchor,
                    proposal_order=args.proposal_order,
                    rescorer=args.rescorer, rescorer_weight=args.rescorer_weight if args.rescorer else None,
-                   pool_width=args.pool_width,
+                   pool_width=args.pool_width, search_method=args.search_method,
                    prior_confidence=args.prior_confidence,
                    width=args.width, seed_draft=args.seed_draft,
                    device=evaluator.device,

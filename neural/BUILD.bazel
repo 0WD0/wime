@@ -17,6 +17,7 @@ gpu_runtime(
         "gpu-worker.py",
         "inference.py",
         "rescorer.py",
+        "decoder.py",
         "conditional.py",
         "context-pinyin.json",
         "requirements-gpu.txt",

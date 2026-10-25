@@ -514,6 +514,16 @@ another reading for those keys forgets it."
                  do (cl-loop for i from s below e do (aset covered i t)))))
     (if (zerop n) 0.0 (/ (float (cl-count t covered)) n))))
 
+(defun wime--memory-spans (units)
+  "Learned readings within UNITS' leading complete syllables, as (START . TEXT)."
+  (let ((n (cl-loop for unit in units while (= (length (car unit)) 2) count t)) spans)
+    (when (and (> n 1) (wime--user-db) (> (hash-table-count wime--memory) 0))
+      (dotimes (s n)
+        (cl-loop for e from (+ s 2) to (min n (+ s 16)) do
+                 (dolist (m (gethash (wime--span-code units s e) wime--memory))
+                   (push (cons s (car m)) spans)))))
+    (nreverse spans)))
+
 (defun wime--dictionary-word-p (word units)
   "Whether WORD is a dictionary entry for the keys of UNITS."
   (seq-find (lambda (entry) (equal (car entry) word))

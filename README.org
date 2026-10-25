@@ -35,12 +35,14 @@ wdoom 默认启用经过评测的 25M 拼音条件模型和 CUDA worker：=verif
 
 可选的最终重排：=wime-neural-rescorer= 指向一个 transformers 因果语言模型目录（如 Qwen3.5-2B-Base）时，CUDA worker 把它对候选的逐字平均对数概率乘以 =wime-neural-rescorer-weight=（默认 1.5）加到每个已验证完整候选的模型分上，种子池也参与；它还在草稿的 token 边界提出更可能的 token 作为前缀，与条件模型的逐字提议交替，词典仍按按键校验；置信度门控仍只看条件模型概率。=wime-neural-pool-width= 让停键后的验证池和前缀搜索使用更宽的词格（独立的增量缓存），逐键显示仍用 =wime-search-width=。配合 =wime-neural-prior-weight= 0.05 使用；需要带 qwen3_5 支持的 transformers，可用 =wime-neural-interpreter= 指定 Python。该配置随 Wime Lab 推理配置保存，=evaluate-conditional.py --rescorer= 与实际异步路径输出一致。
 
-CUDA worker 只支持 =verify=，使用 FP32、不启用 TF32，模型随进程常驻显存。切换 worker 或模型后需要停止旧进程再启用 =wime-neural-mode=，wdoom 的输入初始化会执行这个切换。首次请求允许 =wime-neural-startup-timeout=（默认 10 秒）完成加载和 CUDA 初始化，后续请求使用普通 2 秒超时。最多保留一个正在运行和一个待处理请求；输入、光标、缓冲区内容或选中项变化后，旧结果失效。等待、进程失败或超时时，传统候选仍可用。
+=decode= 不再经过词格：worker 用重排模型的 token 直接拼出按键（字的读音取自词库单字条目），每步与条件模型融合（条件模型对数概率加 1.5 倍语言模型对数概率），按字同步的 beam 宽 16（=neural/decoder.py=）。每个音节只扩展最新位置，并用当前全部按键给保留的整句重新打分；语言模型分布按 token 前缀缓存，每个音节一次前向。半个音节也解码，末字读音须以已敲的键开头。分段视图固定的字是硬约束，学到的读音按覆盖的字数加 =wime-neural-memory-weight=。解码出的整句排在词格候选之前，词格的词和补全仍可上屏。带辅助码的输入、未配置重排模型时退回 =verify=。worker 需要 =--database=，=wime-neural--command= 会自动传入；Wime Lab 配置的 =search_method= 与 =evaluate-conditional.py --search-method decode= 对应。
+
+CUDA worker 只支持 =verify= 和 =decode=，使用 FP32、不启用 TF32，模型随进程常驻显存。切换 worker 或模型后需要停止旧进程再启用 =wime-neural-mode=，wdoom 的输入初始化会执行这个切换。首次请求允许 =wime-neural-startup-timeout=（默认 10 秒）完成加载和 CUDA 初始化，后续请求使用普通 2 秒超时。最多保留一个正在运行和一个待处理请求；输入、光标、缓冲区内容或选中项变化后，旧结果失效。等待、进程失败或超时时，传统候选仍可用。
 
 =neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，=neural/prepare-diverse.py= 准备额外成语、专名与正文语料，=neural/prepare-domain.py= 按文档划分本地文档与 =neural/domain-sources.json= 中固定版本的外部中文技术文档，作为输入法/开发领域语料。=neural/train-conditional.py= 可训练单字、短片段和完整输入；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步路径。评测使用固定产物，=--reference-baseline= 检查传统搜索输出是否一致。金标准不参与模型决策；自动注音、相关压力样例和未知的预训练重合仍是评测限制。
 
 * 纠错学习
 
-设置 =wime-user-database= 后（wdoom 为 =$XDG_DATA_HOME/wime/user.sqlite3=），每次上屏完整读音都记录原始按键、双拼码、上屏文本、wime 首先给出的读音和光标前文，作为真实使用的评测数据，只存本机。上屏文本与首选不同时（数字选字、移动选择后上屏、在分段视图里固定字），把不同的片段扩展到同键下最短的词典词（同长取词频最高者，至少两字），记为学到的读音；同一按键再上屏别的读音即忘记它。学到的读音以 =wime-user-weight= 进入词格，神经阶段按覆盖音节比例加 =wime-neural-memory-weight=，CUDA 种子选择和草稿验证都计入，模型不会推翻用户为同一按键做的纠正。
+设置 =wime-user-database= 后（wdoom 为 =$XDG_DATA_HOME/wime/user.sqlite3=），每次上屏完整读音都记录原始按键、双拼码、上屏文本、wime 首先给出的读音和光标前文，作为真实使用的评测数据，只存本机。上屏文本与首选不同时（数字选字、移动选择后上屏、在分段视图里固定字），把不同的片段扩展到同键下最短的词典词（同长取词频最高者，至少两字），记为学到的读音；同一按键再上屏别的读音即忘记它。学到的读音以 =wime-user-weight= 进入词格，神经阶段按覆盖音节比例加 =wime-neural-memory-weight=，CUDA 种子选择、草稿验证和 =decode= 的 beam 都计入，模型不会推翻用户为同一按键做的纠正。
 
 尚未实现：上屏后的后续预测、声调输入、按使用频率调频。

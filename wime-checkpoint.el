@@ -33,13 +33,14 @@
         :single_character (if wime-neural-single-character t :false)
         :seed_draft (if wime-neural-seed-candidates "neural" "traditional")
         :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight
-        :pool_width (or wime-neural-pool-width :null)))
+        :pool_width (or wime-neural-pool-width :null)
+        :search_method (symbol-name wime-neural-search-method)))
 
 (defun wime-checkpoint--apply (recipe)
   "Install verified RECIPE variables; callers own the worker transition."
   (let ((profile (plist-get recipe :profile)))
     (setq wime-neural-model-file (plist-get recipe :path)
-          wime-neural-search-method 'verify
+          wime-neural-search-method (if (equal (plist-get profile :search_method) "decode") 'decode 'verify)
           wime-search-width (plist-get profile :width)
           wime-neural-inference-budget (plist-get profile :budget)
           wime-neural-prior-weight (plist-get profile :prior_weight)
@@ -130,7 +131,9 @@ value.  Return cancellation that leaves the existing worker and input intact."
                    :command (let* ((profile (plist-get recipe :profile))
                                    (wime-neural-rescorer (plist-get profile :rescorer))
                                    (wime-neural-rescorer-weight
-                                    (or (plist-get profile :rescorer_weight) 1.5)))
+                                    (or (plist-get profile :rescorer_weight) 1.5))
+                                   (wime-neural-search-method
+                                    (if (equal (plist-get profile :search_method) "decode") 'decode 'verify)))
                               (wime-neural--command (plist-get recipe :path)))
                    :sentinel (lambda (p _event)
                                (unless (process-live-p p) (fail "New GPU worker could not load checkpoint")))

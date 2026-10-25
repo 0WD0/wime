@@ -7,7 +7,8 @@ CUDA and safetensors. Stdout is exclusively the protocol; no typed text is
 included in errors. The model stays on the GPU until the process is stopped.
 An optional --rescorer adds a weighted general-LM score to every verified
 candidate, including the seed pool, and interleaves its token proposals with
-the model's per-character proposals.
+the model's per-character proposals. With --database as well, the decode
+operation replaces the dictionary lattice: see decoder.py.
 """
 import argparse
 import json
@@ -17,6 +18,8 @@ import time
 
 from inference import ConditionalEvaluator, effective_prior_weight
 from rescorer import Rescorer, interleave
+
+KEYS = set("abcdefghijklmnopqrstuvwxyz;")
 
 
 def validate(request):
@@ -55,6 +58,19 @@ def validate(request):
                 or any(c not in "abcdefghijklmnopqrstuvwxyz;" for c in known["input"])
                 or not request["context"].endswith(known["text"])):
             raise ValueError("invalid request")
+    if request.get("operation") == "decode":
+        weight = request.get("memory_weight", 0)
+        if (any(c not in KEYS for c in request.get("input", ""))
+                or not isinstance(request.get("pins", []), list)
+                or not isinstance(request.get("learned", []), list)
+                or type(weight) not in (int, float) or not math.isfinite(weight) or weight < 0):
+            raise ValueError("invalid request")
+        for pair in request.get("pins", []) + request.get("learned", []):
+            if (not isinstance(pair, list) or len(pair) != 2 or type(pair[0]) is not int
+                    or not 0 <= pair[0] < 256 or not isinstance(pair[1], str) or not pair[1]):
+                raise ValueError("invalid request")
+        if any(len(text) != 1 for _, text in request.get("pins", [])):
+            raise ValueError("invalid request")
     if request.get("seed_candidates"):
         if (type(request.get("prior_weight")) not in (int, float)
                 or not math.isfinite(request["prior_weight"]) or request["prior_weight"] < 0):
@@ -65,11 +81,20 @@ def validate(request):
                 raise ValueError("invalid request")
 
 
-def respond(evaluator, request, rescorer=None):
+def respond(evaluator, request, rescorer=None, decoder=None):
     """Keep keyboard/coverage validation identical to conditional Rust verify."""
     validate(request)
     start = time.perf_counter()
     result = dict(id=request["id"], promoted=None, elapsed_ms=0.0)
+    if request.get("operation") == "decode":
+        # Without a decoder the editor keeps its lattice candidates.
+        result["candidates"] = [] if decoder is None else [
+            [text, score] for text, score in decoder.decode(
+                request["context"], request.get("input", ""), request.get("context_anchor", 0),
+                request.get("context_reading"), [tuple(p) for p in request.get("pins", [])],
+                [tuple(p) for p in request.get("learned", [])], request.get("memory_weight", 0))]
+        result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
+        return result
     if request.get("operation") != "verify":
         return result  # A conditional model must never perform unconditioned reranking.
     result["prefixes"] = []
@@ -119,15 +144,22 @@ def main():
     parser.add_argument("model")
     parser.add_argument("--rescorer", help="directory of a transformers causal LM")
     parser.add_argument("--rescorer-weight", type=float, default=1.5)
+    parser.add_argument("--database", help="wime word database, whose readings enable decode")
     args = parser.parse_args()
     evaluator = ConditionalEvaluator(args.model, device="cuda")
     rescorer = Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
+    decoder = None
+    if rescorer and args.database:
+        from decoder import Decoder, Units, readings
+        decoder = Decoder(evaluator, rescorer, Units(rescorer.tokenizer, readings(args.database)))
     # Pay CUDA/kernel initialization once, before the first interactive request.
     evaluator.evaluate("", "aaaa", ["中文"])
     if rescorer:
         rescorer.score("", ["中文"])
+    if decoder:
+        decoder.decode("", "nihk")
     for line in sys.stdin:
-        response = respond(evaluator, json.loads(line), rescorer)
+        response = respond(evaluator, json.loads(line), rescorer, decoder)
         print(json.dumps(response, ensure_ascii=False, allow_nan=False), flush=True)
 
 
