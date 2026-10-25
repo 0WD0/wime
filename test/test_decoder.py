@@ -9,8 +9,8 @@ import torch  # noqa: E402
 from decoder import Decoder, Units  # noqa: E402
 
 VOCAB = ["<pad>", "\n", "整", "证", "句", "据", "输", "入", "证据", "整句", "政"]
-READINGS = {"整": ["vg"], "证": ["vg"], "政": ["vg"], "句": ["ju"], "据": ["ju"],
-            "输": ["uu"], "入": ["ru"]}
+READINGS = {"整": {"vg": ["sz"]}, "证": {"vg": ["ye", "yd"]}, "政": {"vg": ["zw"]},
+            "句": {"ju": ["kp"]}, "据": {"ju": ["tj"]}, "输": {"uu": ["cr"]}, "入": {"ru": ["rr"]}}
 
 
 class Tokenizer:
@@ -92,6 +92,19 @@ class Decoding(unittest.TestCase):
         self.assertIs(decoder.session, session)
         self.assertEqual(decoder.forwards, before)
         self.assertEqual(decoder.decode("", "vgjuuuru"), Toy().decode("", "vgjuuuru"))
+
+    def test_typed_auxiliary_codes_select_characters_by_prefix(self):
+        decoder = Toy()
+        texts = [t for t, _ in decoder.decode("", "vgjuuuru", aux=[(0, "s"), (1, "kp")])]
+        self.assertTrue(texts and all(t.startswith("整句") for t in texts))
+        session = decoder.session
+        texts = [t for t, _ in decoder.decode("", "vgjuuuru", aux=[(0, "y")])]
+        self.assertIs(decoder.session, session)
+        self.assertTrue(texts and all(t[0] == "证" for t in texts))
+        self.assertEqual(decoder.decode("", "vgjuuuru", aux=[(0, "q")]), [])
+        # A half syllable's auxiliary code applies to its provisional character.
+        self.assertEqual({t[3] for t, _ in Toy().decode("", "vgjuuur", aux=[(3, "r")])}, {"入"})
+        self.assertEqual(Toy().decode("", "vgjuuur", aux=[(3, "x")]), [])
 
     def test_unknown_keys_give_nothing(self):
         self.assertEqual(Toy().decode("", "vgxx"), [])

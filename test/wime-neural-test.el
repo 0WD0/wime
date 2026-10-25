@@ -501,11 +501,16 @@
                 (should (equal (alist-get 'pins request) '((0 "甲"))))
                 (should (equal (alist-get 'learned request) '((0 "甲乙"))))
                 (should (= (alist-get 'memory_weight request) 10.0)))
-              ;; Auxiliary codes, or no rescorer, are verified on the lattice.
-              (setq wime--input "aabbA" scheduled nil wime--pins nil
+              ;; Auxiliary codes constrain their syllable, in lower case.
+              (setq wime--input "aaBCbbD" scheduled nil wime--pins nil
                     wime--candidate-records (list (wime--make-candidate :text "甲乙" :end 2 :score 0)))
               (wime-neural--schedule)
-              (should (eq (wime-neural--job-method scheduled) 'verify))
+              (should (eq (wime-neural--job-method scheduled) 'decode))
+              (let ((request (json-parse-string (wime-neural--request scheduled)
+                                                :object-type 'alist :array-type 'list)))
+                (should (equal (alist-get 'input request) "aabb"))
+                (should (equal (alist-get 'aux request) '((0 "bc") (1 "d")))))
+              ;; Without a rescorer the lattice is verified.
               (let ((wime-neural-rescorer nil))
                 (setq wime--input "aabb" scheduled nil)
                 (wime-neural--schedule)

@@ -13,7 +13,9 @@ stay pruned, each new syllable expands into the newest position only, and
 every surviving text is scored again by the conditional model under the
 current keys. LM distributions are memoized by token prefix, so a syllable
 costs one LM forward. A trailing half syllable is decoded provisionally:
-its last character's reading must start with the typed key.
+its last character's reading must start with the typed key. Pinned
+characters and typed auxiliary codes are hard constraints at their position;
+changing one keeps the frontiers before it.
 """
 import collections
 import itertools
@@ -38,18 +40,25 @@ def chinese(text):
 
 
 def readings(database):
-    """Single-character readings, character -> sorted two-key codes."""
-    result = collections.defaultdict(set)
+    """Single-character readings: character -> {two-key code: auxiliary groups}."""
+    result = collections.defaultdict(dict)
     with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as db:
-        for code, char in db.execute("SELECT code, word FROM entry WHERE length(word) = 1 AND length(code) = 2"):
-            result[char].add(code)
-    return {char: sorted(codes) for char, codes in result.items()}
+        for code, char, aux in db.execute("SELECT code, word, aux FROM entry "
+                                          "WHERE length(word) = 1 AND length(code) = 2 ORDER BY code"):
+            result[char].setdefault(code, []).extend(g for g in aux.split(",") if g)
+    return dict(result)
+
+
+def aux_match(groups, typed):
+    """Typed auxiliary keys select a character when they begin one of its groups."""
+    return any(group.startswith(typed) for group in groups)
 
 
 class Units:
     """Keys -> allowed units [(text, ids)]; odd keys index half syllables."""
 
     def __init__(self, tokenizer, readings, combinations=16):
+        self.readings = readings
         self.index = collections.defaultdict(list)
         single, self.longest = set(), 1
         for i in range(len(tokenizer)):
@@ -71,6 +80,11 @@ class Units:
 
     def get(self, keys):
         return (self.partial if len(keys) % 2 else self.index).get(keys, ())
+
+    def aux_allows(self, char, keys, typed):
+        """Whether TYPED auxiliary keys allow CHAR read as KEYS (one key: any reading starting with it)."""
+        return any(aux_match(groups, typed) for code, groups in self.readings.get(char, {}).items()
+                   if code == keys or len(keys) == 1 and code.startswith(keys))
 
 
 Hypothesis = collections.namedtuple("Hypothesis", "text ids q m")
@@ -158,28 +172,35 @@ class Decoder:
 
     # --- search -----------------------------------------------------------
 
-    def decode(self, context, code, anchor=0, known=None, pins=(), learned=(), weight=0.0):
+    def decode(self, context, code, anchor=0, known=None, pins=(), learned=(), weight=0.0, aux=()):
         """Best complete readings of CODE as [(text, per-character score)].
 
-        PINS fix characters by position; LEARNED (start, text) readings earn
-        WEIGHT per covered character. An odd CODE ends in half a syllable.
+        PINS fix characters by position and AUX (position, keys) restricts a
+        position to characters whose auxiliary codes start with the keys;
+        LEARNED (start, text) readings earn WEIGHT per covered character. An
+        odd CODE ends in half a syllable.
         """
-        key, pins = (context, anchor, repr(known), tuple(learned), weight), dict(pins)
+        key = (context, anchor, repr(known), tuple(learned), weight)
+        constraints = {p: ("pin", c) for p, c in pins}
+        for p, typed in aux:
+            constraints[p] = constraints.get(p, ()) + ("aux", typed)
         session = self.session
         if session is None or session.key != key:
-            session = self.session = Session(self, key, context, anchor, known, pins, learned, weight)
-        elif session.pins != pins:
-            # Frontiers before the first changed pin cover no pinned position.
-            first = min(p for p in set(pins) | set(session.pins) if pins.get(p) != session.pins.get(p))
-            session.kept, session.code, session.pins = session.kept[:first + 1], session.code[:2 * first], pins
+            session = self.session = Session(self, key, context, anchor, known, constraints, learned, weight)
+        elif session.constraints != constraints:
+            # Frontiers before the first changed position cover no constrained one.
+            first = min(p for p in set(constraints) | set(session.constraints)
+                        if constraints.get(p) != session.constraints.get(p))
+            session.kept, session.code = session.kept[:first + 1], session.code[:2 * first]
+            session.constraints = constraints
         return session.decode(code)
 
 
 class Session:
-    def __init__(self, decoder, key, context, anchor, known, pins, learned, weight):
+    def __init__(self, decoder, key, context, anchor, known, constraints, learned, weight):
         self.decoder, self.key = decoder, key
         self.context, self.anchor, self.known = context, anchor, known
-        self.pins, self.learned, self.weight = pins, learned, weight
+        self.constraints, self.learned, self.weight = constraints, learned, weight
         self.code, self.kept = "", [[Hypothesis("", (), 0.0, 0.0)]]
         self.memo, self.tails = {}, {}
         self.lm_context = None
@@ -195,8 +216,15 @@ class Session:
     def rank(self, h):
         return h.m + self.decoder.weight * h.q + self.bonus(h.text)
 
-    def allowed(self, start, text):
-        return all(self.pins.get(start + i, c) == c for i, c in enumerate(text))
+    def allowed(self, code, start, text):
+        """Whether TEXT read from START keeps every pin and typed auxiliary code."""
+        for i, char in enumerate(text):
+            rule = self.constraints.get(start + i, ())
+            for kind, value in zip(rule[::2], rule[1::2]):
+                if (char != value if kind == "pin" else not self.decoder.units.aux_allows(
+                        char, code[2 * (start + i):2 * (start + i) + 2], value)):
+                    return False
+        return True
 
     def lm_next(self, sequences):
         decoder = self.decoder
@@ -221,8 +249,8 @@ class Session:
         hypotheses, choices, owners = [], [], []
         for start in range(max(0, end - decoder.units.longest), end):
             units = decoder.units.get(code[2 * start:])
-            if self.pins:
-                units = [u for u in units if self.allowed(start, u[0])]
+            if self.constraints:
+                units = [u for u in units if self.allowed(code, start, u[0])]
             if units and self.kept[start]:
                 first = len(hypotheses)
                 hypotheses += self.kept[start]

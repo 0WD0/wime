@@ -146,10 +146,13 @@ class WorkerContract(unittest.TestCase):
                                context_anchor=2, pins=[[0, "便"]], learned=[[0, "便宜"]], memory_weight=10.0)
         decoder = Decoder()
         self.assertEqual(worker.respond(None, request, None, decoder)["candidates"], [["便宜", -.5]])
-        self.assertEqual(decoder.args, ("", "bmy", 2, None, [(0, "便")], [(0, "便宜")], 10.0))
+        self.assertEqual(decoder.args, ("", "bmy", 2, None, [(0, "便")], [(0, "便宜")], 10.0, []))
+        worker.respond(None, dict(request, aux=[[1, "kp"]]), None, decoder)
+        self.assertEqual(decoder.args[-1], [(1, "kp")])
         self.assertEqual(worker.respond(None, request)["candidates"], [])
         for change in (dict(input="bmA"), dict(pins=[[0, "便宜"]]), dict(pins=[["0", "便"]]),
                        dict(learned=[[0, ""]]), dict(learned=[0]), dict(memory_weight=-1),
+                       dict(aux=[[0, "K"]]), dict(aux=[[0, ""]]), dict(aux=[[-1, "k"]]),
                        dict(memory_weight=float("inf"))):
             with self.assertRaises(ValueError):
                 worker.validate(dict(request, **change))

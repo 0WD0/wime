@@ -70,8 +70,8 @@ use `wime-neural-timeout'."
 database.  Auxiliary codes continue to constrain the dictionary search.
 `decode' also needs `wime-neural-rescorer': the CUDA worker spells the keys
 with the rescorer's tokens, fused with the model, without the lattice, one
-syllable at a time and including a trailing half syllable.  Input with
-auxiliary codes, or without a rescorer, is verified instead."
+syllable at a time and including a trailing half syllable; auxiliary codes
+restrict their syllable's character.  Without a rescorer it verifies instead."
   :type '(choice (const rerank) (const verify) (const decode)) :group 'wime)
 
 (defcustom wime-neural-single-character nil
@@ -157,9 +157,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
     (setq wime-neural--pending nil)))
 
 (defun wime-neural--decodable-p (units)
-  "Whether `decode' reads UNITS: plain keys, one complete syllable or more."
+  "Whether `decode' reads UNITS: one complete syllable or more."
   (and wime-neural-rescorer
-       (cl-every (lambda (unit) (string-empty-p (cdr unit))) units)
        (= (length (caar units)) 2)
        (or (> (length units) 1) wime-neural-single-character)))
 
@@ -264,6 +263,9 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                                (wime-neural--job-pins job)))
        :learned ,(vconcat (mapcar (lambda (span) (vector (car span) (cdr span)))
                                   (wime--memory-spans units)))
+       :aux ,(vconcat (cl-loop for unit in units for i from 0
+                               unless (string-empty-p (cdr unit))
+                               collect (vector i (downcase (cdr unit)))))
        :memory_weight ,wime-neural-memory-weight :candidates []))))
 
 (defun wime-neural--verify-request (job)

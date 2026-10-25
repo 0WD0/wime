@@ -19,7 +19,8 @@ import time
 from inference import ConditionalEvaluator, effective_prior_weight
 from rescorer import Rescorer, interleave
 
-KEYS = set("abcdefghijklmnopqrstuvwxyz;")
+LETTERS = set("abcdefghijklmnopqrstuvwxyz")
+KEYS = LETTERS | {";"}
 
 
 def validate(request):
@@ -63,13 +64,15 @@ def validate(request):
         if (any(c not in KEYS for c in request.get("input", ""))
                 or not isinstance(request.get("pins", []), list)
                 or not isinstance(request.get("learned", []), list)
+                or not isinstance(request.get("aux", []), list)
                 or type(weight) not in (int, float) or not math.isfinite(weight) or weight < 0):
             raise ValueError("invalid request")
-        for pair in request.get("pins", []) + request.get("learned", []):
+        for pair in request.get("pins", []) + request.get("learned", []) + request.get("aux", []):
             if (not isinstance(pair, list) or len(pair) != 2 or type(pair[0]) is not int
                     or not 0 <= pair[0] < 256 or not isinstance(pair[1], str) or not pair[1]):
                 raise ValueError("invalid request")
-        if any(len(text) != 1 for _, text in request.get("pins", [])):
+        if (any(len(text) != 1 for _, text in request.get("pins", []))
+                or any(set(keys) - LETTERS for _, keys in request.get("aux", []))):
             raise ValueError("invalid request")
     if request.get("seed_candidates"):
         if (type(request.get("prior_weight")) not in (int, float)
@@ -92,7 +95,8 @@ def respond(evaluator, request, rescorer=None, decoder=None):
             [text, score] for text, score in decoder.decode(
                 request["context"], request.get("input", ""), request.get("context_anchor", 0),
                 request.get("context_reading"), [tuple(p) for p in request.get("pins", [])],
-                [tuple(p) for p in request.get("learned", [])], request.get("memory_weight", 0))]
+                [tuple(p) for p in request.get("learned", [])], request.get("memory_weight", 0),
+                [tuple(p) for p in request.get("aux", [])])]
         result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
         return result
     if request.get("operation") != "verify":

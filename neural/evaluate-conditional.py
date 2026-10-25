@@ -23,6 +23,19 @@ from rescorer import Rescorer, interleave
 
 
 
+def typed_aux(raw):
+    """(syllable, lower-case keys) for the upper-case auxiliary keys in RAW, as wime--parse."""
+    result, syllable, keys = {}, -1, 0
+    for key in raw:
+        if key.isupper():
+            result[syllable] = result.get(syllable, "") + key.lower()
+        else:
+            if keys % 2 == 0:
+                syllable += 1
+            keys += 1
+    return sorted(result.items())
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
@@ -54,8 +67,7 @@ def main():
     p.add_argument("--pool-width", type=int,
                    help="lattice width of the verify pool and prefix searches, as wime-neural-pool-width")
     p.add_argument("--search-method", choices=("verify", "decode"), default="verify",
-                   help="decode: the rescorer spells the keys, fused with the model (decoder.py); "
-                        "input with auxiliary codes is still verified, as in the editor")
+                   help="decode: the rescorer spells the keys, fused with the model (decoder.py)")
     args = p.parse_args()
     if args.search_method == "decode" and not args.rescorer:
         p.error("decode requires --rescorer")
@@ -111,9 +123,9 @@ def main():
             calls, visited, recoveries, trace = 0, set(), [], []
             pool_scores = rescored = None
             prior_weight = args.prior_weight
-            if decoder and code == model_code and (syllables > 1 or (args.single_character and syllables == 1)):
+            if decoder and (syllables > 1 or (args.single_character and syllables == 1)):
                 start = time.monotonic()
-                decoded = decoder.decode(model_context, model_code, args.context_anchor)
+                decoded = decoder.decode(model_context, model_code, args.context_anchor, aux=typed_aux(code))
                 if decoded:
                     best = nbest = decoded[0][0]
                     if best not in candidates:
