@@ -37,6 +37,6 @@ wdoom 默认启用经过评测的 25M 拼音条件模型和 CUDA worker：=verif
 
 CUDA worker 只支持 =verify=，使用 FP32、不启用 TF32，模型随进程常驻显存。切换 worker 或模型后需要停止旧进程再启用 =wime-neural-mode=，wdoom 的输入初始化会执行这个切换。首次请求允许 =wime-neural-startup-timeout=（默认 10 秒）完成加载和 CUDA 初始化，后续请求使用普通 2 秒超时。最多保留一个正在运行和一个待处理请求；输入、光标、缓冲区内容或选中项变化后，旧结果失效。等待、进程失败或超时时，传统候选仍可用。
 
-=neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，=neural/prepare-diverse.py= 准备额外成语、专名与正文语料。=neural/train-conditional.py= 可训练单字、短片段和完整输入；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步路径。评测使用固定产物，=--reference-baseline= 检查传统搜索输出是否一致。金标准不参与模型决策；自动注音、相关压力样例和未知的预训练重合仍是评测限制。
+=neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，=neural/prepare-diverse.py= 准备额外成语、专名与正文语料，=neural/prepare-domain.py= 按文档划分本地文档与 =neural/domain-sources.json= 中固定版本的外部中文技术文档，作为输入法/开发领域语料。=neural/train-conditional.py= 可训练单字、短片段和完整输入；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步路径。评测使用固定产物，=--reference-baseline= 检查传统搜索输出是否一致。金标准不参与模型决策；自动注音、相关压力样例和未知的预训练重合仍是评测限制。
 
 尚未实现：上屏后的后续预测、声调输入、自造词与调频。

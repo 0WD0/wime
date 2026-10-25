@@ -1,0 +1,20 @@
+{
+  "openharmony": {"repository": "openharmony/docs", "revision": "f41b9345badd47c7ab0c263344cd7f4b5a549afb",
+                  "paths": ["/zh-cn/**/*.md"], "license": "CC-BY-4.0"},
+  "mdn": {"repository": "mdn/translated-content", "revision": "5626b4a84a23402d37ed469a5e9209936e0e5018",
+          "paths": ["/files/zh-cn/**/*.md"], "license": "CC-BY-SA-2.5 (prose)"},
+  "doris": {"repository": "apache/doris-website", "revision": "c070d866bc3eb456faf2444f7a3837d48731d422",
+            "paths": ["/i18n/zh-CN/**/*.md", "/i18n/zh-CN/**/*.mdx"], "license": "Apache-2.0"},
+  "paddle": {"repository": "PaddlePaddle/docs", "revision": "5e1bc25e60487bd07cd93e4c6b61624e16f90634",
+             "paths": ["/docs/**/*.md", "/docs/**/*.rst"], "license": "Apache-2.0"},
+  "react": {"repository": "reactjs/zh-hans.react.dev", "revision": "471e6ae3012096dcf19e271697acc1f69890b085",
+            "paths": ["/src/content/**/*.md"], "license": "CC-BY-4.0"},
+  "vue": {"repository": "vuejs-translations/docs-zh-cn", "revision": "418f5ae6e15c7a90beae017e44d58dac3d93ad95",
+          "paths": ["/src/**/*.md"], "license": "CC-BY-4.0 (excluding images)"},
+  "trpl": {"repository": "KaiserY/trpl-zh-cn", "revision": "2a9740644f678cafbc48786d00b67927fc0e1b3c",
+           "paths": ["/src/**/*.md"], "license": "MIT"},
+  "rbe": {"repository": "rust-lang-cn/rust-by-example-cn", "revision": "94ef6ea187d7de79e569ce59e8250090e8be2289",
+          "paths": ["/src/**/*.md"], "license": "Apache-2.0"},
+  "rime-home": {"repository": "rime/home", "revision": "50671f1b55f78ef855b6fe67601de7458b503c79",
+                "paths": ["/content/**/*.md", "/manual/**/*.md", "/README.md"], "license": "MIT"}
+}
