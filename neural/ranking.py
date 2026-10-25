@@ -3,6 +3,28 @@ import torch
 import torch.nn.functional as F
 
 from inference import anchored_prompt
+from conditional import composition_span
+
+
+def ranking_composition(row, rng):
+    """Commit a prefix and keep the entire remaining suffix as the label.
+
+    Cutting off the end can turn a perfectly valid alternate continuation
+    into a false negative (e.g. an unfinished word versus a complete one).
+    """
+    size = len(row["gold"][0])
+    choice = rng.random()
+    length = 1 if choice < .2 else rng.randint(2, min(5, size)) if choice < .65 and size >= 2 else min(size, 10)
+    result = composition_span(row, size-length, size)
+    if result["context"] and rng.random() < .1:
+        result = dict(result, context=(result["context"] + rng.choice((" ", "\n", "\n\n")))[-64:])
+    return result
+
+
+def spelling_equivalent(a, b):
+    """Do not force a preference between interchangeable interjection forms."""
+    table = str.maketrans({"喔":"哦", "噢":"哦", "哎":"唉"})
+    return a.translate(table) == b.translate(table)
 
 
 def encode_candidate(row, text, index, window, anchor=2):

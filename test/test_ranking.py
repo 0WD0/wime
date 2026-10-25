@@ -1,5 +1,6 @@
 """Coverage, leakage guards and exact inference/training score agreement."""
 import json
+import random
 from pathlib import Path
 import sys
 import tempfile
@@ -10,11 +11,21 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import CharLM, Config
 from inference import ConditionalEvaluator, anchored_prompt
-from ranking import encode_candidate, candidate_scores, preference_loss
+from ranking import encode_candidate, candidate_scores, preference_loss, ranking_composition, spelling_equivalent
 from replay import phrases, coverage_additions, Protection
 
 
 class Ranking(unittest.TestCase):
+    def test_mined_compositions_never_hide_a_future_suffix(self):
+        row = dict(context="这个", input="bud;yij;heb;le", gold=["补丁已经合并了"])
+        for seed in range(100):
+            selected = ranking_composition(row, random.Random(seed))
+            length = len(selected["gold"][0])
+            self.assertEqual(selected["gold"][0], row["gold"][0][-length:])
+            self.assertEqual(selected["input"], row["input"][-2*length:])
+        self.assertTrue(spelling_equivalent("好哦", "好喔"))
+        self.assertFalse(spelling_equivalent("的", "地"))
+
     def test_scores_match_deployed_evaluator_and_mask_fixed_prefix(self):
         row = dict(context="允许便宜", input="x;ui", gold=["行事"],
                    known_reading=dict(text="便宜", input="bmyi"))

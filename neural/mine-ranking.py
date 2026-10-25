@@ -10,9 +10,10 @@ import random
 import subprocess
 import time
 
-from conditional import ROOT, augment_composition, composition_span
+from conditional import ROOT
 from inference import ConditionalEvaluator
 from replay import Protection, fingerprint, rows
+from ranking import ranking_composition, spelling_equivalent
 
 
 def main():
@@ -37,10 +38,7 @@ def main():
                 counts["protected_source"] += 1
                 continue
             rng = random.Random(row["id"])
-            row = augment_composition(row, rng, .45, .2, .1)
-            if len(row["gold"][0]) > 10:
-                start = rng.randrange(len(row["gold"][0])-9)
-                row = composition_span(row, start, start+10)
+            row = ranking_composition(row, rng)
             # A bare one-character homophone has no reliable intended reading.
             if len(row["gold"][0]) == 1 and not row["context"]:
                 continue
@@ -92,7 +90,7 @@ def main():
                         counts["unreachable"] += 1
                         continue
                     candidates[gold] = matching[0]["score"]/n
-                negatives = [c for c in candidates if c not in row["gold"]]
+                negatives = [c for c in candidates if not any(spelling_equivalent(c, g) for g in row["gold"])]
                 if not negatives:
                     counts["no_negative"] += 1
                     continue
@@ -123,6 +121,7 @@ def main():
     manifest = dict(counts=counts, sampled=len(samples), seconds=time.monotonic()-start,
                     source_files={str(p):fingerprint(p) for p in (args.model, args.replay, args.diverse, args.database)},
                     protected_files=protection.files, width=args.width, context_anchor=2,
+                    compositions="whole or committed-prefix suffix; no hidden continuation",
                     prior_weight=.1, max_initial_margin=.5,
                     sha256=fingerprint(args.out / "train.jsonl"))
     (args.out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+"\n")
