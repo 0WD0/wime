@@ -22,6 +22,21 @@
   "Local safetensors model, downloaded separately at build time."
   :type '(choice (const nil) file) :group 'wime)
 
+(defcustom wime-neural-interpreter nil
+  "Interpreter that runs `wime-neural-program', or nil to execute it directly.
+The CUDA worker's rescorer needs a Python with a recent transformers."
+  :type '(choice (const nil) file) :group 'wime)
+
+(defcustom wime-neural-rescorer nil
+  "Directory of a general causal language model for the CUDA worker.
+Its mean per-character log probability, times `wime-neural-rescorer-weight',
+is added to the model score of every verified candidate.  Nil disables it."
+  :type '(choice (const nil) directory) :group 'wime)
+
+(defcustom wime-neural-rescorer-weight 1.5
+  "Weight of `wime-neural-rescorer' relative to the conditional model score."
+  :type 'number :group 'wime)
+
 (defcustom wime-neural-delay 0.04
   "Seconds without a new input key before requesting neural reranking."
   :type 'number :group 'wime)
@@ -174,20 +189,27 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   (when (and (eq process wime-neural--process) (not (process-live-p process)))
     (wime-neural--fail "worker exited")))
 
+(defun wime-neural--command (model)
+  "Worker command line for MODEL; the model stays the last argument."
+  (append (and wime-neural-interpreter (list wime-neural-interpreter))
+          (list (or (executable-find wime-neural-program)
+                    (expand-file-name wime-neural-program)))
+          (and wime-neural-rescorer
+               (list "--rescorer" (expand-file-name wime-neural-rescorer)
+                     "--rescorer-weight" (number-to-string wime-neural-rescorer-weight)))
+          (list (expand-file-name model))))
+
 (defun wime-neural--start ()
   "Return a running local worker or signal a startup error."
   (unless (process-live-p wime-neural--process)
     (unless (and wime-neural-model-file (file-readable-p wime-neural-model-file))
       (error "Model file is not readable"))
-    (let ((model (expand-file-name wime-neural-model-file))
-          (program (or (executable-find wime-neural-program)
-                       (expand-file-name wime-neural-program)))
-          (default-directory temporary-file-directory))
+    (let ((default-directory temporary-file-directory))
       (setq wime-neural--process
             (make-process :name "wime-neural" :buffer nil :noquery t
                           :connection-type 'pipe :coding 'utf-8-unix
                           :stderr " *wime-neural-errors*"
-                          :command (list program model)
+                          :command (wime-neural--command wime-neural-model-file)
                           :filter #'wime-neural--filter
                           :sentinel #'wime-neural--sentinel))))
   wime-neural--process)

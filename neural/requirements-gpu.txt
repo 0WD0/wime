@@ -2,3 +2,5 @@
 torch>=2.0
 safetensors>=0.4
 pypinyin==0.55.0
+# Only for --rescorer with Qwen3.5 (qwen3_5 architecture).
+transformers>=5.0

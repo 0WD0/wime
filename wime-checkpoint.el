@@ -31,7 +31,8 @@
         :prior_weight wime-neural-prior-weight :prior_confidence wime-neural-prior-confidence
         :context_anchor wime-neural-context-anchor
         :single_character (if wime-neural-single-character t :false)
-        :seed_draft (if wime-neural-seed-candidates "neural" "traditional")))
+        :seed_draft (if wime-neural-seed-candidates "neural" "traditional")
+        :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight))
 
 (defun wime-checkpoint--apply (recipe)
   "Install verified RECIPE variables; callers own the worker transition."
@@ -44,7 +45,9 @@
           wime-neural-prior-confidence (plist-get profile :prior_confidence)
           wime-neural-context-anchor (plist-get profile :context_anchor)
           wime-neural-single-character (eq (plist-get profile :single_character) t)
-          wime-neural-seed-candidates (equal (plist-get profile :seed_draft) "neural"))))
+          wime-neural-seed-candidates (equal (plist-get profile :seed_draft) "neural")
+          wime-neural-rescorer (plist-get profile :rescorer)
+          wime-neural-rescorer-weight (or (plist-get profile :rescorer_weight) 1.5))))
 
 (defun wime-checkpoint-restore ()
   "Restore the explicit startup recipe, retaining packaged defaults on error."
@@ -122,7 +125,11 @@ value.  Return cancellation that leaves the existing worker and input intact."
                   (make-process
                    :name "wime-checkpoint-prewarm" :buffer nil :noquery t :connection-type 'pipe
                    :coding 'utf-8-unix :stderr " *wime-checkpoint-errors*"
-                   :command (list wime-neural-program (plist-get recipe :path))
+                   :command (let* ((profile (plist-get recipe :profile))
+                                   (wime-neural-rescorer (plist-get profile :rescorer))
+                                   (wime-neural-rescorer-weight
+                                    (or (plist-get profile :rescorer_weight) 1.5)))
+                              (wime-neural--command (plist-get recipe :path)))
                    :sentinel (lambda (p _event)
                                (unless (process-live-p p) (fail "New GPU worker could not load checkpoint")))
                    :filter

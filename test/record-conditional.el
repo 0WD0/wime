@@ -17,6 +17,11 @@
 (setq wime-neural-single-character (equal (getenv "WIME_SINGLE_CHARACTER") "1"))
 (setq wime-neural-context-anchor (string-to-number (or (getenv "WIME_CONTEXT_ANCHOR") "0")))
 (setq wime-neural-prior-confidence (string-to-number (or (getenv "WIME_PRIOR_CONFIDENCE") "1")))
+(setq wime-neural-prior-weight (string-to-number (or (getenv "WIME_PRIOR_WEIGHT") "0.1"))
+      wime-neural-interpreter (getenv "WIME_NEURAL_INTERPRETER")
+      wime-neural-rescorer (getenv "WIME_RESCORER")
+      wime-neural-rescorer-weight (string-to-number (or (getenv "WIME_RESCORER_WEIGHT") "1.5"))
+      wime-neural-startup-timeout (string-to-number (or (getenv "WIME_STARTUP_TIMEOUT") "10")))
 (unless (file-readable-p (expand-file-name "wanxiang-lts-zh-hans.gram" wime-grammar-shared-dir))
   (error "Missing octagram artifact"))
 (let ((cases (with-temp-buffer

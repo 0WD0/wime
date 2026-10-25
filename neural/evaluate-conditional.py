@@ -18,6 +18,7 @@ import numpy as np
 
 from conditional import ROOT
 from inference import ConditionalEvaluator, effective_prior_weight
+from rescorer import Rescorer
 
 
 
@@ -48,6 +49,8 @@ def main():
     p.add_argument("--context-anchor", type=int, choices=range(0, 9), default=0,
                    help="keep up to this many committed characters as a fixed decoded prefix")
     p.add_argument("--proposal-order", choices=("position", "gain"), default="position")
+    p.add_argument("--rescorer", help="general causal LM added to verified candidate scores, as gpu-worker.py")
+    p.add_argument("--rescorer-weight", type=float, default=1.5)
     args = p.parse_args()
     if args.width < 1 or args.budget < 1 or not 0 < args.prior_confidence <= 1:
         p.error("width and budget must be positive")
@@ -75,6 +78,7 @@ def main():
 
     evaluator = ConditionalEvaluator(args.model, context_anchor=args.context_anchor,
                                      proposal_order=args.proposal_order)
+    rescorer = Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
     stats, results, latencies = Counter(), [], []
     started = time.monotonic()
     try:
@@ -94,7 +98,7 @@ def main():
             draft = candidates[0] if candidates else original
             best, nbest, best_score = draft, draft, -float("inf")
             calls, visited, recoveries, trace = 0, set(), [], []
-            pool_scores = None
+            pool_scores = rescored = None
             prior_weight = args.prior_weight
             if candidates and (syllables > 1 or (args.single_character and syllables == 1)):
                 path_score = records[0]["score"]
@@ -102,6 +106,8 @@ def main():
                 scores, distributions = evaluator.evaluate(model_context, model_code, candidates)
                 pool_scores = scores.copy()
                 prior_weight = effective_prior_weight(scores, syllables, args.prior_weight, args.prior_confidence)
+                if rescorer:
+                    scores = rescored = rescorer.combine(model_context, candidates, scores)
                 nbest = candidates[int(np.argmax(scores))]
                 seed_index = (max(range(len(records)), key=lambda j: scores[j] +
                                   prior_weight * records[j]["score"] / syllables)
@@ -111,6 +117,8 @@ def main():
                 while calls < args.budget:
                     if calls:
                         scores, distributions = evaluator.evaluate(model_context, model_code, [draft])
+                        if rescorer:
+                            scores = rescorer.combine(model_context, [draft], scores)
                         index = 0
                     else:
                         index = seed_index
@@ -160,7 +168,8 @@ def main():
                     syllables=syllables, oracle_reachable=oracle_reachable,
                     gold_in_beam=any(t in gold for t in candidates),
                     pool=[dict(text=c["text"], prior=c["score"] / syllables,
-                               neural=pool_scores[j] if pool_scores is not None else None)
+                               neural=pool_scores[j] if pool_scores is not None else None,
+                               **(dict(rescored=rescored[j]) if rescored is not None else {}))
                           for j, c in enumerate(records)])
             if (i + 1) % 100 == 0:
                 print(json.dumps(dict(stats, seconds=time.monotonic() - started)), flush=True)
@@ -175,6 +184,7 @@ def main():
                    single_character=args.single_character,
                    context_anchor=args.context_anchor,
                    proposal_order=args.proposal_order,
+                   rescorer=args.rescorer, rescorer_weight=args.rescorer_weight if args.rescorer else None,
                    prior_confidence=args.prior_confidence,
                    width=args.width, seed_draft=args.seed_draft,
                    device=evaluator.device,

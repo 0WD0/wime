@@ -87,6 +87,32 @@ class WorkerContract(unittest.TestCase):
         self.assertEqual(confident["verified_index"], 0)
         self.assertEqual(confident["effective_prior_weight"], 0)
 
+    def test_rescorer_joins_seed_selection_but_not_the_confidence_gate(self):
+        class Evaluator:
+            def evaluate(self, context, code, texts):
+                return [-.05, -.2], ["first", "second"]
+
+            def proposals(self, draft, distribution, margin):
+                self.proposed = distribution
+                return []
+
+        class Rescorer:
+            def combine(self, context, texts, scores):
+                self.seen = (context, texts)
+                return [s + r for s, r in zip(scores, [-2, 0])]
+
+        evaluator, rescorer = Evaluator(), Rescorer()
+        request = self.request(context="上文", seed_candidates=True, prior_weight=.1,
+                               prior_confidence=.5, candidates=[
+                                   dict(text="编译", end=2, dictionary=True, score=-1),
+                                   dict(text="便宜", end=2, dictionary=True, score=-1)])
+        response = worker.respond(evaluator, request, rescorer)
+        self.assertEqual(rescorer.seen, ("上文", ["编译", "便宜"]))
+        self.assertEqual(response["effective_prior_weight"], 0)
+        self.assertEqual(response["verified_index"], 1)
+        self.assertEqual(response["score"], -.2)
+        self.assertEqual(evaluator.proposed, "second")
+
 
 if __name__ == "__main__":
     unittest.main()

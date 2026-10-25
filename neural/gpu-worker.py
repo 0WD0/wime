@@ -5,6 +5,8 @@ Select this executable as wime-neural-program, with a conditional model and
 verify search. Requires the local Python environment to provide PyTorch with
 CUDA and safetensors. Stdout is exclusively the protocol; no typed text is
 included in errors. The model stays on the GPU until the process is stopped.
+An optional --rescorer adds a weighted general-LM score to every verified
+candidate, including the seed pool; proposals still come from the model.
 """
 import argparse
 import json
@@ -13,6 +15,7 @@ import sys
 import time
 
 from inference import ConditionalEvaluator, effective_prior_weight
+from rescorer import Rescorer
 
 
 def validate(request):
@@ -58,7 +61,7 @@ def validate(request):
                 raise ValueError("invalid request")
 
 
-def respond(evaluator, request):
+def respond(evaluator, request, rescorer=None):
     """Keep keyboard/coverage validation identical to conditional Rust verify."""
     validate(request)
     start = time.perf_counter()
@@ -82,6 +85,9 @@ def respond(evaluator, request):
         return result  # Invalid keys or an overlong composition retain traditional candidates.
     prior_weight = (effective_prior_weight(scores, syllables, request["prior_weight"],
                                            request.get("prior_confidence", 1.0)) if seeding else 0.0)
+    if rescorer:
+        # The confidence gate above stays a model-probability rule.
+        scores = rescorer.combine(request["context"], texts, scores)
     selected = (max(range(len(candidates)), key=lambda j: scores[j] +
                     prior_weight * candidates[j][1]["score"] / syllables)
                 if seeding else 0)
@@ -100,12 +106,17 @@ def respond(evaluator, request):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("model")
+    parser.add_argument("--rescorer", help="directory of a transformers causal LM")
+    parser.add_argument("--rescorer-weight", type=float, default=1.5)
     args = parser.parse_args()
     evaluator = ConditionalEvaluator(args.model, device="cuda")
+    rescorer = Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
     # Pay CUDA/kernel initialization once, before the first interactive request.
     evaluator.evaluate("", "aaaa", ["中文"])
+    if rescorer:
+        rescorer.score("", ["中文"])
     for line in sys.stdin:
-        response = respond(evaluator, json.loads(line))
+        response = respond(evaluator, json.loads(line), rescorer)
         print(json.dumps(response, ensure_ascii=False, allow_nan=False), flush=True)
 
 

@@ -32,6 +32,8 @@ wdoom 默认启用经过评测的 25M 拼音条件模型和 CUDA worker：=verif
 
 传统候选立即显示，停键 40 ms 后请求模型。模型读取光标前的可编辑文本和完整双拼音节序列，验证草稿并提出更可能的前缀；Elisp 在词格剪枝前应用约束。最终按模型平均对数概率加上每音节传统评分选择已验证的完整候选。双拼按键和辅助码始终是硬约束；条件模型只支持微软双拼，其他方案不启动验证。实际已上屏的双拼键会随前缀保留，因此 =bmyi= 和 =pmyi= 不会被重新注音混为一谈。
 
+可选的最终重排：=wime-neural-rescorer= 指向一个 transformers 因果语言模型目录（如 Qwen3.5-2B-Base）时，CUDA worker 把它对候选的逐字平均对数概率乘以 =wime-neural-rescorer-weight=（默认 1.5）加到每个已验证完整候选的模型分上，种子池也参与；前缀提议仍只来自条件模型，置信度门控仍只看条件模型概率。配合 =wime-neural-prior-weight= 0.05 使用；需要带 qwen3_5 支持的 transformers，可用 =wime-neural-interpreter= 指定 Python。该配置随 Wime Lab 推理配置保存，=evaluate-conditional.py --rescorer= 与实际异步路径输出一致。
+
 CUDA worker 只支持 =verify=，使用 FP32、不启用 TF32，模型随进程常驻显存。切换 worker 或模型后需要停止旧进程再启用 =wime-neural-mode=，wdoom 的输入初始化会执行这个切换。首次请求允许 =wime-neural-startup-timeout=（默认 10 秒）完成加载和 CUDA 初始化，后续请求使用普通 2 秒超时。最多保留一个正在运行和一个待处理请求；输入、光标、缓冲区内容或选中项变化后，旧结果失效。等待、进程失败或超时时，传统候选仍可用。
 
 =neural/prepare-conditional.py= 按原始对话划分 LCCC，=neural/prepare-technical.py= 按文档划分固定版本的 Kubernetes 和 Python 中文文档，=neural/prepare-diverse.py= 准备额外成语、专名与正文语料。=neural/train-conditional.py= 可训练单字、短片段和完整输入；=neural/evaluate-conditional.py= 使用真正的词典和 octagram 搜索，=test/record-conditional.el= 验证实际异步路径。评测使用固定产物，=--reference-baseline= 检查传统搜索输出是否一致。金标准不参与模型决策；自动注音、相关压力样例和未知的预训练重合仍是评测限制。

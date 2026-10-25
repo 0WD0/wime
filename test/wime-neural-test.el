@@ -333,6 +333,25 @@
             (should (equal delays '(2 10))))
         (delete-process process)))))
 
+(ert-deftest wime-neural-rescorer-travels-with-checkpoint-recipes ()
+  (require 'wime-checkpoint)
+  (let ((wime-neural-program "/bin/true") (wime-neural-interpreter "/usr/bin/python3")
+        wime-neural-rescorer wime-neural-rescorer-weight wime-neural-model-file
+        wime-search-width wime-neural-inference-budget wime-neural-prior-weight
+        wime-neural-prior-confidence wime-neural-context-anchor
+        wime-neural-single-character wime-neural-seed-candidates wime-neural-search-method)
+    (wime-checkpoint--apply '(:path "/m.safetensors"
+                              :profile (:width 16 :budget 4 :rescorer "/lm" :rescorer_weight 2)))
+    (should (equal (wime-neural--command wime-neural-model-file)
+                   '("/usr/bin/python3" "/bin/true" "--rescorer" "/lm"
+                     "--rescorer-weight" "2" "/m.safetensors")))
+    (should (equal (plist-get (wime-checkpoint-profile) :rescorer) "/lm"))
+    ;; Recipes saved before the rescorer existed disable it.
+    (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:width 16 :budget 4)))
+    (should-not wime-neural-rescorer)
+    (should (= wime-neural-rescorer-weight 1.5))
+    (should (eq (plist-get (wime-checkpoint-profile) :rescorer) :null))))
+
 (ert-deftest wime-neural-real-worker-protocol ()
   (let ((program (getenv "WIME_NEURAL_PROGRAM"))
         (model (getenv "WIME_NEURAL_MODEL")))
