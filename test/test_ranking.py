@@ -12,7 +12,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import CharLM, Config
 from inference import ConditionalEvaluator, anchored_prompt
-from ranking import encode_candidate, candidate_scores, preference_loss, ranking_composition, spelling_equivalent
+from ranking import encode_candidate, candidate_scores, preference_loss, ranking_composition, spelling_equivalent, curate_pairs
 from replay import phrases, coverage_additions, Protection
 
 
@@ -40,6 +40,23 @@ class Ranking(unittest.TestCase):
         self.assertEqual(whole["gold"], row["gold"])
         self.assertEqual(whole["context"], row["context"])
         self.assertEqual(whole["composition"], "whole")
+
+    def test_curation_removes_ambiguous_conflicting_and_duplicate_preferences(self):
+        guard = Mock()
+        guard.contains.return_value = False
+        one = dict(id="a", split="train", context="请连接", input="iazo", gold=["插座"], negative="茶座")
+        blank = dict(one, id="blank", context="")
+        alternate = dict(one, id="b", gold=["茶座"], negative="插座")
+        result, counts = curate_pairs([one, blank, dict(one, id="duplicate")], guard)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(counts["ambiguous_blank_context"], 1)
+        self.assertEqual(counts["duplicate"], 1)
+        self.assertEqual(result[0]["source_id"], "a")
+        result, counts = curate_pairs([one, alternate], guard)
+        self.assertFalse(result)
+        self.assertEqual(counts["alternate_observed_positive"], 2)
+        with self.assertRaises(ValueError):
+            curate_pairs([dict(one, split="test")], guard)
 
     def test_scores_match_deployed_evaluator_and_mask_fixed_prefix(self):
         row = dict(context="允许便宜", input="x;ui", gold=["行事"],

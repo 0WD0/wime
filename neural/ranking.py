@@ -1,4 +1,8 @@
 """Differentiable deployed candidate scores, with no loss on fixed context."""
+from collections import Counter, defaultdict
+import hashlib
+import json
+
 import torch
 import torch.nn.functional as F
 
@@ -60,3 +64,45 @@ def preference_loss(scores, priors, weight=.1, margin=.2, temperature=.1):
     """First member of each pair is the observed correct output."""
     joint = scores.reshape(-1, 2) + weight * priors.reshape(-1, 2)
     return (F.softplus((margin + joint[:, 1] - joint[:, 0]) / temperature) * temperature).mean()
+
+
+def curate_pairs(pairs, protected):
+    """Merge training-only pairs without inventing intent for bare homophones.
+
+    Observed text without any effective context is not a preference label.
+    CE still learns those corpus frequencies. Contradictory observed positives
+    and duplicates are removed across mining rounds, retaining exact keys.
+    """
+    counts, positives = Counter(), defaultdict(set)
+    eligible = []
+    for row in pairs:
+        if row.get("split") != "train":
+            raise ValueError("ranking curation accepts training data only")
+        if len(row["input"]) != 2 * len(row["gold"][0]) or len(row["negative"]) != len(row["gold"][0]):
+            raise ValueError("unaligned candidate pair")
+        if protected.contains(row):
+            counts["protected"] += 1
+            continue
+        if not row["context"].strip():
+            counts["ambiguous_blank_context"] += 1
+            continue
+        slot = json.dumps([row["context"], row["input"], row.get("known_reading")],
+                          ensure_ascii=False, sort_keys=True)
+        positives[slot].update(row["gold"])
+        eligible.append((slot, row))
+    result, seen = [], set()
+    for slot, row in eligible:
+        if any(spelling_equivalent(row["negative"], g) for g in positives[slot]):
+            counts["alternate_observed_positive"] += 1
+            continue
+        key = json.dumps([slot, row["gold"], row["negative"]], ensure_ascii=False)
+        if key in seen:
+            counts["duplicate"] += 1
+            continue
+        seen.add(key)
+        result.append(dict(row, id="rank-" + hashlib.sha256(key.encode()).hexdigest()[:24],
+                           source_id=row.get("source_id", row["id"])))
+        counts["kept"] += 1
+        counts["origin/" + row.get("mining_origin", "unknown")] += 1
+        counts["composition/" + row.get("composition", "legacy")] += 1
+    return result, dict(counts)
