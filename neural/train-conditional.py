@@ -8,7 +8,6 @@ import json
 import math
 from pathlib import Path
 import random
-import re
 import time
 
 import numpy as np
@@ -17,6 +16,8 @@ import torch.nn.functional as F
 from safetensors.torch import save_file
 
 from conditional import augment_composition, encode_example, grow_depth, load_model, FORMAT
+from ranking import encode_candidate, candidate_scores, preference_loss
+from replay import Protection
 
 
 def reference_kl(logits, reference_logits, labels):
@@ -48,12 +49,22 @@ def main():
     p.add_argument("--exclude-cases", type=Path, action="append", default=[],
                    help="exclude exact normalized context/answer pairs after span augmentation")
     p.add_argument("--layers", type=int, help="grow depth with initially identity residual blocks")
+    p.add_argument("--ranking-data", type=Path, help="training-only mined same-key pairs")
+    p.add_argument("--ranking-weight", type=float, default=0)
+    p.add_argument("--ranking-batch", type=int, default=32)
+    p.add_argument("--primary-technical-share", type=float,
+                   help="preserve technical sampling share when expanding chat replay")
+    p.add_argument("--save-every", type=int, default=0,
+                   help="retain intermediate checkpoints for development top-1 selection")
     args = p.parse_args()
     if (args.steps < 1 or args.batch < 1 or not 0 <= args.extra_share <= 1
             or not 0 <= args.span_share <= 1 or not 0 <= args.single_share <= 1
             or args.span_share + args.single_share > 1
             or not 0 <= args.whitespace_share <= 1 or args.learning_rate <= 0
-            or args.reference_weight < 0 or (args.reference_weight and not args.reference_model)):
+            or args.reference_weight < 0 or (args.reference_weight and not args.reference_model)
+            or args.ranking_weight < 0 or args.ranking_batch < 1 or args.save_every < 0
+            or (args.primary_technical_share is not None and not 0 < args.primary_technical_share < 1)
+            or (args.ranking_weight and not args.ranking_data)):
         p.error("positive steps/batch/rate required; shares in [0, 1], span + single <= 1")
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -74,13 +85,8 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     exclusions = Counter()
     compositions = Counter()
-    normalize = lambda text: re.sub(r"[^\u4e00-\u9fff]", "", text)
-    protected = set()
-    for path in args.exclude_cases:
-        raw = path.read_text()
-        cases = json.loads(raw) if raw.lstrip().startswith("[") else map(json.loads, raw.splitlines())
-        for case in cases:
-            protected.update((normalize(case.get("context", ""))[-64:], normalize(g)) for g in case["gold"])
+    protection = Protection(args.exclude_cases)
+    primary_categories = []
 
     def pack(split, directory=args.data):
         rows = []
@@ -92,9 +98,12 @@ def main():
                 # occur in different splits; no held-out document is trained on.
                 # Full dev examples remain unchanged for checkpoint selection.
                 if split == "train":
+                    if protection.contains(row):
+                        exclusions[str(directory) + "/protected_source"] += 1
+                        continue
                     row = augment_composition(row, span_rng, args.span_share,
                                               args.single_share, args.whitespace_share)
-                    if (normalize(row["context"])[-64:], normalize(row["gold"][0])) in protected:
+                    if protection.contains(row):
                         exclusions[str(directory) + "/protected_pair"] += 1
                         continue
                     compositions[str(directory) + "/length_" + str(len(row["gold"][0]))] += 1
@@ -107,6 +116,8 @@ def main():
                     exclusions[str(directory) + "/" + split + "/unknown_target"] += 1
                     continue
                 rows.append((x + [0] * (window - len(x)), y + [0] * (window - len(y))))
+                if directory == args.data and split == "train":
+                    primary_categories.append(row.get("category", "chat"))
                 if args.limit and split == "train" and len(rows) >= args.limit:
                     break
         if not rows:
@@ -117,6 +128,34 @@ def main():
     train, dev = pack("train"), pack("dev")
     extra_train = pack("train", args.extra_data) if args.extra_data else None
     extra_dev = pack("dev", args.extra_data) if args.extra_data else None
+    primary_groups = None
+    if args.primary_technical_share is not None:
+        primary_groups = {name:torch.tensor([i for i, c in enumerate(primary_categories) if c == name],
+                                           device="cuda") for name in ("chat", "technical")}
+        if any(len(group) == 0 for group in primary_groups.values()) or sum(map(len, primary_groups.values())) != len(train):
+            raise ValueError("explicit primary shares require chat and technical categories only")
+    ranked, ranked_priors = None, None
+    if args.ranking_data:
+        pairs, priors = [], []
+        with args.ranking_data.open() as source:
+            for line in source:
+                row = json.loads(line)
+                if row["split"] != "train" or protection.contains(row):
+                    raise ValueError("held-out example in ranking data")
+                if row["negative"] in row["gold"]:
+                    raise ValueError("ranking negative is an accepted answer")
+                try:
+                    encoded = [encode_candidate(row, text, index, window)
+                               for text in (row["gold"][0], row["negative"])]
+                except ValueError:
+                    exclusions["ranking/invalid"] += 1
+                    continue
+                pairs.append([(x + [0]*(window-len(x)), y + [0]*(window-len(y))) for x, y in encoded])
+                priors.append(row["priors"])
+        if not pairs:
+            raise ValueError("no encodable ranking pairs")
+        ranked = torch.tensor(np.array(pairs, dtype=np.int64), device="cuda")
+        ranked_priors = torch.tensor(priors, device="cuda")
     model = model.cuda()
     reference = None
     if args.reference_weight:
@@ -133,6 +172,8 @@ def main():
                                  fused=True)
     manifest = json.loads((args.data / "manifest.json").read_text())
     settings = {**vars(args), "data": str(args.data), "out": str(args.out),
+                "ranking_data": str(args.ranking_data) if args.ranking_data else None,
+                "ranking_pairs": len(ranked) if ranked is not None else 0,
                 "exclude_cases": {str(p): hashlib.file_digest(p.open("rb"), "sha256").hexdigest()
                                   for p in args.exclude_cases},
                 "extra_data": str(args.extra_data) if args.extra_data else None,
@@ -152,11 +193,27 @@ def main():
                                   initialization="zero residual output projections")
     if args.extra_data:
         settings["extra_manifest"] = json.loads((args.extra_data / "manifest.json").read_text())
+    if args.ranking_data:
+        settings["ranking_sha256"] = hashlib.file_digest(args.ranking_data.open("rb"), "sha256").hexdigest()
+        settings["ranking_objective"] = dict(context_anchor=2, prior_weight=.1, margin=.2,
+                                             temperature=.1, score="mean new-character log probability; no EOS")
     (args.out / "run.json").write_text(json.dumps(settings, ensure_ascii=False, indent=2) + "\n")
     start, best = time.monotonic(), float("inf")
 
+    seen = {id(data):torch.zeros(len(data), dtype=torch.bool, device="cuda")
+            for data in (train, extra_train) if data is not None}
+
     def batch(data, n):
-        b = data[torch.randint(len(data), (n,), device="cuda")]
+        if data is train and primary_groups is not None:
+            technical = round(n * args.primary_technical_share)
+            indices = torch.cat([group[torch.randint(len(group), (count,), device="cuda")]
+                                 for group, count in ((primary_groups["chat"], n-technical),
+                                                      (primary_groups["technical"], technical))])
+        else:
+            indices = torch.randint(len(data), (n,), device="cuda")
+        if id(data) in seen:
+            seen[id(data)][indices] = True
+        b = data[indices]
         # Right padding is ignored; truncate to the longest example in this batch.
         length = int((b[:, 0] != 0).sum(1).max())
         return b[:, 0, :length], b[:, 1, :length]
@@ -194,28 +251,54 @@ def main():
         # technical rows, and retain the actual sampling share in run.json.
         domain = extra_train if extra_train is not None and np.random.random() < args.extra_share else train
         value = loss(*batch(domain, args.batch), preserve=domain is train)
+        rank_value = None
+        if ranked is not None:
+            # Draw in the CE control too, preserving identical CE batch RNG.
+            choices = torch.randint(len(ranked), (args.ranking_batch,), device="cuda")
+            if args.ranking_weight:
+                pair_batch = ranked[choices].flatten(0, 1)
+                length = int((pair_batch[:, 0] != 0).sum(1).max())
+                with torch.autocast("cuda", dtype=torch.bfloat16):
+                    logits, _ = model(pair_batch[:, 0, :length])
+                    scores = candidate_scores(logits, pair_batch[:, 1, :length])
+                    rank_value = preference_loss(scores, ranked_priors[choices])
+                value = value + args.ranking_weight * rank_value
         value.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
         if step % 100 == 0 or step == 1:
-            print(json.dumps(dict(step=step, loss=value.item(), seconds=time.monotonic() - start)), flush=True)
-        if step % 500 == 0 or step == args.steps:
+            print(json.dumps(dict(step=step, loss=value.item(),
+                                  ranking_loss=rank_value.item() if rank_value is not None else None,
+                                  seconds=time.monotonic() - start)), flush=True)
+        if step % 500 == 0 or step == args.steps or (args.save_every and step % args.save_every == 0):
             # Fixed validation batches; held-out tests only filter leakage.
             validation = validate(step)
-            if validation < best:
-                best = validation
+            improved = validation < best
+            best = min(best, validation)
+            checkpoint = args.save_every and (step % args.save_every == 0 or step == args.steps)
+            if improved or checkpoint:
                 tensors = {k: v.detach().half().cpu().contiguous() for k, v in model.state_dict().items()
                            if k != "head.weight"}
                 info = dict(metadata, config=json.dumps(dataclasses.asdict(model.cfg)),
                             vocab=json.dumps(vocab, ensure_ascii=False), precision="f16", conditional=FORMAT,
-                            validation_loss=str(best), training_steps=str(step),
+                            validation_loss=str(validation), training_steps=str(step),
+                            ranking_weight=str(args.ranking_weight),
                             single_character_training=str(args.single_share > 0).lower(),
                             reference_retention=str(args.reference_weight),
                             attribution=metadata.get("attribution", "") + " Continued training; corpus manifests in run.json."
                             + (" Additional corpus attribution and licenses: "
                                + json.dumps(settings["extra_manifest"], ensure_ascii=False)
                                if args.extra_data else ""))
-                save_file(tensors, str(args.out / "model.safetensors"), metadata=info)
+                if improved:
+                    save_file(tensors, str(args.out / "model.safetensors"), metadata=info)
+                if checkpoint:
+                    save_file(tensors, str(args.out / f"step-{step}.safetensors"), metadata=info)
+    settings["seen_training_rows"] = {"primary":int(seen[id(train)].sum()),
+                                      "extra":int(seen[id(extra_train)].sum()) if extra_train is not None else 0}
+    if primary_groups is not None:
+        settings["seen_primary_categories"] = {name:int(seen[id(train)][indices].sum())
+                                                for name, indices in primary_groups.items()}
+    (args.out / "run.json").write_text(json.dumps(settings, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps(dict(best_validation_loss=best, seconds=time.monotonic() - start)), flush=True)
 
 

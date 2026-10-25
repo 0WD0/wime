@@ -8,6 +8,7 @@ from pathlib import Path
 import random
 
 from conditional import augment_composition
+from replay import coverage_additions
 
 
 def main():
@@ -15,10 +16,17 @@ def main():
     parser.add_argument("--chat", type=Path, required=True)
     parser.add_argument("--technical", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--coverage-extra", type=int, default=0,
+                        help="add up to this many chat rows covering missed training phrases")
+    parser.add_argument("--min-support", type=int, default=3)
     args = parser.parse_args()
+    if args.coverage_extra < 0 or args.min_support < 1:
+        parser.error("nonnegative extra rows and positive support required")
     args.out.mkdir(parents=True, exist_ok=True)
     manifest = dict(sampling="lowest SHA256 of source example id; original document splits retained",
                     sources={}, counts={})
+    if args.coverage_extra:
+        manifest["sampling"] += "; training-only phrase coverage additions in source order"
     for split in ("train", "dev"):
         rows = []
         for name, directory, limit in (("chat", args.chat, 195000 if split == "train" else 2600),
@@ -26,6 +34,11 @@ def main():
             with (directory / (split + ".jsonl")).open() as f:
                 selected = heapq.nsmallest(limit, map(json.loads, f),
                                            key=lambda r:hashlib.sha256(r["id"].encode()).digest())
+            if split == "train" and name == "chat" and args.coverage_extra:
+                additions, audit = coverage_additions(directory / "train.jsonl", selected,
+                                                      args.coverage_extra, args.min_support)
+                selected += additions
+                manifest["coverage"] = audit
             for row in selected:
                 row["category"] = name
                 if split == "dev":
