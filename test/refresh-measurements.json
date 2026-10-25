@@ -1,0 +1,755 @@
+{
+  "date": "2026-10-25",
+  "status": "partial_evaluation_pending",
+  "plan": {
+    "base": "1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e",
+    "parameters": {
+      "learning_rate": 1e-05,
+      "ranking_weight": 0.5,
+      "extra_data": "/home/_WD_/.cache/wime-conditional/diverse",
+      "span_share": 0.3,
+      "single_share": 0.15,
+      "data": "/home/_WD_/.cache/wime-conditional/replay-coverage",
+      "steps": 4000,
+      "reference_weight": 0.0,
+      "whitespace_share": 0.1,
+      "ranking_batch": 32,
+      "batch": 128,
+      "ranking_data": "/home/_WD_/.cache/wime-conditional/ranking-refresh/control-pairs.jsonl",
+      "save_every": 2000,
+      "primary_technical_share": 0.35,
+      "seed": 20261026,
+      "extra_share": 0.4,
+      "exclude_cases": [
+        "/home/_WD_/.cache/wime-conditional/test-programming.json",
+        "/home/_WD_/.cache/wime-conditional/dev-programming.json",
+        "/home/_WD_/.cache/wime-conditional/stress-cases.json",
+        "/home/_WD_/Projects/dev-monorepo/emacs-packages/wime/test/stress-failures.json",
+        "/home/_WD_/.cache/wime-conditional/diverse/dev.jsonl",
+        "/home/_WD_/.cache/wime-conditional/diverse/evaluation.json",
+        "/home/_WD_/.cache/wime-conditional/replay/dev.jsonl",
+        "/home/_WD_/.cache/wime-conditional/wdoom-cuda-cases.json",
+        "/home/_WD_/.cache/wime-conditional/anchor-commit-cases.json",
+        "/home/_WD_/.cache/wime-conditional/diverse/test.jsonl",
+        "/home/_WD_/.cache/wime-conditional/ranking-refresh/protected-debug.json"
+      ]
+    },
+    "control_pairs_before": 4631,
+    "control_pairs_after": 4630,
+    "protection": {
+      "/home/_WD_/.cache/wime-conditional/test-programming.json": "dce1695810c7bdf524e359f861243adb3bb4fc64a717b2b2394de8d8534003e1",
+      "/home/_WD_/.cache/wime-conditional/dev-programming.json": "ededd664192a8565288531ebca68cc408057a6be294b8c2554ff722c6d0b6482",
+      "/home/_WD_/.cache/wime-conditional/stress-cases.json": "b436b258d272b3a406ece44748120fb08b8312f894d5d7b8d5fdedd6638fb549",
+      "/home/_WD_/Projects/dev-monorepo/emacs-packages/wime/test/stress-failures.json": "337a51bf827c2a9ee612f2af20bc3f958319f662c27df6de8f2e84338d5f981c",
+      "/home/_WD_/.cache/wime-conditional/diverse/dev.jsonl": "9b050058c692ec9aea3ec049501709103483668337b136149ac496b811c74a4e",
+      "/home/_WD_/.cache/wime-conditional/diverse/evaluation.json": "1190e627314b9f30ee0e9816be52982bde0e79b0ff30886cb211d3b8228e9f7a",
+      "/home/_WD_/.cache/wime-conditional/replay/dev.jsonl": "8669e97b7040e15bd201342635c7e376233f2cf074e4712bc2e2997fb01e83ed",
+      "/home/_WD_/.cache/wime-conditional/wdoom-cuda-cases.json": "15df6c7b67347bce54df4431e5fdd6d3f9f400e2109d425b640cc73f52a58691",
+      "/home/_WD_/.cache/wime-conditional/anchor-commit-cases.json": "cc58c92dd744dbbb45892c6ca41fcca20bb48d32502afe6d6877c6fae61bc3a0",
+      "/home/_WD_/.cache/wime-conditional/diverse/test.jsonl": "7487a425551f41d1cc600eca1622e1d292cff1501234d3d573d30f1a7bd4b7e7",
+      "/home/_WD_/.cache/wime-conditional/ranking-refresh/protected-debug.json": "add9acf0f499203abb107e751a030f21c0f32f0947ac68f83fbe80525c1a2f85"
+    },
+    "mining": {
+      "seed": 20261026,
+      "per_domain": 10000,
+      "whole_share": 0.6
+    },
+    "selection": "Development-only: fixed candidate pools shortlist one 2000/4000 checkpoint per arm, then full-search development comparison. All checkpoints remain switchable regardless of score.",
+    "evaluation": [
+      "fixed",
+      "stress",
+      "independent",
+      "failures",
+      "user",
+      "lab-replay-smoke"
+    ],
+    "inference": {
+      "width": 16,
+      "budget": 4,
+      "prior_weight": 0.1,
+      "prior_confidence": 1.0,
+      "context_anchor": 2,
+      "single_character": true,
+      "seed_draft": "neural"
+    },
+    "notes": "Matched continuation from ranking-4000. Refreshed arm adds train-only mined whole/suffix pairs with actual committed readings; original-pairs arm controls for further CE/ranking training. No test rows are used as training samples.",
+    "control_job": "425706a1cb344ba7ac0cd8e556ead2ac",
+    "curation": "Before refreshed-arm training: merge old and newly mined TRAIN pairs; remove empty effective context, observed-positive conflicts, protected overlaps and duplicates. CE corpus frequencies remain unchanged.",
+    "old_pair_audit": {
+      "pairs": 4630,
+      "blank_context": 447,
+      "blank_entity": 323,
+      "longer_than_10": 0,
+      "committed_reading_records": 0
+    },
+    "refreshed_job": "930c90dcb44d441ba4a9c8f91b0895d7"
+  },
+  "data_audit": {
+    "counts": {
+      "ambiguous_blank_context": 1500,
+      "kept": 12005,
+      "origin/original": 4183,
+      "composition/legacy": 4183,
+      "origin/refreshed": 7822,
+      "composition/whole": 5198,
+      "composition/suffix": 2624,
+      "duplicate": 5
+    },
+    "pairs": 12005,
+    "all_source_train": true,
+    "all_original_reading_suffixes": true,
+    "protected_overlap": 0,
+    "known_committed_readings": 2624,
+    "over_ten_characters": 3095,
+    "sha256": "d2de94a8ef352cd2dd3d07a54e3ed4f60d0cc35a60544deae013c7972e7fbe92",
+    "limitations": "Observed contextual text can still be ambiguous; raw corpus windows and automatic pronunciation labels may be imperfect."
+  },
+  "coverage_audit": {
+    "categories": {
+      "encyclopedia": 1645,
+      "news": 1696,
+      "chid_prose": 1795,
+      "chat": 3523,
+      "entity": 950,
+      "technical": 1939,
+      "idiom": 457
+    },
+    "lengths": {
+      "9": 723,
+      "4": 1262,
+      "10": 2297,
+      "1": 470,
+      "6": 607,
+      "3": 699,
+      "8": 683,
+      "5": 872,
+      "2": 578,
+      "7": 719,
+      "11": 343,
+      "16": 1476,
+      "12": 385,
+      "13": 312,
+      "15": 257,
+      "14": 322
+    },
+    "punctuation_only_contexts": 42,
+    "distinct_source_rows": 11948
+  },
+  "development_selection": {
+    "candidates": [
+      {
+        "role": "control",
+        "checkpoint": "7cdf7f8b2ed2edc67eff3953d0b91c48f3793f3e9ed2ef83db3d3ec810b9e62a",
+        "step": 4000,
+        "path": "/home/_WD_/.local/share/wime/models/7cdf7f8b2ed2edc67eff3953d0b91c48f3793f3e9ed2ef83db3d3ec810b9e62a.safetensors",
+        "prior_weight": 0.1,
+        "counts": {
+          "total": 2944,
+          "correct": 2180,
+          "old/total": 2304,
+          "old/correct": 1776,
+          "old/chat/total": 512,
+          "old/chat/correct": 334,
+          "old/chat_short/total": 256,
+          "old/chat_short/correct": 203,
+          "old/technical/total": 512,
+          "old/technical/correct": 428,
+          "old/technical_short/total": 256,
+          "old/technical_short/correct": 208,
+          "old/python/total": 512,
+          "old/python/correct": 398,
+          "old/python_short/total": 256,
+          "old/python_short/correct": 205,
+          "new/total": 640,
+          "new/correct": 404,
+          "new/chid_prose/total": 128,
+          "new/chid_prose/correct": 75,
+          "new/encyclopedia/total": 128,
+          "new/encyclopedia/correct": 77,
+          "new/entity/total": 128,
+          "new/entity/correct": 58,
+          "new/idiom/total": 128,
+          "new/idiom/correct": 117,
+          "new/news/total": 128,
+          "new/news/correct": 77
+        },
+        "objective": 0.7010416666666667
+      },
+      {
+        "role": "control",
+        "checkpoint": "2cb07e43b4c288f2e6310fc98db3c855420b6ee11a3edfcd7be55a5daf9d147c",
+        "step": 2000,
+        "path": "/home/_WD_/.local/share/wime/models/2cb07e43b4c288f2e6310fc98db3c855420b6ee11a3edfcd7be55a5daf9d147c.safetensors",
+        "prior_weight": 0.1,
+        "counts": {
+          "total": 2944,
+          "correct": 2170,
+          "old/total": 2304,
+          "old/correct": 1769,
+          "old/chat/total": 512,
+          "old/chat/correct": 332,
+          "old/chat_short/total": 256,
+          "old/chat_short/correct": 201,
+          "old/technical/total": 512,
+          "old/technical/correct": 428,
+          "old/technical_short/total": 256,
+          "old/technical_short/correct": 207,
+          "old/python/total": 512,
+          "old/python/correct": 397,
+          "old/python_short/total": 256,
+          "old/python_short/correct": 204,
+          "new/total": 640,
+          "new/correct": 401,
+          "new/chid_prose/total": 128,
+          "new/chid_prose/correct": 74,
+          "new/encyclopedia/total": 128,
+          "new/encyclopedia/correct": 78,
+          "new/entity/total": 128,
+          "new/entity/correct": 57,
+          "new/idiom/total": 128,
+          "new/idiom/correct": 117,
+          "new/news/total": 128,
+          "new/news/correct": 75
+        },
+        "objective": 0.6971788194444444
+      },
+      {
+        "role": "refreshed",
+        "checkpoint": "03643c724b7e648ed72aab8cf2a3e6ea6624ddadcd8bbeecbc4c646e6c4d2239",
+        "step": 4000,
+        "path": "/home/_WD_/.local/share/wime/models/03643c724b7e648ed72aab8cf2a3e6ea6624ddadcd8bbeecbc4c646e6c4d2239.safetensors",
+        "prior_weight": 0.1,
+        "counts": {
+          "total": 2944,
+          "correct": 2184,
+          "old/total": 2304,
+          "old/correct": 1777,
+          "old/chat/total": 512,
+          "old/chat/correct": 334,
+          "old/chat_short/total": 256,
+          "old/chat_short/correct": 202,
+          "old/technical/total": 512,
+          "old/technical/correct": 430,
+          "old/technical_short/total": 256,
+          "old/technical_short/correct": 210,
+          "old/python/total": 512,
+          "old/python/correct": 395,
+          "old/python_short/total": 256,
+          "old/python_short/correct": 206,
+          "new/total": 640,
+          "new/correct": 407,
+          "new/chid_prose/total": 128,
+          "new/chid_prose/correct": 74,
+          "new/encyclopedia/total": 128,
+          "new/encyclopedia/correct": 79,
+          "new/entity/total": 128,
+          "new/entity/correct": 60,
+          "new/idiom/total": 128,
+          "new/idiom/correct": 117,
+          "new/news/total": 128,
+          "new/news/correct": 77
+        },
+        "objective": 0.7036024305555556
+      },
+      {
+        "role": "refreshed",
+        "checkpoint": "1b03293a2b249614477f70485603c5549db52895e2e550676c970a77782a42ff",
+        "step": 2000,
+        "path": "/home/_WD_/.local/share/wime/models/1b03293a2b249614477f70485603c5549db52895e2e550676c970a77782a42ff.safetensors",
+        "prior_weight": 0.1,
+        "counts": {
+          "total": 2944,
+          "correct": 2172,
+          "old/total": 2304,
+          "old/correct": 1769,
+          "old/chat/total": 512,
+          "old/chat/correct": 332,
+          "old/chat_short/total": 256,
+          "old/chat_short/correct": 200,
+          "old/technical/total": 512,
+          "old/technical/correct": 426,
+          "old/technical_short/total": 256,
+          "old/technical_short/correct": 208,
+          "old/python/total": 512,
+          "old/python/correct": 399,
+          "old/python_short/total": 256,
+          "old/python_short/correct": 204,
+          "new/total": 640,
+          "new/correct": 403,
+          "new/chid_prose/total": 128,
+          "new/chid_prose/correct": 72,
+          "new/encyclopedia/total": 128,
+          "new/encyclopedia/correct": 78,
+          "new/entity/total": 128,
+          "new/entity/correct": 60,
+          "new/idiom/total": 128,
+          "new/idiom/correct": 117,
+          "new/news/total": 128,
+          "new/news/correct": 76
+        },
+        "objective": 0.6987413194444444
+      }
+    ],
+    "selected": {
+      "control": {
+        "role": "control",
+        "checkpoint": "7cdf7f8b2ed2edc67eff3953d0b91c48f3793f3e9ed2ef83db3d3ec810b9e62a",
+        "step": 4000,
+        "path": "/home/_WD_/.local/share/wime/models/7cdf7f8b2ed2edc67eff3953d0b91c48f3793f3e9ed2ef83db3d3ec810b9e62a.safetensors",
+        "prior_weight": 0.1,
+        "counts": {
+          "total": 2944,
+          "correct": 2180,
+          "old/total": 2304,
+          "old/correct": 1776,
+          "old/chat/total": 512,
+          "old/chat/correct": 334,
+          "old/chat_short/total": 256,
+          "old/chat_short/correct": 203,
+          "old/technical/total": 512,
+          "old/technical/correct": 428,
+          "old/technical_short/total": 256,
+          "old/technical_short/correct": 208,
+          "old/python/total": 512,
+          "old/python/correct": 398,
+          "old/python_short/total": 256,
+          "old/python_short/correct": 205,
+          "new/total": 640,
+          "new/correct": 404,
+          "new/chid_prose/total": 128,
+          "new/chid_prose/correct": 75,
+          "new/encyclopedia/total": 128,
+          "new/encyclopedia/correct": 77,
+          "new/entity/total": 128,
+          "new/entity/correct": 58,
+          "new/idiom/total": 128,
+          "new/idiom/correct": 117,
+          "new/news/total": 128,
+          "new/news/correct": 77
+        },
+        "objective": 0.7010416666666667
+      },
+      "refreshed": {
+        "role": "refreshed",
+        "checkpoint": "03643c724b7e648ed72aab8cf2a3e6ea6624ddadcd8bbeecbc4c646e6c4d2239",
+        "step": 4000,
+        "path": "/home/_WD_/.local/share/wime/models/03643c724b7e648ed72aab8cf2a3e6ea6624ddadcd8bbeecbc4c646e6c4d2239.safetensors",
+        "prior_weight": 0.1,
+        "counts": {
+          "total": 2944,
+          "correct": 2184,
+          "old/total": 2304,
+          "old/correct": 1777,
+          "old/chat/total": 512,
+          "old/chat/correct": 334,
+          "old/chat_short/total": 256,
+          "old/chat_short/correct": 202,
+          "old/technical/total": 512,
+          "old/technical/correct": 430,
+          "old/technical_short/total": 256,
+          "old/technical_short/correct": 210,
+          "old/python/total": 512,
+          "old/python/correct": 395,
+          "old/python_short/total": 256,
+          "old/python_short/correct": 206,
+          "new/total": 640,
+          "new/correct": 407,
+          "new/chid_prose/total": 128,
+          "new/chid_prose/correct": 74,
+          "new/encyclopedia/total": 128,
+          "new/encyclopedia/correct": 79,
+          "new/entity/total": 128,
+          "new/entity/correct": 60,
+          "new/idiom/total": 128,
+          "new/idiom/correct": 117,
+          "new/news/total": 128,
+          "new/news/correct": 77
+        },
+        "objective": 0.7036024305555556
+      }
+    },
+    "criterion": "Development-only: fixed candidate pools shortlist one 2000/4000 checkpoint per arm, then full-search development comparison. All checkpoints remain switchable regardless of score."
+  },
+  "evaluation": {
+    "dev": {
+      "control_vs_previous": {
+        "overall": {
+          "total": 2944,
+          "before": 2285,
+          "after": 2278,
+          "fixed": 27,
+          "regressed": 34,
+          "same_width_octagram": 1789
+        },
+        "groups": {
+          "category": {
+            "chat": {
+              "total": 512,
+              "before": 336,
+              "after": 339,
+              "fixed": 7,
+              "regressed": 4,
+              "same_width_octagram": 298
+            },
+            "chat_short": {
+              "total": 256,
+              "before": 201,
+              "after": 204,
+              "fixed": 4,
+              "regressed": 1,
+              "same_width_octagram": 180
+            },
+            "chid_prose": {
+              "total": 128,
+              "before": 72,
+              "after": 73,
+              "fixed": 3,
+              "regressed": 2,
+              "same_width_octagram": 68
+            },
+            "encyclopedia": {
+              "total": 128,
+              "before": 81,
+              "after": 76,
+              "fixed": 1,
+              "regressed": 6,
+              "same_width_octagram": 59
+            },
+            "entity": {
+              "total": 128,
+              "before": 70,
+              "after": 67,
+              "fixed": 0,
+              "regressed": 3,
+              "same_width_octagram": 55
+            },
+            "idiom": {
+              "total": 128,
+              "before": 120,
+              "after": 117,
+              "fixed": 0,
+              "regressed": 3,
+              "same_width_octagram": 108
+            },
+            "news": {
+              "total": 128,
+              "before": 78,
+              "after": 77,
+              "fixed": 2,
+              "regressed": 3,
+              "same_width_octagram": 66
+            },
+            "python": {
+              "total": 512,
+              "before": 438,
+              "after": 435,
+              "fixed": 3,
+              "regressed": 6,
+              "same_width_octagram": 288
+            },
+            "python_short": {
+              "total": 256,
+              "before": 212,
+              "after": 213,
+              "fixed": 4,
+              "regressed": 3,
+              "same_width_octagram": 161
+            },
+            "technical": {
+              "total": 512,
+              "before": 461,
+              "after": 462,
+              "fixed": 3,
+              "regressed": 2,
+              "same_width_octagram": 347
+            },
+            "technical_short": {
+              "total": 256,
+              "before": 216,
+              "after": 215,
+              "fixed": 0,
+              "regressed": 1,
+              "same_width_octagram": 159
+            }
+          },
+          "variant": {
+            "None": {
+              "total": 2944,
+              "before": 2285,
+              "after": 2278,
+              "fixed": 27,
+              "regressed": 34,
+              "same_width_octagram": 1789
+            }
+          }
+        }
+      },
+      "refreshed_vs_previous": {
+        "overall": {
+          "total": 2944,
+          "before": 2285,
+          "after": 2299,
+          "fixed": 54,
+          "regressed": 40,
+          "same_width_octagram": 1789
+        },
+        "groups": {
+          "category": {
+            "chat": {
+              "total": 512,
+              "before": 336,
+              "after": 341,
+              "fixed": 12,
+              "regressed": 7,
+              "same_width_octagram": 298
+            },
+            "chat_short": {
+              "total": 256,
+              "before": 201,
+              "after": 203,
+              "fixed": 5,
+              "regressed": 3,
+              "same_width_octagram": 180
+            },
+            "chid_prose": {
+              "total": 128,
+              "before": 72,
+              "after": 75,
+              "fixed": 4,
+              "regressed": 1,
+              "same_width_octagram": 68
+            },
+            "encyclopedia": {
+              "total": 128,
+              "before": 81,
+              "after": 82,
+              "fixed": 5,
+              "regressed": 4,
+              "same_width_octagram": 59
+            },
+            "entity": {
+              "total": 128,
+              "before": 70,
+              "after": 70,
+              "fixed": 2,
+              "regressed": 2,
+              "same_width_octagram": 55
+            },
+            "idiom": {
+              "total": 128,
+              "before": 120,
+              "after": 117,
+              "fixed": 2,
+              "regressed": 5,
+              "same_width_octagram": 108
+            },
+            "news": {
+              "total": 128,
+              "before": 78,
+              "after": 78,
+              "fixed": 3,
+              "regressed": 3,
+              "same_width_octagram": 66
+            },
+            "python": {
+              "total": 512,
+              "before": 438,
+              "after": 436,
+              "fixed": 8,
+              "regressed": 10,
+              "same_width_octagram": 288
+            },
+            "python_short": {
+              "total": 256,
+              "before": 212,
+              "after": 213,
+              "fixed": 3,
+              "regressed": 2,
+              "same_width_octagram": 161
+            },
+            "technical": {
+              "total": 512,
+              "before": 461,
+              "after": 465,
+              "fixed": 6,
+              "regressed": 2,
+              "same_width_octagram": 347
+            },
+            "technical_short": {
+              "total": 256,
+              "before": 216,
+              "after": 219,
+              "fixed": 4,
+              "regressed": 1,
+              "same_width_octagram": 159
+            }
+          },
+          "variant": {
+            "None": {
+              "total": 2944,
+              "before": 2285,
+              "after": 2299,
+              "fixed": 54,
+              "regressed": 40,
+              "same_width_octagram": 1789
+            }
+          }
+        }
+      }
+    },
+    "fixed": {
+      "control_vs_previous": {
+        "overall": {
+          "total": 4864,
+          "before": 3828,
+          "after": 3843,
+          "fixed": 50,
+          "regressed": 35,
+          "same_width_octagram": 2950
+        },
+        "groups": {
+          "category": {
+            "chat": {
+              "total": 2048,
+              "before": 1391,
+              "after": 1400,
+              "fixed": 27,
+              "regressed": 18,
+              "same_width_octagram": 1172
+            },
+            "chat_short": {
+              "total": 256,
+              "before": 199,
+              "after": 202,
+              "fixed": 3,
+              "regressed": 0,
+              "same_width_octagram": 172
+            },
+            "kubernetes": {
+              "total": 1024,
+              "before": 931,
+              "after": 931,
+              "fixed": 7,
+              "regressed": 7,
+              "same_width_octagram": 705
+            },
+            "kubernetes_short": {
+              "total": 256,
+              "before": 223,
+              "after": 222,
+              "fixed": 1,
+              "regressed": 2,
+              "same_width_octagram": 171
+            },
+            "python": {
+              "total": 1024,
+              "before": 868,
+              "after": 872,
+              "fixed": 9,
+              "regressed": 5,
+              "same_width_octagram": 583
+            },
+            "python_short": {
+              "total": 256,
+              "before": 216,
+              "after": 216,
+              "fixed": 3,
+              "regressed": 3,
+              "same_width_octagram": 147
+            }
+          },
+          "variant": {
+            "None": {
+              "total": 4864,
+              "before": 3828,
+              "after": 3843,
+              "fixed": 50,
+              "regressed": 35,
+              "same_width_octagram": 2950
+            }
+          }
+        }
+      },
+      "refreshed_vs_previous": {
+        "overall": {
+          "total": 4864,
+          "before": 3828,
+          "after": 3850,
+          "fixed": 72,
+          "regressed": 50,
+          "same_width_octagram": 2950
+        },
+        "groups": {
+          "category": {
+            "chat": {
+              "total": 2048,
+              "before": 1391,
+              "after": 1411,
+              "fixed": 38,
+              "regressed": 18,
+              "same_width_octagram": 1172
+            },
+            "chat_short": {
+              "total": 256,
+              "before": 199,
+              "after": 203,
+              "fixed": 5,
+              "regressed": 1,
+              "same_width_octagram": 172
+            },
+            "kubernetes": {
+              "total": 1024,
+              "before": 931,
+              "after": 930,
+              "fixed": 11,
+              "regressed": 12,
+              "same_width_octagram": 705
+            },
+            "kubernetes_short": {
+              "total": 256,
+              "before": 223,
+              "after": 220,
+              "fixed": 0,
+              "regressed": 3,
+              "same_width_octagram": 171
+            },
+            "python": {
+              "total": 1024,
+              "before": 868,
+              "after": 871,
+              "fixed": 15,
+              "regressed": 12,
+              "same_width_octagram": 583
+            },
+            "python_short": {
+              "total": 256,
+              "before": 216,
+              "after": 215,
+              "fixed": 3,
+              "regressed": 4,
+              "same_width_octagram": 147
+            }
+          },
+          "variant": {
+            "None": {
+              "total": 4864,
+              "before": 3828,
+              "after": 3850,
+              "fixed": 72,
+              "regressed": 50,
+              "same_width_octagram": 2950
+            }
+          }
+        }
+      }
+    }
+  },
+  "pending": [
+    "previous fixed-score reproduction",
+    "independent",
+    "stress",
+    "failures",
+    "user",
+    "real segmented input replay"
+  ]
+}
