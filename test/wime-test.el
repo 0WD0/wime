@@ -317,7 +317,11 @@
         (setq wime--candidate-scores '(("甲丙" . -0.1) ("乙丁" . -0.15) ("甲丁" . -2.0)))
         (let ((text (wime--format)))
           (should (equal (substring-no-properties text) "aabb 甲丙1乙丁2甲丁"))
-          (should (eq (get-text-property 5 'face text) 'wime-uncertain-face)))
+          (should (eq (get-text-property 5 'face text) 'wime-uncertain-face))
+          ;; Each alternative is boxed as one face run; its label is not.
+          (should (equal (mapcar (lambda (i) (get-text-property i 'face text)) '(7 8 9 10 11 12))
+                         '(wime-label-face wime-alternatives-face wime-alternatives-face
+                           wime-label-face wime-alternatives-face wime-alternatives-face))))
         (should (equal wime--span-choices '((0 2 "乙丁") (0 2 "甲丁"))))
         ;; Digit 1 fixes the span; the search keeps it and scores are stale.
         (wime--select-digit ?1)

@@ -63,6 +63,12 @@
   "Face for characters fixed by span selection."
   :group 'wime)
 
+(defface wime-alternatives-face
+  '((((type graphic)) (:inherit wime-candidate-face :box (:line-width (1 . -1) :color "gray50")))
+    (t (:inherit (wime-candidate-face secondary-selection))))
+  "Face for a numbered span alternative, boxed apart from the reading."
+  :group 'wime)
+
 (defface wime-label-face
   '((t (:inherit shadow)))
   "Face for the digit before an inline span alternative."
@@ -805,8 +811,10 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
           (dolist (alternative alternatives)
             (when (< label 10)
               (cl-incf label)
+              ;; Each alternative is boxed, its label outside, so options stand
+              ;; apart from each other and from the reading around them.
               (push (concat (propertize (number-to-string (% label 10)) 'face 'wime-label-face)
-                            (propertize alternative 'face 'wime-candidate-face))
+                            (propertize alternative 'face 'wime-alternatives-face))
                     parts)
               (push (list start end alternative) choices))))))
     (setq wime--span-choices (nreverse choices))
