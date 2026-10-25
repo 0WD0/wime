@@ -95,12 +95,15 @@ class WorkerContract(unittest.TestCase):
 
             def proposals(self, draft, distribution, margin):
                 self.proposed = distribution
-                return []
+                return ["便利", "便"]
 
         class Rescorer:
             def combine(self, context, texts, scores):
                 self.seen = (context, texts)
                 return [s + r for s, r in zip(scores, [-2, 0])]
+
+            def proposals(self, context, draft):
+                return ["变", "便"]
 
         evaluator, rescorer = Evaluator(), Rescorer()
         request = self.request(context="上文", seed_candidates=True, prior_weight=.1,
@@ -113,6 +116,7 @@ class WorkerContract(unittest.TestCase):
         self.assertEqual(response["verified_index"], 1)
         self.assertEqual(response["score"], -.2)
         self.assertEqual(evaluator.proposed, "second")
+        self.assertEqual(response["prefixes"], ["变", "便利", "便"])
 
 
 if __name__ == "__main__":

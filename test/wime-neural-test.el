@@ -353,18 +353,52 @@
         wime-neural-rescorer wime-neural-rescorer-weight wime-neural-model-file
         wime-search-width wime-neural-inference-budget wime-neural-prior-weight
         wime-neural-prior-confidence wime-neural-context-anchor
-        wime-neural-single-character wime-neural-seed-candidates wime-neural-search-method)
+        wime-neural-single-character wime-neural-seed-candidates wime-neural-search-method
+        wime-neural-pool-width)
     (wime-checkpoint--apply '(:path "/m.safetensors"
-                              :profile (:width 16 :budget 4 :rescorer "/lm" :rescorer_weight 2)))
+                              :profile (:width 16 :budget 4 :rescorer "/lm" :rescorer_weight 2
+                                        :pool_width 32)))
     (should (equal (wime-neural--command wime-neural-model-file)
                    '("/usr/bin/python3" "/bin/true" "--rescorer" "/lm"
                      "--rescorer-weight" "2" "/m.safetensors")))
     (should (equal (plist-get (wime-checkpoint-profile) :rescorer) "/lm"))
+    (should (= wime-neural-pool-width 32))
     ;; Recipes saved before the rescorer existed disable it.
     (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:width 16 :budget 4)))
     (should-not wime-neural-rescorer)
     (should (= wime-neural-rescorer-weight 1.5))
     (should (eq (plist-get (wime-checkpoint-profile) :rescorer) :null))))
+
+(ert-deftest wime-neural-wider-pool-is-searched-once-apart-from-typing ()
+  (wime-neural-test--composition
+    (let* ((wime-search-width 16) (wime-neural-pool-width 32)
+           (wime--search-cache 'typing) (wime-neural--pool-cache nil)
+           (wide (list (wime--make-candidate :text "戊己" :end 2 :score -9)))
+           (process (make-pipe-process :name "wime-pool-test" :noquery t))
+           (wime-neural--process process) (wime-neural--busy nil) (wime-neural--pending nil)
+           (wime-neural--failed nil) (wime-neural--timeout-timer nil) searches)
+      (unwind-protect
+          (cl-letf (((symbol-function 'wime--sentence-records)
+                     (lambda (_units &optional _prefix)
+                       (push (cons wime-search-width wime--search-cache) searches)
+                       (setq wime--search-cache 'pool)
+                       wide))
+                    ((symbol-function 'wime-neural--start) (lambda () process))
+                    ((symbol-function 'run-with-timer) #'ignore)
+                    ((symbol-function 'process-send-string) #'ignore))
+            (setf (wime-neural--job-seed-candidates job) t)
+            (wime-neural--enqueue job)
+            (should (equal searches '((32))))
+            (should (eq wime--search-cache 'typing))
+            (should (eq wime-neural--pool-cache 'pool))
+            (should (equal (alist-get 'text (aref (alist-get 'candidates (json-parse-string
+                                                                         (wime-neural--request job)
+                                                                         :object-type 'alist))
+                                                  0))
+                           "戊己"))
+            (wime-neural--verify-apply job '((verified_index . 0) (score . -1.0) (prefixes . [])))
+            (should (equal (car wime--candidates) "戊己")))
+        (delete-process process)))))
 
 (ert-deftest wime-neural-real-worker-protocol ()
   (let ((program (getenv "WIME_NEURAL_PROGRAM"))

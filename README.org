@@ -25,7 +25,7 @@ Bazel 在构建期从上游 nightly 产物下载，不依赖本机安装，也�
 
 * 神经搜索
 
-wdoom 默认启用经过评测的 25M 拼音条件模型和 CUDA worker：=verify=、搜索宽度 16、验证预算 4、完整候选批量评分、单字预测、两字前缀锚定。若 =$XDG_DATA_HOME/wime/rescorers/Qwen3.5-2B-Base= 与独立 Python 环境 =$XDG_DATA_HOME/wime/python= 都存在，另启用 Qwen3.5-2B 最终重排（权重 1.5，传统评分权重 0.05，启动超时 30 秒）；否则传统评分权重 0.1。两者都不进快照。Python 环境与系统包隔离：=uv venv --python 3.12 ~/.local/share/wime/python && uv pip install --python ~/.local/share/wime/python/bin/python torch==2.11.0 transformers==5.17.0 safetensors==0.8.0=。=wime-neural-prior-confidence= 保持 1.0，关闭有回退的置信度排序实验。选型与限制见 =test/diverse-measurements.json= 和 =test/regression-analysis.json=。
+wdoom 默认启用经过评测的 25M 拼音条件模型和 CUDA worker：=verify=、搜索宽度 16、验证预算 4、完整候选批量评分、单字预测、两字前缀锚定。若 =$XDG_DATA_HOME/wime/rescorers/Qwen3.5-2B-Base= 与独立 Python 环境 =$XDG_DATA_HOME/wime/python= 都存在，另启用 Qwen3.5-2B 最终重排（权重 1.5，传统评分权重 0.05，验证池宽度 32，启动超时 30 秒）；否则传统评分权重 0.1。两者都不进快照。Python 环境与系统包隔离：=uv venv --python 3.12 ~/.local/share/wime/python && uv pip install --python ~/.local/share/wime/python/bin/python torch==2.11.0 transformers==5.17.0 safetensors==0.8.0=。=wime-neural-prior-confidence= 保持 1.0，关闭有回退的置信度排序实验。选型与限制见 =test/diverse-measurements.json= 和 =test/regression-analysis.json=。
 
 =wdoom-prepare= 把模型和 =native/wime-cuda/= 推理代码打包进不可变快照，重启后自动生效。模型 SHA256 固定在 =neural_model.bzl=，训练产物存放于 =$XDG_DATA_HOME/wime/models/<sha256>.safetensors=（默认 =~/.local/share/=）；也可用 =WIME_CONDITIONAL_MODEL= 指定同一产物，构建会核验哈希。快照包含固定版本的 pypinyin、模型实现和许可证，不依赖训练缓存或源码目录；PATH 中的 Python 仍需提供可用 CUDA 的 PyTorch 和 safetensors。
 
@@ -33,7 +33,7 @@ wdoom 默认启用经过评测的 25M 拼音条件模型和 CUDA worker：=verif
 
 传统候选立即显示，停键 40 ms 后请求模型。模型读取光标前的可编辑文本和完整双拼音节序列，验证草稿并提出更可能的前缀；Elisp 在词格剪枝前应用约束。最终按模型平均对数概率加上每音节传统评分选择已验证的完整候选。双拼按键和辅助码始终是硬约束；条件模型只支持微软双拼，其他方案不启动验证。实际已上屏的双拼键会随前缀保留，因此 =bmyi= 和 =pmyi= 不会被重新注音混为一谈。
 
-可选的最终重排：=wime-neural-rescorer= 指向一个 transformers 因果语言模型目录（如 Qwen3.5-2B-Base）时，CUDA worker 把它对候选的逐字平均对数概率乘以 =wime-neural-rescorer-weight=（默认 1.5）加到每个已验证完整候选的模型分上，种子池也参与；前缀提议仍只来自条件模型，置信度门控仍只看条件模型概率。配合 =wime-neural-prior-weight= 0.05 使用；需要带 qwen3_5 支持的 transformers，可用 =wime-neural-interpreter= 指定 Python。该配置随 Wime Lab 推理配置保存，=evaluate-conditional.py --rescorer= 与实际异步路径输出一致。
+可选的最终重排：=wime-neural-rescorer= 指向一个 transformers 因果语言模型目录（如 Qwen3.5-2B-Base）时，CUDA worker 把它对候选的逐字平均对数概率乘以 =wime-neural-rescorer-weight=（默认 1.5）加到每个已验证完整候选的模型分上，种子池也参与；它还在草稿的 token 边界提出更可能的 token 作为前缀，与条件模型的逐字提议交替，词典仍按按键校验；置信度门控仍只看条件模型概率。=wime-neural-pool-width= 让停键后的验证池和前缀搜索使用更宽的词格（独立的增量缓存），逐键显示仍用 =wime-search-width=。配合 =wime-neural-prior-weight= 0.05 使用；需要带 qwen3_5 支持的 transformers，可用 =wime-neural-interpreter= 指定 Python。该配置随 Wime Lab 推理配置保存，=evaluate-conditional.py --rescorer= 与实际异步路径输出一致。
 
 CUDA worker 只支持 =verify=，使用 FP32、不启用 TF32，模型随进程常驻显存。切换 worker 或模型后需要停止旧进程再启用 =wime-neural-mode=，wdoom 的输入初始化会执行这个切换。首次请求允许 =wime-neural-startup-timeout=（默认 10 秒）完成加载和 CUDA 初始化，后续请求使用普通 2 秒超时。最多保留一个正在运行和一个待处理请求；输入、光标、缓冲区内容或选中项变化后，旧结果失效。等待、进程失败或超时时，传统候选仍可用。
 

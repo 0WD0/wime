@@ -37,6 +37,12 @@ is added to the model score of every verified candidate.  Nil disables it."
   "Weight of `wime-neural-rescorer' relative to the conditional model score."
   :type 'number :group 'wime)
 
+(defcustom wime-neural-pool-width nil
+  "Lattice width of the verify pool and prefix searches, or nil for the display.
+Typing keeps `wime-search-width'; this wider search runs once per pause, when
+the request is sent, with its own incremental cache."
+  :type '(choice (const nil) integer) :group 'wime)
+
 (defcustom wime-neural-delay 0.04
   "Seconds without a new input key before requesting neural reranking."
   :type 'number :group 'wime)
@@ -96,7 +102,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   :type 'number :group 'wime)
 
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
-  id buffer input position tick context records syllables
+  id buffer input position tick context records pool syllables
   method draft best best-score (round 0) visited scored
   context-reading (context-anchor wime-neural-context-anchor)
   (seed-candidates wime-neural-seed-candidates)
@@ -111,6 +117,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 (defvar wime-neural--serial 0)
 (defvar wime-neural--failed nil)
 (defvar-local wime-neural--timer nil)
+(defvar-local wime-neural--pool-cache nil
+  "`wime--search-cache' of the wider pool search, apart from typing's.")
 (defvar-local wime-neural-last-latency nil
   "Milliseconds spent in the most recently accepted model evaluation.")
 
@@ -234,13 +242,30 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                              `(:text ,(wime-candidate-text c) :end ,(wime-candidate-end c)
                                :score ,(wime-candidate-score c)
                                :dictionary ,(if (wime-candidate-dictionary c) t :false)))
-                           (wime-neural--job-records job))))))
+                           (wime-neural--candidates job))))))
+
+(defun wime-neural--candidates (job)
+  "Readings sent with JOB: its wider pool once searched, else the display's."
+  (or (wime-neural--job-pool job) (wime-neural--job-records job)))
+
+(defun wime-neural--pool (job)
+  "Complete and shorter readings JOB verifies, at `wime-neural-pool-width'."
+  (if (and wime-neural-pool-width (> wime-neural-pool-width wime-search-width)
+           (> (wime-neural--job-syllables job) 1))
+      (with-current-buffer (wime-neural--job-buffer job)
+        (let ((wime-search-width wime-neural-pool-width)
+              (wime--search-cache wime-neural--pool-cache))
+          (prog1 (wime--sentence-records (wime--parse (wime-neural--job-input job)))
+            (setq wime-neural--pool-cache wime--search-cache))))
+    (wime-neural--job-records job)))
 
 (defun wime-neural--enqueue (job)
   "Send JOB or replace pending work while the worker is busy."
   (when (and (not wime-neural--failed) (wime-neural--valid-p job))
     (if wime-neural--busy
         (setq wime-neural--pending job)
+      (unless (wime-neural--job-pool job)
+        (setf (wime-neural--job-pool job) (wime-neural--pool job)))
       (condition-case nil
           (let ((process (wime-neural--start)))
             (setq wime-neural--busy job
@@ -269,8 +294,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
          (seed (and (integerp index) (>= index 0)
                     (wime-neural--job-seed-candidates job)
                     (= (wime-neural--job-round job) 0)
-                    (< index (length (wime-neural--job-records job)))
-                    (nth index (wime-neural--job-records job))))
+                    (< index (length (wime-neural--candidates job)))
+                    (nth index (wime-neural--candidates job))))
          (draft (or seed (wime-neural--job-draft job)))
          (text (wime-candidate-text draft))
          (score (alist-get 'score response))
@@ -310,8 +335,10 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
           (seq-doseq (prefix (seq-take (alist-get 'prefixes response) 16))
             (when (and (stringp prefix) (> (length prefix) 0)
                        (<= (length prefix) (wime-neural--job-syllables job)))
-              (let ((candidate (car (wime--sentence-records
-                                     (wime--parse (wime-neural--job-input job)) prefix))))
+              (let ((candidate (car (let ((wime-search-width
+                                           (max wime-search-width (or wime-neural-pool-width 0))))
+                                      (wime--sentence-records
+                                       (wime--parse (wime-neural--job-input job)) prefix)))))
                 (when (and candidate
                            (= (wime-candidate-end candidate) (wime-neural--job-syllables job))
                            (not (member (wime-candidate-text candidate) (wime-neural--job-visited job))))

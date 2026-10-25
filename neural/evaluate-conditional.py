@@ -18,7 +18,7 @@ import numpy as np
 
 from conditional import ROOT
 from inference import ConditionalEvaluator, effective_prior_weight
-from rescorer import Rescorer
+from rescorer import Rescorer, interleave
 
 
 
@@ -51,6 +51,8 @@ def main():
     p.add_argument("--proposal-order", choices=("position", "gain"), default="position")
     p.add_argument("--rescorer", help="general causal LM added to verified candidate scores, as gpu-worker.py")
     p.add_argument("--rescorer-weight", type=float, default=1.5)
+    p.add_argument("--pool-width", type=int,
+                   help="lattice width of the verify pool and prefix searches, as wime-neural-pool-width")
     args = p.parse_args()
     if args.width < 1 or args.budget < 1 or not 0 < args.prior_confidence <= 1:
         p.error("width and budget must be positive")
@@ -85,7 +87,7 @@ def main():
         for i, case in enumerate(cases):
             code, context, gold = case["input"], case.get("context", ""), case["gold"]
             base = search(code, context, width=1)
-            beam = search(code, context)
+            beam = search(code, context, width=args.pool_width)
             # The real input parser removes auxiliary codes only for the model;
             # every dictionary search still receives the complete typed input.
             model_code, syllables = beam["input"], beam["syllables"]
@@ -131,8 +133,11 @@ def main():
                     if calls == args.budget:
                         break
                     proposed = None
-                    for prefix in evaluator.proposals(draft, distributions[index], args.margin):
-                        answer = search(code, context, prefix)
+                    prefixes = evaluator.proposals(draft, distributions[index], args.margin)
+                    if rescorer:
+                        prefixes = interleave(rescorer.proposals(model_context, draft), prefixes)
+                    for prefix in prefixes:
+                        answer = search(code, context, prefix, args.pool_width)
                         full = [c for c in answer["candidates"] if c["end"] == syllables]
                         if full and full[0]["text"] not in visited:
                             proposed, path_score = full[0]["text"], full[0]["score"]
@@ -185,6 +190,7 @@ def main():
                    context_anchor=args.context_anchor,
                    proposal_order=args.proposal_order,
                    rescorer=args.rescorer, rescorer_weight=args.rescorer_weight if args.rescorer else None,
+                   pool_width=args.pool_width,
                    prior_confidence=args.prior_confidence,
                    width=args.width, seed_draft=args.seed_draft,
                    device=evaluator.device,

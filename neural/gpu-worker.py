@@ -6,7 +6,8 @@ verify search. Requires the local Python environment to provide PyTorch with
 CUDA and safetensors. Stdout is exclusively the protocol; no typed text is
 included in errors. The model stays on the GPU until the process is stopped.
 An optional --rescorer adds a weighted general-LM score to every verified
-candidate, including the seed pool; proposals still come from the model.
+candidate, including the seed pool, and interleaves its token proposals with
+the model's per-character proposals.
 """
 import argparse
 import json
@@ -15,7 +16,7 @@ import sys
 import time
 
 from inference import ConditionalEvaluator, effective_prior_weight
-from rescorer import Rescorer
+from rescorer import Rescorer, interleave
 
 
 def validate(request):
@@ -98,8 +99,10 @@ def respond(evaluator, request, rescorer=None):
         result["effective_prior_weight"] = prior_weight
         # Model scores for the whole pool let the editor estimate confidence.
         result["candidate_scores"] = [[i, score] for (i, _), score in zip(candidates, scores)]
-    result.update(score=scores[selected],
-                  prefixes=evaluator.proposals(texts[selected], distributions[selected], 0.5),
+    prefixes = evaluator.proposals(texts[selected], distributions[selected], 0.5)
+    if rescorer:
+        prefixes = interleave(rescorer.proposals(request["context"], texts[selected]), prefixes)
+    result.update(score=scores[selected], prefixes=prefixes,
                   evaluated=len(texts),
                   elapsed_ms=1000 * (time.perf_counter() - start))
     return result

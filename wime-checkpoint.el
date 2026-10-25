@@ -32,7 +32,8 @@
         :context_anchor wime-neural-context-anchor
         :single_character (if wime-neural-single-character t :false)
         :seed_draft (if wime-neural-seed-candidates "neural" "traditional")
-        :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight))
+        :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight
+        :pool_width (or wime-neural-pool-width :null)))
 
 (defun wime-checkpoint--apply (recipe)
   "Install verified RECIPE variables; callers own the worker transition."
@@ -47,7 +48,8 @@
           wime-neural-single-character (eq (plist-get profile :single_character) t)
           wime-neural-seed-candidates (equal (plist-get profile :seed_draft) "neural")
           wime-neural-rescorer (plist-get profile :rescorer)
-          wime-neural-rescorer-weight (or (plist-get profile :rescorer_weight) 1.5))))
+          wime-neural-rescorer-weight (or (plist-get profile :rescorer_weight) 1.5)
+          wime-neural-pool-width (plist-get profile :pool_width))))
 
 (defun wime-checkpoint-restore ()
   "Restore the explicit startup recipe, retaining packaged defaults on error."

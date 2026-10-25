@@ -21,7 +21,8 @@
       wime-neural-interpreter (getenv "WIME_NEURAL_INTERPRETER")
       wime-neural-rescorer (getenv "WIME_RESCORER")
       wime-neural-rescorer-weight (string-to-number (or (getenv "WIME_RESCORER_WEIGHT") "1.5"))
-      wime-neural-startup-timeout (string-to-number (or (getenv "WIME_STARTUP_TIMEOUT") "10")))
+      wime-neural-startup-timeout (string-to-number (or (getenv "WIME_STARTUP_TIMEOUT") "10"))
+      wime-neural-pool-width (and (getenv "WIME_POOL_WIDTH") (string-to-number (getenv "WIME_POOL_WIDTH"))))
 (unless (file-readable-p (expand-file-name "wanxiang-lts-zh-hans.gram" wime-grammar-shared-dir))
   (error "Missing octagram artifact"))
 (let ((cases (with-temp-buffer
