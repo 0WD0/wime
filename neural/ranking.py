@@ -7,10 +7,11 @@ from conditional import composition_span
 
 
 def ranking_composition(row, rng):
-    """Commit a prefix and keep the entire remaining suffix as the label.
+    """Commit a prefix and preserve the original corpus row's endpoint.
 
-    Cutting off the end can turn a perfectly valid alternate continuation
-    into a false negative (e.g. an unfinished word versus a complete one).
+    Further cutting off its end can turn a valid alternate continuation into
+    a false negative. Original corpus windows may themselves be truncated;
+    this prevents adding another hidden suffix during augmentation.
     """
     size = len(row["gold"][0])
     choice = rng.random()

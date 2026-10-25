@@ -121,7 +121,8 @@ def main():
     manifest = dict(counts=counts, sampled=len(samples), seconds=time.monotonic()-start,
                     source_files={str(p):fingerprint(p) for p in (args.model, args.replay, args.diverse, args.database)},
                     protected_files=protection.files, width=args.width, context_anchor=2,
-                    compositions="whole or committed-prefix suffix; no hidden continuation",
+                    compositions="whole source row or suffix; original row endpoint preserved",
+                    limitations="Source windows and automatic readings can still be ambiguous; observed text is not proof that every alternate candidate is semantically wrong.",
                     prior_weight=.1, max_initial_margin=.5,
                     sha256=fingerprint(args.out / "train.jsonl"))
     (args.out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+"\n")

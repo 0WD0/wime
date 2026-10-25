@@ -1,0 +1,469 @@
+{
+  "date": "2026-10-25",
+  "status": "completed_not_promoted",
+  "baseline_model": {
+    "path": "/home/_WD_/.cache/wime-conditional/run-diverse/model.safetensors",
+    "sha256": "335640a3bc8a664bc3fe48e715b418b6139f38b18c0d252e27e6af81b947539c"
+  },
+  "selected_experiment": {
+    "path": "/home/_WD_/.cache/wime-conditional/run-coverage-ranking/step-4000.safetensors",
+    "sha256": "1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e"
+  },
+  "training_revision": "01fd9f6a",
+  "replay": {
+    "before_rows": 299710,
+    "after_rows": 604710,
+    "coverage": {
+      "supported_phrases": 1374375,
+      "missing_before": 603334,
+      "missing_after": 10732,
+      "additional_rows": 305000,
+      "min_support": 3
+    },
+    "raw_regression_coverage": {
+      "scope": "Post-hoc raw-row coverage only; not used for training selection.",
+      "cases_before": 22,
+      "cases_still_missing": 10,
+      "phrases_before": 23,
+      "phrases_still_missing": 11
+    },
+    "packed_rows": 604136,
+    "seen_unique_rows": {
+      "primary": 235723,
+      "extra": 167893
+    },
+    "seen_primary_categories": {
+      "chat": 167384,
+      "technical": 68339
+    }
+  },
+  "ranking_data": {
+    "mined_pairs": 4631,
+    "encoded_pairs": 4623,
+    "counts": {
+      "protected_source": 376,
+      "easy": 11354,
+      "pairs": 4631,
+      "domain/new": 2794,
+      "category/encyclopedia": 607,
+      "length/9": 224,
+      "already_wrong": 2661,
+      "length/4": 658,
+      "category/news": 575,
+      "length/10": 1276,
+      "category/chid_prose": 623,
+      "length/1": 314,
+      "length/6": 231,
+      "category/entity": 792,
+      "length/2": 439,
+      "length/3": 532,
+      "length/8": 210,
+      "length/5": 516,
+      "domain/old": 1837,
+      "category/chat": 1253,
+      "length/7": 231,
+      "category/technical": 584,
+      "category/idiom": 197,
+      "unreachable": 15
+    },
+    "audit": {
+      "pairs": 4631,
+      "all_from_original_train": true,
+      "all_original_reading_suffixes": true,
+      "protected_overlap": 0,
+      "duplicate_ids": 0,
+      "invalid_candidates": 0
+    }
+  },
+  "training": {
+    "steps": 4000,
+    "batch": 128,
+    "learning_rate": 2e-05,
+    "primary_share": 0.6,
+    "primary_technical_share": 0.35,
+    "ranking_batch": 32,
+    "control_weight": 0,
+    "ranking_weight": 0.5,
+    "objective": {
+      "context_anchor": 2,
+      "prior_weight": 0.1,
+      "margin": 0.2,
+      "temperature": 0.1,
+      "score": "mean new-character log probability; no EOS"
+    },
+    "same_ce_samples": true,
+    "checkpoints": [
+      2000,
+      4000
+    ]
+  },
+  "development_selection": {
+    "criterion": "fixed prior 0.1; equal old/new development pool accuracy, old-domain guard; if none eligible evaluate strongest experiment without promotion",
+    "selected": "ranking-4000",
+    "baseline": {
+      "total": 2944,
+      "correct": 2164,
+      "old/total": 2304,
+      "old/correct": 1763,
+      "new/total": 640,
+      "new/correct": 401
+    },
+    "candidates": [
+      {
+        "name": "control-2000",
+        "counts": {
+          "total": 2944,
+          "correct": 2166,
+          "old/total": 2304,
+          "old/correct": 1766,
+          "new/total": 640,
+          "new/correct": 400
+        },
+        "objective": 0.6957465277777778
+      },
+      {
+        "name": "control-4000",
+        "counts": {
+          "total": 2944,
+          "correct": 2168,
+          "old/total": 2304,
+          "old/correct": 1769,
+          "new/total": 640,
+          "new/correct": 399
+        },
+        "objective": 0.6956163194444445
+      },
+      {
+        "name": "ranking-2000",
+        "counts": {
+          "total": 2944,
+          "correct": 2173,
+          "old/total": 2304,
+          "old/correct": 1769,
+          "new/total": 640,
+          "new/correct": 404
+        },
+        "objective": 0.6995225694444445
+      },
+      {
+        "name": "ranking-4000",
+        "counts": {
+          "total": 2944,
+          "correct": 2174,
+          "old/total": 2304,
+          "old/correct": 1768,
+          "new/total": 640,
+          "new/correct": 406
+        },
+        "objective": 0.7008680555555555
+      }
+    ]
+  },
+  "evaluation": {
+    "dev": {
+      "overall": {
+        "total": 2944,
+        "before": 2264,
+        "after": 2285,
+        "fixed": 66,
+        "regressed": 45,
+        "same_width_octagram": 1789
+      }
+    },
+    "fixed": {
+      "overall": {
+        "total": 4864,
+        "before": 3812,
+        "after": 3828,
+        "fixed": 96,
+        "regressed": 80,
+        "same_width_octagram": 2950
+      }
+    },
+    "stress": {
+      "overall": {
+        "total": 8970,
+        "before": 7526,
+        "after": 7519,
+        "fixed": 149,
+        "regressed": 156,
+        "same_width_octagram": 6341
+      }
+    },
+    "independent": {
+      "overall": {
+        "total": 1920,
+        "before": 1451,
+        "after": 1446,
+        "fixed": 44,
+        "regressed": 49,
+        "same_width_octagram": 1230
+      },
+      "groups": {
+        "category": {
+          "chid_prose": {
+            "total": 384,
+            "before": 277,
+            "after": 276,
+            "fixed": 13,
+            "regressed": 14,
+            "same_width_octagram": 274
+          },
+          "encyclopedia": {
+            "total": 384,
+            "before": 272,
+            "after": 270,
+            "fixed": 5,
+            "regressed": 7,
+            "same_width_octagram": 230
+          },
+          "entity": {
+            "total": 384,
+            "before": 255,
+            "after": 249,
+            "fixed": 9,
+            "regressed": 15,
+            "same_width_octagram": 194
+          },
+          "idiom": {
+            "total": 384,
+            "before": 363,
+            "after": 367,
+            "fixed": 8,
+            "regressed": 4,
+            "same_width_octagram": 279
+          },
+          "news": {
+            "total": 384,
+            "before": 284,
+            "after": 284,
+            "fixed": 9,
+            "regressed": 9,
+            "same_width_octagram": 253
+          }
+        },
+        "variant": {
+          "single": {
+            "total": 640,
+            "before": 573,
+            "after": 575,
+            "fixed": 15,
+            "regressed": 13,
+            "same_width_octagram": 473
+          },
+          "suffix": {
+            "total": 640,
+            "before": 476,
+            "after": 477,
+            "fixed": 16,
+            "regressed": 15,
+            "same_width_octagram": 392
+          },
+          "whole": {
+            "total": 640,
+            "before": 402,
+            "after": 394,
+            "fixed": 13,
+            "regressed": 21,
+            "same_width_octagram": 365
+          }
+        }
+      }
+    },
+    "failures": {
+      "overall": {
+        "total": 97,
+        "before": 65,
+        "after": 71,
+        "fixed": 7,
+        "regressed": 1,
+        "same_width_octagram": 65
+      }
+    },
+    "user": {
+      "overall": {
+        "total": 9,
+        "before": 9,
+        "after": 9,
+        "fixed": 0,
+        "regressed": 0,
+        "same_width_octagram": 9
+      }
+    }
+  },
+  "ablation": {
+    "fixed": {
+      "baseline_to_control": {
+        "total": 4864,
+        "before": 3812,
+        "after": 3819,
+        "fixed": 65,
+        "regressed": 58,
+        "same_width_octagram": 2950
+      },
+      "control_to_ranking": {
+        "total": 4864,
+        "before": 3819,
+        "after": 3828,
+        "fixed": 61,
+        "regressed": 52,
+        "same_width_octagram": 2950
+      }
+    },
+    "independent": {
+      "baseline_to_control": {
+        "total": 1920,
+        "before": 1451,
+        "after": 1440,
+        "fixed": 21,
+        "regressed": 32,
+        "same_width_octagram": 1230
+      },
+      "control_to_ranking": {
+        "total": 1920,
+        "before": 1440,
+        "after": 1446,
+        "fixed": 40,
+        "regressed": 34,
+        "same_width_octagram": 1230
+      }
+    }
+  },
+  "original_160_regressions": {
+    "control": {
+      "total": 160,
+      "recovered": 45,
+      "remaining": 115,
+      "categories": {
+        "chat": 29,
+        "chat_short": 2,
+        "kubernetes": 4,
+        "python": 9,
+        "python_short": 1
+      }
+    },
+    "ranking": {
+      "total": 160,
+      "recovered": 49,
+      "remaining": 111,
+      "categories": {
+        "chat": 25,
+        "kubernetes": 11,
+        "kubernetes_short": 1,
+        "python": 10,
+        "python_short": 2
+      }
+    }
+  },
+  "checks": {
+    "python_tests": 29,
+    "asynchronous_input": {
+      "total": 17,
+      "correct": 17
+    },
+    "traditional_dictionary_outputs_unchanged": true
+  },
+  "decision": {
+    "promoted": false,
+    "live_model_unchanged": true,
+    "reason": "Fixed test +16 and failure set +6, but stress -7 and independent -5 versus deployed model. Retain the deployed checkpoint."
+  },
+  "findings": [
+    "With identical CE batches, adding the candidate preference loss improves fixed-test top-1 by 9 and independent top-1 by 6 versus CE-only continuation. This is a modest gain, not a consistent win over deployment.",
+    "Of the original 160 regressions, CE-only restores 45 and ranking restores 49. Across the full fixed set, ranking fixes 96 but creates 80 regressions.",
+    "Independent entity examples: baseline 255/384, CE-only 255/384, ranking 249/384. Idioms: 363, 363, 367. Candidate ranking gains do not preserve all entity-name decisions.",
+    "Independent whole compositions remain 394/640 versus baseline 402; ranking singles improve to 575/640 versus 573 and suffixes to 477/640 versus 476."
+  ],
+  "limitations": [
+    "Phrase coverage counts are before augmentation and sampling; actual unique sampled rows are reported separately. Coverage does not establish the cause of an individual recovery.",
+    "Ranking augmentation preserves source-row endpoints, but original source windows may already truncate a phrase. Automatic pronunciations and observed-text labels can still be ambiguous.",
+    "Frozen labels were not edited. Held-out documents, normalized context/answer pairs and long overlaps were excluded from training. CE test ablation was post-hoc and did not revise checkpoint selection.",
+    "Evaluation suites ran concurrently; their timings are not a deployment latency benchmark."
+  ],
+  "artifacts": {
+    "coverage-experiment-plan.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-experiment-plan.json",
+      "sha256": "d8960cc954612df165b9bb7d9d5827d39a0f71620ee677a6467a4eebc1a51505"
+    },
+    "coverage-training-commands.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-training-commands.json",
+      "sha256": "d5ccd43e49da5cd0bca73866456cece760508c294b7e5f8f09cb6d9733526919"
+    },
+    "ranking-command.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/ranking-command.json",
+      "sha256": "2b871622f651caee9edd6f26a8121198495d4c13d96317495cf3ae073d5a0e6f"
+    },
+    "replay-coverage/manifest.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/replay-coverage/manifest.json",
+      "sha256": "e0d56404e03473884ddec3a6e1cdb0ad55fd2965d69944b2dd03ad2226afb4b0"
+    },
+    "ranking-pairs/manifest.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/ranking-pairs/manifest.json",
+      "sha256": "6003ef3ac0eec562189e1816b1f239ea6eb89c481eea6777fdc0c7ec3cb5e211"
+    },
+    "ranking-pairs/audit.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/ranking-pairs/audit.json",
+      "sha256": "27f307998a5b156b4f1d6a185ec4ac9bf0179580e5c253b2e84e37c9733dd04d"
+    },
+    "coverage-regression-audit.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-regression-audit.json",
+      "sha256": "2ee25a823a57322cf5d5618c6755c0c99b21412054489f4d01cff24f2364af9b"
+    },
+    "run-coverage-control/run.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/run-coverage-control/run.json",
+      "sha256": "8a926d50972051ee6c8ace395ccc088cd5f14dca9c1bc4ec0b697c890c41789e"
+    },
+    "run-coverage-ranking/run.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/run-coverage-ranking/run.json",
+      "sha256": "dfe4ef168faaa1331723c0b998920e5cd8dc9e439628686db505763ade30b484"
+    },
+    "coverage-selection.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-selection.json",
+      "sha256": "1c3f37141c8d48fe34f91e13d1bd02a6a2e602960665752348f6a98a77cc2ad0"
+    },
+    "coverage-runtime.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-runtime.json",
+      "sha256": "001e0c24d5463efbffc9f8befd02988b2ff61c3f257fd69c8567f54f906c6caa"
+    },
+    "ranking-python.log": {
+      "path": "/home/_WD_/.cache/wime-conditional/ranking-python.log",
+      "sha256": "26b0230dfce19885cb9df3f63216404689e5e112525ba6d5915baee1e7ea367a"
+    },
+    "coverage-control-ablation-plan.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-control-ablation-plan.json",
+      "sha256": "cb94098fccb71ac2c1c262b490aa1e42fc938733c7768d10577b6800947d8408"
+    },
+    "coverage-eval-dev/results.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-eval-dev/results.json",
+      "sha256": "26d7811ce68f23c689d55f3efe6192f5b41a289fb42a3f138010f6197149be8e"
+    },
+    "coverage-eval-fixed/results.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-eval-fixed/results.json",
+      "sha256": "7b3ea8aa3e8fec19b1a89f3c00c504e93518b288d294e047bc7a5ac08b17301b"
+    },
+    "coverage-eval-stress/results.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-eval-stress/results.json",
+      "sha256": "f312478addb3cc0dfce60ad1b32f199dc530f34903f15f14da07b6fff84b5afb"
+    },
+    "coverage-eval-independent/results.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-eval-independent/results.json",
+      "sha256": "0319bd0c6d89d58586625435bf2af590293a15d3e1789cc8a894eb8ffa87a768"
+    },
+    "coverage-eval-failures/results.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-eval-failures/results.json",
+      "sha256": "7021311a3980b03f8a3f3ed4d228f74c4be91cad5a321dba486a3d906fd8b5a8"
+    },
+    "coverage-eval-user/results.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-eval-user/results.json",
+      "sha256": "5c51539a91bfb1c66319ec9d0ddaf7f75f4f7f0784207b8bc9d37afd4c15319e"
+    },
+    "coverage-control-eval-fixed/results.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-control-eval-fixed/results.json",
+      "sha256": "70be9d8a1e9f411daf1010ce12b93581ade11587370d1e07adf74a50b7ef5238"
+    },
+    "coverage-control-eval-independent/results.json": {
+      "path": "/home/_WD_/.cache/wime-conditional/coverage-control-eval-independent/results.json",
+      "sha256": "67f972e07cec5928c42ab3ff924c268c79edbcdfb73f57bef853ae5bba094af7"
+    }
+  }
+}
