@@ -119,6 +119,12 @@ uv pip install --python ~/.local/share/wime/python/bin/python \
 预编辑区显示已转换的假名和还在等待的键；
 数字选候选，空格上屏当前候选， =RET= 上屏假名， =DEL= 删键， =ESC= 取消。
 
+按住 Shift 敲的假名要写成汉字或片假名（加下划线显示），
+如 =KAku= 書く、 =TAKq= 高い、 =GA:KOU= 学校（Shift 下的 =;= 是 =:= ，仍打 っ）。
+一段输入里只要用过 Shift，没按 Shift 的假名就保持平假名；
+完全不用 Shift 时由模型决定写法。
+AZIK 双键出两个假名时，第一个假名跟第一个键，其余跟最后一个键（ =Yq= ＝ 焼い）。
+
 停键后 worker 解码假名：Qwen 的 token 在读音表约束下拼出假名，
 每个假名位置与 23M 假名条件模型融合（ =neural/japanese.py= ）。
 还在等待的键只允许它们能开头的假名作为暂定的最后一个字。

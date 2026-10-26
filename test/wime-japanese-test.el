@@ -68,3 +68,40 @@
     (should (equal (wime-neural--command "/m.safetensors")
                    '("/bin/true" "--rescorer" "/lm" "--rescorer-weight" "1.5"
                      "--japanese-model" "/ja.safetensors" "--japanese-table" "/ja.json" "/m.safetensors")))))
+
+(defun wime-japanese-test--shift (kana)
+  (mapconcat (lambda (i) (if (get-text-property i 'wime-japanese-shift kana) "1" "0"))
+             (number-sequence 0 (1- (length kana))) ""))
+
+(ert-deftest wime-japanese-held-shift-marks-the-kana-to-convert ()
+  (dolist (case '(("KAku" "かく" "10") ("TAKq" "たかい" "110") ("Yqtnda" "やいたんだ" "10000")
+                  ;; Shift turns ; into :, which still types っ.
+                  ("GA:KOU" "がっこう" "1111") ("I:SYOni" "いっしょに" "11110")))
+    (let ((converted (wime-japanese--convert (car case))))
+      (should (equal (substring-no-properties (car converted)) (nth 1 case)))
+      (should (equal (wime-japanese-test--shift (car converted)) (nth 2 case)))))
+  (should (wime-japanese--explicit-p "KAku"))
+  (should-not (wime-japanese--explicit-p "kaku?"))
+  (with-temp-buffer
+    (setq wime-japanese--keys "")
+    (should (wime-japanese--key-p ?K))
+    (should (wime-japanese--key-p ?:))))
+
+(ert-deftest wime-japanese-shift-spans-reach-the-worker-and-the-preedit ()
+  (with-temp-buffer
+    (let ((wime-neural-mode t) (wime-neural--failed nil) (wime-neural-rescorer "/lm")
+          (wime-japanese-model-file "/m") (wime-japanese-table-file "/t") scheduled)
+      (cl-letf (((symbol-function 'run-with-timer)
+                 (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
+        (mapc #'wime-japanese-input-method (string-to-list "TAKqY")))
+      (let ((request (json-parse-string (wime-neural--request scheduled) :object-type 'alist :array-type 'list)))
+        (should (equal (alist-get 'kana request) "たかい"))
+        (should (equal (alist-get 'shift request) "110"))
+        (should (eq (alist-get 'explicit request) t))
+        (should (eq (alist-get 'pending_shift request) t)))
+      ;; Shifted kana as katakana leads the fallbacks; the preedit underlines them.
+      (should (equal (car wime-japanese--candidates) "タカいY"))
+      (let ((preedit (overlay-get wime-japanese--overlay 'after-string)))
+        (should (memq 'wime-japanese-shift-face (ensure-list (get-text-property 0 'face preedit))))
+        (should-not (memq 'wime-japanese-shift-face (ensure-list (get-text-property 2 'face preedit)))))
+      (wime-japanese--reset))))

@@ -7,6 +7,11 @@
 ;; worker decodes the kana with the rescorer and a kana-conditioned model;
 ;; keys still pending restrict a provisional last kana.  Hiragana and
 ;; katakana remain candidates throughout.
+;;
+;; Keys typed with Shift held mark kana to be written in kanji or katakana
+;; (KAku → 書く, ISSYOni → 一緒に).  Once a composition uses Shift, the kana
+;; typed without it stay hiragana; without Shift decoding is automatic.  A
+;; chord's first kana follows its first key, the rest its last key.
 
 ;;; Code:
 
@@ -28,6 +33,17 @@
 (defcustom wime-japanese-table-file nil
   "Reading table of `wime-neural-rescorer''s tokens, from build-japanese-table.py."
   :type '(choice (const nil) file) :group 'wime)
+
+(defcustom wime-japanese-shifted-keys
+  '((?: . ?\;) (?\" . ?') (?< . ?,) (?> . ?.) (?_ . ?-) (?{ . ?\[) (?} . ?\]))
+  "What Shift turns AZIK's punctuation keys into, mapped back to the key.
+With Shift held, ; (っ) arrives as :, and still types っ, marked."
+  :type '(alist :key-type character :value-type character) :group 'wime)
+
+(defface wime-japanese-shift-face
+  '((t (:underline t)))
+  "Face for kana typed with Shift held, to be written in kanji or katakana."
+  :group 'wime)
 
 (defvar wime-japanese--table nil
   "Loaded AZIK table: (FILE RULES PREFIXES); RULES maps keys to (PENDING . KANA).")
@@ -51,26 +67,60 @@
       (setq wime-japanese--table (list wime-japanese-azik-file rules prefixes))))
   (cdr wime-japanese--table))
 
+(defun wime-japanese--base (key)
+  "KEY as typed without Shift."
+  (cond ((and (>= key ?A) (<= key ?Z)) (downcase key))
+        ((alist-get key wime-japanese-shifted-keys))
+        (t key)))
+
+(defun wime-japanese--shifted-p (key)
+  "Whether KEY was typed with Shift held."
+  (or (and (>= key ?A) (<= key ?Z)) (and (assq key wime-japanese-shifted-keys) t)))
+
+(defun wime-japanese--unshifted (keys)
+  (concat (mapcar #'wime-japanese--base keys)))
+
+(defun wime-japanese--mark (kana keys)
+  "KANA spelled by KEYS, its first kana marked by the first key's Shift, the rest by the last's."
+  (concat (propertize (substring kana 0 1) 'wime-japanese-shift (wime-japanese--shifted-p (aref keys 0)))
+          (propertize (substring kana 1) 'wime-japanese-shift
+                      (wime-japanese--shifted-p (aref keys (1- (length keys)))))))
+
 (defun wime-japanese--convert (keys)
   "Return (KANA . PENDING) for KEYS: a sequence that may still grow waits;
-one that cannot first emits what the pending keys already spell."
+one that cannot first emits what the pending keys already spell.  Kana typed
+with Shift carry a non-nil `wime-japanese-shift' property; PENDING keeps the
+keys as typed."
   (pcase-let ((`(,rules ,prefixes) (wime-japanese--rules)) (kana "") (pending ""))
     (dolist (key (string-to-list keys))
       (let ((done nil))
         (while (not done)
-          (let* ((typed (concat pending (string key))) (rule (gethash typed rules)))
-            (cond ((gethash typed prefixes) (setq pending typed done t))
-                  (rule (setq kana (concat kana (cdr rule)) pending (car rule) done t))
-                  ((string-empty-p pending) (setq kana (concat kana (string key)) done t))
-                  ((gethash pending rules)
-                   (setq kana (concat kana (cdr (gethash pending rules))) pending (car (gethash pending rules))))
+          (let* ((raw (concat pending (string key)))
+                 (typed (wime-japanese--unshifted raw))
+                 (rule (gethash typed rules))
+                 (flushed (gethash (wime-japanese--unshifted pending) rules)))
+            (cond ((gethash typed prefixes) (setq pending raw done t))
+                  (rule (setq kana (concat kana (wime-japanese--mark (cdr rule) raw))
+                              pending (substring raw (- (length raw) (length (car rule))))
+                              done t))
+                  ((string-empty-p pending)
+                   (setq kana (concat kana (wime-japanese--mark (string key) (string key))) done t))
+                  (flushed
+                   (setq kana (concat kana (wime-japanese--mark (cdr flushed) pending))
+                         pending (substring pending (- (length pending) (length (car flushed))))))
                   ;; Keys no rule continues stay visible as typed.
-                  (t (setq kana (concat kana pending) pending "")))))))
+                  (t (setq kana (concat kana (mapconcat (lambda (c) (wime-japanese--mark (string c) (string c)))
+                                                        pending ""))
+                           pending "")))))))
     (cons kana pending)))
+
+(defun wime-japanese--explicit-p (keys)
+  "Whether KEYS use Shift, so unshifted kana stay hiragana."
+  (seq-some #'wime-japanese--shifted-p keys))
 
 (defun wime-japanese--starts (pending)
   "First kana of every reading PENDING keys can still complete to."
-  (let (starts)
+  (let ((pending (wime-japanese--unshifted pending)) starts)
     (unless (string-empty-p pending)
       (maphash (lambda (keys rule)
                  (when (and (string-prefix-p pending keys) (not (string-empty-p (cdr rule))))
@@ -83,8 +133,9 @@ one that cannot first emits what the pending keys already spell."
   (pcase-let ((`(,rules ,prefixes) (wime-japanese--rules)))
     (and (characterp key)
          (cl-some (lambda (typed) (or (gethash typed rules) (gethash typed prefixes)))
-                  (list (string key)
-                        (concat (cdr (wime-japanese--convert wime-japanese--keys)) (string key)))))))
+                  (list (string (wime-japanese--base key))
+                        (wime-japanese--unshifted
+                         (concat (cdr (wime-japanese--convert wime-japanese--keys)) (string key))))))))
 
 (defun wime-japanese--active-p ()
   (not (string-empty-p wime-japanese--keys)))
@@ -92,7 +143,12 @@ one that cannot first emits what the pending keys already spell."
 (defun wime-japanese--format ()
   "Preedit: kana, pending keys, then numbered candidates."
   (pcase-let ((`(,kana . ,pending) (wime-japanese--convert wime-japanese--keys)))
-    (concat (propertize kana 'face 'wime-preedit-face)
+    (setq kana (copy-sequence kana))
+    (add-face-text-property 0 (length kana) 'wime-preedit-face t kana)
+    (dotimes (i (length kana))
+      (when (get-text-property i 'wime-japanese-shift kana)
+        (add-face-text-property i (1+ i) 'wime-japanese-shift-face nil kana)))
+    (concat kana
             (propertize pending 'face 'wime-aux-face)
             (when wime-show-candidates
               (concat " " (cl-loop for candidate in wime-japanese--candidates for i from 1
@@ -108,9 +164,19 @@ one that cannot first emits what the pending keys already spell."
     (overlay-put wime-japanese--overlay 'after-string (wime-japanese--format))))
 
 (defun wime-japanese--fallbacks ()
-  "Hiragana and katakana of the typed keys, pending keys appended."
+  "Hiragana and katakana of the typed keys, pending keys appended; with
+Shift used, first the shifted kana in katakana and the rest in hiragana."
   (pcase-let ((`(,kana . ,pending) (wime-japanese--convert wime-japanese--keys)))
-    (delete-dups (list (concat kana pending) (concat (japanese-katakana kana) pending)))))
+    (delete-dups
+     (append (when (wime-japanese--explicit-p wime-japanese--keys)
+               (list (concat (mapconcat (lambda (i)
+                                          (let ((c (substring-no-properties kana i (1+ i))))
+                                            (if (get-text-property i 'wime-japanese-shift kana)
+                                                (japanese-katakana c) c)))
+                                        (number-sequence 0 (1- (length kana))) "")
+                             pending)))
+             (list (concat (substring-no-properties kana) pending)
+                   (concat (japanese-katakana (substring-no-properties kana)) pending))))))
 
 (defun wime-japanese--refresh ()
   (setq wime-japanese--candidates (wime-japanese--fallbacks) wime-japanese--selected 0)
@@ -150,11 +216,16 @@ one that cannot first emits what the pending keys already spell."
        (eq wime-japanese--candidates (wime-neural--job-records job))))
 
 (defun wime-japanese--request (job)
-  (pcase-let ((`(,kana . ,pending) (wime-japanese--convert (wime-neural--job-input job))))
-    (json-serialize
-     `(:id ,(wime-neural--job-id job) :operation "japanese" :context ,(wime-neural--job-context job)
-       :kana ,kana :pending ,(vconcat (wime-japanese--starts pending))
-       :syllables ,(length kana) :candidates []))))
+  (let ((keys (wime-neural--job-input job)))
+    (pcase-let ((`(,kana . ,pending) (wime-japanese--convert keys)))
+      (json-serialize
+       `(:id ,(wime-neural--job-id job) :operation "japanese" :context ,(wime-neural--job-context job)
+         :kana ,(substring-no-properties kana) :pending ,(vconcat (wime-japanese--starts pending))
+         :explicit ,(if (wime-japanese--explicit-p keys) t :false)
+         :shift ,(mapconcat (lambda (i) (if (get-text-property i 'wime-japanese-shift kana) "1" "0"))
+                            (number-sequence 0 (1- (length kana))) "")
+         :pending_shift ,(if (and (> (length pending) 0) (wime-japanese--shifted-p (aref pending 0))) t :false)
+         :syllables ,(length kana) :candidates [])))))
 
 (defun wime-japanese--apply (_job response)
   "Show RESPONSE's readings before the kana fallbacks."

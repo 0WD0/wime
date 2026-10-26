@@ -9,11 +9,17 @@ into the newest position only; the best expansions are then scored by the
 kana model given every typed kana, and ranked by  m + w * q  (m the kana
 model's log probability, q the LM's). Keys still pending in the romaji
 front end constrain a provisional last kana to the kana they can start.
+
+With explicit spans (the user held Shift), every kana is constrained: 'c'
+kana must be written in something other than hiragana (kanji, katakana),
+'k' kana stay the hiragana typed. A unit's text must match its kana's runs.
 """
 import collections
+import functools
 import itertools
 import json
 import math
+import re
 import sqlite3
 from pathlib import Path
 
@@ -27,6 +33,19 @@ INPUT, OUTPUT, EOS = "", "", ""
 # Without Japanese before point the LM drifts into Chinese; this line stands
 # in for the Japanese text an editor buffer would usually hold.
 NEUTRAL = "これは日本語の文章です。\n"
+
+
+HIRAGANA = "\u3041-\u3096\u309d\u309e"
+
+
+@functools.lru_cache(maxsize=65536)
+def span_pattern(kana, constraints):
+    """Text a unit read as KANA may have under CONSTRAINTS ('c'/'k' per kana)."""
+    parts = []
+    for kind, run in itertools.groupby(zip(constraints, kana), key=lambda x: x[0]):
+        run = "".join(c for _, c in run)
+        parts.append(f"[^{HIRAGANA}]+" if kind == "c" else re.escape(run))
+    return re.compile("".join(parts))
 
 
 def hira(text):
@@ -277,13 +296,17 @@ class Decoder:
         model = self.kana_model
         return model.score(model.prompt(context, kana, max(map(len, texts))), texts)
 
-    def decode(self, context, kana, pending=()):
+    def decode(self, context, kana, pending=(), shift=None, explicit=False, pending_shift=False):
         """Best readings of KANA as [(text, score)]. PENDING lists the kana the
-        still-pending keys can start; the last kana is then provisional."""
+        still-pending keys can start; the last kana is then provisional. With
+        EXPLICIT, SHIFT ('1'/'0' per kana, PENDING_SHIFT for the provisional
+        one) says which kana to convert and which stay hiragana."""
         if self.session is None or self.session.context != context:
             self.session = Session(self, context)
+        constraints = (tuple("c" if f == "1" else "k" for f in (shift or "0" * len(kana)))
+                       + ("c" if pending_shift else "k",) if explicit else None)
         try:
-            return self.session.decode(kana, tuple(sorted(set(pending))))
+            return self.session.decode(kana, tuple(sorted(set(pending))), constraints)
         except ValueError:
             self.session = None
             return []
@@ -294,6 +317,7 @@ class Session:
         self.decoder, self.context = decoder, context
         self.kana, self.kept = "", [[Hypothesis("", (), 0.0, 0.0)]]
         self.memo, self.tails = {}, {}
+        self.constraints = None
         self.lm = decoder.lm_context(context)
 
     def rank(self, h):
@@ -324,6 +348,9 @@ class Session:
             units = list(table.get(kana[start:end]))
             if end - start == 1 and not is_kana(kana[start]) and not any(u[0] == kana[start] for u in units):
                 units += table.literal(kana[start])
+            if self.constraints:
+                pattern = span_pattern(kana[start:end], self.constraints[start:end])
+                units = [u for u in units if pattern.fullmatch(u[0])]
             if units:
                 first = len(hypotheses)
                 hypotheses += self.kept[start]
@@ -360,10 +387,17 @@ class Session:
                 best[text] = h
         return sorted(best.values(), key=self.rank, reverse=True)[:decoder.beam]
 
-    def decode(self, kana, pending):
+    def decode(self, kana, pending, constraints):
         common = 0
         while common < min(len(kana), len(self.kana)) and kana[common] == self.kana[common]:
             common += 1
+        if constraints != self.constraints:
+            # Frontiers before the first changed constraint stay valid.
+            old = self.constraints or (None,) * len(self.kana)
+            new = constraints or (None,) * len(kana)
+            first = next((i for i, (a, b) in enumerate(zip(old, new)) if a != b), min(len(old), len(new)))
+            common = min(common, first)
+            self.constraints = constraints
         self.kept, self.kana = self.kept[:common + 1], kana[:common]
         if common == 0 or len(self.memo) > MEMO:
             # A new composition (or a very long one): LM rows of earlier prefixes go.

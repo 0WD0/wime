@@ -71,6 +71,18 @@ class Decoding(unittest.TestCase):
         self.assertEqual(texts[0], "日本語")
         self.assertEqual(Toy().decode("", "にほん", pending=["ぱ"]), [])
 
+    def test_explicit_spans_convert_shifted_kana_and_keep_the_rest(self):
+        # にほん converted, ご kept: 日本ご; all converted: 日本語; none: the kana themselves.
+        self.assertEqual([t for t, _ in Toy().decode("", "にほんご", shift="1110", explicit=True)], ["日本ご"])
+        self.assertEqual({t for t, _ in Toy().decode("", "にほんご", shift="1111", explicit=True)},
+                         {"日本語", "日本後", "日本誤"})
+        self.assertEqual([t for t, _ in Toy().decode("", "にほんご", shift="0000", explicit=True)], ["にほんご"])
+        decoder = Toy()
+        decoder.decode("", "にほん")
+        # Using Shift makes every earlier kana constrained: decoded again from the start.
+        self.assertEqual([t for t, _ in decoder.decode("", "にほん", shift="000", explicit=True)], ["にほん"])
+        self.assertEqual([t for t, _ in Toy().decode("", "にほん", ["ご"], "111", True, False)], ["日本ご"])
+
     def test_unknown_punctuation_is_typed_literally(self):
         self.assertTrue(any(t.endswith("、") for t, _ in Toy().decode("", "にほん、")))
 

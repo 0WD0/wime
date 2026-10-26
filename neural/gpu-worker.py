@@ -78,8 +78,13 @@ def validate(request):
             raise ValueError("invalid request")
     if request.get("operation") == "japanese":
         pending = request.get("pending", [])
+        shift = request.get("shift", "")
         if (not isinstance(request.get("kana"), str) or not isinstance(pending, list)
-                or not all(isinstance(p, str) and len(p) == 1 for p in pending)):
+                or not all(isinstance(p, str) and len(p) == 1 for p in pending)
+                or not isinstance(shift, str) or set(shift) - set("01")
+                or (shift and len(shift) != len(request["kana"]))
+                or type(request.get("explicit", False)) is not bool
+                or type(request.get("pending_shift", False)) is not bool):
             raise ValueError("invalid request")
     if request.get("seed_candidates"):
         if (type(request.get("prior_weight")) not in (int, float)
@@ -98,8 +103,9 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
     result = dict(id=request["id"], promoted=None, elapsed_ms=0.0)
     if request.get("operation") == "japanese":
         result["candidates"] = [] if japanese is None else [
-            [text, score] for text, score in japanese.decode(request["context"], request["kana"],
-                                                             request.get("pending", []))]
+            [text, score] for text, score in japanese.decode(
+                request["context"], request["kana"], request.get("pending", []), request.get("shift"),
+                request.get("explicit", False), request.get("pending_shift", False))]
         result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
         return result
     if request.get("operation") == "decode":

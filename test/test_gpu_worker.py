@@ -167,9 +167,12 @@ class WorkerContract(unittest.TestCase):
                        syllables=3, candidates=[])
         japanese = Japanese()
         self.assertEqual(worker.respond(None, request, japanese=japanese)["candidates"], [["日本語", -1.0]])
-        self.assertEqual(japanese.args, ("前", "にほん", ["ご"]))
+        self.assertEqual(japanese.args, ("前", "にほん", ["ご"], None, False, False))
+        worker.respond(None, dict(request, shift="110", explicit=True, pending_shift=True), japanese=japanese)
+        self.assertEqual(japanese.args[3:], ("110", True, True))
         self.assertEqual(worker.respond(None, request)["candidates"], [])
-        for change in (dict(kana=None), dict(pending="ご"), dict(pending=["ごご"]), dict(pending=[1])):
+        for change in (dict(kana=None), dict(pending="ご"), dict(pending=["ごご"]), dict(pending=[1]),
+                       dict(shift="11"), dict(shift="1x0"), dict(explicit=1), dict(pending_shift="t")):
             with self.assertRaises(ValueError):
                 worker.validate(dict(request, **change))
 

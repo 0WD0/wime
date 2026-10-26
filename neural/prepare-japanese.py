@@ -35,17 +35,31 @@ def kanji(c):
     return "㐀" <= c <= "鿿" or c in "々〆"
 
 
+def is_hiragana(c):
+    return "ぁ" <= c <= "ゖ" or c in "ゝゞ"
+
+
 def parse(transcription):
-    surface, reading, i = [], [], 0
+    """(surface, kana typed, shift): shift is '1' for kana a user would type
+    with Shift held (kanji groups and katakana), else '0'."""
+    surface, reading, shift, i = [], [], [], 0
     while i < len(transcription):
         if transcription[i] == "[":
             j = transcription.index("]", i)
-            parts = transcription[i + 1:j].split("|")
-            surface.append(parts[0]); reading.append(hira("".join(parts[1:])))
+            text, *parts = transcription[i + 1:j].split("|")
+            surface.append(text)
+            if len(parts) == len(text):  # one reading per character
+                for c, r in zip(text, parts):
+                    reading.append(hira(r)); shift.append(("0" if is_hiragana(c) else "1") * len(r))
+            else:
+                r = hira("".join(parts)); reading.append(r); shift.append("1" * len(r))
             i = j + 1
         else:
-            surface.append(transcription[i]); reading.append(hira(transcription[i])); i += 1
-    return "".join(surface), "".join(reading)
+            c = transcription[i]
+            surface.append(c); reading.append(hira(c))
+            shift.append("1" if "ァ" <= c <= "ヺ" or c == "ー" and shift and shift[-1].endswith("1") else "0")
+            i += 1
+    return "".join(surface), "".join(reading), "".join(shift)
 
 
 def tatoeba():
@@ -58,10 +72,10 @@ def tatoeba():
         if row[0] not in dates:
             continue
         year, text = dates[row[0]]
-        surface, reading = parse(row[4])
+        surface, reading, shift = parse(row[4])
         if surface != text or not reading:
             continue
-        item = dict(id=row[0], year=year or "none", gold=text, input=reading)
+        item = dict(id=row[0], year=year or "none", gold=text, input=reading, shift=shift)
         if row[3]:
             (recent if year in ("2025", "2026") else older).append(item)
         elif year not in ("2025", "2026"):
