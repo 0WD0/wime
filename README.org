@@ -5,6 +5,7 @@ wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
 输入方式是双拼（默认微软双拼）加大写的墨奇辅助码，词库取自万象拼音。
 打字时先由词典词格给出候选；
 停键后，本地神经模型在后台重新解码，并从你的纠正中学习。
+同一个后台也提供日文输入法 =wime-japanese= （AZIK 输入，见[[*日本語][日本語]]）。
 
 * 使用
 
@@ -109,6 +110,37 @@ uv pip install --python ~/.local/share/wime/python/bin/python \
 =M-x wime-lab= 用来比较、切换模型和推理配置（=appkit-apps/wime-lab.el/=）；
 在那里选定的启动配置会覆盖 wdoom 的默认值。
 
+* 日本語
+
+=M-x set-input-method RET wime-japanese= 启用。
+按键用 AZIK 扩展罗马字（ =kz= かん、 =kp= こう、 =ds= です、 =;= っ），
+规则表 =japanese/azik.json= 由 =gen/azik-from-ddskk.el= 从 ddskk 导出，
+换一张表就能用别的变体。
+预编辑区显示已转换的假名和还在等待的键；
+数字选候选，空格上屏当前候选， =RET= 上屏假名， =DEL= 删键， =ESC= 取消。
+
+停键后 worker 解码假名：Qwen 的 token 在读音表约束下拼出假名，
+每个假名位置与 23M 假名条件模型融合（ =neural/japanese.py= ）。
+还在等待的键只允许它们能开头的假名作为暂定的最后一个字。
+平假名和片假名始终在候选里。尚无纠错学习。
+
+wdoom 在 =$XDG_DATA_HOME/wime/japanese/= 下找到两个文件时启用：
+
+- =kana-model.safetensors= :: =neural/train-japanese.py= 训练的假名模型。
+- =readings.json= :: Qwen 词表的读音表：
+
+#+begin_src sh
+python neural/build-japanese-table.py \
+    --rescorer ~/.local/share/wime/rescorers/Qwen3.5-2B-Base \
+    --out ~/.local/share/wime/japanese/readings.json
+#+end_src
+
+读音来自 JMdict 和 KANJIDIC2（Tagaini Jisho 软件包里的数据库）。
+训练语料及其许可固定在 =neural/japanese-sources.json= ；
+=prepare-japanese.py= 用 MeCab + UniDic 3.1 注音，
+排除 2025–26 年加入 Tatoeba 的测试句，
+=evaluate-japanese.py= 和 =test/record-japanese.el= 在这些句子上评测。
+
 * 词库
 
 Bazel 在构建时下载上游 nightly 产物，不依赖本机安装：
@@ -132,7 +164,8 @@ ERT 测试在仓库根目录运行，词库取自 =bazel-bin/=：
 #+begin_src sh
 emacs -Q --batch -L emacs-packages/wime --eval '(setq load-prefer-newer t)' \
   -l ert -l emacs-packages/wime/test/wime-test.el \
-  -l emacs-packages/wime/test/wime-neural-test.el -f ert-run-tests-batch-and-exit
+  -l emacs-packages/wime/test/wime-neural-test.el \
+  -l emacs-packages/wime/test/wime-japanese-test.el -f ert-run-tests-batch-and-exit
 #+end_src
 
 Python 测试不需要 GPU 和模型，但需要 =neural/requirements-training.txt= 里的依赖：
