@@ -8,7 +8,9 @@ included in errors. The model stays on the GPU until the process is stopped.
 An optional --rescorer adds a weighted general-LM score to every verified
 candidate, including the seed pool, and interleaves its token proposals with
 the model's per-character proposals. With --database as well, the decode
-operation replaces the dictionary lattice: see decoder.py.
+operation replaces the dictionary lattice: see decoder.py. With
+--japanese-model and --japanese-table as well, the japanese operation
+decodes typed kana: see japanese.py.
 """
 import argparse
 import json
@@ -74,6 +76,11 @@ def validate(request):
         if (any(len(text) != 1 for _, text in request.get("pins", []))
                 or any(set(keys) - LETTERS for _, keys in request.get("aux", []))):
             raise ValueError("invalid request")
+    if request.get("operation") == "japanese":
+        pending = request.get("pending", [])
+        if (not isinstance(request.get("kana"), str) or not isinstance(pending, list)
+                or not all(isinstance(p, str) and len(p) == 1 for p in pending)):
+            raise ValueError("invalid request")
     if request.get("seed_candidates"):
         if (type(request.get("prior_weight")) not in (int, float)
                 or not math.isfinite(request["prior_weight"]) or request["prior_weight"] < 0):
@@ -84,11 +91,17 @@ def validate(request):
                 raise ValueError("invalid request")
 
 
-def respond(evaluator, request, rescorer=None, decoder=None):
+def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
     """Keep keyboard/coverage validation identical to conditional Rust verify."""
     validate(request)
     start = time.perf_counter()
     result = dict(id=request["id"], promoted=None, elapsed_ms=0.0)
+    if request.get("operation") == "japanese":
+        result["candidates"] = [] if japanese is None else [
+            [text, score] for text, score in japanese.decode(request["context"], request["kana"],
+                                                             request.get("pending", []))]
+        result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
+        return result
     if request.get("operation") == "decode":
         # Without a decoder the editor keeps its lattice candidates.
         result["candidates"] = [] if decoder is None else [
@@ -149,6 +162,8 @@ def main():
     parser.add_argument("--rescorer", help="directory of a transformers causal LM")
     parser.add_argument("--rescorer-weight", type=float, default=1.5)
     parser.add_argument("--database", help="wime word database, whose readings enable decode")
+    parser.add_argument("--japanese-model", help="kana-conditioned model (train-japanese.py)")
+    parser.add_argument("--japanese-table", help="reading table for the rescorer (build-japanese-table.py)")
     args = parser.parse_args()
     evaluator = ConditionalEvaluator(args.model, device="cuda")
     rescorer = Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
@@ -160,10 +175,16 @@ def main():
     evaluator.evaluate("", "aaaa", ["中文"])
     if rescorer:
         rescorer.score("", ["中文"])
+    japanese = None
+    if rescorer and args.japanese_model and args.japanese_table:
+        import japanese as ja
+        japanese = ja.Decoder(ja.Table(args.japanese_table, rescorer.tokenizer), rescorer,
+                              ja.KanaModel(args.japanese_model))
+        japanese.decode("", "にほんご")
     if decoder:
         decoder.decode("", "nihk")
     for line in sys.stdin:
-        response = respond(evaluator, json.loads(line), rescorer, decoder)
+        response = respond(evaluator, json.loads(line), rescorer, decoder, japanese)
         print(json.dumps(response, ensure_ascii=False, allow_nan=False), flush=True)
 
 

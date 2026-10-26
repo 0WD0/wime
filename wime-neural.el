@@ -121,6 +121,9 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   (prior-weight wime-neural-prior-weight))
 
 (defvar wime-neural-mode)
+(declare-function wime-japanese--current-p "wime-japanese" (job))
+(declare-function wime-japanese--request "wime-japanese" (job))
+(declare-function wime-japanese--apply "wime-japanese" (job response))
 (defvar wime-neural--process nil)
 (defvar wime-neural--busy nil)
 (defvar wime-neural--pending nil)
@@ -139,11 +142,13 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   "Whether JOB still belongs to the current unselected composition."
   (and wime-neural-mode (buffer-live-p (wime-neural--job-buffer job))
        (with-current-buffer (wime-neural--job-buffer job)
-         (and (wime--active-p) (= wime--selected 0)
+         (and (if (eq (wime-neural--job-method job) 'japanese)
+                  (wime-japanese--current-p job)
+                (and (wime--active-p) (= wime--selected 0)
+                     (equal wime--input (wime-neural--job-input job))
+                     (eq wime--candidate-records (wime-neural--job-records job))))
               (= (point) (wime-neural--job-position job))
               (= (buffer-chars-modified-tick) (wime-neural--job-tick job))
-              (equal wime--input (wime-neural--job-input job))
-              (eq wime--candidate-records (wime-neural--job-records job))
               ;; Overlay properties and narrowing can change the context
               ;; without advancing buffer-chars-modified-tick.
               (equal (wime-neural--context) (wime-neural--job-context job))))))
@@ -228,6 +233,10 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                      "--rescorer-weight" (number-to-string wime-neural-rescorer-weight)))
           (and wime-neural-rescorer (eq wime-neural-search-method 'decode) wime-database-file
                (list "--database" (expand-file-name wime-database-file)))
+          (and wime-neural-rescorer (bound-and-true-p wime-japanese-model-file)
+               (bound-and-true-p wime-japanese-table-file)
+               (list "--japanese-model" (expand-file-name wime-japanese-model-file)
+                     "--japanese-table" (expand-file-name wime-japanese-table-file)))
           (list (expand-file-name model))))
 
 (defun wime-neural--start ()
@@ -247,9 +256,10 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 
 (defun wime-neural--request (job)
   "Encode JOB with explicit coverage and dictionary provenance."
-  (if (eq (wime-neural--job-method job) 'decode)
-      (wime-neural--decode-request job)
-    (wime-neural--verify-request job)))
+  (pcase (wime-neural--job-method job)
+    ('decode (wime-neural--decode-request job))
+    ('japanese (wime-japanese--request job))
+    (_ (wime-neural--verify-request job))))
 
 (defun wime-neural--decode-request (job)
   "Encode JOB's whole input, pins and learned readings for decoding."
@@ -316,7 +326,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   (when (and (not wime-neural--failed) (wime-neural--valid-p job))
     (if wime-neural--busy
         (setq wime-neural--pending job)
-      (unless (or (wime-neural--job-pool job) (eq (wime-neural--job-method job) 'decode))
+      (unless (or (wime-neural--job-pool job) (memq (wime-neural--job-method job) '(decode japanese)))
         (setf (wime-neural--job-pool job) (wime-neural--pool job)))
       (condition-case nil
           (let ((process (wime-neural--start)))
@@ -326,7 +336,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                                          wime-neural-timeout wime-neural-startup-timeout)
                                      ;; Decoding from scratch, as after a new
                                      ;; composition's pause, costs per syllable.
-                                     (if (eq (wime-neural--job-method job) 'decode)
+                                     (if (memq (wime-neural--job-method job) '(decode japanese))
                                          (* 0.1 (wime-neural--job-syllables job)) 0))
                                   nil #'wime-neural--fail "worker timed out"))
             (process-send-string process (concat (wime-neural--request job) "\n")))
@@ -424,6 +434,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
         (setq wime-neural-last-latency (alist-get 'elapsed_ms response))
         (pcase (wime-neural--job-method job)
           ('decode (wime-neural--decode-apply job response))
+          ('japanese (wime-japanese--apply job response))
           ('verify (wime-neural--verify-apply job response))
           (_ (when candidate (wime-neural--publish job candidate))))))))
 

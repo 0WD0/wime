@@ -157,6 +157,22 @@ class WorkerContract(unittest.TestCase):
             with self.assertRaises(ValueError):
                 worker.validate(dict(request, **change))
 
+    def test_japanese_passes_kana_and_pending_starts_and_needs_a_decoder(self):
+        class Japanese:
+            def decode(self, *args):
+                self.args = args
+                return [("日本語", -1.0)]
+
+        request = dict(id=1, operation="japanese", context="前", kana="にほん", pending=["ご"],
+                       syllables=3, candidates=[])
+        japanese = Japanese()
+        self.assertEqual(worker.respond(None, request, japanese=japanese)["candidates"], [["日本語", -1.0]])
+        self.assertEqual(japanese.args, ("前", "にほん", ["ご"]))
+        self.assertEqual(worker.respond(None, request)["candidates"], [])
+        for change in (dict(kana=None), dict(pending="ご"), dict(pending=["ごご"]), dict(pending=[1])):
+            with self.assertRaises(ValueError):
+                worker.validate(dict(request, **change))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,70 @@
+;;; wime-japanese-test.el --- AZIK conversion and the Japanese worker protocol -*- lexical-binding: t; -*-
+(require 'ert)
+(require 'wime-japanese)
+
+(ert-deftest wime-japanese-azik-converts-like-skk ()
+  (dolist (case '(("kz" "かん" "") ("kl" "こん" "") ("nihlgo" "にほんご" "") ("ds" "です" "")
+                  ("xa;ta" "しゃった" "") ("k" "" "k") ("ky" "" "ky") ("n" "" "n") ("nn" "ん" "")
+                  ;; A finished rule may leave a key pending; a stuck sequence stays as typed.
+                  ("bb" "っ" "b") ("jbm" "jb" "m") ("ka," "か、" "")))
+    (should (equal (wime-japanese--convert (car case)) (cons (nth 1 case) (nth 2 case))))))
+
+(ert-deftest wime-japanese-pending-keys-name-the-kana-they-can-start ()
+  (should (equal (seq-take (wime-japanese--starts "k") 5) '("か" "き" "く" "け" "こ")))
+  (should (equal (wime-japanese--starts "ky") '("き")))
+  (should-not (wime-japanese--starts "")))
+
+(ert-deftest wime-japanese-keys-that-only-continue-a-rule-are-accepted-mid-composition ()
+  (with-temp-buffer
+    (setq wime-japanese--keys "")
+    (should (wime-japanese--key-p ?k))
+    (should-not (wime-japanese--key-p ?l))
+    (setq wime-japanese--keys "k")
+    (should (wime-japanese--key-p ?l))
+    (should-not (wime-japanese--key-p ?1))))
+
+(ert-deftest wime-japanese-typing-offers-kana-and-commits ()
+  (with-temp-buffer
+    (let ((wime-neural-mode nil))
+      (mapc #'wime-japanese-input-method (string-to-list "kz"))
+      (should (equal wime-japanese--candidates '("かん" "カン")))
+      (should (string-prefix-p "かん" (overlay-get wime-japanese--overlay 'after-string)))
+      (wime-japanese-input-method ?2)
+      (should (equal (buffer-string) "カン"))
+      (should-not (wime-japanese--active-p))
+      (mapc #'wime-japanese-input-method (string-to-list "kzk"))
+      (wime-japanese-delete-backward)
+      (wime-japanese-commit-kana)
+      (should (equal (buffer-string) "カンかん")))))
+
+(ert-deftest wime-japanese-request-carries-kana-and-pending-starts ()
+  (with-temp-buffer
+    (insert "前")
+    (let ((wime-neural-mode t) (wime-neural--failed nil) (wime-neural-rescorer "/lm")
+          (wime-japanese-model-file "/m") (wime-japanese-table-file "/t") scheduled)
+      (cl-letf (((symbol-function 'run-with-timer)
+                 (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
+        (mapc #'wime-japanese-input-method (string-to-list "nihlg")))
+      (should (eq (wime-neural--job-method scheduled) 'japanese))
+      (let ((request (json-parse-string (wime-neural--request scheduled) :object-type 'alist :array-type 'list)))
+        (should (equal (alist-get 'operation request) "japanese"))
+        (should (equal (alist-get 'kana request) "にほん"))
+        (should (equal (alist-get 'context request) "前"))
+        (should (member "ご" (alist-get 'pending request))))
+      ;; Decoded readings lead; kana remain; a reply for older keys is ignored.
+      (should (wime-neural--valid-p scheduled))
+      (wime-neural--apply scheduled '((id . 1) (candidates . [["日本語" -1.0] ["" -2.0]])))
+      (should (equal (car wime-japanese--candidates) "日本語"))
+      (should (member "にほんg" wime-japanese--candidates))
+      (cl-letf (((symbol-function 'run-with-timer) #'ignore))
+        (wime-japanese-input-method ?o))
+      (should-not (wime-neural--valid-p scheduled))
+      (wime-japanese--reset))))
+
+(ert-deftest wime-japanese-worker-loads-the-japanese-models ()
+  (let ((wime-neural-program "/bin/true") (wime-neural-interpreter nil) (wime-neural-rescorer "/lm")
+        (wime-neural-search-method 'verify) (wime-japanese-model-file "/ja.safetensors")
+        (wime-japanese-table-file "/ja.json"))
+    (should (equal (wime-neural--command "/m.safetensors")
+                   '("/bin/true" "--rescorer" "/lm" "--rescorer-weight" "1.5"
+                     "--japanese-model" "/ja.safetensors" "--japanese-table" "/ja.json" "/m.safetensors")))))

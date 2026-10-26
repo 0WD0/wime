@@ -1,0 +1,33 @@
+{
+  "note": "Fetched 2026-10-26 into $XDG_CACHE_HOME/wime-japanese/sources. Tatoeba exports change weekly; the hashes pin that day's files.",
+  "sources": [
+    {"file": "jpn_sentences_detailed.tsv", "license": "CC BY 2.0 FR (part CC0; Tanaka Corpus public domain)",
+     "url": "https://downloads.tatoeba.org/exports/per_language/jpn/jpn_sentences_detailed.tsv.bz2",
+     "sha256": "e2e9533c271107c65da6d0601c0f96186da0fe0027b49298e579467aaedc7e8a", "unpacked": true},
+    {"file": "jpn_transcriptions.tsv", "license": "Tatoeba (as sentences)",
+     "url": "https://downloads.tatoeba.org/exports/per_language/jpn/jpn_transcriptions.tsv.bz2",
+     "sha256": "db7f660f03c14d537aae4c6b8ea6b9d415ccb56783d04d29eee025eec6125a36", "unpacked": true},
+    {"file": "wikipedia-ja-00000.parquet", "license": "CC BY-SA 3.0, GFDL",
+     "url": "https://huggingface.co/datasets/wikimedia/wikipedia/resolve/main/20231101.ja/train-00000-of-00015.parquet",
+     "sha256": "4751c14478e712fd637bd83c2cf3537b0e299ea5115e9a78ddededf42f34c29d"},
+    {"file": "wikipedia-ja-00001.parquet", "license": "CC BY-SA 3.0, GFDL",
+     "url": "https://huggingface.co/datasets/wikimedia/wikipedia/resolve/main/20231101.ja/train-00001-of-00015.parquet",
+     "sha256": "ccb1b97328fee31da6c62eb2d0de5cfaff6c9c27ba95c2a8706978aecd9028a7"},
+    {"file": "wikipedia-ja-00002.parquet", "license": "CC BY-SA 3.0, GFDL",
+     "url": "https://huggingface.co/datasets/wikimedia/wikipedia/resolve/main/20231101.ja/train-00002-of-00015.parquet",
+     "sha256": "683f2ce3f5fa6c9b763c91c1d89ce9971a08eafa4f8f9bd8866e2a747e0c3fc8"},
+    {"file": "aozorabunko-dedupe-clean.jsonl.gz", "license": "public-domain works; dataset CC BY 4.0",
+     "url": "https://huggingface.co/datasets/globis-university/aozorabunko-clean/resolve/main/aozorabunko-dedupe-clean.jsonl.gz",
+     "sha256": "3f41359c59b4bb1bf2d5692131463afc3f34a8208b987a563c1d60f9ab90d278"},
+    {"file": "wikinews-ja.parquet", "license": "CC BY 2.5",
+     "url": "https://huggingface.co/datasets/izumi-lab/wikinews-ja-20230728/resolve/main/data/train-00000-of-00001-818e1f049c17075e.parquet",
+     "sha256": "dbd969b362e5bc2e2880bbf55a0a902e8ec5638691175488c3bfd568422694c3"}
+  ],
+  "dictionaries": [
+    {"file": "/usr/share/tagainijisho/jmdict.db", "license": "EDRDG (CC BY-SA 4.0), JMdict 2022-11-26",
+     "sha256": "de88ab2c69d21e1aedaff756453531a3f31931329175d434745f8a7949468209"},
+    {"file": "/usr/share/tagainijisho/kanjidic2.db", "license": "EDRDG (CC BY-SA 4.0)",
+     "sha256": "1d36b2e02c2fbbf34acd2fdf16787a9bb30e99142a8a1fe28cc0518503100ea7"}
+  ],
+  "analyzer": "fugashi 1.5.2 with UniDic 3.1.0 (unidic 1.1.0: python -m unidic download)"
+}
