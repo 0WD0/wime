@@ -1,0 +1,639 @@
+{
+  "date": "2026-10-27",
+  "purpose": "Continue Japanese accuracy research; frozen candidate reranking, author history, reading fidelity and expanded-table latency.",
+  "implementation_commits": [
+    "e5047e46",
+    "6c0d141d",
+    "a4406808"
+  ],
+  "execution": {
+    "gpu_scoring": "local RTX 4090 48 GiB",
+    "validation_and_ranking_audits": "ssh guix CPU"
+  },
+  "protocol": {
+    "dev_cases": 500,
+    "test_cases": 1350,
+    "ajimee_cases": 200,
+    "reference_matching": "NFKC full-string exact match; raw exact also retained for context results.",
+    "identity": "Original row indices retained, including repeated kana with different references.",
+    "qwen_weight": 0.7,
+    "history_strengths": [
+      0,
+      0.25,
+      0.5,
+      0.75,
+      1
+    ],
+    "selection": "Dev NFKC only; ties favor less history. No test selection.",
+    "history": "Same known author; known creation and modification dates before 2025 and before target; no normalized test/dev text or identical input kana.",
+    "context_budget": "200 history characters, strongest retrieved history last, plus original context; candidate pool and zenz scores fixed.",
+    "history_available": {
+      "dev": 312,
+      "test": 748
+    },
+    "caveats": [
+      "Historical transcription edits have no dated history in this dump.",
+      "Frozen generated candidates are unconstrained; unfiltered accuracy is research-only.",
+      "Existing history can contain similar earlier phrasing; exact heldout texts are excluded.",
+      "Qwen scores are recomputed through the same scorer for all context modes. BF16 shape/rounding changes shift the cached 1171 baseline to 1170; compare only within a scoring protocol."
+    ]
+  },
+  "author_context": {
+    "baseline": {
+      "dev": {
+        "total": 500,
+        "exact": 381,
+        "nfkc": 395,
+        "oracle_nfkc": 489,
+        "wins_nfkc": 0,
+        "losses_nfkc": 0
+      },
+      "test": {
+        "total": 1350,
+        "exact": 1165,
+        "nfkc": 1170,
+        "oracle_nfkc": 1331,
+        "wins_nfkc": 0,
+        "losses_nfkc": 0
+      }
+    },
+    "modes": {
+      "random": {
+        "dev_selected_strength": 0,
+        "dev": {
+          "total": 500,
+          "exact": 381,
+          "nfkc": 395,
+          "oracle_nfkc": 489,
+          "wins_nfkc": 0,
+          "losses_nfkc": 0
+        },
+        "test": {
+          "total": 1350,
+          "exact": 1165,
+          "nfkc": 1170,
+          "oracle_nfkc": 1331,
+          "wins_nfkc": 0,
+          "losses_nfkc": 0
+        },
+        "mcnemar_two_sided_p": 1
+      },
+      "retrieved": {
+        "dev_selected_strength": 0.25,
+        "dev": {
+          "total": 500,
+          "exact": 383,
+          "nfkc": 397,
+          "oracle_nfkc": 489,
+          "wins_nfkc": 4,
+          "losses_nfkc": 2
+        },
+        "test": {
+          "total": 1350,
+          "exact": 1173,
+          "nfkc": 1178,
+          "oracle_nfkc": 1331,
+          "wins_nfkc": 11,
+          "losses_nfkc": 3
+        },
+        "mcnemar_two_sided_p": 0.057373046875
+      }
+    }
+  },
+  "context_with_validation": {
+    "top4_raw": {
+      "baseline": {
+        "dev": {
+          "total": 500,
+          "exact": 381,
+          "nfkc": 390,
+          "oracle_nfkc": 480,
+          "wins_nfkc": 0,
+          "losses_nfkc": 0
+        },
+        "test": {
+          "total": 1350,
+          "exact": 1157,
+          "nfkc": 1159,
+          "oracle_nfkc": 1306,
+          "wins_nfkc": 0,
+          "losses_nfkc": 0
+        }
+      },
+      "modes": {
+        "random": {
+          "dev_selected_strength": 0,
+          "dev": {
+            "total": 500,
+            "exact": 381,
+            "nfkc": 390,
+            "oracle_nfkc": 480,
+            "wins_nfkc": 0,
+            "losses_nfkc": 0
+          },
+          "test": {
+            "total": 1350,
+            "exact": 1157,
+            "nfkc": 1159,
+            "oracle_nfkc": 1306,
+            "wins_nfkc": 0,
+            "losses_nfkc": 0
+          },
+          "mcnemar_two_sided_p": 1
+        },
+        "retrieved": {
+          "dev_selected_strength": 0.25,
+          "dev": {
+            "total": 500,
+            "exact": 382,
+            "nfkc": 391,
+            "oracle_nfkc": 480,
+            "wins_nfkc": 3,
+            "losses_nfkc": 2
+          },
+          "test": {
+            "total": 1350,
+            "exact": 1164,
+            "nfkc": 1166,
+            "oracle_nfkc": 1306,
+            "wins_nfkc": 10,
+            "losses_nfkc": 3
+          },
+          "mcnemar_two_sided_p": 0.09228515625
+        }
+      }
+    },
+    "top4_nfkc": {
+      "baseline": {
+        "dev": {
+          "total": 500,
+          "exact": 380,
+          "nfkc": 391,
+          "oracle_nfkc": 481,
+          "wins_nfkc": 0,
+          "losses_nfkc": 0
+        },
+        "test": {
+          "total": 1350,
+          "exact": 1163,
+          "nfkc": 1166,
+          "oracle_nfkc": 1314,
+          "wins_nfkc": 0,
+          "losses_nfkc": 0
+        }
+      },
+      "modes": {
+        "random": {
+          "dev_selected_strength": 0,
+          "dev": {
+            "total": 500,
+            "exact": 380,
+            "nfkc": 391,
+            "oracle_nfkc": 481,
+            "wins_nfkc": 0,
+            "losses_nfkc": 0
+          },
+          "test": {
+            "total": 1350,
+            "exact": 1163,
+            "nfkc": 1166,
+            "oracle_nfkc": 1314,
+            "wins_nfkc": 0,
+            "losses_nfkc": 0
+          },
+          "mcnemar_two_sided_p": 1
+        },
+        "retrieved": {
+          "dev_selected_strength": 0.25,
+          "dev": {
+            "total": 500,
+            "exact": 382,
+            "nfkc": 393,
+            "oracle_nfkc": 481,
+            "wins_nfkc": 4,
+            "losses_nfkc": 2
+          },
+          "test": {
+            "total": 1350,
+            "exact": 1170,
+            "nfkc": 1173,
+            "oracle_nfkc": 1314,
+            "wins_nfkc": 10,
+            "losses_nfkc": 3
+          },
+          "mcnemar_two_sided_p": 0.09228515625
+        }
+      }
+    },
+    "lexicon_raw": {
+      "baseline": {
+        "dev": {
+          "total": 500,
+          "exact": 381,
+          "nfkc": 390,
+          "oracle_nfkc": 481,
+          "wins_nfkc": 0,
+          "losses_nfkc": 0
+        },
+        "test": {
+          "total": 1350,
+          "exact": 1157,
+          "nfkc": 1159,
+          "oracle_nfkc": 1309,
+          "wins_nfkc": 0,
+          "losses_nfkc": 0
+        }
+      },
+      "modes": {
+        "random": {
+          "dev_selected_strength": 0,
+          "dev": {
+            "total": 500,
+            "exact": 381,
+            "nfkc": 390,
+            "oracle_nfkc": 481,
+            "wins_nfkc": 0,
+            "losses_nfkc": 0
+          },
+          "test": {
+            "total": 1350,
+            "exact": 1157,
+            "nfkc": 1159,
+            "oracle_nfkc": 1309,
+            "wins_nfkc": 0,
+            "losses_nfkc": 0
+          },
+          "mcnemar_two_sided_p": 1
+        },
+        "retrieved": {
+          "dev_selected_strength": 0.25,
+          "dev": {
+            "total": 500,
+            "exact": 382,
+            "nfkc": 391,
+            "oracle_nfkc": 481,
+            "wins_nfkc": 3,
+            "losses_nfkc": 2
+          },
+          "test": {
+            "total": 1350,
+            "exact": 1164,
+            "nfkc": 1166,
+            "oracle_nfkc": 1309,
+            "wins_nfkc": 10,
+            "losses_nfkc": 3
+          },
+          "mcnemar_two_sided_p": 0.09228515625
+        }
+      }
+    },
+    "lexicon_nfkc": {
+      "baseline": {
+        "dev": {
+          "total": 500,
+          "exact": 380,
+          "nfkc": 391,
+          "oracle_nfkc": 482,
+          "wins_nfkc": 0,
+          "losses_nfkc": 0
+        },
+        "test": {
+          "total": 1350,
+          "exact": 1163,
+          "nfkc": 1166,
+          "oracle_nfkc": 1317,
+          "wins_nfkc": 0,
+          "losses_nfkc": 0
+        }
+      },
+      "modes": {
+        "random": {
+          "dev_selected_strength": 0,
+          "dev": {
+            "total": 500,
+            "exact": 380,
+            "nfkc": 391,
+            "oracle_nfkc": 482,
+            "wins_nfkc": 0,
+            "losses_nfkc": 0
+          },
+          "test": {
+            "total": 1350,
+            "exact": 1163,
+            "nfkc": 1166,
+            "oracle_nfkc": 1317,
+            "wins_nfkc": 0,
+            "losses_nfkc": 0
+          },
+          "mcnemar_two_sided_p": 1
+        },
+        "retrieved": {
+          "dev_selected_strength": 0.25,
+          "dev": {
+            "total": 500,
+            "exact": 382,
+            "nfkc": 393,
+            "oracle_nfkc": 482,
+            "wins_nfkc": 4,
+            "losses_nfkc": 2
+          },
+          "test": {
+            "total": 1350,
+            "exact": 1170,
+            "nfkc": 1173,
+            "oracle_nfkc": 1317,
+            "wins_nfkc": 10,
+            "losses_nfkc": 3
+          },
+          "mcnemar_two_sided_p": 0.09228515625
+        }
+      }
+    }
+  },
+  "validation_on_original_cached_scores": {
+    "dev": {
+      "unfiltered": {
+        "nfkc": 396,
+        "oracle_nfkc": 489,
+        "paired_vs_unfiltered": {
+          "win": 0,
+          "loss": 0,
+          "net": 0
+        }
+      },
+      "top4_raw": {
+        "nfkc": 391,
+        "oracle_nfkc": 480,
+        "paired_vs_unfiltered": {
+          "win": 3,
+          "loss": 8,
+          "net": -5
+        }
+      },
+      "top4_nfkc": {
+        "nfkc": 392,
+        "oracle_nfkc": 481,
+        "paired_vs_unfiltered": {
+          "win": 2,
+          "loss": 6,
+          "net": -4
+        }
+      },
+      "lexicon_raw": {
+        "nfkc": 391,
+        "oracle_nfkc": 481,
+        "paired_vs_unfiltered": {
+          "win": 3,
+          "loss": 8,
+          "net": -5
+        }
+      },
+      "lexicon_nfkc": {
+        "nfkc": 392,
+        "oracle_nfkc": 482,
+        "paired_vs_unfiltered": {
+          "win": 2,
+          "loss": 6,
+          "net": -4
+        }
+      },
+      "v2_raw": {
+        "nfkc": 391,
+        "oracle_nfkc": 481,
+        "paired_vs_unfiltered": {
+          "win": 3,
+          "loss": 8,
+          "net": -5
+        }
+      },
+      "v2_nfkc": {
+        "nfkc": 392,
+        "oracle_nfkc": 482,
+        "paired_vs_unfiltered": {
+          "win": 2,
+          "loss": 6,
+          "net": -4
+        }
+      }
+    },
+    "test": {
+      "unfiltered": {
+        "nfkc": 1171,
+        "oracle_nfkc": 1331,
+        "paired_vs_unfiltered": {
+          "win": 0,
+          "loss": 0,
+          "net": 0
+        }
+      },
+      "top4_raw": {
+        "nfkc": 1160,
+        "oracle_nfkc": 1306,
+        "paired_vs_unfiltered": {
+          "win": 12,
+          "loss": 23,
+          "net": -11
+        }
+      },
+      "top4_nfkc": {
+        "nfkc": 1167,
+        "oracle_nfkc": 1314,
+        "paired_vs_unfiltered": {
+          "win": 11,
+          "loss": 15,
+          "net": -4
+        }
+      },
+      "lexicon_raw": {
+        "nfkc": 1160,
+        "oracle_nfkc": 1309,
+        "paired_vs_unfiltered": {
+          "win": 11,
+          "loss": 22,
+          "net": -11
+        }
+      },
+      "lexicon_nfkc": {
+        "nfkc": 1167,
+        "oracle_nfkc": 1317,
+        "paired_vs_unfiltered": {
+          "win": 10,
+          "loss": 14,
+          "net": -4
+        }
+      },
+      "v2_raw": {
+        "nfkc": 1160,
+        "oracle_nfkc": 1309,
+        "paired_vs_unfiltered": {
+          "win": 11,
+          "loss": 22,
+          "net": -11
+        }
+      },
+      "v2_nfkc": {
+        "nfkc": 1167,
+        "oracle_nfkc": 1317,
+        "paired_vs_unfiltered": {
+          "win": 10,
+          "loss": 14,
+          "net": -4
+        }
+      }
+    },
+    "ajimee": {
+      "unfiltered": {
+        "nfkc": 175,
+        "oracle_nfkc": 197,
+        "paired_vs_unfiltered": {
+          "win": 0,
+          "loss": 0,
+          "net": 0
+        }
+      },
+      "top4_raw": {
+        "nfkc": 178,
+        "oracle_nfkc": 192,
+        "paired_vs_unfiltered": {
+          "win": 7,
+          "loss": 4,
+          "net": 3
+        }
+      },
+      "top4_nfkc": {
+        "nfkc": 178,
+        "oracle_nfkc": 192,
+        "paired_vs_unfiltered": {
+          "win": 7,
+          "loss": 4,
+          "net": 3
+        }
+      },
+      "lexicon_raw": {
+        "nfkc": 177,
+        "oracle_nfkc": 192,
+        "paired_vs_unfiltered": {
+          "win": 6,
+          "loss": 4,
+          "net": 2
+        }
+      },
+      "lexicon_nfkc": {
+        "nfkc": 177,
+        "oracle_nfkc": 192,
+        "paired_vs_unfiltered": {
+          "win": 6,
+          "loss": 4,
+          "net": 2
+        }
+      },
+      "v2_raw": {
+        "nfkc": 177,
+        "oracle_nfkc": 192,
+        "paired_vs_unfiltered": {
+          "win": 6,
+          "loss": 4,
+          "net": 2
+        }
+      },
+      "v2_nfkc": {
+        "nfkc": 177,
+        "oracle_nfkc": 192,
+        "paired_vs_unfiltered": {
+          "win": 6,
+          "loss": 4,
+          "net": 2
+        }
+      }
+    }
+  },
+  "validation_checks": {
+    "original_beam_candidates_checked": 32800,
+    "unexpected_rejections": 0,
+    "independent_dp_cross_checks": 1000,
+    "disagreements": 0
+  },
+  "latency_diagnostics": {
+    "scope": "Two longest heldout sentences, diagnostic stress cases rather than aggregate benchmark. Production decoder unchanged.",
+    "default_deadline_seconds_for_failed_67_kana": 8.7,
+    "relaxed_test_base_timeout_seconds": 30,
+    "runs": {
+      "long-old-relaxed.json": {
+        "completed": true,
+        "failed_id": null,
+        "results": [
+          {
+            "id": "13384908",
+            "kana_count": 81,
+            "worker_ms": 6821.295446017757,
+            "wall_ms": 11930.455207824707
+          },
+          {
+            "id": "13056011",
+            "kana_count": 67,
+            "worker_ms": 6071.814284019638,
+            "wall_ms": 6080.182790756226
+          }
+        ]
+      },
+      "long-top4-relaxed.json": {
+        "completed": true,
+        "failed_id": null,
+        "results": [
+          {
+            "id": "13384908",
+            "kana_count": 81,
+            "worker_ms": 9667.145445011556,
+            "wall_ms": 16541.359663009644
+          },
+          {
+            "id": "13056011",
+            "kana_count": 67,
+            "worker_ms": 9351.428766996833,
+            "wall_ms": 9365.379095077515
+          }
+        ]
+      },
+      "long-top4.json": {
+        "completed": false,
+        "failed_id": "13056011",
+        "results": [
+          {
+            "id": "13384908",
+            "kana_count": 81,
+            "worker_ms": 9615.810733026592,
+            "wall_ms": 17740.691423416138
+          }
+        ]
+      }
+    },
+    "rejected_batching_optimization_ms_per_kana": {
+      "first_before": 102.956,
+      "first_after": 103.338,
+      "repeat_before": 104.497,
+      "repeat_after": 105.333
+    },
+    "batching_decision": "No speedup in repeated A/B; production change reverted."
+  },
+  "tests": {
+    "python_japanese_and_context": 20,
+    "python_gpu_worker": 9,
+    "ert_japanese": 8,
+    "recording_success_and_failure_preservation": "passed"
+  },
+  "artifacts": {
+    "root": "/home/_WD_/.cache/wime-japanese/research/2026-10-27",
+    "context_progress": "/home/_WD_/.cache/wime-japanese/research/2026-10-27/context/evaluation-ranked-last/progress.jsonl",
+    "context_summary": "/home/_WD_/.cache/wime-japanese/research/2026-10-27/context/evaluation-ranked-last/summary.json",
+    "context_provenance": "/home/_WD_/.cache/wime-japanese/research/2026-10-27/context/contexts-ranked-last.json",
+    "validation_report": "/home/_WD_/.cache/wime-japanese/research/2026-10-27/validation/fidelity-coverage-results.json",
+    "validation_masks": "/home/_WD_/.cache/wime-japanese/research/2026-10-27/validation/fidelity-coverage-masks.json"
+  },
+  "decisions": [
+    "Keep the current production decoder and deployed reading table.",
+    "Do not deploy unconstrained generation: it can omit typed material.",
+    "Author retrieval shows a small exploratory gain, not a confirmed general improvement (paired p=0.057).",
+    "Random history and validation vocabulary expansion did not improve the dev-selected test result.",
+    "Prioritize ranking quality and numeric/reading coverage in further research; candidate recall already exceeds selected accuracy substantially."
+  ]
+}
