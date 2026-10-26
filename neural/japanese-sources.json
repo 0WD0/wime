@@ -21,7 +21,10 @@
      "sha256": "3f41359c59b4bb1bf2d5692131463afc3f34a8208b987a563c1d60f9ab90d278"},
     {"file": "wikinews-ja.parquet", "license": "CC BY 2.5",
      "url": "https://huggingface.co/datasets/izumi-lab/wikinews-ja-20230728/resolve/main/data/train-00000-of-00001-818e1f049c17075e.parquet",
-     "sha256": "dbd969b362e5bc2e2880bbf55a0a902e8ec5638691175488c3bfd568422694c3"}
+     "sha256": "dbd969b362e5bc2e2880bbf55a0a902e8ec5638691175488c3bfd568422694c3"},
+    {"file": "JMnedict.xml.gz", "license": "EDRDG (CC BY-SA 4.0), JMnedict 2026-10-26",
+     "url": "http://ftp.edrdg.org/pub/Nihongo/JMnedict.xml.gz",
+     "sha256": "40b59e5426caea0ab3a66eb6d0011cdfa389f3ffd44dd611c14ece50ceeb023e"}
   ],
   "dictionaries": [
     {"file": "/usr/share/tagainijisho/jmdict.db", "license": "EDRDG (CC BY-SA 4.0), JMdict 2022-11-26",

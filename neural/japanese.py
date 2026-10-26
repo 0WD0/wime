@@ -1,8 +1,9 @@
 """Japanese: the general LM spells typed kana, fused with a kana-conditioned model.
 
-Units are LM tokens (plus common dictionary words the LM splits, rare kanji,
-numbers and Latin letters) with every reading they may have, from a table
-build_table() derives from JMdict and KANJIDIC2. A Session decodes one
+Units are LM tokens (plus dictionary words the LM splits, kanji it has no
+token for, numbers and Latin letters) with every reading they may have, from
+a table build_table() derives from JMdict, KANJIDIC2 and a corpus lexicon
+(build-japanese-lexicon.py: UniDic and JMnedict words seen in text). A Session decodes one
 composition a kana at a time, character-synchronous on kana: hypotheses
 compared at frontier p have consumed the same p kana. Each new kana expands
 into the newest position only; the best expansions are then scored by the
@@ -85,13 +86,13 @@ def jmdict(path):
     return writings, common
 
 
-def kanjidic(path):
-    """Jouyou/jinmeiyou kanji -> (stem, okurigana) readings; か.の reads か before の."""
+def kanjidic(path, graded=True):
+    """Kanji (only jouyou/jinmeiyou if GRADED) -> (stem, okurigana) readings; か.の reads か before の."""
     db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     result = collections.defaultdict(set)
     for entry, reading in db.execute("SELECT r.entry, t.c0reading FROM reading r "
-                                     "JOIN readingText_content t ON t.docid = r.docid "
-                                     "JOIN entries e ON e.id = r.entry WHERE e.grade IS NOT NULL"):
+                                     "JOIN readingText_content t ON t.docid = r.docid JOIN entries e ON e.id = r.entry"
+                                     + (" WHERE e.grade IS NOT NULL" if graded else "")):
         stem, _, okurigana = hira(reading).strip("-").partition(".")
         if stem:
             result[chr(entry)].add((stem, okurigana))
@@ -142,17 +143,34 @@ def number_readings(n):
     return [h + r for h in head for r in (NUMERALS[ones] if ones else [""])]
 
 
-def build_table(tokenizer, jmdict_path, kanjidic_path):
-    """{reading: [[text, [token ids]], ...]} for TOKENIZER's vocabulary."""
+def frequent(lexicon, top):
+    """LEXICON's TOP most frequent writings of each reading: [(writing, reading)]."""
+    by_reading = collections.defaultdict(list)
+    for w, readings in lexicon.items():
+        for r, n in readings.items():
+            by_reading[r].append((n, w))
+    return [(w, r) for r, ws in by_reading.items() for _, w in sorted(ws, reverse=True)[:top]]
+
+
+def build_table(tokenizer, jmdict_path, kanjidic_path, lexicon=None, top=4):
+    """{reading: [[text, [token ids]], ...]} for TOKENIZER's vocabulary.
+    LEXICON ({writing: {reading: corpus count}}) adds the TOP most frequent
+    writings of each reading; the LM splits most of them. More crowd the
+    beam with names and slow decoding down. Every KANJIDIC kanji the LM has
+    a token for reads alone; multi-character tokens compose readings from
+    graded kanji only: rarer readings let Chinese tokens spell Japanese kana."""
     writings, common = jmdict(jmdict_path)
-    chars = kanjidic(kanjidic_path)
+    for w, r in frequent(lexicon or {}, top):
+        writings[w].add(r)
+        common.add(w)
+    chars, every = kanjidic(kanjidic_path), kanjidic(kanjidic_path, graded=False)
     index, single = collections.defaultdict(list), set()
     for i in range(len(tokenizer)):
         t = tokenizer.decode([i])
         if not t or "�" in t or t.isspace():
             continue
         if any(is_kanji(c) for c in t):
-            readings = set(writings.get(t, ())) | compose(t, chars, writings)
+            readings = set(writings.get(t, ())) | compose(t, every if len(t) == 1 else chars, writings)
         elif any(is_kana(c) for c in t) or len(t) == 1 or not any(c.isascii() for c in t):
             readings = {hira(t)}
         else:
@@ -162,7 +180,7 @@ def build_table(tokenizer, jmdict_path, kanjidic_path):
         for r in readings:
             if 0 < len(r) <= MAXREAD:
                 index[r].append([t, [i]])
-    for c, readings in chars.items():
+    for c, readings in chars.items():  # rarer kanji the LM splits only come in lexicon words
         if c not in single:
             ids = tokenizer(c)["input_ids"]
             for r in {stem for stem, _ in readings}:

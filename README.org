@@ -136,12 +136,16 @@ wdoom 在 =$XDG_DATA_HOME/wime/japanese/= 下找到两个文件时启用：
 - =readings.json= :: Qwen 词表的读音表：
 
 #+begin_src sh
+python neural/build-japanese-lexicon.py --out lexicon.json   # fugashi + UniDic 的环境
 python neural/build-japanese-table.py \
     --rescorer ~/.local/share/wime/rescorers/Qwen3.5-2B-Base \
+    --lexicon lexicon.json \
     --out ~/.local/share/wime/japanese/readings.json
 #+end_src
 
-读音来自 JMdict 和 KANJIDIC2（Tagaini Jisho 软件包里的数据库）。
+读音来自 JMdict 和 KANJIDIC2（Tagaini Jisho 软件包里的数据库），
+加上训练语料里出现过的 UniDic 词和 JMnedict 专有名词，
+每个读音只留语料里最常见的 4 个新写法。
 训练语料及其许可固定在 =neural/japanese-sources.json= ；
 =prepare-japanese.py= 用 MeCab + UniDic 3.1 注音，
 排除 2025–26 年加入 Tatoeba 的测试句，

@@ -87,5 +87,11 @@ class Decoding(unittest.TestCase):
         self.assertTrue(any(t.endswith("、") for t, _ in Toy().decode("", "にほん、")))
 
 
+class Lexicon(unittest.TestCase):
+    def test_each_reading_keeps_its_most_frequent_writings(self):
+        lexicon = {"加奈": {"かな": 3}, "仮名": {"かな": 90, "かめい": 5}, "哉": {"かな": 1}}
+        self.assertEqual(sorted(ja.frequent(lexicon, 2)), [("仮名", "かな"), ("仮名", "かめい"), ("加奈", "かな")])
+
+
 if __name__ == "__main__":
     unittest.main()
