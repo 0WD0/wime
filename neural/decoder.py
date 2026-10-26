@@ -27,6 +27,7 @@ import torch
 from inference import anchored_prompt
 
 BEAM, PER_HYPOTHESIS = 16, 24
+MEMO = 4096  # memoized LM rows, ~0.5 MB each
 # Only this many expansions, best by their incremental estimate, are scored
 # again under the current keys; that rescoring dominates a syllable's cost.
 RESCORED = 4 * BEAM
@@ -315,6 +316,9 @@ class Session:
         while common < min(syllables, len(self.code) // 2) and code[2 * common:2 * common + 2] == self.code[2 * common:2 * common + 2]:
             common += 1
         self.kept, self.code = self.kept[:common + 1], code[:2 * common]
+        if common == 0 or len(self.memo) > MEMO:
+            # A new composition (or a very long one): LM rows of earlier prefixes go.
+            self.memo, self.tails = {}, {}
         prompt = None
         try:
             for end in range(common + 1, syllables + 1):

@@ -20,6 +20,7 @@ from pathlib import Path
 import torch
 
 BEAM, PER_HYPOTHESIS, RESCORED = 16, 24, 64
+MEMO = 4096  # memoized LM rows, ~0.5 MB each
 MAXREAD = 14
 FORMAT = "wime-ja-kana-v1"
 INPUT, OUTPUT, EOS = "", "", ""
@@ -364,6 +365,9 @@ class Session:
         while common < min(len(kana), len(self.kana)) and kana[common] == self.kana[common]:
             common += 1
         self.kept, self.kana = self.kept[:common + 1], kana[:common]
+        if common == 0 or len(self.memo) > MEMO:
+            # A new composition (or a very long one): LM rows of earlier prefixes go.
+            self.memo, self.tails = {}, {}
         for end in range(common + 1, len(kana) + 1):
             self.kept.append(self.expand(kana, end))
             self.kana = kana[:end]
