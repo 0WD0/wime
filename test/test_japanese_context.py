@@ -15,6 +15,17 @@ spec.loader.exec_module(evaluate)
 
 
 class History(unittest.TestCase):
+    def test_character_budget_preserves_the_strongest_retrieval(self):
+        spec = importlib.util.spec_from_file_location(
+            "prepare_context", Path(evaluate.__file__).with_name("prepare-japanese-context.py"))
+        prepare = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(prepare)
+        history = [dict(text=c * 160) for c in "ABC"]
+        chosen = prepare.selection(history, [0, 1, 2], {0: 8, 1: 7, 2: 6})
+        self.assertEqual(len(chosen["context"]), 200)
+        self.assertTrue(chosen["context"].endswith("A" * 160 + "\n"))
+        self.assertNotIn("C", chosen["context"])
+
     def test_unknown_authors_are_not_grouped_as_one_person(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

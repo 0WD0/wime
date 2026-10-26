@@ -24,6 +24,17 @@ def digest(path):
     return h.hexdigest()
 
 
+def selection(history, indices, score=None):
+    picked = [dict(history[i], overlap_score=score.get(i, 0) if score is not None else None)
+              for i in indices]
+    if score is not None:
+        # Retrieval ranks best first. Put it nearest the composition, where a
+        # suffix character budget preserves it before less relevant history.
+        picked.reverse()
+    text = "\n".join(r["text"] for r in picked)
+    return dict(context=(text + "\n")[-200:] if text else "", selected=picked)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path, default=Path.home() / ".cache/wime-japanese")
@@ -91,13 +102,6 @@ def main():
             for gram, count in grams(r["kana"]).items():
                 inverted[user][gram].append((index, count))
 
-    def selection(history, indices, score=None):
-        picked = [dict(history[i], overlap_score=score.get(i, 0) if score is not None else None)
-                  for i in indices]
-        text = "\n".join(r["text"] for r in picked)
-        # Preserve historical experiment's character budget, with exact context recorded.
-        return dict(context=text[-200:] + ("\n" if text else ""), selected=picked)
-
     output = []
     for split, index, c in [(split, i, c) for split, group in (("test", cases), ("dev", dev))
                             for i, c in enumerate(group)]:
@@ -128,8 +132,9 @@ def main():
                 stats[f"{split}_{mode}_cases_sharing_gold_8gram"] += 1
         output.append(dict(split=split, case_index=index, id=c["id"], kana=c["input"], author=user, added=added,
                            eligible_history_count=len(eligible), contexts=contexts))
-    result = dict(protocol=dict(version=1, cutoff=cutoff, history=3, max_characters=200,
+    result = dict(protocol=dict(version=2, cutoff=cutoff, history=3, max_characters=200,
                                score="kana bigram multiset overlap", random_seed="wime-context-audit-v1:ID",
+                               ordering="strongest retrieved history last, retained by suffix budget",
                                excluded="unknown authors/dates, added/modified >= cutoff, normalized test/dev text, same input kana, mismatched transcription surface",
                                limitation="Sentence modification dates are checked; transcription edits have no history in this dump."),
                   provenance=[dict(path=str(p), sha256=digest(p))
