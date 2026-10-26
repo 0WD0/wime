@@ -107,7 +107,10 @@ class Decoder:
         """Conditional-model prompt ids and LM context ids."""
         ev = self.evaluator
         prefix = anchored_prompt(context, code, ev.model.cfg.context, anchor, known)
-        return [2] + [ev.index.get(c, 1) for c in prefix], self.rescorer.tokenizer(context[-128:] or "\n")["input_ids"]
+        return [2] + [ev.index.get(c, 1) for c in prefix], self.lm_ids(context)
+
+    def lm_ids(self, context):
+        return self.rescorer.tokenizer(context[-128:] or "\n")["input_ids"]
 
     def window(self):
         return self.evaluator.model.cfg.context
@@ -264,7 +267,7 @@ class Session:
         # The conditional model has seen only complete syllables of a half one.
         m = (decoder.model_next(prompt, [h.text for h in hypotheses])[
             :, torch.tensor(decoder.char_ids([u[0][0] for u in choices]), device=decoder.device).flatten()]
-             if not half else torch.zeros_like(q))
+             if not half and prompt is not None else torch.zeros_like(q))
         valid = torch.zeros(len(hypotheses), len(choices), dtype=torch.bool)
         for c, (a, b) in enumerate(owners):
             valid[a:b, c] = True
@@ -274,7 +277,7 @@ class Session:
         top = estimate.topk(min(decoder.per_hypothesis, len(choices)), dim=1)
         picks = [[c for c, v in zip(row, values) if v > -math.inf]
                  for row, values in zip(top.indices.tolist(), top.values.tolist())]
-        if not half and bool(rare.any()):
+        if not half and prompt is not None and bool(rare.any()):
             extra = m.masked_fill(~valid | ~rare | (m < RARE_FLOOR), -math.inf).topk(min(RARE, len(choices)), dim=1)
             for row, more, values in zip(picks, extra.indices.tolist(), extra.values.tolist()):
                 row.extend(c for c, v in zip(more, values) if v > -math.inf)
@@ -299,7 +302,8 @@ class Session:
             return []
         w = self.decoder.weight
         new = sorted(new, key=lambda e: e[3] + w * e[2] + self.bonus(e[0]), reverse=True)[:RESCORED]
-        scores = self.decoder.model_score(prompt, [e[0][:complete] for e in new])
+        scores = ([0.0] * len(new) if prompt is None
+                  else self.decoder.model_score(prompt, [e[0][:complete] for e in new]))
         best = {}
         for (text, ids, q, _), m in zip(new, scores):
             h = Hypothesis(text, ids, q, m)
@@ -307,8 +311,19 @@ class Session:
                 best[text] = h
         return sorted(best.values(), key=self.rank, reverse=True)[:self.decoder.beam]
 
-    def decode(self, code):
+    def prompt(self, code, characters):
+        """The conditional model's prompt for CODE and up to CHARACTERS
+        characters, or None past its window: then the LM alone ranks."""
         decoder = self.decoder
+        try:
+            prompt, self.lm_context = decoder.prompts(self.context, code, self.anchor, self.known)
+        except ValueError:
+            prompt = None
+        if self.lm_context is None:
+            self.lm_context = decoder.lm_ids(self.context)
+        return prompt if prompt is not None and len(prompt) + characters <= decoder.window() else None
+
+    def decode(self, code):
         syllables, half = len(code) // 2, len(code) % 2
         if not syllables:
             return []
@@ -319,24 +334,14 @@ class Session:
         if common == 0 or len(self.memo) > MEMO:
             # A new composition (or a very long one): LM rows of earlier prefixes go.
             self.memo, self.tails = {}, {}
-        prompt = None
-        try:
-            for end in range(common + 1, syllables + 1):
-                self.code = code[:2 * end]
-                prompt, self.lm_context = decoder.prompts(self.context, self.code, self.anchor, self.known)
-                if len(prompt) + end > decoder.window():
-                    raise ValueError("composition exceeds model window")
-                self.kept.append(self.finish(self.expand(self.code, end, prompt), prompt, end))
-            if self.lm_context is None:
-                prompt, self.lm_context = decoder.prompts(self.context, code[:2 * syllables], self.anchor, self.known)
-            if half:
-                if prompt is None:
-                    prompt = decoder.prompts(self.context, code[:2 * syllables], self.anchor, self.known)[0]
-                final = self.finish(self.expand(code, syllables + 1, prompt), prompt, syllables)
-            else:
-                final = self.kept[syllables]
-        except ValueError:
-            self.decoder.session = None
-            return []
+        for end in range(common + 1, syllables + 1):
+            self.code = code[:2 * end]
+            prompt = self.prompt(self.code, end)
+            self.kept.append(self.finish(self.expand(self.code, end, prompt), prompt, end))
+        if half:
+            prompt = self.prompt(code[:2 * syllables], syllables + 1)
+            final = self.finish(self.expand(code, syllables + 1, prompt), prompt, syllables)
+        else:
+            final = self.kept[syllables]
         n = syllables + half
         return [(h.text, self.rank(h) / n) for h in final if len(h.text) == n]

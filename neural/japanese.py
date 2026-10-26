@@ -379,7 +379,10 @@ class Session:
                 new[i][2] = h.q + value
         w = decoder.weight
         new = sorted(new, key=lambda e: e[3] + w * e[2], reverse=True)[:RESCORED]
-        scores = decoder.model_score(self.context, kana[:end], [e[0] for e in new])
+        try:
+            scores = decoder.model_score(self.context, kana[:end], [e[0] for e in new])
+        except ValueError:
+            scores = [0.0] * len(new)  # past the kana model's window the LM alone ranks
         best = {}
         for (text, ids, q, _), m in zip(new, scores):
             h = Hypothesis(text, ids, q, m)
