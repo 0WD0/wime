@@ -15,6 +15,60 @@
   },
   "corrections": [
     {
+      "suite": "ajimee",
+      "case_index": 48,
+      "case_id": "1116",
+      "before": {
+        "kana": "、いちにんまえになることで、じたどもにせいじんいしきをふかめ、このときからかれらははじめてけっこんしかくをこうにんされ、"
+      },
+      "after": {
+        "kana": "、いちにんまえになることで、じたともにせいじんいしきをふかめ、このときからかれらははじめてけっこんしかくをこうにんされ、"
+      },
+      "reason": "自他ともにの定型読み。原期待表記にも自他ともにが含まれる。",
+      "evidence": {
+        "reference_url": "https://imidas.jp/idiom/detail/X-05-X-12-4-0010.html",
+        "source_evidence_manifest": "/home/_WD_/.cache/wime-japanese/pending-six-evidence-20261028/manifest.json",
+        "source_file": "AJIMEE-Bench/JWTD_v2/v1/evaluation_items.json",
+        "source_id": "1116"
+      }
+    },
+    {
+      "suite": "ajimee",
+      "case_index": 131,
+      "case_id": "1756",
+      "before": {
+        "kana": "かれらがやみのしおきじんであるとけんとうをつけた"
+      },
+      "after": {
+        "kana": "かれらがやみのしおきにんであるとけんとうをつけた"
+      },
+      "reason": "原文は必殺仕置人の鉄と錠を含む物語。公式教材にしおきにんのルビがある。",
+      "evidence": {
+        "reference_url": "https://www.kyozai.jpf.go.jp/kyozai/material/KCG00007/3jidaigeki.pdf",
+        "source_evidence_manifest": "/home/_WD_/.cache/wime-japanese/pending-six-evidence-20261028/manifest.json",
+        "source_file": "AJIMEE-Bench/JWTD_v2/v1/evaluation_items.json",
+        "source_id": "1756"
+      }
+    },
+    {
+      "suite": "ajimee",
+      "case_index": 190,
+      "case_id": "2144",
+      "before": {
+        "kana": "ているかいほうがたのばあいをのぞき、とじたれいきゃくけいかいろをながれており、せいじょうにかどうしているまはかんきょうへのあくえいきょう"
+      },
+      "after": {
+        "kana": "ているかいほうがたのばあいをのぞき、とじたれいきゃくけいかいろをながれており、せいじょうにかどうしているあいだはかんきょうへのあくえいきょう"
+      },
+      "reason": "正常に稼働している期間を指す。継続状態の連体修飾に続く間はあいだ。",
+      "evidence": {
+        "reference_url": "https://kotobank.jp/word/間-60237",
+        "source_evidence_manifest": "/home/_WD_/.cache/wime-japanese/pending-six-evidence-20261028/manifest.json",
+        "source_file": "AJIMEE-Bench/JWTD_v2/v1/evaluation_items.json",
+        "source_id": "2144"
+      }
+    },
+    {
       "suite": "tatoeba",
       "case_index": 124,
       "case_id": "12965053",
@@ -213,6 +267,23 @@
     },
     {
       "suite": "tatoeba",
+      "case_index": 1048,
+      "case_id": "13384908",
+      "before": {
+        "kana": "たみはもーせにもんくをいい、「わたしたちにのみみずをください。」といった。するともーせはこたえた。「なぜわたしにもんくをいうのですか？なぜぬしをためすのですか？」"
+      },
+      "after": {
+        "kana": "たみはもーせにもんくをいい、「わたしたちにのみみずをください。」といった。するともーせはこたえた。「なぜわたしにもんくをいうのですか？なぜしゅをためすのですか？」"
+      },
+      "reason": "原翻訳はモーセが神を試すことへの問い。神を指す主はしゅ。",
+      "evidence": {
+        "reference_url": "https://kotobank.jp/word/主-76657",
+        "source_evidence_manifest": "/home/_WD_/.cache/wime-japanese/pending-six-evidence-20261028/manifest.json",
+        "source_url": "https://tatoeba.org/en/api_v0/sentence/13384908"
+      }
+    },
+    {
+      "suite": "tatoeba",
       "case_index": 1077,
       "case_id": "13479050",
       "before": {
@@ -226,6 +297,23 @@
         "source_url": "https://tatoeba.org/en/sentences/show/13479050",
         "source_transcription": "それ[高|だか]すぎじゃない？",
         "reference": "JMdict 高い=たかい"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1085,
+      "case_id": "13502538",
+      "before": {
+        "kana": "きょうはほかにでないほうがいいとおもうんだ。"
+      },
+      "after": {
+        "kana": "きょうはそとにでないほうがいいとおもうんだ。"
+      },
+      "reason": "原英文はgo outside today。建物の外を表す外はそと。",
+      "evidence": {
+        "reference_url": "https://www.kanjipedia.jp/kotoba/0000847300",
+        "source_evidence_manifest": "/home/_WD_/.cache/wime-japanese/pending-six-evidence-20261028/manifest.json",
+        "source_url": "https://tatoeba.org/en/api_v0/sentence/13502538"
       }
     },
     {
@@ -244,77 +332,26 @@
         "source_transcription": "[今日|きょう]、また[同|おな]じ[事|じ]があった。",
         "reference": "source [同|おな]じ[事|じ]; contextual linguistic review"
       }
-    }
-  ],
-  "pending_review": [
-    {
-      "suite": "tatoeba",
-      "case_index": 1048,
-      "case_id": "13384908",
-      "kana": "たみはもーせにもんくをいい、「わたしたちにのみみずをください。」といった。するともーせはこたえた。「なぜわたしにもんくをいうのですか？なぜぬしをためすのですか？」",
-      "answers": [
-        "民はモーセに文句を言い、「私たちに飲み水をください。」と言った。するとモーセは答えた。「なぜ私に文句を言うのですか？なぜ主を試すのですか？」"
-      ],
-      "reason": "聖書の主がぬしと注音されている。しゅが自然だが原典の読みを確認するまで未変更。"
-    },
-    {
-      "suite": "tatoeba",
-      "case_index": 1085,
-      "case_id": "13502538",
-      "kana": "きょうはほかにでないほうがいいとおもうんだ。",
-      "answers": [
-        "今日は外に出ないほうがいいと思うんだ。"
-      ],
-      "reason": "外に出ないのほかはそとが自然。外には辞書上ほかもあるので原注音者の意図確認待ち。"
     },
     {
       "suite": "tatoeba",
       "case_index": 1281,
       "case_id": "13911138",
-      "kana": "ぱぱは、うちのまんしょんかにあるじむしょにいた。",
-      "answers": [
-        "パパは、うちのマンション下にある事務所にいた。"
-      ],
-      "reason": "マンション下のかはしたが自然。接尾語的な読みとの区別を確認するまで未変更。"
-    },
-    {
-      "suite": "ajimee",
-      "case_index": 48,
-      "case_id": "1116",
-      "kana": "、いちにんまえになることで、じたどもにせいじんいしきをふかめ、このときからかれらははじめてけっこんしかくをこうにんされ、",
-      "answers": [
-        "、一人前になることで、自他共に成人意識を深め、このときから彼等は初めて結婚資格を公認され、",
-        "、一人前になることで、自他共に成人意識を深め、このときから彼らは初めて結婚資格を公認され、",
-        "、一人前になることで、自他ともに成人意識を深め、このときから彼等は初めて結婚資格を公認され、",
-        "、一人前になることで、自他ともに成人意識を深め、このときから彼らは初めて結婚資格を公認され、",
-        "、一人前になることで、自他共に成人意識を深め、この時から彼等は初めて結婚資格を公認され、",
-        "、一人前になることで、自他共に成人意識を深め、この時から彼らは初めて結婚資格を公認され、",
-        "、一人前になることで、自他ともに成人意識を深め、この時から彼等は初めて結婚資格を公認され、",
-        "、一人前になることで、自他ともに成人意識を深め、この時から彼らは初めて結婚資格を公認され、"
-      ],
-      "reason": "自他共にがじたどもに。標準的なじたともにとの相違を上流注音まで確認する必要がある。"
-    },
-    {
-      "suite": "ajimee",
-      "case_index": 131,
-      "case_id": "1756",
-      "kana": "かれらがやみのしおきじんであるとけんとうをつけた",
-      "answers": [
-        "彼らが闇の仕置人であると見当をつけた"
-      ],
-      "reason": "仕置人がしおきじん。固有作品名か一般語かを左文・出典で確認する。"
-    },
-    {
-      "suite": "ajimee",
-      "case_index": 190,
-      "case_id": "2144",
-      "kana": "ているかいほうがたのばあいをのぞき、とじたれいきゃくけいかいろをながれており、せいじょうにかどうしているまはかんきょうへのあくえいきょう",
-      "answers": [
-        "ている開放型の場合を除き、閉じた冷却系回路を流れており、正常に稼働している間は環境への悪影響"
-      ],
-      "reason": "稼働している間はがいるまは。いるあいだはが自然だが上流注音を確認するまで未変更。"
+      "before": {
+        "kana": "ぱぱは、うちのまんしょんかにあるじむしょにいた。"
+      },
+      "after": {
+        "kana": "ぱぱは、うちのまんしょんしたにあるじむしょにいた。"
+      },
+      "reason": "原中国語は公寓楼下。建物の物理的な下を指すのでした。",
+      "evidence": {
+        "reference_url": "https://www.kanjipedia.jp/kotoba/0000617200",
+        "source_evidence_manifest": "/home/_WD_/.cache/wime-japanese/pending-six-evidence-20261028/manifest.json",
+        "source_url": "https://tatoeba.org/en/api_v0/sentence/13911138"
+      }
     }
   ],
+  "pending_review": [],
   "reviewed_coverage": [
     {
       "suite": "ajimee",
@@ -472,5 +509,8 @@
       "case_id": "13982395",
       "disposition": "retained_reading_requires_coverage_or_domain_review"
     }
-  ]
+  ],
+  "revision": 2,
+  "previous_revision_sha256": "f88dc7a2e0e4f4441fca3d67715114e4d185b5d7411943f603ae5797dab36856",
+  "additional_review_note": "Six initially uncertain readings resolved from original context and dictionary evidence. Old baseline snippets were incidentally seen while locating sources, but were not used as linguistic evidence. New sealed evaluation predictions were not consulted."
 }
