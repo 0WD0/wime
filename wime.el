@@ -1166,5 +1166,9 @@ keys pass through."
 (register-input-method "wime" "euc-cn" #'wime-activate wime-title
                        "Wime double-pinyin input method.")
 
+(autoload 'wime-memory "wime-memory" "Manage learned Wime readings." t)
+(autoload 'wime-history "wime-memory" "Browse Wime commit history." t)
+(autoload 'wime-memory-at-point "wime-memory" "Find learned readings near point." t)
+
 (provide 'wime)
 ;;; wime.el ends here

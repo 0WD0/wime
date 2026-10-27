@@ -121,5 +121,70 @@
           (wime-memory-delete-records 'memory (wime-memory-rows 'memory))
           (should-not (wime-neural--valid-p job)))))))
 
+(defmacro wime-memory-test--view (&rest body)
+  "Exercise real management commands without visiting the user's buffers."
+  (declare (indent 0))
+  `(with-temp-buffer
+     (let ((manager (current-buffer)) (create (symbol-function 'get-buffer-create)))
+       (cl-letf (((symbol-function 'get-buffer-create)
+                  (lambda (name &rest args)
+                    (if (equal name "*Wime 学习*") manager (apply create name args))))
+                 ((symbol-function 'pop-to-buffer) (lambda (buffer &rest _) buffer)))
+         ,@body))))
+
+(ert-deftest wime-memory-ui-batch-delete-preserves-marks-across-pages-and-undo ()
+  (wime-memory-test--database
+    (sqlite-execute db "INSERT INTO memory VALUES ('dlxr', '代选', 'a/d', 12, 122.0)")
+    (wime-memory-test--view
+      (let ((wime-memory-page-size 1))
+        (wime-memory)
+        (should (derived-mode-p 'wime-memory-mode))
+        (should (= (length tabulated-list-entries) 1))
+        (goto-char (point-min))
+        (wime-memory-mark)
+        (wime-memory-more)
+        (should (= (length (wime-memory--marked-ids)) 1))
+        (should (= (length tabulated-list-entries) 2))
+        (goto-char (point-min))
+        (forward-line 1)
+        (wime-memory-mark)
+        (wime-memory-delete)
+        (should-not (wime-memory-rows 'memory))
+        (should (= (length wime-memory--undo) 1))
+        (wime-memory-undo)
+        (should (= (length tabulated-list-entries) 2))
+        (should-not wime-memory--undo)))))
+
+(ert-deftest wime-memory-ui-edits-filtered-rows-and-undo-survives-view-switch ()
+  (wime-memory-test--database
+    (wime-memory-test--view
+      (wime-memory "待选")
+      (goto-char (point-min))
+      (let ((answers '("代选" "dlxr")))
+        (cl-letf (((symbol-function 'read-string) (lambda (&rest _) (pop answers))))
+          (wime-memory-edit)))
+      (should-not tabulated-list-entries)
+      (wime-history)
+      (should (eq wime-memory--kind 'history))
+      (should (= (length wime-memory--undo) 1))
+      (wime-memory-undo)
+      (wime-memory)
+      (should (equal (aref (cadar tabulated-list-entries) 0) "待选")))))
+
+(ert-deftest wime-memory-ui-finds-words-in-context-and-keeps-history-multiline ()
+  (wime-memory-test--database
+    (should-not (wime-memory-rows 'memory "这是待选内容"))
+    (should (= (length (wime-memory-rows 'memory "这是待选内容" 200 t)) 1))
+    (sqlite-execute db "UPDATE commits SET context = ?" '("第一行\n第二行\t内容"))
+    (wime-memory-test--view
+      (wime-history "第二行")
+      (should (= (length tabulated-list-entries) 1))
+      (should-not (string-match-p "[\n\t]" (aref (cadar tabulated-list-entries) 4)))
+      (goto-char (point-min))
+      (should (equal (nth 6 (wime-memory--selected-row)) "第一行\n第二行\t内容"))
+      (let ((wime-user-database (expand-file-name "other.db" directory)))
+        (should-error (wime-memory-delete) :type 'user-error))
+      (should (= (length (wime-memory-rows 'history)) 1)))))
+
 (provide 'wime-memory-test)
 ;;; wime-memory-test.el ends here
