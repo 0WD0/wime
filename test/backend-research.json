@@ -1,0 +1,511 @@
+{
+  "schema": 1,
+  "date": "2026-10-28",
+  "base_commit": "e9c0ca2b",
+  "scope": "Official implementation research and read-only GPU profiling of two existing diagnostic inputs per model; no dependency, model weights, runtime or user-setting changes.",
+  "conclusions": [
+    "The current Qwen baseline does not exercise its fused convolution/GatedDeltaNet kernels. Correcting this execution path is necessary before treating earlier branch-cache timings as representative of an optimized Qwen engine.",
+    "Replace per-path tensor snapshots with native sequence/state handles and batched frontier advancement. MiniCPM5-2B standard Llama is the simpler first native-backend target.",
+    "A backend must expose full-vocabulary-normalized, pre-grammar probabilities. Native grammar/sampling logprobs can describe a different distribution and silently change beam ranking.",
+    "Profiler counts support investigating kernel/host-call fragmentation and state ownership. They do not measure the speedup of an unimplemented kernel/backend."
+  ],
+  "environment": {
+    "python": "3.12.12",
+    "torch": "2.11.0+cu130",
+    "cuda_build": "13.0",
+    "transformers": "5.17.0",
+    "triton": "3.6.0",
+    "driver": "615.78.08",
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "reported_memory_mib": 49140,
+    "compute_capability": "8.9",
+    "missing_fast_packages": [
+      "flash-linear-attention",
+      "fla-core",
+      "causal-conv1d",
+      "kernels",
+      "flash-attn"
+    ],
+    "tools": {
+      "nvcc": "/opt/cuda/bin/nvcc",
+      "ninja": "/usr/bin/ninja",
+      "cmake": "/usr/bin/cmake",
+      "g++": "/usr/bin/g++",
+      "nsys": null,
+      "ncu": null
+    }
+  },
+  "model_identity": {
+    "minicpm": {
+      "architecture": "LlamaForCausalLM",
+      "layers": 42,
+      "hidden": 2048,
+      "q_heads": 16,
+      "kv_heads": 2,
+      "head_dim": 128,
+      "vocab": 130560,
+      "notes": "Standard dense Llama; not MiniCPM4 sparse attention, SALA or MiniCPM-V."
+    },
+    "qwen": {
+      "architecture": "Qwen3_5ForCausalLM/Qwen3_5TextModel",
+      "layers": 24,
+      "gated_delta_layers": 18,
+      "full_attention_layers": 6,
+      "hidden": 2048,
+      "linear_heads": 16,
+      "linear_head_dim": 128,
+      "conv_width": 4,
+      "vocab": 248320,
+      "notes": "Dense 2B text path; AutoModelForCausalLM does not run the checkpoint vision wrapper. Do not transfer large-MoE claims."
+    }
+  },
+  "current_qwen_path": {
+    "confirmed": "Runtime fallback warning plus CPU inspection of all four decorator closures: reference implementations and is_new_implementation=False.",
+    "dispatch": "Cached seq_len==1 selects recurrent/update; other calls select chunk. The reference chunk casts to FP32, pads to multiples of64, and invokes two triangular solves.",
+    "availability": "Current FLA dependency declarations admit torch2.11/triton3.6; operational compatibility remains untested. causal-conv1d1.7.0 assets have no matching torch2.11 wheel; nvcc is present, so source build is possible but untested.",
+    "hardware_limit": "Qwen FlashQLA support list includes SM90/100/103/120/121, not this SM89 GPU.",
+    "next_ablation": [
+      "existing fallback",
+      "FLA only",
+      "causal-conv1d only",
+      "both"
+    ],
+    "next_dispatch_experiment": "After fused kernels are actually resolved, sweep cached suffix lengths1/2/4/8/16/32 and compare recurrent versus chunk. Keep weights, beam and scoring fixed."
+  },
+  "native_backend": {
+    "proposed_contract": [
+      "prefill exact context -> immutable state handle",
+      "fork parent handle into logical sequence IDs",
+      "advance a frontier batch with per-sequence positions and tokens",
+      "gather requested token logprobs using full vocabulary normalization before grammar mask",
+      "drop pruned sequence IDs",
+      "score canonical context+candidate paths independently"
+    ],
+    "llama_cpp": "llama_batch carries per-token positions and sequence IDs, seq_cp/rm manage branches, and get_logits_ith exposes unsampled logits. Same unified-stream Llama KV prefix copies update cell metadata without copying KV buffers.",
+    "hybrid_caveat": "llama.cpp recurrent seq_cp shares tail metadata initially, but later branch materialization/state ownership must still be validated. Hybrid batches use equal sequence splitting, and recurrent rollback is bounded by n_rs_seq and restricted for shared cells; do not assume unrestricted KV-style rollback.",
+    "migration_order": "MiniCPM floating-point GGUF first, preserving FSA, token bytes, context healing, search budgets and canonical final score. Verify token ID/byte mapping and probability semantics before performance and before lower-bit quantization.",
+    "vllm": "logprob_token_ids can expose selected IDs without full vocabulary Python/RPC output. Current Wime already gathers legal IDs on-device before tolist; the improvement to target is batching small transfers/steps, not pretending full-logit transfer is currently happening.",
+    "vllm_teacher": "Prompt token-ID teacher scoring exists on the audited V2 runner, has prefix-cache policy controls, and is not exposed by the OpenAI-compatible endpoint.",
+    "probability_warning": "Audited vLLM/SGLang paths mask logits for structured grammar before returned logsoftmax. raw_logprobs/temperature controls do not necessarily recover the unmasked distribution. Start without engine grammar and retain external Wime FSA, or add a pre-mask gather API.",
+    "normalizer": "Requesting only legal IDs does not by itself eliminate the full vocabulary head or its normalization. Never normalize only over allowed IDs as a substitute."
+  },
+  "speculation_and_quantization": {
+    "dspark": "Independent approximately324M/5-layer draft paired to final MiniCPM5-2B, proposing seven tokens and using selected target hidden layers; not built-in MTP. Speculative-chain acceptance is not equivalent to Wime text-progress beam pruning, and live grammar can disable folded acceptance.",
+    "priority": "Only after execution and raw scoring interfaces are correct; treat as a candidate proposer initially and validate target-model scores.",
+    "quantization": "Official MiniCPM5-2B-GPTQ configuration currently selects AWQ GEMM packing (4bit/group128), with metadata describing a lossless packing conversion of GPTQ weights. Choose loaders from config, not repository names. Quantized quality must be tested separately.",
+    "base_control": "Base was already evaluated: old300-case exact counts were Qwen254/final253/Base249. It is not a newly discovered repair; any new-decoder Base run is a separate control."
+  },
+  "profiling": {
+    "cases_per_model": 2,
+    "inputs": [
+      "018862b29bf3f3062ee840d6/whole",
+      "03fb6ef7ed580989689f3bff/single"
+    ],
+    "new_quality_test_rows": 0,
+    "summary": {
+      "qwen": {
+        "actual_model_class": "Qwen3_5ForCausalLM",
+        "actual_backbone_class": "Qwen3_5TextModel",
+        "dtype": "torch.bfloat16",
+        "attention_interface": "sdpa",
+        "cases": [
+          {
+            "id": "018862b29bf3f3062ee840d6/whole",
+            "composition_characters": 24,
+            "frontiers": 89,
+            "lm_rows": 1172,
+            "kernel_launches": 254214,
+            "stream_synchronizations": 4787,
+            "triangular_solves": 3240,
+            "sdpa_flash_calls": 18,
+            "sdpa_efficient_calls": 1776,
+            "cuda_activities": 291499,
+            "summed_cuda_activity_ms": 1871.5721839999073,
+            "ranges": [
+              {
+                "name": "wime.decode",
+                "count": 1,
+                "cpu_self_us": 88792.21900001308,
+                "cpu_total_us": 3584629.008,
+                "device_self_us": 0.0,
+                "device_total_us": 1872108.7199999108
+              },
+              {
+                "name": "wime.memo_next",
+                "count": 88,
+                "cpu_self_us": 4182.433999994693,
+                "cpu_total_us": 2808731.896,
+                "device_self_us": 0.0,
+                "device_total_us": 1589062.1309999544
+              },
+              {
+                "name": "wime.lm_next",
+                "count": 88,
+                "cpu_self_us": 135428.7270001046,
+                "cpu_total_us": 2793534.3140000026,
+                "device_self_us": 0.0,
+                "device_total_us": 1586140.836999957
+              },
+              {
+                "name": "wime.backbone",
+                "count": 91,
+                "cpu_self_us": 707912.4960000427,
+                "cpu_total_us": 2592826.4129999983,
+                "device_self_us": 0.0,
+                "device_total_us": 1477107.0469999344
+              },
+              {
+                "name": "wime.lm_head",
+                "count": 91,
+                "cpu_self_us": 1493.9229999975068,
+                "cpu_total_us": 3489.5899999993344,
+                "device_self_us": 0.0,
+                "device_total_us": 99510.90400000176
+              },
+              {
+                "name": "wime.guide_score",
+                "count": 240,
+                "cpu_self_us": 77442.17599999486,
+                "cpu_total_us": 472735.7609999973,
+                "device_self_us": 0.0,
+                "device_total_us": 240438.98899996502
+              },
+              {
+                "name": "wime.conditional_forward",
+                "count": 156,
+                "cpu_self_us": 56061.0319999762,
+                "cpu_total_us": 220878.41900000413,
+                "device_self_us": 0.0,
+                "device_total_us": 234048.46799995884
+              },
+              {
+                "name": "wime.final_score",
+                "count": 2,
+                "cpu_self_us": 3342.7179999938235,
+                "cpu_total_us": 95131.41700000037,
+                "device_self_us": 0.0,
+                "device_total_us": 39257.33799999254
+              }
+            ],
+            "candidate_order_matches_unprofiled": true
+          },
+          {
+            "id": "03fb6ef7ed580989689f3bff/single",
+            "composition_characters": 1,
+            "frontiers": 13,
+            "lm_rows": 50,
+            "kernel_launches": 32878,
+            "stream_synchronizations": 163,
+            "triangular_solves": 432,
+            "sdpa_flash_calls": 18,
+            "sdpa_efficient_calls": 68,
+            "cuda_activities": 36441,
+            "summed_cuda_activity_ms": 149.80990800000032,
+            "ranges": [
+              {
+                "name": "wime.decode",
+                "count": 1,
+                "cpu_self_us": 3721.737999999081,
+                "cpu_total_us": 396548.697,
+                "device_self_us": 0.0,
+                "device_total_us": 149830.2910000003
+              },
+              {
+                "name": "wime.memo_next",
+                "count": 12,
+                "cpu_self_us": 364.30700000031356,
+                "cpu_total_us": 349848.34599999996,
+                "device_self_us": 0.0,
+                "device_total_us": 138993.02999999915
+              },
+              {
+                "name": "wime.lm_next",
+                "count": 12,
+                "cpu_self_us": 15603.622000000658,
+                "cpu_total_us": 348776.95000000007,
+                "device_self_us": 0.0,
+                "device_total_us": 138839.08099999925
+              },
+              {
+                "name": "wime.backbone",
+                "count": 13,
+                "cpu_self_us": 93670.96000000245,
+                "cpu_total_us": 347938.9749999999,
+                "device_self_us": 0.0,
+                "device_total_us": 132158.09300000028
+              },
+              {
+                "name": "wime.lm_head",
+                "count": 13,
+                "cpu_self_us": 181.87000000002809,
+                "cpu_total_us": 430.11999999995896,
+                "device_self_us": 0.0,
+                "device_total_us": 13650.27300000006
+              },
+              {
+                "name": "wime.guide_score",
+                "count": 2,
+                "cpu_self_us": 235.9780000000028,
+                "cpu_total_us": 1913.9649999999674,
+                "device_self_us": 0.0,
+                "device_total_us": 453.15199999994365
+              },
+              {
+                "name": "wime.conditional_forward",
+                "count": 1,
+                "cpu_self_us": 368.2209999994375,
+                "cpu_total_us": 1426.4689999999828,
+                "device_self_us": 0.0,
+                "device_total_us": 429.92099999979837
+              },
+              {
+                "name": "wime.final_score",
+                "count": 2,
+                "cpu_self_us": 198.31199999985984,
+                "cpu_total_us": 28406.62300000002,
+                "device_self_us": 0.0,
+                "device_total_us": 10241.6170000009
+              }
+            ],
+            "candidate_order_matches_unprofiled": true
+          }
+        ]
+      },
+      "minicpm": {
+        "actual_model_class": "LlamaForCausalLM",
+        "actual_backbone_class": "LlamaModel",
+        "dtype": "torch.bfloat16",
+        "attention_interface": "sdpa",
+        "cases": [
+          {
+            "id": "018862b29bf3f3062ee840d6/whole",
+            "composition_characters": 24,
+            "frontiers": 101,
+            "lm_rows": 1339,
+            "kernel_launches": 219996,
+            "stream_synchronizations": 5080,
+            "triangular_solves": 0,
+            "sdpa_flash_calls": 126,
+            "sdpa_efficient_calls": 5536,
+            "cuda_activities": 270272,
+            "summed_cuda_activity_ms": 1465.8336490001454,
+            "ranges": [
+              {
+                "name": "wime.decode",
+                "count": 1,
+                "cpu_self_us": 93829.27900000056,
+                "cpu_total_us": 3339661.855,
+                "device_self_us": 0.0,
+                "device_total_us": 1466122.5420001452
+              },
+              {
+                "name": "wime.memo_next",
+                "count": 100,
+                "cpu_self_us": 5032.245999993174,
+                "cpu_total_us": 2587164.8519999995,
+                "device_self_us": 0.0,
+                "device_total_us": 1209653.8470001468
+              },
+              {
+                "name": "wime.lm_next",
+                "count": 100,
+                "cpu_self_us": 208193.55100005388,
+                "cpu_total_us": 2569507.567000002,
+                "device_self_us": 0.0,
+                "device_total_us": 1207179.3300001465
+              },
+              {
+                "name": "wime.backbone",
+                "count": 103,
+                "cpu_self_us": 585897.3840000465,
+                "cpu_total_us": 2222109.9619999994,
+                "device_self_us": 0.0,
+                "device_total_us": 1132718.5420001536
+              },
+              {
+                "name": "wime.lm_head",
+                "count": 103,
+                "cpu_self_us": 1861.138999998344,
+                "cpu_total_us": 4949.61499999962,
+                "device_self_us": 0.0,
+                "device_total_us": 60190.05899999903
+              },
+              {
+                "name": "wime.guide_score",
+                "count": 232,
+                "cpu_self_us": 78210.8239999988,
+                "cpu_total_us": 486590.51699999714,
+                "device_self_us": 0.0,
+                "device_total_us": 221627.44699999754
+              },
+              {
+                "name": "wime.conditional_forward",
+                "count": 167,
+                "cpu_self_us": 60941.402999981714,
+                "cpu_total_us": 241013.59199999855,
+                "device_self_us": 0.0,
+                "device_total_us": 215263.93700000114
+              },
+              {
+                "name": "wime.final_score",
+                "count": 2,
+                "cpu_self_us": 4526.049999999348,
+                "cpu_total_us": 86218.30100000044,
+                "device_self_us": 0.0,
+                "device_total_us": 31007.936999992467
+              }
+            ],
+            "candidate_order_matches_unprofiled": true
+          },
+          {
+            "id": "03fb6ef7ed580989689f3bff/single",
+            "composition_characters": 1,
+            "frontiers": 14,
+            "lm_rows": 58,
+            "kernel_launches": 25292,
+            "stream_synchronizations": 170,
+            "triangular_solves": 0,
+            "sdpa_flash_calls": 126,
+            "sdpa_efficient_calls": 470,
+            "cuda_activities": 31241,
+            "summed_cuda_activity_ms": 125.61049199999695,
+            "ranges": [
+              {
+                "name": "wime.decode",
+                "count": 1,
+                "cpu_self_us": 3723.432999999495,
+                "cpu_total_us": 325978.447,
+                "device_self_us": 0.0,
+                "device_total_us": 125614.875999997
+              },
+              {
+                "name": "wime.memo_next",
+                "count": 13,
+                "cpu_self_us": 374.9439999998722,
+                "cpu_total_us": 295492.51800000004,
+                "device_self_us": 0.0,
+                "device_total_us": 116677.85699999705
+              },
+              {
+                "name": "wime.lm_next",
+                "count": 13,
+                "cpu_self_us": 22906.707999998445,
+                "cpu_total_us": 294328.28599999996,
+                "device_self_us": 0.0,
+                "device_total_us": 116541.15999999715
+              },
+              {
+                "name": "wime.backbone",
+                "count": 14,
+                "cpu_self_us": 68281.5260000012,
+                "cpu_total_us": 267922.06500000006,
+                "device_self_us": 0.0,
+                "device_total_us": 113449.77999999716
+              },
+              {
+                "name": "wime.lm_head",
+                "count": 14,
+                "cpu_self_us": 179.51099999993312,
+                "cpu_total_us": 494.5919999999751,
+                "device_self_us": 0.0,
+                "device_total_us": 7747.373999999989
+              },
+              {
+                "name": "wime.guide_score",
+                "count": 2,
+                "cpu_self_us": 214.9110000001383,
+                "cpu_total_us": 1906.9799999999814,
+                "device_self_us": 0.0,
+                "device_total_us": 436.4430000000866
+              },
+              {
+                "name": "wime.conditional_forward",
+                "count": 1,
+                "cpu_self_us": 368.114999999234,
+                "cpu_total_us": 1447.6480000000447,
+                "device_self_us": 0.0,
+                "device_total_us": 413.2439999997732
+              },
+              {
+                "name": "wime.final_score",
+                "count": 2,
+                "cpu_self_us": 193.4590000002645,
+                "cpu_total_us": 17842.47100000002,
+                "device_self_us": 0.0,
+                "device_total_us": 8335.584999999614
+              }
+            ],
+            "candidate_order_matches_unprofiled": true
+          }
+        ]
+      }
+    },
+    "interpretation": "CUDA counts exclude synthetic record_function annotations. Activity totals include GPU kernels and memory operations; CPU/GPU ranges are nested and may overlap. Profiling perturbs wall time substantially, so these timings are attribution evidence, not a new latency benchmark. Candidate order matched each corresponding unprofiled execution.",
+    "correction": "Initial profile files included CUDA-side user ranges in the activity sum. Those files are retained for audit but excluded from conclusions; v2 filters is_user_annotation and records actual dispatch. The second pass repeats only the same two inputs."
+  },
+  "upstream_policy": "No upstream source was modified or imported in this research. Any next dependency/kernel modification must first use jjosh to import the upstream mainline with full history and mappings, then edit the imported source.",
+  "sources": {
+    "minicpm_repo": "https://github.com/OpenBMB/MiniCPM/blob/316cfb1cea39f39cfa16b4f5703b77495c2340be/README.md",
+    "minicpm_config": "https://huggingface.co/openbmb/MiniCPM5-2B/blob/main/config.json",
+    "minicpm_llama_cpp": "https://github.com/OpenBMB/MiniCPM/blob/316cfb1cea39f39cfa16b4f5703b77495c2340be/docs/deployment/llama_cpp.md",
+    "minicpm_vllm": "https://github.com/OpenBMB/MiniCPM/blob/316cfb1cea39f39cfa16b4f5703b77495c2340be/docs/deployment/vllm.md",
+    "minicpm_dspark": "https://huggingface.co/openbmb/MiniCPM5-2B-DSpark",
+    "minicpm_quantization": "https://huggingface.co/openbmb/MiniCPM5-2B-GPTQ/blob/main/config.json",
+    "qwen_small_release": "https://github.com/QwenLM/Qwen3.8/blob/7e103aebdbff11c98cc1cd6a2a568988cfd38168/README.md",
+    "qwen_base": "https://huggingface.co/Qwen/Qwen3.5-2B-Base",
+    "flashqla": "https://github.com/QwenLM/FlashQLA#installation",
+    "fla_dependencies": "https://github.com/fla-org/flash-linear-attention/blob/1b74d1e0a71070d642b47385f86b86cc45d56324/pyproject.toml",
+    "fla_chunk": "https://github.com/fla-org/flash-linear-attention/blob/1b74d1e0a71070d642b47385f86b86cc45d56324/fla/ops/gated_delta_rule/chunk.py#L397",
+    "fla_recurrent": "https://github.com/fla-org/flash-linear-attention/blob/1b74d1e0a71070d642b47385f86b86cc45d56324/fla/ops/gated_delta_rule/fused_recurrent.py#L309",
+    "causal_conv": "https://github.com/Dao-AILab/causal-conv1d/blob/cd81f0413cad2fc1e6f17e785ac39f59aae690cd/causal_conv1d/causal_conv1d_interface.py#L193",
+    "causal_conv_release": "https://github.com/Dao-AILab/causal-conv1d/releases/tag/v1.7.0",
+    "llama_api": "https://github.com/ggml-org/llama.cpp/blob/8ca4060b7e30e76baaa5670ee1ec1b760b7f8552/include/llama.h",
+    "llama_kv": "https://github.com/ggml-org/llama.cpp/blob/8ca4060b7e30e76baaa5670ee1ec1b760b7f8552/src/llama-kv-cache.cpp#L458",
+    "llama_recurrent": "https://github.com/ggml-org/llama.cpp/blob/8ca4060b7e30e76baaa5670ee1ec1b760b7f8552/src/llama-memory-recurrent.cpp#L262",
+    "llama_hybrid": "https://github.com/ggml-org/llama.cpp/blob/8ca4060b7e30e76baaa5670ee1ec1b760b7f8552/src/llama-memory-hybrid.cpp#L68",
+    "vllm_sampling": "https://github.com/vllm-project/vllm/blob/6376fda7a95904abf8977011af526c693c4c3004/vllm/sampling_params.py#L342",
+    "vllm_teacher": "https://github.com/vllm-project/vllm/blob/6376fda7a95904abf8977011af526c693c4c3004/docs/training/prompt_token_id_logprobs.md",
+    "vllm_mask_order": "https://github.com/vllm-project/vllm/blob/6376fda7a95904abf8977011af526c693c4c3004/vllm/v1/worker/gpu/model_runner.py#L1683",
+    "sglang_mask_order": "https://github.com/sgl-project/sglang/blob/610a74d6485539b07aa772e31199257ca3d7c1d0/python/sglang/srt/speculative/dspark_components/dspark_worker_v2.py#L1183"
+  },
+  "local_evidence": {
+    "qwen_model": {
+      "path": "/home/_WD_/.local/share/wime/python/lib/python3.12/site-packages/transformers/models/qwen3_5/modeling_qwen3_5.py",
+      "sha256": "762feb6c7426a7f15b5bf830df54c07438bf9e7c27b8cdb23179045920412c3b"
+    },
+    "hub_kernel_dispatch": {
+      "path": "/home/_WD_/.local/share/wime/python/lib/python3.12/site-packages/transformers/integrations/hub_kernels.py",
+      "sha256": "c1eafefe0cbdf7f0deaa21b1ef6cb6d7c6082b3f486651d069ff38fcf3e53c95"
+    },
+    "sdpa_adapter": {
+      "path": "/home/_WD_/.local/share/wime/python/lib/python3.12/site-packages/transformers/integrations/sdpa_attention.py",
+      "sha256": "53c7229daca9ade4c5df874194448938c1edc925abbc71809f9750dd66381e6f"
+    },
+    "cache_layout": {
+      "path": "/home/_WD_/.local/share/wime/python/lib/python3.12/site-packages/transformers/cache_utils.py",
+      "sha256": "702144bb44553f6339ea1bf23c8205a708bb5f8c7c09cb3a2db484182646743c"
+    },
+    "text_decoder": {
+      "path": "/home/disk/Projects/dev-monorepo-wime-minicpm/emacs-packages/wime/neural/text_decoder.py",
+      "sha256": "694748e5aede44ecd732a5c1964dd90b613024481512062ff08b11aa0dcab7dc"
+    },
+    "prefix_cache": {
+      "path": "/home/disk/Projects/dev-monorepo-wime-minicpm/emacs-packages/wime/neural/prefix_cache.py",
+      "sha256": "f5eab36ef9f87ce79095f54089fd1f15157a22824163692d567184b75a0ce052"
+    }
+  },
+  "artifacts": {
+    "root": "/home/_WD_/.cache/wime-minicpm-investigation/backend-research",
+    "sha256": {
+      "profile-runtime.py": "3f2706d694a7ec49e1a5c636c1ba853e5f9a5467d0dc7441ed94f9287960222e",
+      "profile-minicpm.log": "7e804f10e942769a23208c6bf5dd3edad18ab6f88fc17f6cb829627e76eeb5d4",
+      "profile-minicpm.json": "dfb70e82df42e1e42155d6014f3862d1e65527a6fc1cde0fd717486688c2a27b",
+      "profile-qwen.log": "307f85b2240d712f5b24a1255d1d65ea908a797b21e7273b3844ad7213121589",
+      "profile-qwen.json": "b14db00e4f558d0f6907f9aa5cd5504190b8cef9c029e8467068d8b34bf4a111",
+      "profile-v2-minicpm.log": "6ab019c4d92df472cd7f8b8fcb88af78ac6749ea096204d73d8212c0f6388d24",
+      "profile-v2-minicpm.json": "9ef5faf4081e92fa3abfbeca3159de5b8b648810cd5058e985fbd7e2a9e11073",
+      "profile-v2-qwen.log": "98a8130ec53414bfdfe48dcb450d93c44b966f1677cc8469157ffe436bc91435",
+      "profile-v2-qwen.json": "a04a5f5fe54b370def03e12a9e9102a839cd39bc4c2c3d00c1ea4dffb3c69fe6"
+    }
+  }
+}
