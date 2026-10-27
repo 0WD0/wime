@@ -184,14 +184,15 @@ worker process, and can check each asynchronous invalidation separately."
     (should (equal (wime-edit--unit-keys (wime-edit--unit-at 3)) "aa"))))
 
 (ert-deftest wime-edit-neural-callback-rejects-new-editor-boundaries ()
-  (dolist (change '(narrowing overlay hidden read-only deactivated))
+  (dolist (change '(narrowing overlay hidden read-only deactivated database))
     (wime-edit-neural-test--buffer
       (pcase change
         ('narrowing (narrow-to-region 4 5))
         ('overlay (overlay-put (make-overlay 3 4) 'read-only t))
         ('hidden (overlay-put (make-overlay 3 4) 'invisible t))
         ('read-only (setq buffer-read-only t))
-        ('deactivated (wime-deactivate)))
+        ('deactivated (wime-deactivate))
+        ('database (setq-local wime-database-file "another-scheme.db")))
       (should-not (wime-neural--valid-p job))
       (wime-neural--apply job '((promoted . 1)))
       (save-restriction
@@ -219,5 +220,45 @@ worker process, and can check each asynchronous invalidation separately."
         (wime-edit--load-input)
         (wime-neural--schedule)
         (should scheduled)))))
+
+(ert-deftest wime-edit-active-keymap-stays-in-its-buffer ()
+  (let ((emulation-mode-map-alists emulation-mode-map-alists)
+        (overriding-terminal-local-map nil))
+    (wime-edit-neural-test--buffer
+      (wime-active-mode 1)
+      (should (eq (key-binding (kbd "DEL")) #'wime-edit-delete-backward))
+      (should (eq (key-binding (kbd "RET")) #'wime-edit-return))
+      (should-not overriding-terminal-local-map)
+      (with-temp-buffer
+        (should-not (eq (key-binding (kbd "DEL")) #'wime-edit-delete-backward))
+        (should-not (eq (key-binding (kbd "RET")) #'wime-edit-return))
+        (should-not (eq (key-binding (kbd "C-c C-c")) #'wime-edit-finish))
+        ;; Clearing another buffer must not remove the original run's keys.
+        (wime--reset))
+      (should (eq (key-binding (kbd "DEL")) #'wime-edit-delete-backward))
+      (wime-edit-pause)
+      (should-not (eq (key-binding (kbd "DEL")) #'wime-edit-delete-backward)))))
+
+(ert-deftest wime-edit-active-keymap-precedes-modal-emulation ()
+  (let* ((modal-map (make-sparse-keymap))
+         (emulation-mode-map-alists (list (list (cons t modal-map))))
+         (overriding-terminal-local-map nil))
+    (define-key modal-map (kbd "DEL") #'ignore)
+    (wime-edit-neural-test--buffer
+      (wime-active-mode 1)
+      (should (eq (key-binding (kbd "DEL")) #'wime-edit-delete-backward))
+      (wime-edit-pause)
+      (should (eq (key-binding (kbd "DEL")) #'ignore)))))
+
+(ert-deftest wime-edit-neural-span-choice-invalidates-reused-candidates ()
+  (wime-edit-neural-test--buffer
+    ;; A cache may return the same records and a correction may keep the
+    ;; displayed character.  Neither buffer tick nor record identity changes.
+    (cl-letf (((symbol-function 'wime--refresh) #'ignore))
+      (wime--choose-span 0 1 "甲"))
+    (should (= (buffer-chars-modified-tick) (wime-neural--job-tick job)))
+    (should (eq wime--candidate-records (wime-neural--job-records job)))
+    (should (> wime-edit--generation (wime-neural--job-edit-generation job)))
+    (should-not (wime-neural--valid-p job))))
 
 ;;; wime-edit-neural-test.el ends here

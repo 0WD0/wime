@@ -328,6 +328,7 @@ movement and switching to literal input until explicitly confirmed."
 
 (autoload 'wime-edit-mode "wime-edit" nil t)
 (defvar wime-edit--keymap)
+(defvar wime-edit--generation)
 (declare-function wime-edit--render "wime-edit")
 (declare-function wime-edit--decodable-p "wime-edit")
 (declare-function wime-edit--pending-refresh "wime-edit")
@@ -981,6 +982,8 @@ In the span view only numbered alternatives respond; others do nothing."
 
 (defun wime--choose-span (start end text)
   "Fix TEXT at syllables START..END and decode the rest of the input again."
+  (when (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
+    (cl-incf wime-edit--generation))
   (let ((units (wime--parse wime--input)))
     (setq wime--pins
           (append (cl-loop for i from start below end
@@ -1092,6 +1095,9 @@ In the span view only numbered alternatives respond; others do nothing."
     map)
   "Keymap installed while a wime composition is active.")
 
+(defvar-local wime--active-emulation-map-alist nil
+  "Editable composition bindings for this buffer, ahead of modal keymaps.")
+
 (define-minor-mode wime-active-mode
   "Minor mode installed while a wime composition is active."
   :lighter nil
@@ -1099,10 +1105,20 @@ In the span view only numbered alternatives respond; others do nothing."
   :keymap nil
   (if wime-active-mode
       (progn
-        (internal-push-keymap (if (bound-and-true-p wime-edit-mode)
-                                 wime-edit--keymap wime-active-mode-map)
-                             'overriding-terminal-local-map)
+        (if (bound-and-true-p wime-edit-mode)
+            (progn
+              ;; Editable runs survive switching buffers.  A terminal-wide
+              ;; override would keep intercepting keys in the destination.
+              (setq wime--active-emulation-map-alist
+                    `((wime-active-mode . ,wime-edit--keymap)))
+              (setq emulation-mode-map-alists
+                    (cons 'wime--active-emulation-map-alist
+                          (remq 'wime--active-emulation-map-alist
+                                emulation-mode-map-alists))))
+          (setq wime--active-emulation-map-alist nil)
+          (internal-push-keymap wime-active-mode-map 'overriding-terminal-local-map))
         (add-hook 'pre-command-hook #'wime--clear-before-unrelated-command nil t))
+    (setq wime--active-emulation-map-alist nil)
     (internal-pop-keymap wime-active-mode-map 'overriding-terminal-local-map)
     (when (boundp 'wime-edit--keymap)
       (internal-pop-keymap wime-edit--keymap 'overriding-terminal-local-map))

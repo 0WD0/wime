@@ -16,15 +16,25 @@ wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
 | 小写字母，及方案用到的 =;,./= | 双拼编码，两键一个音节             |
 | 大写字母                      | 前一个音节的辅助码，如 =niK=       |
 | 数字                          | 选候选；分段视图里选该段的替代写法 |
-| 空格                          | 上屏当前候选                       |
-| =RET=                         | 上屏原始按键                       |
+| 空格                          | 半上屏模式下暂存，保留读音；旧模式上屏 |
+| =C-c C-c=                     | 确认半上屏文字，结束自动选字         |
+| =RET=                         | 半上屏模式确认并执行原来的回车命令；旧模式上屏原始按键 |
 | =DEL=                         | 删掉最后一个键                     |
-| =ESC=                         | 取消                               |
+| =ESC=                         | 半上屏模式暂存；旧模式取消           |
 | =TAB=                         | 在分段视图和整句列表之间切换       |
 
 =;,./= 只在方案用到的位置（声母位或韵母位）算编码，别处仍是标点。
 标点默认上屏全角，=M-x wime-toggle-punctuation= 切换为半角。
 只读缓冲区里按键原样透传。
+
+wdoom 默认启用 =wime-editable-preedit=：候选是 buffer 中的真实文字，
+读音作为不写入文件的属性保存。可直接移动光标，在待转换字后补大写辅助码；
+=C-\\= 切换英文不会丢掉中文的读音，再切回即可继续改字。
+普通插入和粘贴作为原样文字，把相邻中文段分开；明确选定的字保持固定。
+未确认中文按最多 =wime-edit-max-syllables=（默认 24）字的窗口重新转换，
+后输入的音节可改变前面的选字。英文和标点两侧目前分别转换，尚不做跨段联合解码。
+=SPC= / =ESC= 隐藏当前提示，=C-c C-c= 确认可访问区域内的待转换文字。
+设 =wime-editable-preedit= 为 nil，或在 buffer 中关闭 =wime-edit-mode= 可用旧界面。
 
 ** 分段视图
 
@@ -67,7 +77,7 @@ worker 出错或超时，词格候选照常可用。
 - =decode= :: 不经过词格。
   Qwen3.5-2B 的 token 在读音约束下直接拼出按键，
   每一步与 25M 拼音条件模型的分数融合（=neural/decoder.py=）。
-  逐音节增量解码，半个音节也能出整句；
+  完整音节变化后用全部当前音节重搜，复用通用模型缓存；半个音节也能出整句；
   辅助码和分段视图里固定的字都是硬约束。
   wdoom 在装了 Qwen 时默认用它。
 - =verify= :: 词格给出候选池，25M 模型（可再加 Qwen 重排）从中挑选，
@@ -184,6 +194,8 @@ ERT 测试在仓库根目录运行，词库取自 =bazel-bin/=：
 #+begin_src sh
 emacs -Q --batch -L emacs-packages/wime --eval '(setq load-prefer-newer t)' \
   -l ert -l emacs-packages/wime/test/wime-test.el \
+  -l emacs-packages/wime/test/wime-edit-test.el \
+  -l emacs-packages/wime/test/wime-edit-neural-test.el \
   -l emacs-packages/wime/test/wime-neural-test.el \
   -l emacs-packages/wime/test/wime-japanese-test.el -f ert-run-tests-batch-and-exit
 #+end_src

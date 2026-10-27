@@ -15,7 +15,7 @@
   :type 'natnum :group 'wime)
 
 (cl-defstruct (wime-edit--unit (:constructor wime-edit--make-unit))
-  keys pin original)
+  keys pin original (database wime-database-file))
 
 (defvar-local wime-edit--start nil)
 (defvar-local wime-edit--end nil)
@@ -34,7 +34,8 @@
   "Return the reading at accessible POSITION, if any."
   (when (and (<= (point-min) position) (< position (point-max)))
     (let ((unit (get-text-property position 'wime-edit-unit)))
-      (and (wime-edit--unit-p unit) unit))))
+      (and (wime-edit--unit-p unit)
+           (equal (wime-edit--unit-database unit) wime-database-file) unit))))
 
 (defun wime-edit--editable-unit-at (position)
   (and (wime-edit--unit-at position)
@@ -47,7 +48,9 @@
   (and wime-edit-mode (markerp wime-edit--start) (marker-buffer wime-edit--start)
        (markerp wime-edit--end) (marker-buffer wime-edit--end)
        (eq (marker-buffer wime-edit--start) (current-buffer))
-       (eq (marker-buffer wime-edit--end) (current-buffer))))
+       (eq (marker-buffer wime-edit--end) (current-buffer))
+       (cl-every (lambda (u) (equal (wime-edit--unit-database u) wime-database-file))
+                 wime-edit--units)))
 
 (defun wime-edit--writable-p ()
   "Whether the active run is accessible, visible and editable."
@@ -121,7 +124,7 @@
   (when (and wime-edit-mode wime-mode (not wime-edit--internal))
     (let ((bounds (wime-edit--bounds)))
       (cond
-       ((null bounds) (when (wime-edit--active-p) (wime--reset)))
+       ((null bounds) (when wime-edit--start (wime--reset)))
        ((and (wime-edit--active-p)
              (= (car bounds) wime-edit--start) (= (cdr bounds) wime-edit--end)) nil)
        (t
@@ -368,6 +371,18 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
   (interactive)
   (wime-edit-pause)
   (let ((wime-edit--internal t))
+    ;; An unmatched or unfinished syllable is still input.  Do not discard
+    ;; its remaining keys when removing the per-character reading record.
+    (save-excursion
+      (goto-char (point-min))
+      (while (< (point) (point-max))
+        (let ((unit (wime-edit--unit-at (point))))
+          (if (and unit (not (<= #x3400 (char-after) #x9fff))
+                   (not (get-char-property (point) 'read-only))
+                   (not buffer-read-only))
+              (let ((keys (wime-edit--unit-keys unit)))
+                (atomic-change-group (delete-char 1) (insert keys)))
+            (forward-char)))))
     (save-excursion
       (goto-char (point-min))
       (while (< (point) (point-max))
@@ -391,11 +406,15 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
                                       (save-excursion (goto-char start) (wime--context-at-point))))
                 ;; Model revisions are not user corrections.  Only explicitly
                 ;; pinned/aux-filtered choices teach the reading preference.
-                (when (cl-some (lambda (u) (or (wime-edit--unit-pin u)
-                                               (not (string-empty-p
-                                                     (cdar (wime--parse (wime-edit--unit-keys u)))))))
-                               units)
-                  (wime--learn text parsed original))))))))
+                (let ((baseline
+                       (concat
+                        (cl-loop for u in units for i from 0
+                                 collect (if (or (wime-edit--unit-pin u)
+                                                 (not (string-empty-p
+                                                       (cdar (wime--parse (wime-edit--unit-keys u))))))
+                                             (aref original i) (aref text i))))))
+                  (unless (equal text baseline)
+                    (wime--learn text parsed baseline)))))))))
     (atomic-change-group
       (let ((position (point-min)))
         (while (< position (point-max))
