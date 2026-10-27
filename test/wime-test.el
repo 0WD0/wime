@@ -1,4 +1,4 @@
-;;; wime-test.el --- Wanxiang input method engine -*- lexical-binding: t; -*-
+;;; wime-test.el --- Wime input method engine -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 ;; The engine is pure Elisp, so these tests exercise the whole input path
@@ -590,7 +590,7 @@
     (should (equal (wime-lighter) ""))
     (wime-mode 1)
     (let ((current-input-method "wime"))
-      (should (equal (substring-no-properties (wime-lighter)) "万")))))
+      (should (equal (substring-no-properties (wime-lighter)) "wime")))))
 
 (defmacro wime-test--with-database (file &rest body)
   "Evaluate BODY with the database FILE under bazel-bin, or skip."

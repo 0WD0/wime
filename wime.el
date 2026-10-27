@@ -1,11 +1,11 @@
-;;; wime.el --- Wanxiang double-pinyin input method -*- lexical-binding: t; -*-
+;;; wime.el --- Wime double-pinyin input method -*- lexical-binding: t; -*-
 
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "29.1"))
 
 ;;; Commentary:
-;; A small, Rime-free input method for wanxiang double pinyin with uppercase
-;; Moqi auxiliary codes.  The scheme comes with the database: 微软双拼 by
+;; A Rime-free double-pinyin input method using the Wanxiang word list and
+;; uppercase Moqi auxiliary codes.  The scheme comes with the database: 微软双拼 by
 ;; default, or a table-generated one (see schemes/).
 ;;
 ;; The typed string is parsed into syllables: two code keys (letters, plus
@@ -30,7 +30,7 @@
 (declare-function wime-grammar-query "librime-grammar" (context word rear))
 
 (defgroup wime nil
-  "Wanxiang double-pinyin input method."
+  "Wime double-pinyin input method."
   :group 'leim)
 
 (defface wime-preedit-face
@@ -83,7 +83,7 @@
   "Face for the wime indicator while input passes through."
   :group 'wime)
 
-(defvar wime-title "万"
+(defvar wime-title "wime"
   "The title shown in the mode line.")
 
 (defcustom wime-candidates-max 10
@@ -1129,20 +1129,20 @@ In the span view only numbered alternatives respond; others do nothing."
   :init-value nil)
 
 (defun wime-activate (_name)
-  "Activate the wanxiang input method."
+  "Activate the wime input method."
   (when wime-editable-preedit (wime-edit-mode 1))
   (setq-local input-method-function #'wime-input-method)
   (setq-local deactivate-current-input-method-function #'wime-deactivate)
   (wime-mode 1))
 
 (defun wime-deactivate ()
-  "Deactivate the wanxiang input method."
+  "Deactivate the wime input method."
   (wime--reset)
   (wime-mode -1)
   (kill-local-variable 'input-method-function))
 
 (defun wime-setup ()
-  "Install the wanxiang input method as the default input method."
+  "Install wime as the default input method."
   (setq default-input-method "wime"))
 
 (defun wime-lighter ()
@@ -1155,10 +1155,11 @@ keys pass through."
                   'face (if (wime--text-read-only-p)
                             'wime-indicator-dim-face
                           'wime-indicator-face)
-                  'help-echo "wime: 万象双拼")
+                  'help-echo "wime: 中文双拼")
     ""))
 
-(register-input-method "wime" "euc-cn" #'wime-activate "万象双拼")
+(register-input-method "wime" "euc-cn" #'wime-activate wime-title
+                       "Wime double-pinyin input method.")
 
 (provide 'wime)
 ;;; wime.el ends here
