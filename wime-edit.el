@@ -14,6 +14,21 @@
   "Maximum Chinese characters reconsidered together around point."
   :type 'natnum :group 'wime)
 
+(defface wime-edit-pending-face
+  '((t (:inherit secondary-selection :underline t)))
+  "Face for suspended Chinese text whose readings are still editable."
+  :group 'wime)
+
+(defface wime-edit-pending-label-face
+  '((t (:inherit warning :weight bold)))
+  "Face for the visible suspended-input label."
+  :group 'wime)
+
+(defface wime-edit-active-face
+  '((t (:inherit highlight :underline t)))
+  "Face for the Chinese text currently being converted."
+  :group 'wime)
+
 (cl-defstruct (wime-edit--unit (:constructor wime-edit--make-unit))
   keys pin original (database wime-database-file))
 
@@ -22,6 +37,7 @@
 (defvar-local wime-edit--units nil)
 (defvar-local wime-edit--generation 0)
 (defvar-local wime-edit--decoration nil)
+(defvar-local wime-edit--pending-decorations nil)
 (defvar-local wime-edit--internal nil)
 (defvar-local wime-edit--undoing nil)
 (defvar-local wime-edit--paused-point nil)
@@ -66,16 +82,55 @@
   (when (overlayp wime-edit--decoration) (delete-overlay wime-edit--decoration))
   (setq wime-edit--decoration nil))
 
+(defun wime-edit--refresh-pending-decorations ()
+  "Mark every suspended reading span without changing buffer text.
+Rebuild from reading properties so ordinary edits and undo remain the source
+of truth.  Widen only for display; confirmation still respects narrowing."
+  (mapc #'delete-overlay wime-edit--pending-decorations)
+  (setq wime-edit--pending-decorations nil)
+  (when wime-edit-mode
+    (save-restriction
+      (widen)
+      (let* ((position (point-min))
+             (active (and (wime-edit--active-p) (< wime-edit--start wime-edit--end)))
+             (active-start (and active (marker-position wime-edit--start)))
+             (active-end (and active (marker-position wime-edit--end))))
+        (while (< position (point-max))
+          (cond
+           ((and active-start (<= active-start position) (< position active-end))
+            (setq position active-end))
+           ((not (wime-edit--unit-p (get-text-property position 'wime-edit-unit)))
+            (setq position (next-single-property-change position 'wime-edit-unit nil (point-max))))
+           (t
+            (let ((start position) keys unit)
+              (while (and (< position (point-max))
+                          (not (and active-start (= position active-start)))
+                          (wime-edit--unit-p
+                           (setq unit (get-text-property position 'wime-edit-unit))))
+                (push (wime-edit--unit-keys unit) keys)
+                (setq position (next-single-property-change position 'wime-edit-unit nil (point-max))))
+              (let* ((overlay (make-overlay start position nil nil nil))
+                     (help (concat "暂存双拼：" (apply #'concat (nreverse keys))
+                                   "；移动光标继续修改，空格确认")))
+                (overlay-put overlay 'face 'wime-edit-pending-face)
+                (overlay-put overlay 'help-echo help)
+                (overlay-put overlay 'evaporate t)
+                (overlay-put overlay 'after-string
+                             (propertize " ⟦暂存⟧" 'face 'wime-edit-pending-label-face
+                                         'help-echo help))
+                (push overlay wime-edit--pending-decorations))))))))))
+
 (defun wime-edit--reset ()
   "Forget active conversion state, retaining buffer text and readings."
   (cl-incf wime-edit--generation)
   (dolist (marker (list wime-edit--start wime-edit--end))
     (when (markerp marker) (set-marker marker nil)))
   (setq wime-edit--start nil wime-edit--end nil wime-edit--units nil)
-  (wime-edit--clear-decoration))
+  (wime-edit--clear-decoration)
+  (wime-edit--refresh-pending-decorations))
 
 (defun wime-edit-pause ()
-  "Hide conversion choices while retaining editable readings."
+  "Hide conversion choices, visibly marking the retained editable readings."
   (interactive)
   (wime--reset)
   (setq wime-edit--paused-point (point)))
@@ -154,7 +209,8 @@
     (unless undo-in-progress
       (let ((wime-edit--internal t))
         (with-silent-modifications
-          (remove-text-properties start end '(wime-edit-unit nil)))))))
+          (remove-text-properties start end '(wime-edit-unit nil)))))
+    (wime-edit--refresh-pending-decorations)))
 
 (defun wime-edit--candidate-text ()
   "Return a full reading, with a one-character fallback for incomplete keys."
@@ -269,19 +325,20 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
       (wime-edit--replace text units)
       (wime-edit--clear-decoration)
       (setq wime-edit--decoration (make-overlay wime-edit--start wime-edit--end))
-      (overlay-put wime-edit--decoration 'face '(:underline t))
+      (overlay-put wime-edit--decoration 'face 'wime-edit-active-face)
       (overlay-put wime-edit--decoration 'help-echo
-                   (concat "双拼：" wime--input "；SPC 暂存，C-c C-c 确认"))
+                   (concat "双拼：" wime--input "；空格确认，ESC 暂存"))
       ;; Annotation is outside the buffer, so copying and saving yield text only.
       (overlay-put wime-edit--decoration 'after-string
-                   (concat (propertize (concat " ⟦" wime--input "⟧") 'face 'wime-preedit-face)
+                   (concat (propertize (concat " ⟦待确认：" wime--input "⟧") 'face 'wime-preedit-face)
                            (when (and wime-show-candidates wime--candidates)
                              (concat " " (if (wime--spans-p)
                                               (wime--format-spans text)
                                             (mapconcat
                                              (lambda (pair) (format "%d.%s" (car pair) (cdr pair)))
                                              (cl-loop for c in wime--candidates for i from 1
-                                                      collect (cons i c)) " ")))))))))
+                                                      collect (cons i c)) " "))))))
+      (wime-edit--refresh-pending-decorations))))
 
 (defun wime-edit--refresh (units cursor)
   "Update reading UNITS and place point at the syllable boundary CURSOR."
@@ -345,7 +402,9 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
     (if (wime--spans-p) (wime--select-digit key)
       (let ((text (nth (if (= key ?0) 9 (- key ?1)) wime--candidates)))
         (when text (wime-edit--choose text)))) nil)
-   ((and (wime-edit--active-p) (= key ?\s)) (wime-edit-pause) nil)
+   ((and (= key ?\s)
+         (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil))
+    (wime-edit-finish) nil)
    ((wime--punctuation-for key)
     (wime-edit-pause)
     (insert (wime--punctuation-for key)) nil)
@@ -424,7 +483,8 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
               ;; since protected.  The text and its protection stay unchanged.
               (let ((inhibit-read-only t))
                 (remove-text-properties position end '(wime-edit-unit nil))))
-            (setq position end)))))))
+            (setq position end))))))
+  (wime-edit--refresh-pending-decorations))
 
 (defun wime-edit-return ()
   "Confirm converted text, then run the buffer's normal Return command."
@@ -442,21 +502,10 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
     (define-key map (kbd "<return>") #'wime-edit-return)
     (define-key map (kbd "TAB") #'wime-toggle-candidate-list)
     (define-key map (kbd "<escape>") #'wime-edit-pause)
-    (define-key map (kbd "C-c C-c") #'wime-edit-finish)
     map))
-
-(defun wime-edit-confirm-or-command ()
-  "Confirm pending readings, or run the normal C-c C-c binding."
-  (interactive)
-  (if (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil)
-      (wime-edit-finish)
-    (let* ((wime-edit-mode nil) (command (key-binding (kbd "C-c C-c"))))
-      (when (and (commandp command) (not (eq command #'wime-edit-confirm-or-command)))
-        (call-interactively command)))))
 
 (defvar wime-edit-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-c") #'wime-edit-confirm-or-command)
     (define-key map (kbd "RET") #'wime-edit-return)
     (define-key map (kbd "<return>") #'wime-edit-return)
     map))
@@ -464,16 +513,18 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
 ;;;###autoload
 (define-minor-mode wime-edit-mode
   "Keep Chinese readings attached to editable buffer characters.
-SPC pauses conversion.  Moving back to a character resumes it; uppercase
-auxiliary codes apply to the character before point.  C-c C-c confirms all
-pending text.  Switching input methods preserves readings for later edits."
+SPC confirms pending text; ESC suspends it with a visible marker.
+Moving back to a character resumes conversion; uppercase auxiliary codes
+apply to the character before point.  Switching input methods preserves
+readings for later edits."
   :lighter " 半"
   (if wime-edit-mode
       (progn
         (add-hook 'wime-reset-hook #'wime-edit--reset nil t)
         (add-hook 'post-command-hook #'wime-edit--post-command nil t)
         (add-hook 'before-change-functions #'wime-edit--before-change nil t)
-        (add-hook 'after-change-functions #'wime-edit--after-change nil t))
+        (add-hook 'after-change-functions #'wime-edit--after-change nil t)
+        (wime-edit--refresh-pending-decorations))
     (wime-edit-finish)
     (remove-hook 'wime-reset-hook #'wime-edit--reset t)
     (remove-hook 'post-command-hook #'wime-edit--post-command t)
