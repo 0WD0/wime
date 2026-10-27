@@ -1,6 +1,6 @@
 {
   "date": "2026-10-28",
-  "status": "isolated experiment; retain Qwen default",
+  "status": "exploratory pilot; insufficient to rank models or establish a general latency advantage",
   "workspace": "/home/disk/Projects/dev-monorepo-wime-minicpm",
   "base_commit": "9834bb3d",
   "implementation_commits": [
@@ -310,9 +310,10 @@
     "temporary_trial": "Switching both models and restoring exact variables passed with the original neural mode both enabled and disabled."
   },
   "conclusions": [
-    "Neither MiniCPM checkpoint improved top1 or top5 on this fixed small heldout sample.",
-    "MiniCPM had lower median per-key backend latency on the six typing probes; Base also reduced full-composition latency.",
-    "Keep Qwen as the default; both MiniCPM checkpoints remain available for temporary Chinese-only trials."
+    "Both MiniCPM checkpoints integrate successfully after the continuation BOS correction.",
+    "On this pilot subset, MiniCPM final and Base scored 166/192 and 167/192 versus Qwen 172/192; these observations do not establish a general quality ranking.",
+    "The six typing probes recorded lower median backend latency for MiniCPM; the sample and single-pass protocol do not establish a general speed advantage.",
+    "Keep the existing default pending adequate validation; both MiniCPM checkpoints are available for temporary Chinese-only trials."
   ],
   "limitations": [
     "Small category-balanced samples are exploratory, not representative natural typing accuracy or evidence of universal model superiority.",
@@ -391,6 +392,41 @@
     "python_dependencies": {
       "path": "/home/_WD_/.cache/wime-minicpm-investigation/python-dependencies.json",
       "sha256": "ec606771d02e802d776ef395c6fec168fea122b454cfdc0367d8f78a9da664cf"
+    }
+  },
+  "adequacy_audit": {
+    "conclusion": "Sufficient to validate integration and identify hypotheses; insufficient for a replacement decision.",
+    "test_compositions": 192,
+    "test_source_documents": 116,
+    "distinct_domains": [
+      "chat",
+      "Kubernetes documentation",
+      "Python documentation"
+    ],
+    "technical_compositions": 128,
+    "test_single_character_compositions": 0,
+    "test_empty_context_compositions": 8,
+    "development_compositions": 48,
+    "development_source_documents": 38,
+    "base_weight_selection_margin": 1,
+    "paired_tests": {
+      "minicpm": {
+        "discordant_pairs": 8,
+        "exact_mcnemar_two_sided_p": 0.0703125
+      },
+      "minicpm-base": {
+        "discordant_pairs": 11,
+        "exact_mcnemar_two_sided_p": 0.2265625
+      }
+    },
+    "statistical_caveat": "Exact McNemar calculations assume independent pairs and are unadjusted for comparing two alternatives. Shared source documents require clustered analysis. Failure to reject is not evidence of equivalence.",
+    "typing_caveat": "Only six compositions / 116 dependent key events, one ordered pass per model. No repeat/order control or end-to-end Emacs timings.",
+    "recommended_followup": {
+      "status": "proposed; not executed by this audit",
+      "development": "Use the full 2304-row development suite and check domain/weight stability before freezing settings.",
+      "evaluation": "Evaluate the full 4864-row existing heldout suite plus 1920 diverse-domain cases. The latter contain related variants from 633 documents and must not be counted as 1920 independent observations.",
+      "reporting": "Report domain and length strata, paired rescues/regressions, document-cluster uncertainty, and verify automatic pronunciation labels on changed cases.",
+      "interaction": "Repeat longer typing replays with model order controlled; measure end-to-end latency, backspace, auxiliary keys, pins and candidate churn."
     }
   }
 }
