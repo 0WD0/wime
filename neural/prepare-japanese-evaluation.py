@@ -197,7 +197,7 @@ def main():
         report = overlap(cases, args.corpus, lambda r: print(json.dumps(r), flush=True))
         report["inputs"] = paths
         write(args.out, report)
-        print(json.dumps(dict(cases=len(cases), shared8=sum(bool(v) for v in report["cases"].values())), flush=True))
+        print(json.dumps(dict(cases=len(cases), shared8=sum(bool(v) for v in report["cases"].values()))), flush=True)
     else:
         if args.out.exists():
             raise ValueError("evaluation output already exists; choose a new version directory")
