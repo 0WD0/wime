@@ -72,7 +72,9 @@ class Units:
                 self.index["".join(codes)].append((text, (i,)))
         for char, codes in readings.items():
             if char not in single:
-                ids = tuple(tokenizer(char)["input_ids"])
+                # This character continues the context; an inserted BOS
+                # would change its probability and every following token.
+                ids = tuple(tokenizer(char, add_special_tokens=False)["input_ids"])
                 for code in codes:
                     self.index[code].append((char, ids))
         self.partial = collections.defaultdict(list)

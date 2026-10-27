@@ -34,7 +34,9 @@ class Rescorer:
     def score(self, context, texts):
         """Mean per-character log p(text | committed context), one batch."""
         prefix = self.tokenizer(context[-128:] or "\n")["input_ids"]
-        targets = [self.tokenizer(text)["input_ids"] for text in texts]
+        # Only the context starts a sequence. Some fast tokenizers add BOS
+        # through their post-processor even with add_bos_token=False.
+        targets = [self.tokenizer(text, add_special_tokens=False)["input_ids"] for text in texts]
         ids = torch.full((len(texts), len(prefix) + max(map(len, targets))), self.pad)
         for i, target in enumerate(targets):
             # Right padding follows every scored position, so neither causal nor
@@ -55,7 +57,7 @@ class Rescorer:
         Alternatives start at the draft's token boundaries; strongest first.
         """
         prefix = self.tokenizer(context[-128:] or "\n")["input_ids"]
-        target = self.tokenizer(draft)["input_ids"]
+        target = self.tokenizer(draft, add_special_tokens=False)["input_ids"]
         ids = torch.tensor([prefix + target[:-1]], device=self.device)
         logits = self.model(input_ids=ids).logits[0, len(prefix) - 1:].float().log_softmax(-1)
         edits, offset = [], 0

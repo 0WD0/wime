@@ -20,7 +20,7 @@ class Tokenizer:
     def decode(self, ids):
         return "".join(VOCAB[i] for i in ids)
 
-    def __call__(self, text):
+    def __call__(self, text, add_special_tokens=True):
         return dict(input_ids=[VOCAB.index(text)] if text in VOCAB else [1])
 
 
