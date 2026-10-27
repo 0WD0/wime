@@ -62,6 +62,9 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
 (defvar-local wime-japanese--table nil
   "Loaded AZIK table: (FILE RULES PREFIXES); RULES maps keys to (PENDING . KANA).")
 
+(defvar-local wime-japanese--keymap nil
+  "Cached (SCHEME . PHYSICAL-TO-LOGICAL-KEYS) for this buffer.")
+
 (defvar-local wime-japanese--keys "" "Keys typed in this composition.")
 (defvar-local wime-japanese--candidates nil "Candidate texts, decoded ones first.")
 (defvar-local wime-japanese--selected 0 "Index of the selected candidate.")
@@ -104,11 +107,22 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
         (setq wime-japanese--table (list file rules prefixes))))
     (cdr wime-japanese--table)))
 
-(defconst wime-japanese--onishi-keys
-  (cl-mapcar #'cons
-             (string-to-list "qwertyuiopasdfghjkl;zxcvbnm,./-")
-             (string-to-list (concat "qlu,.fwryp" "eiao-ktnsh" "zxcv;gdmjb/")))
-  "QWERTY to Onishi positions, from https://o24.works/layout/.")
+(defun wime-japanese--layout-keys ()
+  "Read the selected scheme's generated physical-to-logical key map."
+  (unless (eq (car wime-japanese--keymap) wime-japanese--scheme)
+    (let* ((layouts (with-temp-buffer
+                      (insert-file-contents (expand-file-name "onishi-layouts.eld" wime-japanese--directory))
+                      (read (current-buffer))))
+           (rows (cdr (assq wime-japanese--scheme layouts))) keys)
+      (unless rows (error "No key layout for %s" wime-japanese--scheme))
+      (dolist (row rows)
+        (unless (and (proper-list-p row) (= (length row) 2)
+                     (seq-every-p (lambda (s) (and (stringp s) (= (length s) 1))) row)
+                     (not (assq (aref (car row) 0) keys)))
+          (error "Invalid layout binding: %S" row))
+        (push (cons (aref (car row) 0) (aref (cadr row) 0)) keys))
+      (setq wime-japanese--keymap (cons wime-japanese--scheme keys))))
+  (cdr wime-japanese--keymap))
 
 (defun wime-japanese--translate-key (key)
   "Translate physical QWERTY KEY to the selected scheme's logical key.
@@ -117,11 +131,8 @@ This runs only at the input-method boundary; stored keys are logical romaji."
   (if (and (characterp key) (memq wime-japanese--scheme '(onishi onishi-azik)))
       (let* ((shifted '((?: . ?\;) (?< . ?,) (?> . ?.) (?? . ?/) (?_ . ?-)))
              (base (or (alist-get key shifted) (downcase key)))
-             (mapped (alist-get base wime-japanese--onishi-keys)))
+             (mapped (alist-get base (wime-japanese--layout-keys))))
         (if (not mapped) key
-          ;; The article's layout swaps J/Z as well as adapting AZIK.
-          (when (eq wime-japanese--scheme 'onishi-azik)
-            (setq mapped (pcase mapped (?j ?z) (?z ?j) (_ mapped))))
           (if (= base key) mapped
             (or (car (rassq mapped shifted)) (upcase mapped)))))
     key))
@@ -371,6 +382,8 @@ Shift used, first the shifted kana in katakana and the rest in hiragana."
 
 (defun wime-japanese-activate (name)
   "Activate the Japanese input scheme registered as NAME."
+  ;; Re-enabling the input method picks up regenerated rules and key positions.
+  (setq wime-japanese--table nil wime-japanese--keymap nil)
   (setq wime-japanese--scheme
         (pcase name
           ("wime-japanese-onishi" 'onishi)

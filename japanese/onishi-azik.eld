@@ -1,11 +1,6 @@
-;;; Makiyuki AZIK for Onishi, following the 2025-01-09 article.
-;; https://zenn.dev/maki10645/articles/68f7c10a018691
-;; Keys here are logical romaji; wime remaps QWERTY and swaps J/Z separately.
-;; Each row is (KEYS KANA).  Edit this file directly; comments give ordinary romaji.
-;; Sokuon uses ;, not the later upstream version's v.  Standalone ん uses c.
-;; Follow the prose's exclusion of word shortcuts (msu/msi/msk/dsu/dsi/dsk).
-;; Correct the duplicate gy, -> びゃい to bg,; v, uses the vowel rule ゔぁい.
-;; Omit digit and shifted-symbol rules: digits select candidates, Shift marks kana.
+;;; Generated onishi-azik rules; edit onishi-rules.eld, then run gen/onishi.el.
+;; Each row is (LOGICAL-KEYS KANA); physical key positions are in onishi-layouts.eld.
+;; Comments give ordinary romaji, not this scheme's input keys.
 
 (
  ;; Punctuation
@@ -89,20 +84,20 @@
  ("dc" "どう")          ; dou
  ("de" "で")            ; de
  ("dh" "でん")          ; den
- ("dh," "でゃい")       ; dexyai
- ("dha" "でゃ")         ; dexya
- ("dhc" "でょう")       ; dexyou
- ("dhe" "でぇ")         ; dexe
- ("dhh" "でぇん")       ; dexen
+ ("dh," "でゃい")       ; dhai
+ ("dha" "でゃ")         ; dha
+ ("dhc" "でょう")       ; dhou
+ ("dhe" "でぇ")         ; dhe
+ ("dhh" "でぇん")       ; dhen
  ("dhi" "でぃ")         ; dhi
  ("dhl" "でゅう")       ; dhuu
- ("dhn" "でゃん")       ; dexyan
- ("dho" "でょ")         ; dexyo
+ ("dhn" "でゃん")       ; dhan
+ ("dho" "でょ")         ; dho
  ("dhr" "でゅん")       ; dhun
  ("dhs" "でぃん")       ; dhin
- ("dht" "でょん")       ; dexyon
+ ("dht" "でょん")       ; dhon
  ("dhu" "でゅ")         ; dhu
- ("dhv" "でぇい")       ; dexei
+ ("dhv" "でぇい")       ; dhei
  ("di" "ぢ")            ; di
  ("dl" "づう")          ; duu
  ("dn" "だん")          ; dan
@@ -114,18 +109,18 @@
  ("dv" "でい")          ; dei
  ("dw," "だぁい")       ; daxai
  ("dwa" "だぁ")         ; daxa
- ("dwc" "どぉう")       ; doxou
- ("dwe" "でぇ")         ; dexe
- ("dwh" "でぇん")       ; dexen
+ ("dwc" "どぉう")       ; dwou
+ ("dwe" "でぇ")         ; dhe
+ ("dwh" "でぇん")       ; dhen
  ("dwi" "でぃ")         ; dhi
- ("dwl" "どぅう")       ; doxuu
+ ("dwl" "どぅう")       ; dwuu
  ("dwn" "だぁん")       ; daxan
- ("dwo" "どぉ")         ; doxo
- ("dwr" "どぅん")       ; doxun
+ ("dwo" "どぉ")         ; dwo
+ ("dwr" "どぅん")       ; dwun
  ("dws" "でぃん")       ; dhin
- ("dwt" "どぉん")       ; doxon
- ("dwu" "どぅ")         ; doxu
- ("dwv" "でぇい")       ; dexei
+ ("dwt" "どぉん")       ; dwon
+ ("dwu" "どぅ")         ; dwu
+ ("dwv" "でぇい")       ; dhei
  ("dy," "ぢゃい")       ; dyai
  ("dya" "ぢゃ")         ; dya
  ("dyc" "ぢょう")       ; dyou
@@ -189,20 +184,20 @@
  ("gt" "ごん")          ; gon
  ("gu" "ぐ")            ; gu
  ("gv" "げい")          ; gei
- ("gw," "ぐぁい")       ; guxai
- ("gwa" "ぐぁ")         ; guxa
- ("gwc" "ぐぉう")       ; guxou
- ("gwe" "ぐぇ")         ; guxe
- ("gwh" "ぐぇん")       ; guxen
- ("gwi" "ぐぃ")         ; guxi
+ ("gw," "ぐぁい")       ; gwai
+ ("gwa" "ぐぁ")         ; gwa
+ ("gwc" "ぐぉう")       ; gwou
+ ("gwe" "ぐぇ")         ; gwe
+ ("gwh" "ぐぇん")       ; gwen
+ ("gwi" "ぐぃ")         ; gwi
  ("gwl" "ぐう")         ; guu
- ("gwn" "ぐぁん")       ; guxan
- ("gwo" "ぐぉ")         ; guxo
+ ("gwn" "ぐぁん")       ; gwan
+ ("gwo" "ぐぉ")         ; gwo
  ("gwr" "ぐん")         ; gun
- ("gws" "ぐぃん")       ; guxin
- ("gwt" "ぐぉん")       ; guxon
+ ("gws" "ぐぃん")       ; gwin
+ ("gwt" "ぐぉん")       ; gwon
  ("gwu" "ぐ")           ; gu
- ("gwv" "ぐぇい")       ; guxei
+ ("gwv" "ぐぇい")       ; gwei
  ("gy," "ぎゃい")       ; gyai
  ("gya" "ぎゃ")         ; gya
  ("gyc" "ぎょう")       ; gyou
@@ -324,20 +319,20 @@
  ("kt" "こん")          ; kon
  ("ku" "く")            ; ku
  ("kv" "けい")          ; kei
- ("kw," "くぁい")       ; kuxai
- ("kwa" "くぁ")         ; kuxa
- ("kwc" "くぉう")       ; kuxou
- ("kwe" "くぇ")         ; kuxe
- ("kwh" "くぇん")       ; kuxen
- ("kwi" "くぃ")         ; kuxi
+ ("kw," "くぁい")       ; kwai
+ ("kwa" "くぁ")         ; kwa
+ ("kwc" "くぉう")       ; kwou
+ ("kwe" "くぇ")         ; kwe
+ ("kwh" "くぇん")       ; kwen
+ ("kwi" "くぃ")         ; kwi
  ("kwl" "くう")         ; kuu
- ("kwn" "くぁん")       ; kuxan
- ("kwo" "くぉ")         ; kuxo
+ ("kwn" "くぁん")       ; kwan
+ ("kwo" "くぉ")         ; kwo
  ("kwr" "くん")         ; kun
- ("kws" "くぃん")       ; kuxin
- ("kwt" "くぉん")       ; kuxon
+ ("kws" "くぃん")       ; kwin
+ ("kwt" "くぉん")       ; kwon
  ("kwu" "く")           ; ku
- ("kwv" "くぇい")       ; kuxei
+ ("kwv" "くぇい")       ; kwei
  ("ky," "きゃい")       ; kyai
  ("kya" "きゃ")         ; kya
  ("kyc" "きょう")       ; kyou
@@ -566,20 +561,20 @@
  ("tc" "とう")          ; tou
  ("te" "て")            ; te
  ("th" "てん")          ; ten
- ("th," "てゃい")       ; texyai
- ("tha" "てゃ")         ; texya
- ("thc" "てょう")       ; texyou
- ("the" "てぇ")         ; texe
- ("thh" "てぇん")       ; texen
+ ("th," "てゃい")       ; thai
+ ("tha" "てゃ")         ; tha
+ ("thc" "てょう")       ; thou
+ ("the" "てぇ")         ; the
+ ("thh" "てぇん")       ; then
  ("thi" "てぃ")         ; thi
  ("thl" "てゅう")       ; thuu
- ("thn" "てゃん")       ; texyan
- ("tho" "てょ")         ; texyo
+ ("thn" "てゃん")       ; than
+ ("tho" "てょ")         ; tho
  ("thr" "てゅん")       ; thun
  ("ths" "てぃん")       ; thin
- ("tht" "てょん")       ; texyon
+ ("tht" "てょん")       ; thon
  ("thu" "てゅ")         ; thu
- ("thv" "てぇい")       ; texei
+ ("thv" "てぇい")       ; thei
  ("ti" "ち")            ; chi
  ("tl" "つう")          ; tsuu
  ("tn" "たん")          ; tan
@@ -591,29 +586,29 @@
  ("tv" "てい")          ; tei
  ("tw," "たぁい")       ; taxai
  ("twa" "たぁ")         ; taxa
- ("twc" "とぉう")       ; toxou
- ("twe" "てぇ")         ; texe
- ("twh" "てぇん")       ; texen
+ ("twc" "とぉう")       ; twou
+ ("twe" "てぇ")         ; the
+ ("twh" "てぇん")       ; then
  ("twi" "てぃ")         ; thi
- ("twl" "とぅう")       ; toxuu
+ ("twl" "とぅう")       ; twuu
  ("twn" "たぁん")       ; taxan
- ("two" "とぉ")         ; toxo
- ("twr" "とぅん")       ; toxun
+ ("two" "とぉ")         ; two
+ ("twr" "とぅん")       ; twun
  ("tws" "てぃん")       ; thin
- ("twt" "とぉん")       ; toxon
- ("twu" "とぅ")         ; toxu
- ("twv" "てぇい")       ; texei
+ ("twt" "とぉん")       ; twon
+ ("twu" "とぅ")         ; twu
+ ("twv" "てぇい")       ; thei
  ("ty," "ちゃい")       ; chai
  ("tya" "ちゃ")         ; cha
  ("tyc" "ちょう")       ; chou
  ("tye" "ちぇ")         ; che
  ("tyh" "ちぇん")       ; chen
- ("tyi" "ちぃ")         ; cyi
+ ("tyi" "ちぃ")         ; tyi
  ("tyl" "ちゅう")       ; chuu
  ("tyn" "ちゃん")       ; chan
  ("tyo" "ちょ")         ; cho
  ("tyr" "ちゅん")       ; chun
- ("tys" "ちぃん")       ; cyin
+ ("tys" "ちぃん")       ; tyin
  ("tyt" "ちょん")       ; chon
  ("tyu" "ちゅ")         ; chu
  ("tyv" "ちぇい")       ; chei

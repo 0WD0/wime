@@ -1,9 +1,6 @@
-;;; Ordinary romaji for wime's original Onishi layout.
-;; Layout: https://o24.works/layout/
-;; Keys here are logical romaji; wime remaps physical QWERTY keys separately.
-;; Each row is (KEYS KANA).  Edit this file directly.
-;; Sokuon (っ) uses ; exclusively; nn or n' explicitly enters ん.
-;; Comments use ordinary romaji, with n for ん and - for ー.
+;;; Generated onishi rules; edit onishi-rules.eld, then run gen/onishi.el.
+;; Each row is (LOGICAL-KEYS KANA); physical key positions are in onishi-layouts.eld.
+;; Comments give ordinary romaji, not this scheme's input keys.
 
 (
  ;; Punctuation
@@ -39,26 +36,26 @@
  ("chu" "ちゅ")         ; chu
  ("cya" "ちゃ")         ; cha
  ("cye" "ちぇ")         ; che
- ("cyi" "ちぃ")         ; cyi
+ ("cyi" "ちぃ")         ; tyi
  ("cyo" "ちょ")         ; cho
  ("cyu" "ちゅ")         ; chu
 
  ;; d
  ("da" "だ")            ; da
  ("de" "で")            ; de
- ("dha" "でゃ")         ; dexya
- ("dhe" "でぇ")         ; dexe
+ ("dha" "でゃ")         ; dha
+ ("dhe" "でぇ")         ; dhe
  ("dhi" "でぃ")         ; dhi
- ("dho" "でょ")         ; dexyo
+ ("dho" "でょ")         ; dho
  ("dhu" "でゅ")         ; dhu
  ("di" "ぢ")            ; di
  ("do" "ど")            ; do
  ("du" "づ")            ; du
- ("dwa" "どぁ")         ; doxa
- ("dwe" "どぇ")         ; doxe
- ("dwi" "どぃ")         ; doxi
- ("dwo" "どぉ")         ; doxo
- ("dwu" "どぅ")         ; doxu
+ ("dwa" "どぁ")         ; dwa
+ ("dwe" "どぇ")         ; dwe
+ ("dwi" "どぃ")         ; dwi
+ ("dwo" "どぉ")         ; dwo
+ ("dwu" "どぅ")         ; dwu
  ("dya" "ぢゃ")         ; dya
  ("dye" "ぢぇ")         ; dye
  ("dyi" "ぢぃ")         ; dyi
@@ -86,10 +83,10 @@
  ("gi" "ぎ")            ; gi
  ("go" "ご")            ; go
  ("gu" "ぐ")            ; gu
- ("gwa" "ぐぁ")         ; guxa
- ("gwe" "ぐぇ")         ; guxe
- ("gwi" "ぐぃ")         ; guxi
- ("gwo" "ぐぉ")         ; guxo
+ ("gwa" "ぐぁ")         ; gwa
+ ("gwe" "ぐぇ")         ; gwe
+ ("gwi" "ぐぃ")         ; gwi
+ ("gwo" "ぐぉ")         ; gwo
  ("gwu" "ぐ")           ; gu
  ("gya" "ぎゃ")         ; gya
  ("gye" "ぎぇ")         ; gye
@@ -130,10 +127,10 @@
  ("ki" "き")            ; ki
  ("ko" "こ")            ; ko
  ("ku" "く")            ; ku
- ("kwa" "くぁ")         ; kuxa
- ("kwe" "くぇ")         ; kuxe
- ("kwi" "くぃ")         ; kuxi
- ("kwo" "くぉ")         ; kuxo
+ ("kwa" "くぁ")         ; kwa
+ ("kwe" "くぇ")         ; kwe
+ ("kwi" "くぃ")         ; kwi
+ ("kwo" "くぉ")         ; kwo
  ("kwu" "く")           ; ku
  ("kya" "きゃ")         ; kya
  ("kye" "きぇ")         ; kye
@@ -228,27 +225,27 @@
  ;; t
  ("ta" "た")            ; ta
  ("te" "て")            ; te
- ("tha" "てゃ")         ; texya
- ("the" "てぇ")         ; texe
+ ("tha" "てゃ")         ; tha
+ ("the" "てぇ")         ; the
  ("thi" "てぃ")         ; thi
- ("tho" "てょ")         ; texyo
+ ("tho" "てょ")         ; tho
  ("thu" "てゅ")         ; thu
  ("ti" "ち")            ; chi
  ("to" "と")            ; to
- ("tsa" "つぁ")         ; tsuxa
- ("tse" "つぇ")         ; tsuxe
- ("tsi" "つぃ")         ; tsuxi
- ("tso" "つぉ")         ; tsuxo
+ ("tsa" "つぁ")         ; tsa
+ ("tse" "つぇ")         ; tse
+ ("tsi" "つぃ")         ; tsi
+ ("tso" "つぉ")         ; tso
  ("tsu" "つ")           ; tsu
  ("tu" "つ")            ; tsu
- ("twa" "とぁ")         ; toxa
- ("twe" "とぇ")         ; toxe
- ("twi" "とぃ")         ; toxi
- ("two" "とぉ")         ; toxo
- ("twu" "とぅ")         ; toxu
+ ("twa" "とぁ")         ; twa
+ ("twe" "とぇ")         ; twe
+ ("twi" "とぃ")         ; twi
+ ("two" "とぉ")         ; two
+ ("twu" "とぅ")         ; twu
  ("tya" "ちゃ")         ; cha
  ("tye" "ちぇ")         ; che
- ("tyi" "ちぃ")         ; cyi
+ ("tyi" "ちぃ")         ; tyi
  ("tyo" "ちょ")         ; cho
  ("tyu" "ちゅ")         ; chu
 
@@ -261,16 +258,16 @@
  ("vi" "ゔぃ")          ; vi
  ("vo" "ゔぉ")          ; vo
  ("vu" "ゔ")            ; vu
- ("vya" "ゔゃ")         ; vuxya
+ ("vya" "ゔゃ")         ; vya
  ("vye" "ゔぇ")         ; ve
  ("vyi" "ゔぃ")         ; vi
- ("vyo" "ゔょ")         ; vuxyo
- ("vyu" "ゔゅ")         ; vuxyu
+ ("vyo" "ゔょ")         ; vyo
+ ("vyu" "ゔゅ")         ; vyu
 
  ;; w
  ("wa" "わ")            ; wa
  ("we" "うぇ")          ; we
- ("wha" "うぁ")         ; uxa
+ ("wha" "うぁ")         ; wha
  ("whe" "うぇ")         ; we
  ("whi" "うぃ")         ; wi
  ("who" "うぉ")         ; who
