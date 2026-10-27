@@ -397,33 +397,38 @@ keep their original indices so the existing digit selection remains valid."
   (concat (propertize (format "%d." (car option)) 'face 'wime-label-face)
           (propertize (cdr option) 'face 'wime-alternatives-face)))
 
-(defun wime-edit--correction-rows (columns)
-  "Lay out (COLUMN . OPTIONS) COLUMNS vertically, staggering overlaps."
-  (let ((right -2) band bands)
+(defun wime-edit--correction-rows (columns &optional window)
+  "Pack (COLUMN . OPTIONS) COLUMNS into the earliest free display rows.
+Keep each group's options consecutive, measuring each cell in WINDOW so
+fonts and boxes use the same units as the source-text alignment."
+  (let (rows)
     (dolist (column columns)
-      (when (and band (< (car column) (+ right 2)))
-        (push (nreverse band) bands)
-        (setq band nil))
-      (push column band)
-      (setq right (+ (car column)
-                     (apply #'max (mapcar (lambda (option)
-                                           (string-width (wime-edit--correction-cell option)))
-                                         (cdr column))))))
-    (when band (push (nreverse band) bands))
+      (let* ((left (car column))
+             (cells (mapcar (lambda (option)
+                              (let ((text (wime-edit--correction-cell option)))
+                                (list left (wime-edit--display-width text window) text)))
+                            (cdr column)))
+             (start 0))
+        ;; A neighboring group can share these rows whenever its actual cells
+        ;; fit.  Do not reserve a full-width band or an extra two-character gap.
+        (while (cl-loop for cell in cells for row from start
+                        thereis (cl-some
+                                 (lambda (other)
+                                   (and (< (car cell) (- (+ (car other) (cadr other)) 1e-6))
+                                        (< (car other) (- (+ (car cell) (cadr cell)) 1e-6))))
+                                 (nth row rows)))
+          (cl-incf start))
+        (setq rows (nconc rows (make-list (max 0 (- (+ start (length cells)) (length rows))) nil)))
+        (cl-loop for cell in cells for row from start do (push cell (nth row rows)))))
     (mapconcat
-     (lambda (row-band)
-       (mapconcat
-        (lambda (row)
-          (concat "\n"
-                  (mapconcat
-                   (lambda (column)
-                     (when-let* ((option (nth row (cdr column))))
-                       (concat (propertize " " 'display `(space :align-to ,(car column)))
-                               (wime-edit--correction-cell option))))
-                   row-band "")))
-        (number-sequence 0 (1- (apply #'max (mapcar (lambda (column) (length (cdr column)))
-                                                   row-band)))) ""))
-     (nreverse bands) "")))
+     (lambda (row)
+       (concat "\n"
+               (mapconcat
+                (lambda (cell)
+                  (concat (propertize " " 'display `(space :align-to ,(car cell)))
+                          (nth 2 cell)))
+                (sort row (lambda (a b) (< (car a) (car b)))) "")))
+     rows "")))
 
 (defun wime-edit--correction-location (position window)
   "Return (ANCHOR COLUMN SOFT-WRAP) for a correction at POSITION in WINDOW."
@@ -488,7 +493,7 @@ keep their original indices so the existing digit selection remains valid."
           (let ((overlay (make-overlay (car line) (car line))))
             (when window (overlay-put overlay 'window window))
             (overlay-put overlay 'after-string
-                         (concat (wime-edit--correction-rows (nth 2 line))
+                         (concat (wime-edit--correction-rows (nth 2 line) window)
                                  (when (nth 1 line) "\n")))
             (push overlay wime-edit--correction-decorations))))))
   (setq wime-edit--correction-layout (wime-edit--layout-signature)))

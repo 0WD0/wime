@@ -771,6 +771,60 @@
             (should-not (= (overlay-start new-right) right-anchor))
             (should (equal (buffer-substring-no-properties 1 (point-max)) text))))))))
 
+(ert-deftest wime-edit-adjacent-correction-groups-share-the-first-row ()
+  ;; Each label plus one Han character occupies four columns.  Exact edge
+  ;; contact leaves both first choices on the first row without extra padding.
+  (let ((rows (split-string
+               (wime-edit--correction-rows
+                '((0 (1 . "甲")) (4 (2 . "乙") (3 . "丙") (4 . "丁"))))
+               "\n" t)))
+    (should (= (length rows) 3))
+    (should (string-match-p "1[.]甲" (nth 0 rows)))
+    (should (string-match-p "2[.]乙" (nth 0 rows)))
+    (should (equal (wime-edit-test--alignments (nth 0 rows)) '(0 4)))
+    (should (string-match-p "3[.]丙" (nth 1 rows)))
+    (should (string-match-p "4[.]丁" (nth 2 rows)))))
+
+(ert-deftest wime-edit-overlapping-correction-group-moves-below-occupied-rows ()
+  (let ((rows (split-string
+               (wime-edit--correction-rows
+                '((0 (1 . "甲") (2 . "乙")) (3 (3 . "丙"))))
+               "\n" t)))
+    (should (= (length rows) 3))
+    (should (string-match-p "1[.]甲" (nth 0 rows)))
+    (should (string-match-p "2[.]乙" (nth 1 rows)))
+    (should (string-match-p "3[.]丙" (nth 2 rows)))
+    (should (equal (wime-edit-test--alignments (nth 2 rows)) '(3)))))
+
+(ert-deftest wime-edit-correction-groups-fill-earlier-gaps-using-measured-widths ()
+  (let ((window (selected-window)) measured)
+    (cl-letf (((symbol-function 'wime-edit--display-width)
+               (lambda (text measured-window)
+                 (should (eq measured-window window))
+                 (let ((plain (substring-no-properties text)))
+                   (push plain measured)
+                   ;; This font's short second item is much narrower than its
+                   ;; nominal character width, so row 1 has useful free space.
+                   (or (cdr (assoc plain '(("1.长项" . 8) ("2.短项" . 2)
+                                          ("3.中项" . 4) ("4.回填" . 2))))
+                       (ert-fail (format "Unexpected measurement: %S" plain)))))))
+      (let ((rows (split-string
+                   (wime-edit--correction-rows
+                    '((0 (1 . "长项") (2 . "短项"))
+                      (6 (3 . "中项"))
+                      (9 (4 . "回填")))
+                    window)
+                   "\n" t)))
+        (should (= (length rows) 2))
+        (should (string-match-p "1[.]长项" (nth 0 rows)))
+        (should (string-match-p "4[.]回填" (nth 0 rows)))
+        (should (equal (wime-edit-test--alignments (nth 0 rows)) '(0 9)))
+        (should (string-match-p "2[.]短项" (nth 1 rows)))
+        (should (string-match-p "3[.]中项" (nth 1 rows)))
+        (should (equal (wime-edit-test--alignments (nth 1 rows)) '(0 6))))
+      (dolist (text '("1.长项" "2.短项" "3.中项" "4.回填"))
+        (should (member text measured))))))
+
 (ert-deftest wime-edit-escape-really-enters-evil-normal-and-resumes-editing ()
   (unless (require 'evil nil t)
     (ert-skip "Add emacs-packages/evil and emacs-packages/goto-chg to load-path"))
