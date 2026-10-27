@@ -55,6 +55,16 @@ class EvaluationCorpus(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "topic group crosses"):
             module.assemble(pool, reviews, controlled, audit, [], 1)
 
+    def test_future_training_filter_also_protects_context(self):
+        spec = importlib.util.spec_from_file_location("prepare_train", Path(__file__).resolve().parents[1] / "neural/prepare-japanese.py")
+        prep = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(prep)
+        clean = prep.evaluation_filter(["この文章は評価専用です。", "数字１２３４５６７８"])
+        self.assertFalse(clean("評価専用です。", "この文章は"))
+        self.assertFalse(clean("別の続き。", "この文章は評価専用です。"))
+        self.assertFalse(clean("数字12345678"))
+        self.assertTrue(clean("関係のない学習用の文章。"))
+
 
 if __name__ == "__main__":
     unittest.main()

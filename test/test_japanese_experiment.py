@@ -163,8 +163,58 @@ class Separation(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "duplicate"):
                 experiment.read_rows(path, repair=True)
 
+    def test_report_does_not_open_labels_until_blind_predictions_are_complete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dev, sealed = case(answers=["日本語"]), case("sealed", "2")
+            (root / "dev.json").write_text(json.dumps([dev]))
+            (root / "sealed.json").write_text(json.dumps([sealed]))
+            # An intentionally unparsable label file must not be reached yet.
+            (root / "labels.json").write_text("this file stays sealed")
+            manifest = dict(files={"input": "fixed"})
+            dev_rows = root / "dev.rows.jsonl"
+            dev_rows.write_text(json.dumps(prediction(dev)) + "\n")
+            selection = dict(manifest=manifest, dev_rows_sha256=experiment.digest(dev_rows),
+                             selected=dict(weight=.7, length_power=0))
+            (root / "selection.json").write_text(json.dumps(selection))
+            (root / "sealed.run.json").write_text(json.dumps(
+                dict(selection_sha256=experiment.digest(root / "selection.json"))))
+            argv = ["experiment", "report", "--dev-cases", str(root / "dev.json"),
+                    "--evaluation-manifest", str(root / "manifest.json"),
+                    "--sealed-inputs", str(root / "sealed.json"), "--sealed-labels", str(root / "labels.json"),
+                    "--table", str(root), "--zenz", str(root), "--rescorer", str(root), "--out", str(root)]
+            with patch.object(sys, "argv", argv), patch.object(experiment, "fingerprint", return_value=manifest), \
+                    patch.object(experiment, "read_labels") as labels:
+                with self.assertRaisesRegex(ValueError, "incomplete"):
+                    experiment.main()
+                labels.assert_not_called()
+
 
 class Measurement(unittest.TestCase):
+    def test_pure_context_contrast_keeps_ranking_fixed_and_clusters_pairs(self):
+        cases = [case(identifier=str(i), answers=["日本語"], right="を学ぶ。") for i in range(2)]
+        for c in cases:
+            c["topic_group"] = "paired-topic"
+        rows = [prediction(c) for c in cases]
+        for r in rows:
+            r["pools"]["right"] = dict(r["pools"]["right"], z=[0., -20.])
+        result = experiment.compare(cases, rows, "right", experiment.BASELINE, "none", experiment.BASELINE)
+        self.assertEqual((result["wins"], result["losses"], result["topic_groups"]), (2, 0, 1))
+        self.assertEqual(result["cluster_bootstrap95_delta_pp"], [100., 100.])
+
+    def test_changed_data_is_rejected_before_first_model_load(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data = root / "dev.json"
+            data.write_text("[]")
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps(dict(files={"dev.json": experiment.digest(data)})))
+            data.write_text("[{}]")
+            args = SimpleNamespace(evaluation_manifest=manifest, dev_cases=data,
+                                   sealed_inputs=data, sealed_labels=data)
+            with self.assertRaisesRegex(ValueError, "changed after sealing"):
+                experiment.fingerprint(args)
+
     def test_literal_fallback_accuracy_does_not_inflate_candidate_oracle(self):
         c = case(answers=["にほんご"])
         pool = dict(generated=["不正"], cands=[], z=[], q=[])

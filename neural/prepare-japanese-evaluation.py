@@ -104,6 +104,12 @@ def priority(row):
     return hashlib.sha256(("wime-japanese-eval-20261028/" + row["id"]).encode()).hexdigest()
 
 
+def apply_review(row, review):
+    if review.get("original_kana") != row["kana"] or review.get("original_answers") != row["answers"]:
+        raise ValueError("review no longer matches source: " + row["id"])
+    return dict(row, kana=review.get("kana", row["kana"]), answers=review.get("answers", row["answers"]))
+
+
 def assemble(reserve, reviews, controlled, audit, historical, count):
     """Only pre-reviewed, locally disjoint natural rows enter a new split."""
     historical_answers = {norm(t) for c in historical for t in c["answers"]}
@@ -114,6 +120,8 @@ def assemble(reserve, reviews, controlled, audit, historical, count):
     pool, excluded, selected_grams = [], [], set()
     for row in sorted(reserve, key=priority):
         review = edits.get(row["id"])
+        if review:
+            row = apply_review(row, review)
         reason = None
         if not review or review["status"] != "approved":
             reason = "not_approved"
@@ -128,9 +136,6 @@ def assemble(reserve, reviews, controlled, audit, historical, count):
         if reason:
             excluded.append(dict(id=row["id"], reason=reason))
             continue
-        if review.get("original_kana") != row["kana"] or review.get("original_answers") != row["answers"]:
-            raise ValueError("review no longer matches source: " + row["id"])
-        row = dict(row, kana=review.get("kana", row["kana"]), answers=review.get("answers", row["answers"]))
         # Prevent duplicate readings/answers from crossing natural splits.
         if any(norm(row["kana"]) == norm(r["kana"]) or
                set(map(norm, row["answers"])) & set(map(norm, r["answers"])) for r in pool):
@@ -172,6 +177,7 @@ def main():
     a = sub.add_parser("audit")
     a.add_argument("--cases", action="append", required=True, help="SOURCE=JSON")
     a.add_argument("--corpus", action="append", required=True, type=Path)
+    a.add_argument("--reviews", type=Path, help="guarded natural-case edits to apply before overlap checking")
     a.add_argument("--out", required=True, type=Path)
     a = sub.add_parser("assemble")
     for flag in ("reserve", "reviews", "controlled", "overlap", "historical", "out"):
@@ -184,6 +190,10 @@ def main():
             name, p = item.split("=", 1)
             paths[str(Path(p).resolve())] = digest(p)
             cases.extend(canonical(row, name) for row in read(p))
+        if args.reviews:
+            reviews = {r["id"]:r for r in read(args.reviews)}
+            cases = [apply_review(c, reviews[c["id"]]) if c["id"] in reviews else c for c in cases]
+            paths[str(args.reviews.resolve())] = digest(args.reviews)
         report = overlap(cases, args.corpus, lambda r: print(json.dumps(r), flush=True))
         report["inputs"] = paths
         write(args.out, report)
@@ -201,6 +211,8 @@ def main():
             raise ValueError("reserve changed after overlap audit")
         if audit["inputs"].get(str(args.controlled.resolve())) != digest(args.controlled):
             raise ValueError("controlled cases changed after overlap audit")
+        if audit["inputs"].get(str(args.reviews.resolve())) != digest(args.reviews):
+            raise ValueError("reviewed answers were not covered by the overlap audit")
         # A common short target is expected; a full surrounding match excludes a controlled case.
         for case in controlled:
             key = "controlled:" + case["id"]
@@ -216,6 +228,12 @@ def main():
         # Notes can reveal answers; omit them as well as the labels.
         write(args.out / "sealed.inputs.json", [{k:v for k,v in r.items() if k not in ("answers", "note")} for r in sealed])
         write(args.out / "sealed.labels.json", [dict(id=r["id"], answers=r["answers"]) for r in sealed])
+        # Future training excludes complete surrounding text for short controlled
+        # targets; excluding isolated words such as 橋 would remove useful data.
+        protection = sorted({norm(r["context"] + a + r["right_context"])
+                             for r in cases for a in r["answers"]
+                             if len(norm(r["context"] + a + r["right_context"])) >= 8})
+        write(args.out / "training-exclusions.json", protection)
         inputs = [args.reserve,args.reviews,args.controlled,args.overlap,args.historical,Path(__file__)]
         manifest = dict(version="20261028-v1", selection=selection,
                         counts=dict(collections.Counter((r["split"]+"/"+r["source"] if "source" in r else r["split"]+"/controlled") for r in cases)),

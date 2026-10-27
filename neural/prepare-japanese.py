@@ -20,6 +20,7 @@ import multiprocessing
 import os
 import random
 import re
+import unicodedata
 import zlib
 from pathlib import Path
 
@@ -114,6 +115,20 @@ class Reader:
 SPLIT = re.compile(r"(?<=[。！？!?])")
 
 
+def evaluation_filter(texts):
+    """Protect evaluation targets and context across training row boundaries."""
+    normalize = lambda s: unicodedata.normalize("NFKC", s)
+    protected = {normalize(t) for t in texts}
+    grams = {t[i:i + GRAM] for t in protected for i in range(len(t) - GRAM + 1)}
+
+    def clean(text, context=""):
+        text, context = normalize(text), normalize(context)
+        combined = context + text
+        return text not in protected and context not in protected and not any(
+            combined[i:i + GRAM] in grams for i in range(len(combined) - GRAM + 1))
+    return clean
+
+
 def segments(tokens):
     """Cut a token list into rows of at most MAXTEXT characters at punctuation, else word boundaries."""
     rows, text, kana = [], "", ""
@@ -182,22 +197,26 @@ def main():
     ap.add_argument("--aozora-chars", type=int, default=60_000_000)
     ap.add_argument("--wikipedia-chars", type=int, default=150_000_000)
     ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--protected-evaluation", action="append", type=Path, default=[],
+                    help="additional JSON list of protected texts, e.g. evaluation training-exclusions.json")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     recent, dev, held, tatoeba_train = tatoeba()
     (args.out / "test.json").write_text(json.dumps(recent, ensure_ascii=False))
     (args.out / "dev.json").write_text(json.dumps(dev, ensure_ascii=False))
     protected_text = {r["gold"] for r in held}
-    grams = {r["gold"][i:i + GRAM] for r in held for i in range(len(r["gold"]) - GRAM + 1)}
-
-    def clean(text):
-        return text not in protected_text and not any(text[i:i + GRAM] in grams for i in range(len(text) - GRAM + 1))
+    for path in args.protected_evaluation:
+        values = json.loads(path.read_text())
+        if not isinstance(values, list) or not all(isinstance(t, str) and t for t in values):
+            raise ValueError("protected evaluation must be a list of nonempty texts")
+        protected_text.update(values)
+    clean = evaluation_filter(protected_text)
 
     counts = collections.Counter()
     rng = random.Random(1)
     with open(args.out / "train.jsonl", "w") as train, open(args.out / "valid.jsonl", "w") as valid:
         def write(row):
-            if not clean(row["text"]):
+            if not clean(row["text"], row["context"]):
                 counts[row["source"] + "/protected"] += 1
                 return
             split = valid if zlib.crc32(row["doc"].encode()) % 100 == 0 else train

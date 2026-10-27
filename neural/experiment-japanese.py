@@ -13,6 +13,7 @@ import importlib.metadata
 import json
 import math
 from pathlib import Path
+import random
 import time
 import unicodedata
 
@@ -23,7 +24,7 @@ from rescorer import Rescorer
 GRID = [(w, p) for w in (0., .35, .7, 1.05) for p in (0, 1)]
 BASELINE = (.7, 0)
 CONDITIONS = ("none", "right", "right_rescore")
-INPUT_FIELDS = ("id", "split", "context", "kana", "right_context", "topic_group", "domain")
+INPUT_FIELDS = ("id", "split", "context", "kana", "right_context", "topic_group", "domain", "case_type")
 
 
 def digest(path):
@@ -217,7 +218,11 @@ def write_once(path, value):
 
 
 def fingerprint(args):
-    files = [args.dev_cases, args.sealed_inputs, args.sealed_labels, args.table,
+    seal = json.loads(args.evaluation_manifest.read_text())
+    for path in (args.dev_cases, args.sealed_inputs, args.sealed_labels):
+        if seal.get("files", {}).get(path.name) != digest(path):
+            raise ValueError("evaluation data changed after sealing: " + str(path))
+    files = [args.evaluation_manifest, args.dev_cases, args.sealed_inputs, args.sealed_labels, args.table,
              Path(__file__), Path(__file__).with_name("japanese.py"), Path(__file__).with_name("rescorer.py")]
     for root in (args.zenz, args.rescorer):
         files.extend(sorted(p for p in root.rglob("*") if p.is_file()
@@ -309,7 +314,7 @@ def summary(cases, rows, selection):
     settings = dict(zenz=(0., 0), baseline=BASELINE,
                     dev_selected=(selection["weight"], selection["length_power"]))
     groups = {"all": list(range(len(cases)))}
-    for field in ("domain",):
+    for field in ("domain", "case_type"):
         for name in sorted({c.get(field, "") for c in cases}):
             groups[field + "/" + name] = [i for i, c in enumerate(cases) if c.get(field, "") == name]
     groups["right_present"] = [i for i, c in enumerate(cases) if c.get("right_context")]
@@ -317,6 +322,51 @@ def summary(cases, rows, selection):
     return {group: {condition: {name: metrics([cases[i] for i in indices], [rows[i] for i in indices],
                                              condition, setting) for name, setting in settings.items()}
                     for condition in CONDITIONS} for group, indices in groups.items() if indices}
+
+
+def compare(cases, rows, left_condition, left_setting, right_condition, right_setting):
+    """Paired factor contrast; bootstrap whole topic groups, not paired sentences."""
+    clusters = {}
+    wins = losses = 0
+    for case, row in zip(cases, rows):
+        left = hit(case["answers"], displayed(case, row["pools"][left_condition], left_setting)) == 1
+        right = hit(case["answers"], displayed(case, row["pools"][right_condition], right_setting)) == 1
+        delta = int(left) - int(right)
+        wins += delta > 0
+        losses += delta < 0
+        key = case.get("topic_group") or case["id"]
+        group = clusters.setdefault(key, [0, 0])
+        group[0] += delta
+        group[1] += 1
+    if not cases:
+        return dict(total=0)
+    values = list(clusters.values())
+    rng = random.Random(20261028)
+    draws = []
+    for _ in range(2000):
+        sample = [rng.choice(values) for _ in values]
+        draws.append(100 * sum(x[0] for x in sample) / sum(x[1] for x in sample))
+    draws.sort()
+    return dict(total=len(cases), wins=wins, losses=losses, delta_pp=100*(wins-losses)/len(cases),
+                topic_groups=len(values), cluster_bootstrap95_delta_pp=[draws[50], draws[1949]],
+                interpretation="Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons")
+
+
+def contrasts(cases, rows, selection):
+    rows = align_rows(cases, rows)
+    chosen = (selection["weight"], selection["length_power"])
+    pairs = {"right_at_baseline": ("right", BASELINE, "none", BASELINE),
+             "right_at_selected": ("right", chosen, "none", chosen),
+             "right_rescore_at_baseline": ("right_rescore", BASELINE, "none", BASELINE),
+             "ranking_without_right": ("none", chosen, "none", BASELINE),
+             "ranking_with_right": ("right", chosen, "right", BASELINE)}
+    subsets = {"all": list(range(len(cases))),
+               "right_present": [i for i,c in enumerate(cases) if c.get("right_context")],
+               "right_absent": [i for i,c in enumerate(cases) if not c.get("right_context")]}
+    for kind in ("disambiguation", "control"):
+        subsets[kind] = [i for i,c in enumerate(cases) if c.get("case_type") == kind]
+    return {group: {name: compare([cases[i] for i in indices], [rows[i] for i in indices], *pair)
+                    for name,pair in pairs.items()} for group,indices in subsets.items() if indices}
 
 
 def read_labels(path, cases):
@@ -339,7 +389,7 @@ def read_labels(path, cases):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("phase", choices=("score-dev", "freeze", "score-sealed", "report"))
-    for name in ("dev-cases", "sealed-inputs", "sealed-labels", "table", "rescorer", "zenz", "out"):
+    for name in ("evaluation-manifest", "dev-cases", "sealed-inputs", "sealed-labels", "table", "rescorer", "zenz", "out"):
         ap.add_argument("--" + name, type=Path, required=True)
     args = ap.parse_args()
     dev = read_cases(args.dev_cases, "dev", labels=True)
@@ -377,7 +427,8 @@ def main():
                       selected=selection["selected"],
                       caution="paired p values are uncorrected descriptive comparisons; no test-set setting selection",
                       dev=summary(dev, read_rows(args.out / "dev.rows.jsonl"), selection["selected"]),
-                      sealed=summary(labeled, rows, selection["selected"]))
+                      sealed=summary(labeled, rows, selection["selected"]),
+                      sealed_contrasts=contrasts(labeled, rows, selection["selected"]))
         write_once(args.out / "report.json", report)
         print(json.dumps(report, ensure_ascii=False))
 
