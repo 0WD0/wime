@@ -35,7 +35,7 @@ import torch
 
 BEAM, PER_HYPOTHESIS, RESCORED = 16, 24, 64
 MEMO = 4096  # memoized LM rows, ~0.5 MB each
-MAXREAD = 14
+MAXREAD = 14  # cap inferred token readings; exact dictionary readings may be longer
 RERANK = 0.7  # the LM's weight beside zenz in the final ranking, chosen on dev
 FORMAT = "wime-ja-kana-v1"
 INPUT, OUTPUT, EOS = "", "", ""
@@ -45,6 +45,8 @@ NEUTRAL = "これは日本語の文章です。\n"
 
 
 HIRAGANA = "\u3041-\u3096\u309d\u309e"
+KANA = ("".join(chr(i) for i in range(0x3041, 0x3097))
+        + "".join(chr(i) for i in range(0x30A1, 0x30FB)) + "ーゝゞヽヾ")
 
 
 @functools.lru_cache(maxsize=65536)
@@ -81,16 +83,27 @@ LETTERS = dict(zip("ABCDEFGHIJKLMNOPQRSTUVWXYZ", ["えー", "びー", "しー", 
 
 
 def jmdict(path):
-    """Kanji writing -> kana readings, and the common writings."""
+    """Kanji writing -> permitted kana readings, and the common writings."""
     db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    writings, common = collections.defaultdict(set), set()
-    for writing, reading, priority, frequency in db.execute(
-            "SELECT kt.c0reading, nt.c0reading, k.priority, e.frequency FROM kanji k "
-            "JOIN kanjiText_content kt ON kt.docid = k.docid JOIN kana n ON n.id = k.id "
-            "JOIN kanaText_content nt ON nt.docid = n.docid JOIN entries e ON e.id = k.id"):
-        writings[writing].add(hira(reading))
+    writings, common, entries = collections.defaultdict(set), set(), collections.defaultdict(list)
+    # restrictedTo contains zero-based writing positions within this entry.
+    for entry, writing, priority, frequency in db.execute(
+            "SELECT k.id, kt.c0reading, k.priority, e.frequency FROM kanji k "
+            "JOIN kanjiText_content kt ON kt.docid = k.docid JOIN entries e ON e.id = k.id "
+            "ORDER BY k.id, k.docid"):
+        entries[entry].append(writing)
         if (priority or 0) > 0 or (frequency or 0) > 0:
             common.add(writing)
+    for entry, reading, nokanji, restricted in db.execute(
+            "SELECT n.id, nt.c0reading, n.nokanji, n.restrictedTo FROM kana n "
+            "JOIN kanaText_content nt ON nt.docid = n.docid"):
+        if nokanji:
+            continue
+        allowed = {int(i) for i in restricted.split(",")} if restricted else None
+        for i, writing in enumerate(entries[entry]):
+            if allowed is None or i in allowed:
+                writings[writing].add(hira(reading))
+    db.close()
     return writings, common
 
 
@@ -104,6 +117,7 @@ def kanjidic(path, graded=True):
         stem, _, okurigana = hira(reading).strip("-").partition(".")
         if stem:
             result[chr(entry)].add((stem, okurigana))
+    db.close()
     return result
 
 
@@ -116,12 +130,18 @@ def char_readings(text, i, chars):
     if not is_kanji(c):
         return {c}
     variants = {stem for stem, okurigana in chars.get(c, ()) if not okurigana or not rest or rest.startswith(okurigana[:1])}
+    return sound_variants(variants, before=i > 0, after=i + 1 < len(text))
+
+
+def sound_variants(readings, before=True, after=True):
+    """Composable kanji readings, including the sound changes used by tokens."""
+    variants = set(readings)
     for r in list(variants):
-        if r[-1] in "くきちつ" and i + 1 < len(text):
+        if r[-1] in "くきちつ" and after:
             variants.add(r[:-1] + "っ")
-        if i > 0 and r[0] in VOICED:
+        if before and r[0] in VOICED:
             variants.add(VOICED[r[0]] + r[1:])
-        if i > 0 and r[0] in SEMI:
+        if before and r[0] in SEMI:
             variants.add(SEMI[r[0]] + r[1:])
     return variants
 
@@ -136,8 +156,8 @@ def compose(text, chars, writings, limit=64):
             pieces = set(writings.get(text[i:j], ()))
             if j - i == 1:
                 pieces |= char_readings(text, i, chars)
-            for head in list(prefix[i]):
-                for r in pieces:
+            for head in sorted(prefix[i]):
+                for r in sorted(pieces):
                     if len(prefix[j]) < limit:
                         prefix[j].add(head + r)
     return prefix[len(text)]
@@ -160,7 +180,7 @@ def frequent(lexicon, top):
     return [(w, r) for r, ws in by_reading.items() for _, w in sorted(ws, reverse=True)[:top]]
 
 
-def spells(get_units, kana, text, constraints=None):
+def spells(get_units, kana, text, constraints=None, max_read=None):
     """Whether GET_UNITS can cover KANA and TEXT (NFKC-equal), without omissions."""
     text = unicodedata.normalize("NFKC", text)
 
@@ -168,7 +188,7 @@ def spells(get_units, kana, text, constraints=None):
     def reach(i, j):
         if i == len(kana):
             return j == len(text)
-        for end in range(i + 1, min(len(kana), i + MAXREAD) + 1):
+        for end in range(i + 1, min(len(kana), i + (max_read or len(kana))) + 1):
             units = [u for u, _ in (get_units(kana[i:end]) or ())]
             if end == i + 1 and not is_kana(kana[i]):
                 units.append(kana[i])
@@ -189,15 +209,53 @@ def complete_dictionary(index, tokenizer, writings):
     while 実装 reads じっそう. JMdict's priority flag must not decide whether
     that word is possible. Shorter words first let compounds reuse them.
     """
+    added = 0
     for text in sorted(writings, key=lambda text: (len(text), text)):
-        if len(text) < 2:
-            continue
         missing = [r for r in sorted(writings[text])
-                   if 0 < len(r) <= MAXREAD and not spells(index.get, r, text)]
+                   if r and not spells(index.get, r, text)]
         if missing:
             ids = tokenizer(text)["input_ids"]
             for r in missing:
                 index.setdefault(r, []).append([text, ids])
+                added += 1
+    return added
+
+
+def required_readings(writings, characters):
+    """Exact dictionary words, kanji stems/okurigana and every basic kana.
+
+    Single-character words and kana must survive byte-split tokenization.
+    Rare kanji are included here without using their readings to synthesize
+    arbitrary multi-kanji tokens.
+    """
+    result = collections.defaultdict(set, {w: set(rs) for w, rs in writings.items()})
+    # Preserve a dictionary word's reading before its written okurigana.
+    # Character readings alone cannot recover ateji or changes inside a
+    # compound: 盗る -> 盗/と, 接する -> 接/せっ, 辛抱強い -> 辛抱強/しんぼうづよ.
+    # Literal kana then complete inflections such as 盗られ and 辛抱強く.
+    for text, readings in writings.items():
+        for reading in readings:
+            stem, kana = text, reading
+            while stem and kana and stem[-1] == kana[-1] and "ぁ" <= stem[-1] <= "ゖ":
+                stem, kana = stem[:-1], kana[:-1]
+                if kana and any(is_kanji(c) for c in stem):
+                    result[stem].add(kana)
+    for c, readings in characters.items():
+        # Fragments such as 一/いっ and 本/ぼん must remain usable when the
+        # tokenizer splits a productive compound (一本, 料理本) between kanji.
+        result[c].update(sound_variants(stem for stem, _ in readings))
+        for stem, okurigana in readings:
+            result[c].add(stem)
+            result[c + okurigana].add(stem + okurigana)
+    for c in KANA:
+        result[c].add(hira(c))
+    return result
+
+
+def missing_readings(index, writings):
+    """All (writing, reading) pairs the generated units cannot spell."""
+    return [(w, r) for w in sorted(writings) for r in sorted(writings[w])
+            if not spells(index.get, r, w)]
 
 
 def build_table(tokenizer, jmdict_path, kanjidic_path, lexicon=None, top=4):
@@ -226,20 +284,20 @@ def build_table(tokenizer, jmdict_path, kanjidic_path, lexicon=None, top=4):
             continue  # ASCII words: typed literally, one character at a time
         if len(t) == 1:
             single.add(t)
-        for r in readings:
+        for r in sorted(readings):
             if 0 < len(r) <= MAXREAD:
                 index[r].append([t, [i]])
     for c, readings in chars.items():  # rarer kanji the LM splits only come in lexicon words
         if c not in single:
             ids = tokenizer(c)["input_ids"]
-            for r in {stem for stem, _ in readings}:
+            for r in sorted({stem for stem, _ in readings}):
                 index[r].append([c, ids])
     tokens = {u[0] for units in index.values() for u in units if len(u[1]) == 1}
-    for w in common:
+    for w in sorted(common):
         if w not in tokens and len(w) > 1:
             ids = tokenizer(w)["input_ids"]
             if len(ids) > 1:
-                for r in writings[w]:
+                for r in sorted(writings[w]):
                     if len(r) <= MAXREAD:
                         index[r].append([w, ids])
     for n in range(100):
@@ -248,7 +306,10 @@ def build_table(tokenizer, jmdict_path, kanjidic_path, lexicon=None, top=4):
     for letter, r in LETTERS.items():
         for text in (letter, letter.lower()):
             index[r].append([text, tokenizer(text)["input_ids"]])
-    complete_dictionary(index, tokenizer, writings)
+    required = required_readings(writings, every)
+    complete_dictionary(index, tokenizer, required)
+    if missing := missing_readings(index, required):
+        raise ValueError(f"incomplete reading table: {missing[:5]}")
     return dict(index)
 
 
@@ -256,6 +317,7 @@ class Table:
     def __init__(self, path, tokenizer):
         data = json.loads(Path(path).read_text())
         self.index = {r: [(t, tuple(ids)) for t, ids in units] for r, units in data["units"].items()}
+        self.max_read = max(map(len, self.index), default=MAXREAD)
         self.tokenizer = tokenizer
 
     def get(self, reading):
@@ -266,7 +328,7 @@ class Table:
 
     def spells(self, kana, text, constraints=None):
         """Whether decoding could write KANA as TEXT (NFKC-equal), under CONSTRAINTS."""
-        return spells(self.get, kana, text, constraints)
+        return spells(self.get, kana, text, constraints, self.max_read)
 
 
 # --- zenz --------------------------------------------------------------------
@@ -471,7 +533,7 @@ class Session:
         """Hypotheses whose last unit ends at kana position END of KANA, pruned."""
         decoder, table = self.decoder, self.decoder.table
         hypotheses, choices, owners = [], [], []
-        for start in range(max(0, end - MAXREAD), end):
+        for start in range(max(0, end - table.max_read), end):
             if not self.kept[start]:
                 continue
             units = list(table.get(kana[start:end]))

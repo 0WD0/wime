@@ -1,6 +1,9 @@
 """Japanese kana decoding with toy models: no GPU, model or dictionary."""
 import json
+import os
 from pathlib import Path
+import sqlite3
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -28,9 +31,9 @@ class Tokenizer:
 class Toy(ja.Decoder):
     """The LM likes 日本 then 語; the kana model is indifferent."""
 
-    def __init__(self):
+    def __init__(self, units=UNITS):
         path = Path(tempfile.mkdtemp()) / "table.json"
-        path.write_text(json.dumps(dict(units=UNITS), ensure_ascii=False))
+        path.write_text(json.dumps(dict(units=units), ensure_ascii=False))
         super().__init__(ja.Table(path, Tokenizer()), None, None, weight=1.0)
         self.forwards = 0
 
@@ -88,6 +91,13 @@ class Decoding(unittest.TestCase):
     def test_unknown_punctuation_is_typed_literally(self):
         self.assertTrue(any(t.endswith("、") for t, _ in Toy().decode("", "にほん、")))
 
+    def test_exact_dictionary_readings_can_exceed_inferred_token_limit(self):
+        reading = "に" * (ja.MAXREAD + 1)
+        decoder = Toy(dict(UNITS, **{reading: [["日本語", [11]]]}))
+        self.assertTrue(decoder.table.spells(reading, "日本語"))
+        self.assertIn("日本語", [t for t, _ in decoder.decode("", reading)])
+        self.assertFalse(decoder.table.spells(reading + "ご", "日本語"))
+
 
 class FakeZenz:
     """Generates one spellable reading, one that drops ご and one the table cannot write."""
@@ -131,7 +141,7 @@ class Lexicon(unittest.TestCase):
 
     def test_unprioritized_word_keeps_its_reading_across_token_boundaries(self):
         class SplitTokenizer:
-            vocab = ["実", "装", "す", "る"]
+            vocab = ["実", "装", "す", "る", "今", "日"]
 
             def __len__(self):
                 return len(self.vocab)
@@ -144,12 +154,14 @@ class Lexicon(unittest.TestCase):
 
         # The model splits 実装, and neither word has JMdict's common flag.
         # Its whole-word reading must survive even without a corpus lexicon.
-        writings = {"実装": {"じっそう"}, "実装する": {"じっそうする"}}
-        chars = {"実": {("じつ", "")}, "装": {("そう", "")}}
+        writings = {"実装": {"じっそう"}, "実装する": {"じっそうする"}, "今日": {"きょう"}}
+        chars = {"実": {("じつ", "")}, "装": {("そう", "")}, "今": {("いま", "")}, "日": {("ひ", "")}}
         with patch.object(ja, "jmdict", return_value=(writings, set())), \
                 patch.object(ja, "kanjidic", return_value=chars):
             units = ja.build_table(SplitTokenizer(), "unused", "unused")
-        self.assertIn(["実装", [0, 1]], units["じっそう"])
+        self.assertTrue(ja.spells(units.get, "じっそう", "実装"))
+        # Unlike regular sound changes, 今日 needs its dictionary word reading.
+        self.assertIn(["今日", [4, 5]], units["きょう"])
         self.assertTrue(ja.spells(units.get, "じっそうする", "実装する"))
         # Reuse the shorter word; don't inflate the beam with redundant compounds.
         self.assertNotIn("じっそうする", units)
@@ -158,6 +170,83 @@ class Lexicon(unittest.TestCase):
         before = sum(map(len, units.values()))
         ja.complete_dictionary(units, SplitTokenizer(), writings)
         self.assertEqual(sum(map(len, units.values())), before)
+
+    def test_byte_split_characters_kana_and_long_dictionary_words_are_covered(self):
+        class ByteTokenizer:
+            def __len__(self):
+                return 256
+
+            def decode(self, ids):
+                return bytes(ids).decode("utf-8", errors="replace")
+
+            def __call__(self, text):
+                return dict(input_ids=list(text.encode("utf-8")))
+
+        writing, reading = "取締役会設置会社", "とりしまりやくかいせっちがいしゃ"
+        writings = {"罠": {"わな"}, writing: {reading}}
+        rare = {"髭": {("ひげ", "")}, "叩": {("たた", "く")}}
+        with patch.object(ja, "jmdict", return_value=(writings, set())), \
+                patch.object(ja, "kanjidic", side_effect=lambda _path, graded=True: {} if graded else rare):
+            units = ja.build_table(ByteTokenizer(), "unused", "unused")
+        required = ja.required_readings(writings, rare)
+        self.assertEqual(ja.missing_readings(units, required), [])
+        for text, kana in [("罠", "わな"), ("髭", "ひげ"), ("叩いて", "たたいて"),
+                           ("ゔ", "ゔ"), ("ヅ", "づ"), (writing, reading)]:
+            self.assertTrue(ja.spells(units.get, kana, text), (kana, text))
+        self.assertFalse(ja.spells(units.get, "わなでした", "罠"))
+
+    def test_dictionary_reading_restrictions_and_kana_only_forms_are_respected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "dict.db"
+            db = sqlite3.connect(path)
+            db.executescript("""
+                CREATE TABLE entries (id INTEGER, frequency INTEGER);
+                CREATE TABLE kanji (id INTEGER, docid INTEGER, priority INTEGER);
+                CREATE TABLE kanjiText_content (docid INTEGER, c0reading TEXT);
+                CREATE TABLE kana (id INTEGER, docid INTEGER, nokanji INTEGER, restrictedTo TEXT);
+                CREATE TABLE kanaText_content (docid INTEGER, c0reading TEXT);
+                INSERT INTO entries VALUES (1, 1);
+                INSERT INTO kanji VALUES (1, 10, 0), (1, 11, 0);
+                INSERT INTO kanjiText_content VALUES (10, '生'), (11, '生き');
+                INSERT INTO kana VALUES (1, 20, 0, '0'), (1, 21, 0, '1'),
+                                        (1, 22, 1, NULL), (1, 23, 0, NULL);
+                INSERT INTO kanaText_content VALUES (20, 'なま'), (21, 'いき'),
+                                                    (22, 'ナマ'), (23, 'せい');
+            """)
+            db.close()
+            readings, common = ja.jmdict(path)
+        self.assertEqual(dict(readings), {"生": {"なま", "せい"}, "生き": {"いき", "せい"}})
+        self.assertEqual(common, {"生", "生き"})
+
+    def test_okurigana_stems_keep_compound_readings_when_the_ending_changes(self):
+        required = ja.required_readings({"盗る": {"とる"}, "接する": {"せっする"},
+                                         "辛抱強い": {"しんぼうづよい"}}, {})
+        index = {r: [(w, ()) for w, rs in required.items() if r in rs]
+                 for rs in required.values() for r in rs}
+        for kana, text in [("とられちゃった", "盗られちゃった"), ("せっしている", "接している"),
+                           ("しんぼうづよく", "辛抱強く")]:
+            self.assertTrue(ja.spells(index.get, kana, text), (kana, text))
+        self.assertFalse(ja.spells(index.get, "しんぼうつよく", "辛抱強く"))
+
+    def test_sound_changes_cross_token_boundaries_in_productive_compounds(self):
+        required = ja.required_readings({"料理": {"りょうり"}},
+                                         {"一": {("いち", "")}, "本": {("ほん", "")}})
+        index = {r: [(w, ()) for w, rs in required.items() if r in rs]
+                 for rs in required.values() for r in rs}
+        for kana, text in [("りょうりぼん", "料理本"), ("いっぽん", "一本")]:
+            self.assertTrue(ja.spells(index.get, kana, text), (kana, text))
+        self.assertFalse(ja.spells(index.get, "りょうりぼん", "料理"))
+
+    def test_capped_composition_is_independent_of_python_hash_seed(self):
+        script = """import japanese as ja
+chars = {c: {(r, '') for r in ['あ', 'い', 'う', 'え', 'お']} for c in '実装'}
+print(sorted(ja.compose('実装', chars, {}, limit=3)))
+"""
+        outputs = [subprocess.check_output([sys.executable, "-c", script], env=dict(
+            os.environ, PYTHONHASHSEED=str(seed), PYTHONPATH=str(Path(ja.__file__).parent)))
+                   for seed in (1, 7, 31)]
+        self.assertEqual(outputs[0], outputs[1])
+        self.assertEqual(outputs[1], outputs[2])
 
 
 class CausalModel:
