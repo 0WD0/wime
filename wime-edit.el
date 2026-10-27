@@ -31,6 +31,11 @@
   "Face for the Chinese text currently being converted."
   :group 'wime)
 
+(defface wime-edit-aux-face
+  '((t (:inherit wime-aux-face :height 0.75 :weight bold)))
+  "Face for auxiliary keys attached to their Chinese character."
+  :group 'wime)
+
 (cl-defstruct (wime-edit--unit (:constructor wime-edit--make-unit))
   keys pin original (database wime-database-file))
 
@@ -40,6 +45,7 @@
 (defvar-local wime-edit--generation 0)
 (defvar-local wime-edit--decoration nil)
 (defvar-local wime-edit--pending-decorations nil)
+(defvar-local wime-edit--aux-decorations nil)
 (defvar-local wime-edit--correction-decorations nil)
 (defvar-local wime-edit--correction-layout nil)
 (defvar-local wime-edit--internal nil)
@@ -88,10 +94,35 @@
   (setq wime-edit--decoration nil wime-edit--correction-decorations nil
         wime-edit--correction-layout nil wime--span-choices nil))
 
+(defun wime-edit--refresh-aux-decorations ()
+  "Show only uppercase auxiliary keys beside each reading-bearing character."
+  (mapc #'delete-overlay wime-edit--aux-decorations)
+  (setq wime-edit--aux-decorations nil)
+  (when wime-edit-mode
+    (save-restriction
+      (widen)
+      (let ((position (point-min)))
+        (while (< position (point-max))
+          (let* ((unit (get-text-property position 'wime-edit-unit))
+                 (end (next-single-property-change position 'wime-edit-unit nil (point-max)))
+                 (aux (and (wime-edit--unit-p unit)
+                           (upcase (cdar (wime--parse (wime-edit--unit-keys unit)))))))
+            (when (and aux (not (string-empty-p aux)))
+              (cl-loop for p from position below end
+                       do (let ((overlay (make-overlay p (1+ p))))
+                            (overlay-put overlay 'priority 2)
+                            (overlay-put overlay 'evaporate t)
+                            (overlay-put overlay 'after-string
+                                         (propertize aux 'face 'wime-edit-aux-face
+                                                     'display '(raise 0.3)))
+                            (push overlay wime-edit--aux-decorations))))
+            (setq position end)))))))
+
 (defun wime-edit--refresh-pending-decorations ()
   "Mark every suspended reading span without changing buffer text.
 Rebuild from reading properties so ordinary edits and undo remain the source
 of truth.  Widen only for display; confirmation still respects narrowing."
+  (wime-edit--refresh-aux-decorations)
   (mapc #'delete-overlay wime-edit--pending-decorations)
   (setq wime-edit--pending-decorations nil)
   (when wime-edit-mode
@@ -117,6 +148,9 @@ of truth.  Widen only for display; confirmation still respects narrowing."
               (let* ((overlay (make-overlay start position nil nil nil))
                      (help "暂存文字；移动光标继续修改，空格确认"))
                 (overlay-put overlay 'face 'wime-edit-pending-face)
+                ;; At a shared endpoint, the auxiliary code comes first,
+                ;; then this label, then any virtual correction lines.
+                (overlay-put overlay 'priority 1)
                 (overlay-put overlay 'help-echo help)
                 (overlay-put overlay 'evaporate t)
                 (overlay-put overlay 'after-string
