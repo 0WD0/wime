@@ -119,7 +119,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   (seed-candidates wime-neural-seed-candidates)
   (prior-confidence wime-neural-prior-confidence)
   (prior-weight wime-neural-prior-weight)
-  edit-generation)
+  edit-generation (memory-tick wime--memory-tick))
 
 (defvar wime-neural-mode)
 (declare-function wime-japanese--current-p "wime-japanese" (job))
@@ -148,7 +148,9 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   "Whether JOB still belongs to the current unselected composition."
   (and wime-neural-mode (buffer-live-p (wime-neural--job-buffer job))
        (with-current-buffer (wime-neural--job-buffer job)
-         (and (if (eq (wime-neural--job-method job) 'japanese)
+         (and (or (eq (wime-neural--job-method job) 'japanese)
+                  (= (wime-neural--job-memory-tick job) wime--memory-tick))
+              (if (eq (wime-neural--job-method job) 'japanese)
                   (wime-japanese--current-p job)
                 (and (wime--active-p) (= wime--selected 0)
                      (equal wime--input (wime-neural--job-input job))

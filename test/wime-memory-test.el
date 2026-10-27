@@ -1,0 +1,125 @@
+;;; wime-memory-test.el --- Learning management transactions -*- lexical-binding: t; -*-
+
+(require 'ert)
+(require 'wime-memory)
+(require 'wime-neural)
+
+(defmacro wime-memory-test--database (&rest body)
+  "Run BODY with disposable, real user and dictionary databases."
+  (declare (indent 0))
+  `(let* ((directory (make-temp-file "wime-memory-test-" t))
+          (wime-user-database (expand-file-name "user.db" directory))
+          (wime-database-file (expand-file-name "words.db" directory))
+          (wime--user-db nil) (wime--db (sqlite-open wime-database-file))
+          (wime--memory (make-hash-table :test #'equal)) (wime--memory-tick 0)
+          (wime--position-keys (cons wime--default-keys wime--default-keys))
+          (wime-neural-mode nil) (wime-grammar-module nil))
+     (unwind-protect
+         (progn
+           (sqlite-execute wime--db "CREATE TABLE entry (code TEXT, word TEXT, aux TEXT, weight REAL)")
+           (dolist (row '(("dl" "代" "a" 100) ("dl" "待" "b" 50) ("xr" "选" "d" 100)
+                          ("dlxr" "代选" "a/d" 30) ("dlxr" "待选" "b/d" 20)))
+             (sqlite-execute wime--db "INSERT INTO entry VALUES (?, ?, ?, ?)" row))
+           (let ((db (wime-memory--database)))
+             (sqlite-execute db "INSERT INTO memory VALUES ('dlxr', '待选', 'b/d', 3, 123.0)")
+             (sqlite-execute db "INSERT INTO commits VALUES (100.0, 'dlxrB', 'dlxr', '待选', '代选', '选择')")
+             (wime--reload-memory db)
+             ,@body))
+       (when wime--user-db (sqlite-close (cdr wime--user-db)))
+       (sqlite-close wime--db)
+       (delete-directory directory t))))
+
+(ert-deftest wime-memory-delete-and-undo-update-live-preferences-only ()
+  (wime-memory-test--database
+    (let* ((before (wime-memory-rows 'memory)) (history (wime-memory-rows 'history))
+           (tick wime--memory-tick)
+           (change (wime-memory-delete-records 'memory before)))
+      (should-not (wime-memory-rows 'memory))
+      (should-not (wime--memory-entries "dlxr"))
+      (should (> wime--memory-tick tick))
+      (should (equal history (wime-memory-rows 'history)))
+      (wime-memory-revert-change change)
+      (should (equal before (wime-memory-rows 'memory)))
+      (should (equal (wime--memory-entries "dlxr") `(("待选" "b/d" ,wime-user-weight)))))))
+
+(ert-deftest wime-memory-stale-batch-is-atomic ()
+  (wime-memory-test--database
+    (sqlite-execute db "INSERT INTO memory VALUES ('dlxr', '代选', 'a/d', 1, 122.0)")
+    (wime--reload-memory db)
+    (let ((before (wime-memory-rows 'memory)) (tick wime--memory-tick))
+      (sqlite-execute db "UPDATE memory SET count = 2 WHERE text = '代选'")
+      (should-error (wime-memory-delete-records 'memory before) :type 'user-error)
+      (should (= (length (wime-memory-rows 'memory)) 2))
+      (should (= wime--memory-tick tick)))))
+
+(ert-deftest wime-memory-edit-validates-reading-and-recomputes-aux ()
+  (wime-memory-test--database
+    (let* ((before (car (wime-memory-rows 'memory)))
+           (change (wime-memory-update-record before "dlxr" "代选"))
+           (after (car (wime-memory-rows 'memory))))
+      (should (equal (seq-take after 4) '("dlxr" "代选" "a/d" 1)))
+      (should-not (assoc "待选" (gethash "dlxr" wime--memory)))
+      (should (assoc "代选" (gethash "dlxr" wime--memory)))
+      (dolist (pair '(("xrdl" "代选") ("dlxrB" "代选") ("dlx" "代选") ("dl" "代")))
+        (should-error (wime-memory-update-record after (car pair) (cadr pair)) :type 'user-error))
+      (should (equal after (car (wime-memory-rows 'memory))))
+      (wime-memory-revert-change change)
+      (should (equal before (car (wime-memory-rows 'memory)))))))
+
+(ert-deftest wime-memory-edit-collision-rolls-back-original ()
+  (wime-memory-test--database
+    (sqlite-execute db "INSERT INTO memory VALUES ('dlxr', '代选', 'a/d', 8, 122.0)")
+    (let ((before (wime-memory-rows 'memory)))
+      (should-error (wime-memory-update-record (car before) "dlxr" "代选") :type 'user-error)
+      (should (equal before (wime-memory-rows 'memory))))))
+
+(ert-deftest wime-memory-undo-keeps-new-learning-and-database-boundary ()
+  (wime-memory-test--database
+    (let ((change (wime-memory-delete-records 'memory (wime-memory-rows 'memory))))
+      (let ((wime-user-database (expand-file-name "other.db" directory)))
+        (should-error (wime-memory-revert-change change) :type 'user-error)
+        (should-not (file-exists-p wime-user-database)))
+      (sqlite-execute db "INSERT INTO memory VALUES ('dlxr', '待选', 'b/d', 7, 456.0)")
+      (should-error (wime-memory-revert-change change) :type 'user-error)
+      (should (equal (car (wime-memory-rows 'memory)) '("dlxr" "待选" "b/d" 7 456.0))))))
+
+(ert-deftest wime-memory-history-delete-undo-and-rowid-reuse ()
+  (wime-memory-test--database
+    (let* ((before (wime-memory-rows 'history)) (memory (wime-memory-rows 'memory))
+           (tick wime--memory-tick)
+           (change (wime-memory-delete-records 'history before)))
+      (should-not (wime-memory-rows 'history))
+      (should (equal memory (wime-memory-rows 'memory)))
+      (should (= tick wime--memory-tick))
+      (wime-memory-revert-change change)
+      (should (equal before (wime-memory-rows 'history)))
+      (wime-memory-delete-records 'history before)
+      ;; SQLite may reuse the last rowid after deletion.  Undo must not
+      ;; replace this later input, even though it has the same numeric ID.
+      (sqlite-execute db "INSERT INTO commits VALUES (200.0, 'dlxr', 'dlxr', '代选', '代选', '新记录')")
+      (should-error (wime-memory-revert-change change) :type 'user-error)
+      (should (equal (nth 6 (car (wime-memory-rows 'history))) "新记录")))))
+
+(ert-deftest wime-memory-search-is-literal-and-history-is-bounded ()
+  (wime-memory-test--database
+    (should (= (length (wime-memory-rows 'memory "待")) 1))
+    (should-not (wime-memory-rows 'memory "%"))
+    (should-not (wime-memory-rows 'history "' OR 1=1 --"))
+    (should (= (length (wime-memory-rows 'history "选择")) 1))
+    (sqlite-execute db "INSERT INTO commits VALUES (200.0, 'dlxr', 'dlxr', '代选', '代选', '')")
+    (should (= (cadar (wime-memory-rows 'history "" 1)) 200.0))))
+
+(ert-deftest wime-memory-change-invalidates-in-flight-neural-results ()
+  (wime-memory-test--database
+    (with-temp-buffer
+      (let ((wime-neural-mode t))
+        (setq wime--input "dlxr" wime--candidate-records (list (wime--make-candidate :text "待选" :end 2)))
+        (let ((job (wime-neural--make-job :buffer (current-buffer) :input wime--input
+                                         :position (point) :tick (buffer-chars-modified-tick)
+                                         :context "" :records wime--candidate-records)))
+          (should (wime-neural--valid-p job))
+          (wime-memory-delete-records 'memory (wime-memory-rows 'memory))
+          (should-not (wime-neural--valid-p job)))))))
+
+(provide 'wime-memory-test)
+;;; wime-memory-test.el ends here

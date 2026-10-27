@@ -512,6 +512,14 @@ another reading for those keys forgets it."
 (defvar-local wime--default-reading nil
   "First candidate offered for this input, before any pin or selection.")
 
+(defun wime--reload-memory (db)
+  "Reload learned readings from DB and invalidate earlier search results."
+  (let ((rows (sqlite-select db "SELECT code, text, aux FROM memory")))
+    (clrhash wime--memory)
+    (pcase-dolist (`(,code ,text ,aux) rows)
+      (push (cons text aux) (gethash code wime--memory)))
+    (cl-incf wime--memory-tick)))
+
 (defun wime--user-db ()
   "Return the user database connection, loading learned readings once."
   (when wime-user-database
@@ -522,11 +530,8 @@ another reading for those keys forgets it."
                                    "text TEXT, default_reading TEXT, context TEXT)"))
         (sqlite-execute db (concat "CREATE TABLE IF NOT EXISTS memory (code TEXT, text TEXT, aux TEXT, "
                                    "count INTEGER, updated REAL, PRIMARY KEY (code, text))"))
-        (clrhash wime--memory)
-        (pcase-dolist (`(,code ,text ,aux) (sqlite-select db "SELECT code, text, aux FROM memory"))
-          (push (cons text aux) (gethash code wime--memory)))
         (setq wime--user-db (cons wime-user-database db))
-        (cl-incf wime--memory-tick)))
+        (wime--reload-memory db)))
     (cdr wime--user-db)))
 
 (defun wime--memory-entries (code)
