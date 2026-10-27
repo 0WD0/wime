@@ -350,7 +350,7 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
 
 (defun wime-edit--layout-signature ()
   "Return the window geometry relevant to correction rows."
-  (list (point-min) (point-max)
+  (list (point-min) (point-max) (copy-tree face-remapping-alist)
         (mapcar (lambda (window)
                   (list window (window-body-width window) (window-hscroll window)))
                 (get-buffer-window-list (current-buffer) nil t))))
@@ -382,19 +382,40 @@ keep their original indices so the existing digit selection remains valid."
             (push (cons (% label 10) candidate) options)))
         (when options (list (list 0 (length text) (nreverse options))))))))
 
-(defun wime-edit--correction-cell (option)
-  (concat (propertize (format "%d." (car option)) 'face 'wime-label-face)
+(defun wime-edit--correction-label (option &optional window)
+  "Return OPTION's number and dot, fitting one Han character in WINDOW."
+  (let ((label (propertize (format "%d." (car option)) 'face 'wime-label-face)))
+    (when (and window (display-graphic-p (window-frame window))
+               (> (length (cdr option)) 0)
+               (> (char-width (aref (cdr option) 0)) 1))
+      (let* ((width (wime-edit--display-width label window))
+             (limit (wime-edit--display-width
+                     (propertize (substring (cdr option) 0 1) 'face 'wime-alternatives-face)
+                     window)))
+        ;; Rasterization can make two Latin glyphs a pixel wider than one Han
+        ;; glyph even in the same monospaced font.  Shrink only that label,
+        ;; remeasuring because font sizes are rounded to pixels too.
+        (when (and (> limit 0) (> width limit))
+          (cl-loop for scale = (/ (float limit) width) then (* scale 0.95)
+                   repeat 20
+                   do (put-text-property 0 (length label) 'face
+                                         `(:inherit wime-label-face :height ,scale) label)
+                   until (<= (wime-edit--display-width label window) limit)))))
+    label))
+
+(defun wime-edit--correction-cell (option &optional window)
+  (concat (wime-edit--correction-label option window)
           (propertize (cdr option) 'face 'wime-alternatives-face)))
 
 (defun wime-edit--correction-rows (columns &optional window)
   "Pack (COLUMN . OPTIONS) COLUMNS into the earliest free display rows.
 Keep each group's options consecutive, measuring each cell in WINDOW so
-fonts and boxes use the same units as the source-text alignment."
+fonts use the same units as the source-text alignment."
   (let (rows)
     (dolist (column columns)
       (let* ((left (car column))
              (cells (mapcar (lambda (option)
-                              (let ((text (wime-edit--correction-cell option)))
+                              (let ((text (wime-edit--correction-cell option window)))
                                 (list left (wime-edit--display-width text window) text)))
                             (cdr column)))
              (start 0))
@@ -441,7 +462,18 @@ fonts and boxes use the same units as the source-text alignment."
   "Measure TEXT in the units used by display-space alignment."
   (if (and window (display-graphic-p (window-frame window)))
       (with-selected-window window
-        (/ (float (string-pixel-width text)) (frame-char-width (window-frame window))))
+        (/ (float
+            (if (>= emacs-major-version 31)
+                (string-pixel-width text (window-buffer window))
+              ;; Emacs 29/30's string-pixel-width cannot inherit the source
+              ;; buffer's text scaling.  Measure with those face remappings.
+              (let ((remapping face-remapping-alist))
+                (with-temp-buffer
+                  (setq-local face-remapping-alist remapping
+                              display-line-numbers nil line-prefix nil wrap-prefix nil)
+                  (insert text)
+                  (car (buffer-text-pixel-size nil nil t))))))
+           (frame-char-width (window-frame window))))
     (string-width text)))
 
 (defun wime-edit--show-corrections (text)
@@ -463,13 +495,13 @@ fonts and boxes use the same units as the source-text alignment."
                        (options (nth 2 group))
                        (width (apply #'max (mapcar (lambda (option)
                                                     (wime-edit--display-width
-                                                     (wime-edit--correction-cell option) window))
+                                                     (wime-edit--correction-cell option window) window))
                                                   options)))
                        ;; Put the alternative's characters under the source;
                        ;; its number occupies the small gutter to the left.
                        (column (max 0 (- column (wime-edit--display-width
-                                                 (propertize (format "%d." (caar options))
-                                                             'face 'wime-label-face) window))))
+                                                 (wime-edit--correction-label (car options) window)
+                                                 window))))
                        (column (if window
                                    (max 0 (min column (- (window-body-width window) width 1)))
                                  column))

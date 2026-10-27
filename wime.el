@@ -64,9 +64,8 @@
   :group 'wime)
 
 (defface wime-alternatives-face
-  '((((type graphic)) (:inherit wime-candidate-face :box (:line-width (1 . -1) :color "gray50")))
-    (t (:inherit (wime-candidate-face secondary-selection))))
-  "Face for a numbered span alternative, boxed apart from the reading."
+  '((t (:inherit wime-candidate-face)))
+  "Face for the text of a numbered span alternative."
   :group 'wime)
 
 (defface wime-label-face

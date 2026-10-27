@@ -635,6 +635,74 @@
           (should-not (wime-edit--unit-pin (wime-edit--unit-at 1)))
           (should (eq (wime-edit--unit-pin (wime-edit--unit-at 5)) ?丁)))))))
 
+(ert-deftest wime-edit-nearby-spans-share-rows-with-one-han-label-gutters ()
+  ;; The screenshot's first and third characters leave exactly one Han cell
+  ;; for each label.  Test the entire layout path: a box or a one-pixel font
+  ;; rounding excess can make these groups collide even without row padding.
+  ;; Also run this test in a GUI at Maple Mono NF CN Kai heights 120/140/160.
+  (wime-edit-test--buffer
+    (let ((wime-edit-test--dictionary
+           '(("aa" ("那" "a" 100) ("哪" "b" 90) ("呐" "c" 80) ("拿" "d" 70))
+             ("bb" ("有" "a" 100))
+             ("cc" ("点" "a" 100) ("店" "b" 90) ("电" "c" 80))
+             ("dd" ("大" "a" 100))
+             ("ee" ("了" "a" 100)))))
+      (save-window-excursion
+        (delete-other-windows)
+        (switch-to-buffer (current-buffer))
+        (insert ">>> ")
+        (wime-edit-test--type "aabbccddee")
+        (let ((wime-candidate-style 'spans))
+          (cl-letf (((symbol-function 'wime--uncertain-spans)
+                     (lambda (_top _scores)
+                       '((0 1 ("哪" "呐" "拿")) (2 3 ("店" "电"))))))
+            (wime--display)
+            (should (equal (buffer-substring-no-properties 1 (point-max))
+                           ">>> 那有点大了"))
+            (should (equal wime--span-choices
+                           '((0 1 "哪") (0 1 "呐") (0 1 "拿") (2 3 "店") (2 3 "电"))))
+            (cl-labels
+                ((assert-layout ()
+                   (should (= (length (wime-edit-test--correction-lines)) 1))
+                   (let* ((text (wime-edit-test--correction-text))
+                          (rows (split-string text "\n" t)))
+                     (should (= (length rows) 3))
+                     (should (string-match-p "1[.]哪.*4[.]店" (nth 0 rows)))
+                     (should (string-match-p "2[.]呐.*5[.]电" (nth 1 rows)))
+                     (should (string-match-p "3[.]拿" (nth 2 rows)))
+                     (should-not (face-attribute 'wime-alternatives-face :box nil t))
+                     ;; Emacs 31+ can measure the rendered buffer's remappings
+                     ;; directly.  Older versions still exercise the layout.
+                     (when (and (display-graphic-p) (>= emacs-major-version 31))
+                       (let ((position 0) (labels 0))
+                         (while (string-match "\\([1-5][.]\\)\\([哪呐拿店电]\\)" text position)
+                           (let ((label (match-string 1 text))
+                                 (han (match-string 2 text)))
+                             (setq position (match-end 0))
+                             (cl-incf labels)
+                             (should (<= (string-pixel-width label (current-buffer))
+                                         (string-pixel-width han (current-buffer))))))
+                         (should (= labels 5)))
+                       ;; Scaled labels must leave the candidate Han characters
+                       ;; under the source, not merely produce the same row count.
+                       (cl-loop for column in (wime-edit-test--alignments (car rows))
+                                for number in '(1 4)
+                                for source in '(5 7)
+                                do (should (string-match (format "\\(%d[.]\\)" number) (car rows)))
+                                do (let* ((label (match-string 1 (car rows)))
+                                          (candidate-x
+                                           (+ (* column (frame-char-width))
+                                              (string-pixel-width label (current-buffer))))
+                                          (source-x (car (window-text-pixel-size
+                                                          (selected-window) 1 source t))))
+                                     (should (< (abs (- candidate-x source-x)) 1.0))))))))
+              (assert-layout)
+              (let ((old (copy-sequence wime-edit--correction-decorations)))
+                (text-scale-set 2)
+                (wime-edit-test--command #'ignore)
+                (should (seq-every-p (lambda (overlay) (not (overlay-buffer overlay))) old))
+                (assert-layout)))))))))
+
 (ert-deftest wime-edit-tenth-span-correction-is-labeled-and-selected-with-zero ()
   (wime-edit-test--buffer
     (let* ((alternatives '("乙" "丁" "戊" "己" "庚" "辛" "壬" "癸" "子" "丑" "卯"))
