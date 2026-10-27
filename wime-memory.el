@@ -11,6 +11,9 @@
 (require 'tabulated-list)
 (require 'thingatpt)
 
+(declare-function evil-set-initial-state "evil-core" (mode state))
+(declare-function evil-define-key* "evil-core" (state keymap key def &rest bindings))
+
 (cl-defstruct (wime-memory-change (:constructor wime-memory--make-change))
   database kind before after)
 
@@ -165,7 +168,7 @@ A changed reading starts a new learning count.  Undo restores the old count."
                        ("m" . wime-memory-mark) ("u" . wime-memory-unmark)
                        ("d" . wime-memory-delete) ("U" . wime-memory-undo)
                        ("C-/" . wime-memory-undo) ("/" . wime-memory-filter)
-                       ("+" . wime-memory-more) ("h" . wime-history)
+                       ("g" . wime-memory-refresh) ("+" . wime-memory-more) ("h" . wime-history)
                        ("l" . wime-memory) ("?" . wime-memory-help)))
       (define-key map (kbd (car binding)) (cdr binding)))
     map))
@@ -174,9 +177,28 @@ A changed reading starts a new learning count.  Undo restores the old count."
   "Manage learned readings and commit history.
 Use `wime-memory-help' for commands and their effects."
   (setq-local tabulated-list-padding 2)
-  (setq-local revert-buffer-function (lambda (&rest _) (wime-memory-refresh)))
-  (when (fboundp 'evil-set-initial-state)
-    (evil-set-initial-state 'wime-memory-mode 'emacs)))
+  (setq-local revert-buffer-function (lambda (&rest _) (wime-memory-refresh))))
+
+;; Keep Evil optional and support either package load order.  Preserve its
+;; movement, search and column-navigation keys; use separate view commands.
+(with-eval-after-load 'evil
+  (evil-set-initial-state 'wime-memory-mode 'normal)
+  (evil-define-key* '(normal motion) wime-memory-mode-map
+    (kbd "RET") #'wime-memory-details
+    "e" #'wime-memory-edit
+    "m" #'wime-memory-mark
+    "M" #'wime-memory-unmark
+    "d" #'wime-memory-delete
+    "u" #'wime-memory-undo
+    "U" #'wime-memory-undo
+    (kbd "C-/") #'wime-memory-undo
+    "s" #'wime-memory-filter
+    "+" #'wime-memory-more
+    "H" #'wime-history
+    "L" #'wime-memory
+    "gr" #'wime-memory-refresh
+    "g?" #'wime-memory-help
+    "q" #'quit-window))
 
 (defun wime-memory--check-database (&optional dictionary)
   (unless (equal wime-memory--database-file (wime-memory--file))
@@ -233,7 +255,7 @@ Use `wime-memory-help' for commands and their effects."
       (while (not (eobp))
         (when (member (tabulated-list-get-id) marked) (tabulated-list-put-tag "*"))
         (forward-line 1)))
-    (message "%s：%d 条%s · / 筛选 · RET 详情 · m/u 标记 · d 删除 · U 撤销 · ? 帮助"
+    (message (substitute-command-keys "%s：%d 条%s · \\[wime-memory-filter] 筛选 · \\[wime-memory-details] 详情 · \\[wime-memory-mark]/\\[wime-memory-unmark] 标记 · \\[wime-memory-delete] 删除 · \\[wime-memory-undo] 撤销 · \\[wime-memory-help] 帮助")
              (if (eq wime-memory--kind 'memory) "学习偏好" "上屏历史")
              (length tabulated-list-entries) (if more "（+ 加载更多）" ""))))
 
@@ -317,7 +339,8 @@ Deleting history leaves learned preferences intact."
   (tabulated-list-put-tag " " t))
 
 (defun wime-memory-delete ()
-  "Delete marked rows, or this row when none are marked; U undoes the change."
+  "Delete marked rows, or this row when none are marked.
+Use `wime-memory-undo' to restore the deleted records."
   (interactive)
   (wime-memory--check-database)
   (let* ((marked (wime-memory--marked-ids))
@@ -325,7 +348,7 @@ Deleting history leaves learned preferences intact."
                  (list (wime-memory--selected-row)))))
     (push (wime-memory-delete-records wime-memory--kind rows) wime-memory--undo)
     (wime-memory-refresh)
-    (message "已删除 %d 条%s；U 撤销%s" (length rows)
+    (message (substitute-command-keys "已删除 %d 条%s；\\[wime-memory-undo] 撤销%s") (length rows)
              (if (eq wime-memory--kind 'memory) "学习偏好" "上屏历史")
              (if (eq wime-memory--kind 'history) "（学习偏好保留）" "（上屏历史保留）"))))
 
@@ -340,7 +363,7 @@ Deleting history leaves learned preferences intact."
     (wime-memory--check-database t)
     (push (wime-memory-update-record row code text) wime-memory--undo)
     (wime-memory-refresh)
-    (message "已修改学习偏好并重新校验辅助码；U 撤销")))
+    (message (substitute-command-keys "已修改学习偏好并重新校验辅助码；\\[wime-memory-undo] 撤销"))))
 
 (defun wime-memory-undo ()
   "Undo the last successful management action in this buffer."
@@ -367,10 +390,14 @@ Deleting history leaves learned preferences intact."
       (princ (format "\n数据文件：%s\n" file)))))
 
 (defun wime-memory-help ()
-  "Show the management commands and their effects."
+  "Show the management commands using the current key bindings."
   (interactive)
-  (with-help-window "*Wime 学习帮助*"
-    (princ "Wime 学习管理\n\n l  学习偏好       h  上屏历史\n /  搜索文字或编码 g  刷新       +  加载更多\n RET  完整详情     e  修改学习词语及编码\n m  标记          u  取消标记\n d  删除标记记录；没有标记时删除当前行\n U / C-/  撤销最近一次修改或删除\n q  返回\n\n修改与删除可在这个管理 buffer 存活期间撤销。\n学习偏好影响候选；上屏历史保存当时的输入，两者分别管理。\n当前管理的是中文学习记录；修改读音会按当前词库校验。\n\nM-x wime-memory-at-point 可从正文或当前候选查找相关学习词语。\n")))
+  ;; Resolve keys in the manager before entering the help buffer.
+  (let ((text
+         (substitute-command-keys
+          "Wime 学习管理\n\n \\[wime-memory]  学习偏好       \\[wime-history]  上屏历史\n \\[wime-memory-filter]  筛选文字或编码   \\[wime-memory-refresh]  刷新   \\[wime-memory-more]  加载更多\n \\[wime-memory-details]  完整详情   \\[wime-memory-edit]  修改学习词语及编码\n \\[wime-memory-mark]  标记   \\[wime-memory-unmark]  取消标记\n \\[wime-memory-delete]  删除标记记录；没有标记时删除当前行\n \\[wime-memory-undo]  撤销最近一次修改或删除\n \\[quit-window]  返回\n\nEvil 普通状态保留 h/j/k/l、gg/G 和 /、?、n/N 导航与搜索。\n修改与删除可在这个管理 buffer 存活期间撤销。\n学习偏好影响候选；上屏历史保存当时的输入，两者分别管理。\n当前管理的是中文学习记录；修改读音会按当前词库校验。\n\nM-x wime-memory-at-point 可从正文或当前候选查找相关学习词语。\n")))
+    (with-help-window "*Wime 学习帮助*"
+      (princ text))))
 
 (provide 'wime-memory)
 ;;; wime-memory.el ends here
