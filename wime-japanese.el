@@ -1,15 +1,15 @@
 ;;; wime-japanese.el --- AZIK Japanese input decoded by the CUDA worker -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Keys convert to kana by the AZIK table (japanese/azik.eld, exported from
-;; ddskk), with SKK's rules: a key sequence that may still grow waits, and
+;; Keys convert to kana by the editable AZIK table (japanese/azik.eld):
+;; a key sequence that may still grow waits, and
 ;; keys left over from a finished rule stay pending.  After a pause the
 ;; worker decodes the kana with the rescorer and a kana-conditioned model;
 ;; keys still pending restrict a provisional last kana.  Hiragana and
 ;; katakana remain candidates throughout.
 ;;
 ;; Keys typed with Shift held mark kana to be written in kanji or katakana
-;; (KAku → 書く, ISSYOni → 一緒に).  Once a composition uses Shift, the kana
+;; (KAku → 書く, I:SYOni → 一緒に).  Once a composition uses Shift, the kana
 ;; typed without it stay hiragana; without Shift decoding is automatic.  A
 ;; chord's first kana follows its first key, the rest its last key.
 

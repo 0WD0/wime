@@ -34,11 +34,12 @@
       (should-error (wime-japanese--rules))
       (should-not wime-japanese--table))))
 
-(ert-deftest wime-japanese-azik-converts-like-skk ()
+(ert-deftest wime-japanese-azik-converts-kana ()
   (dolist (case '(("kz" "かん" "") ("kl" "こん" "") ("nihlgo" "にほんご" "") ("ds" "です" "")
                   ("xa;ta" "しゃった" "") ("k" "" "k") ("ky" "" "ky") ("n" "" "n") ("nn" "ん" "")
-                  ;; A finished rule may leave a key pending; a stuck sequence stays as typed.
-                  ("bb" "っ" "b") ("jbm" "jb" "m") ("ka," "か、" "")))
+                  ("ga;kp" "がっこう" "") ("xt" "しゅつ" "") ("xxa" "ぁ" "")
+                  ;; Only ; types sokuon; unmatched keys stay visible as typed.
+                  ("bb" "b" "b") ("jbm" "jb" "m") ("ka," "か、" "")))
     (should (equal (wime-japanese--convert (car case)) (cons (nth 1 case) (nth 2 case))))))
 
 (ert-deftest wime-japanese-pending-keys-name-the-kana-they-can-start ()

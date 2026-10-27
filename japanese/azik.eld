@@ -4,7 +4,7 @@
 ;; Inline comments give ordinary romaji equivalents, not AZIK input keys.
 ;; Spellings use shi/chi/tsu/fu/ji, n for ん, and - for ー.
 ;; Standalone small kana use x; pending keys remain unconverted.
-;; This file is the editable rule source; re-exporting replaces local edits.
+;; Edit this file directly.  Sokuon (っ) uses ; exclusively.
 
 (
  ;; Punctuation
@@ -14,7 +14,7 @@
  ("-" "ー")             ; -
  ("." "。")
  (":" "：")
- (";" "っ")             ; xtsu
+ (";" "っ")
  ("?" "？")
  ("[" "「")
  ("]" "」")
@@ -24,7 +24,6 @@
 
  ;; b
  ("ba" "ば")            ; ba
- ("bb" "っ" "b")        ; xtsu; pending: b
  ("bd" "べん")          ; ben
  ("be" "べ")            ; be
  ("bh" "ぶう")          ; buu
@@ -125,7 +124,6 @@
  ("fa" "ふぁ")          ; fa
  ("fd" "ふぇん")        ; fen
  ("fe" "ふぇ")          ; fe
- ("ff" "っ" "f")        ; xtsu; pending: f
  ("fh" "ふう")          ; fuu
  ("fi" "ふぃ")          ; fi
  ("fj" "ふん")          ; fun
@@ -151,7 +149,6 @@
  ("ga" "が")            ; ga
  ("gd" "げん")          ; gen
  ("ge" "げ")            ; ge
- ("gg" "っ" "g")        ; xtsu; pending: g
  ("gh" "ぐう")          ; guu
  ("gi" "ぎ")            ; gi
  ("gj" "ぐん")          ; gun
@@ -583,7 +580,6 @@
  ("vp" "ゔぉー")        ; vo-
  ("vq" "ゔぁい")        ; vai
  ("vu" "ゔ")            ; vu
- ("vv" "っ" "v")        ; xtsu; pending: v
  ("vw" "ゔぇい")        ; vei
  ("vya" "ゔゃ")         ; vuxya
  ("vye" "ゔぇ")         ; ve
@@ -613,7 +609,6 @@
  ("wso" "うぉ")         ; who
  ("wt" "わた")          ; wata
  ("wu" "う")            ; u
- ("ww" "っ" "w")        ; xtsu; pending: w
  ("wz" "わん")          ; wan
 
  ;; x
@@ -636,15 +631,12 @@
  ("xp" "しょう")        ; shou
  ("xq" "しゃい")        ; shai
  ("xt" "しゅつ")        ; shutsu
- ("xtsu" "っ")          ; xtsu
- ("xtu" "っ")           ; xtsu
  ("xu" "しゅ")          ; shu
  ("xv" "しゃい")        ; shai
  ("xw" "しぇい")        ; shei
  ("xwa" "ゎ")           ; xwa
  ("xwe" "ゑ")           ; xwe
  ("xwi" "ゐ")           ; xwi
- ("xx" "っ" "x")        ; xtsu; pending: x
  ("xxa" "ぁ")           ; xa
  ("xxe" "ぇ")           ; xe
  ("xxh" "←")
@@ -677,7 +669,6 @@
  ("yr" "よる")          ; yoru
  ("yu" "ゆ")            ; yu
  ("yv" "ゆう")          ; yuu
- ("yy" "っ" "y")        ; xtsu; pending: y
  ("yz" "やん")          ; yan
 
  ;; z
