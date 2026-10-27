@@ -172,7 +172,7 @@
 (ert-deftest wime-japanese-worker-loads-the-japanese-models ()
   (let ((wime-neural-program "/bin/true") (wime-neural-interpreter nil) (wime-neural-rescorer "/lm")
         (wime-neural-search-method 'verify) (wime-japanese-model-file "/ja.safetensors")
-        (wime-japanese-table-file "/ja.json"))
+        (wime-japanese-table-file "/ja.json") (wime-japanese-zenz-directory nil))
     (should (equal (wime-neural--command "/m.safetensors")
                    '("/bin/true" "--rescorer" "/lm" "--rescorer-weight" "1.5"
                      "--japanese-model" "/ja.safetensors" "--japanese-table" "/ja.json" "/m.safetensors")))

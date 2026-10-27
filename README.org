@@ -236,16 +236,18 @@ Bazel 在构建时下载上游 nightly 产物，不依赖本机安装：
 
 * 开发
 
-ERT 测试在仓库根目录运行，词库取自 =bazel-bin/=：
+ERT 测试在仓库根目录通过已准备的 wdoom 快照运行。隔离状态目录并禁用个人词库，
+避免测试写入真实输入记录：
 
 #+begin_src sh
-emacs -Q --batch -L emacs-packages/wime -L emacs-packages/evil -L emacs-packages/goto-chg \
-  --eval '(setq load-prefer-newer t)' \
+WDOOM_STATE_DIR=$(mktemp -d) ./wdoom/bin/wdoom --batch \
+  --eval '(setq wime-user-database nil
+                native-comp-enable-subr-trampolines (make-temp-file "wdoom-trampolines" t))' \
   -l ert -l emacs-packages/wime/test/wime-test.el \
   -l emacs-packages/wime/test/wime-edit-test.el \
   -l emacs-packages/wime/test/wime-edit-neural-test.el \
   -l emacs-packages/wime/test/wime-neural-test.el \
-  -l emacs-packages/wime/test/wime-japanese-test.el -f ert-run-tests-batch-and-exit
+  -l emacs-packages/wime/test/wime-japanese-test.el -f ert-run-tests-batch-and-exit < /dev/null
 #+end_src
 
 Python 测试不需要 GPU 和模型，但需要 =neural/requirements-training.txt= 里的依赖：

@@ -188,6 +188,7 @@
 (ert-deftest wime-commit-logs-the-offer-and-learns-only-corrections ()
   (wime-test--memory wime-test--homophones
     (with-temp-buffer
+      (setq-local wime-candidate-style 'list)
       (insert "按数字键选择")
       (setq wime--input "dlxrxd")
       (wime--refresh)
