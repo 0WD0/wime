@@ -1,0 +1,3785 @@
+{
+  "date": "2026-10-28",
+  "completed": true,
+  "scope": "Offline candidate-plausibility plus right-context ranking and a larger source-disjoint natural insertion evaluation. Production backend, editor, defaults, models and readings unchanged.",
+  "implementation_commits": [
+    "45de3288",
+    "a6aa9e89",
+    "7519e2f7",
+    "6d48c4ab"
+  ],
+  "dataset": {
+    "counts": {
+      "reviewed_sources": 400,
+      "eligible_sources": 364,
+      "natural_dev_sources": 100,
+      "sealed_sources": 200,
+      "dev_rows": 826,
+      "sealed_rows": 600
+    },
+    "development": {
+      "previously_revealed_rows": 526,
+      "new_sources": 100,
+      "new_rows": 300,
+      "total_rows": 826,
+      "selection_source_or_topic_groups": 541
+    },
+    "heldout": {
+      "new_sources": 200,
+      "rows": 600,
+      "variants_per_source": [
+        "full actual right context",
+        "first two actual right characters",
+        "no right context"
+      ],
+      "independent_unit": "source sentence; the three variants are paired, not independent samples"
+    },
+    "selection_policy": "Fixed source hash order; zero8grams in original and reviewed fulltext variants against local corpora, prior evaluations, and other eligible sources. Reserve200heldout first with<=100 perauthor; choose100distinct dev with<=80 perauthor. Three actual-right variants(full,first2chars,none) stay in same sourcegroup. No new model predictions consulted.",
+    "exclusions": {
+      "reviewed_variant_corpus_shared8": 6,
+      "linguistic_review_excluded": 26,
+      "prior_evaluation_shared8": 4
+    },
+    "author_counts": {
+      "dev": {
+        "Gardenia": 80,
+        "LeviHighway": 6,
+        "demiurgastel": 3,
+        "octobaguette": 1,
+        "\\N": 2,
+        "larsonnoah": 1,
+        "GreySquirrel": 3,
+        "doemaar14": 1,
+        "chaarii_jpn": 1,
+        "Kojimano": 1,
+        "Sh12": 1
+      },
+      "sealed": {
+        "small_snow": 15,
+        "Gardenia": 100,
+        "demiurgastel": 8,
+        "Kojimano": 4,
+        "LeviHighway": 24,
+        "GreySquirrel": 12,
+        "TanukiKun": 2,
+        "jan_OkulaJu": 4,
+        "ninefi": 3,
+        "chaarii_jpn": 2,
+        "RaveRat": 1,
+        "ok_jp": 1,
+        "LeeSooHa": 3,
+        "Arkylie": 3,
+        "\\N": 2,
+        "boracasli2": 1,
+        "larsonnoah": 3,
+        "kylewii": 3,
+        "rul": 2,
+        "RaindeLion": 1,
+        "ryosuke": 1,
+        "enclectm": 1,
+        "knz04": 1,
+        "bunbuku": 1,
+        "octobaguette": 1,
+        "DJ_Saidez": 1
+      }
+    },
+    "year_counts": {
+      "dev": {
+        "2025": 93,
+        "2026": 7
+      },
+      "sealed": {
+        "2026": 51,
+        "2025": 149
+      }
+    },
+    "review": {
+      "reviewed_sources": 400,
+      "linguistically_approved": 374,
+      "eligible_after_overlap": 364,
+      "selected": 300,
+      "process": "Every reviewed source/transcription/span/answer list inspected before new heldout inference by an assigned reviewer and the primary agent. Not native-human certification.",
+      "extra_sampling": "After the first 360 reviewed sources were author-concentrated, reviewed the next 40 eligible non-Gardenia sources in fixed priority order; no predictions used."
+    },
+    "overlap_policy": "Original and reviewed full-text variants share no normalized character 8-gram with four local train/validation corpora, prior evaluations, or other eligible source sentences. Selected source groups are disjoint across development and heldout.",
+    "corpora": {
+      "/home/disk/.cache/wime-japanese/work/data/train.jsonl": {
+        "rows": 9517872,
+        "sha256": "0e38c7a41c6d2b04415a7e98db7c97d4005f99b6e7d2a615ba0db477b19dcd34"
+      },
+      "/home/disk/.cache/wime-japanese/work/data/valid.jsonl": {
+        "rows": 84534,
+        "sha256": "5cdb2e6f2c49d4a9c48532360927b1067a169ebd72c914a828dfb9d3336fe4c1"
+      },
+      "/home/disk/.cache/wime-japanese/lora/train.jsonl": {
+        "rows": 1200000,
+        "sha256": "666213c09a0d201be9749f86a4bd3b1bb8aaca453ead8b969fa2d3c701eb176d"
+      },
+      "/home/disk/.cache/wime-japanese/lora/valid.jsonl": {
+        "rows": 2000,
+        "sha256": "94a48c66d5e954bd4b6bc5c4a2cd21793dc4cad866a7c3dfefc6d017fb53a504"
+      }
+    },
+    "source_license": "Tatoeba CC BY2.0FR (someCC0/publicdomain); per-source authors+URLs retained; source metadata in neural/japanese-sources.json. Targets/readings/acceptedvariants reviewed and span-extracted; short/no-right versions hide actual following text.",
+    "limitations": [
+      "Insertion spans extracted from public Tatoeba sentences, sometimes at conjugation boundaries; this is not whole-sentence conversion, user input logs, or the old 1350-sentence benchmark.",
+      "The latest public sources have unapproved/automatic attributed transcriptions, reviewed here but not independently certified by native human reviewers.",
+      "Gardenia contributes 80/100 fresh development and 100/200 heldout sources; author caps reduce but do not remove style concentration. Source originality is not independently verified.",
+      "Local overlap checks do not establish absence from upstream zenz/Qwen pretraining or rule out paraphrases.",
+      "Finite frozen answer lists still miss ordinary spellings. Post-hoc diagnoses are not replacements for frozen strict scores."
+    ]
+  },
+  "development_review": {
+    "initial_revisions": [
+      {
+        "id": "right-holdout-20261028-065",
+        "input_guard": {
+          "context": "片付けるときに、",
+          "kana": "あぶらのびんをしっかりしめた",
+          "right_context": "。倒れてもこぼれないようにした。",
+          "topic_group": "right-v2-control-oil_bottle",
+          "domain": "everyday",
+          "case_type": "control"
+        },
+        "original_answers": [
+          "油の瓶をしっかり閉めた",
+          "油のびんをしっかり閉めた"
+        ],
+        "answers": [
+          "油の瓶をしっかり閉めた",
+          "油のびんをしっかり閉めた",
+          "油のビンをしっかり閉めた"
+        ],
+        "reason": "Standalone container noun 瓶/びん/ビン are normal orthographic variants; no lexical identity changes.",
+        "evidence": [
+          "bottle"
+        ]
+      },
+      {
+        "id": "right-holdout-20261028-066",
+        "input_guard": {
+          "context": "生地を作るため、",
+          "kana": "こむぎこをはかりにのせた",
+          "right_context": "。目盛りを見て分量を調整した。",
+          "topic_group": "right-v2-control-measuring_cup",
+          "domain": "everyday",
+          "case_type": "control"
+        },
+        "original_answers": [
+          "小麦粉をはかりに載せた",
+          "小麦粉を秤に載せた",
+          "小麦粉をはかりに乗せた",
+          "小麦粉を秤に乗せた"
+        ],
+        "answers": [
+          "小麦粉をはかりに載せた",
+          "小麦粉を秤に載せた",
+          "小麦粉をはかりに乗せた",
+          "小麦粉を秤に乗せた",
+          "小麦粉をはかりにのせた",
+          "小麦粉を秤にのせた"
+        ],
+        "reason": "Accept ordinary kana のせた alongside 載せた/乗せた for putting flour on a scale. Retain noun 秤/はかり; measuring-action nouns 測り/計り/量り are not accepted as the scale itself.",
+        "evidence": [
+          "kana_policy",
+          "scale",
+          "scale_dictionary"
+        ]
+      },
+      {
+        "id": "right-holdout-20261028-072",
+        "input_guard": {
+          "context": "荷物を預けるため、",
+          "kana": "すーつけーすのおもさをはかった",
+          "right_context": "。制限を超えてはいなかった。",
+          "topic_group": "right-v2-control-airport_scale",
+          "domain": "transport",
+          "case_type": "control"
+        },
+        "original_answers": [
+          "スーツケースの重さを量った",
+          "スーツケースの重さを測った"
+        ],
+        "answers": [
+          "スーツケースの重さを量った",
+          "スーツケースの重さを測った",
+          "スーツケースの重さを計った",
+          "スーツケースの重さをはかった"
+        ],
+        "reason": "Accept kana はかった and broader 計る usage for measuring weight. Official NINJAL dictionary treats 計る/測る/量る under one measurement sense. Culture Agency prefers 量る for weight but explicitly says examples do not reject other conventions. Keep preferred spelling as diagnostic, not a semantic failure.",
+        "evidence": [
+          "kana_policy",
+          "hakaru"
+        ]
+      },
+      {
+        "id": "right-holdout-20261028-085",
+        "input_guard": {
+          "context": "回収日には、",
+          "kana": "びんとかんをべつべつにだす",
+          "right_context": "よう掲示されている。",
+          "topic_group": "right-v2-control-recycling",
+          "domain": "community",
+          "case_type": "control"
+        },
+        "original_answers": [
+          "瓶と缶を別々に出す",
+          "びんと缶を別々に出す"
+        ],
+        "answers": [
+          "瓶と缶を別々に出す",
+          "びんと缶を別々に出す",
+          "ビンと缶を別々に出す"
+        ],
+        "reason": "Standalone container noun 瓶/びん/ビン are normal orthographic variants; recycling meaning rules out 便.",
+        "evidence": [
+          "bottle"
+        ]
+      },
+      {
+        "id": "right-holdout-20261028-107",
+        "input_guard": {
+          "context": "古い本を直すため、",
+          "kana": "はずれたぺーじをとじなおした",
+          "right_context": "。表紙も補強しておいた。",
+          "topic_group": "right-v2-control-book_binding",
+          "domain": "culture",
+          "case_type": "control"
+        },
+        "original_answers": [
+          "外れたページを綴じ直した",
+          "外れたページをとじ直した"
+        ],
+        "answers": [
+          "外れたページを綴じ直した",
+          "外れたページをとじ直した",
+          "外れたページを綴じなおした",
+          "外れたページをとじなおした"
+        ],
+        "reason": "Binding detached pages can be 綴じ直した/とじ直した/綴じなおした/とじなおした. 閉じる (close) does not express reattaching detached pages in this context.",
+        "evidence": [
+          "kana_policy"
+        ]
+      },
+      {
+        "id": "natural-right:1153017",
+        "input_guard": {
+          "context": "わたしに",
+          "kana": "つづいて",
+          "right_context": "読みなさい。",
+          "topic_group": "natural-unseen-reserve:1153017",
+          "domain": "natural_tatoeba_span",
+          "case_type": "natural_right"
+        },
+        "original_answers": [
+          "続いて"
+        ],
+        "answers": [
+          "続いて",
+          "つづいて"
+        ],
+        "reason": "Verb 続く is commonly written in kana; つづいて preserves the instruction to read following the speaker. Apply equally to paired right/no-right cases.",
+        "evidence": [
+          "kana_policy"
+        ]
+      },
+      {
+        "id": "natural-no-right:1153017",
+        "input_guard": {
+          "context": "わたしに",
+          "kana": "つづいて",
+          "right_context": "",
+          "topic_group": "natural-unseen-reserve:1153017",
+          "domain": "natural_tatoeba_span",
+          "case_type": "natural_no_right"
+        },
+        "original_answers": [
+          "続いて"
+        ],
+        "answers": [
+          "続いて",
+          "つづいて"
+        ],
+        "reason": "Verb 続く is commonly written in kana; つづいて preserves the instruction to read following the speaker. Apply equally to paired right/no-right cases.",
+        "evidence": [
+          "kana_policy"
+        ]
+      }
+    ],
+    "additional_revision": {
+      "id": "right-holdout-20261028-064",
+      "original_answers": [
+        "米をといで水につけた",
+        "米を研いで水につけた",
+        "米をといで水に浸けた",
+        "米を研いで水に浸けた"
+      ],
+      "answers": [
+        "米をといで水につけた",
+        "米を研いで水につけた",
+        "米をといで水に浸けた",
+        "米を研いで水に浸けた",
+        "米をといで水に漬けた",
+        "米を研いで水に漬けた"
+      ],
+      "reason": "Independent dictionary/official-use review accepts漬けた forwater immersion. Development-only refinement of previouslyrevealed v2 case, beforeparameterfreeze/anynewheldoutprediction. Newheldoutinputs/labels unchanged byte-for-byte.",
+      "base_manifest": {
+        "path": "/home/disk/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3/manifest.json",
+        "sha256": "9207bb6b77a576bb8119d9740ab510a11fd0276386ca023f07a4108268c9ba88"
+      },
+      "evidence": {
+        "path": "/home/disk/.cache/wime-japanese/evaluation-balanced-ranking-20261028/dev-review-addendum.json",
+        "sha256": "ee0ec6adde66aec80fc4852ed9b5e3ef17d31e8f3ce9df84bc1594e6774e2772"
+      }
+    },
+    "timing": "The additional previously revealed case 064 revision occurred after the first dev scoring attempt, before parameter freeze and any new heldout prediction. Original historical results and v3 files are preserved; v3.1 heldout inputs/labels are byte-identical to v3.",
+    "safety_scope": "101 reviewed baseline-correct old development cases (57 controls,44 natural paired rows). Fresh natural development cases and 7 baseline-wrong prior fixes are reported separately, not mandatory safety gates."
+  },
+  "protocol": {
+    "formula": "z + w*q + v*r; z=zenz candidate log likelihood, q=Qwen logP(candidate|left), r=Qwen logP(right|left,candidate)",
+    "selected_formula": "z + 0.7*q + 1.05*r",
+    "token_boundary": "Explicit left/candidate/right segment tokenization; suffix score excludes candidate tokens and EOS. This is not canonical concatenated-string tokenization.",
+    "shared_scores": "All settings use the same candidate pools/z/q/r. Preserve all 526 historical rows exactly. Fresh source variants share original none pools and first-observed q per candidate; record raw computations and replay-verify sharing.",
+    "conditions": "Results below use right-conditioned zenz generation for baseline/previous/joint/selected/guarded. original_no_right_baseline is condition none plus baseline. The condition name none by itself only describes zenz generation: other settings can still use Qwen right scores.",
+    "freeze_policy": "Select on development only; bind selection to dev predictions and all inputs/model/source hashes; score heldout without parsing labels; open labels only when all 600 predictions exist.",
+    "selection": {
+      "config": {
+        "family": "additive",
+        "q_weight": 0.7,
+        "right_weight": 1.05,
+        "evidence_ratio": 0.0
+      },
+      "selected_performance": {
+        "config": {
+          "family": "additive",
+          "q_weight": 0.7,
+          "right_weight": 1.05,
+          "evidence_ratio": 0.0
+        },
+        "top1": 795,
+        "total": 826,
+        "topic_groups": 541,
+        "macro_accuracy": 0.9559457794208256,
+        "macro_fraction": [
+          3103,
+          3246
+        ],
+        "changed_top1": 43,
+        "safety_regressions": 0,
+        "safety_baseline_correct": 101,
+        "eligible": true
+      },
+      "selected_additive": {
+        "config": {
+          "family": "additive",
+          "q_weight": 0.7,
+          "right_weight": 1.05,
+          "evidence_ratio": 0.0
+        },
+        "top1": 795,
+        "total": 826,
+        "topic_groups": 541,
+        "macro_accuracy": 0.9559457794208256,
+        "macro_fraction": [
+          3103,
+          3246
+        ],
+        "changed_top1": 43,
+        "safety_regressions": 0,
+        "safety_baseline_correct": 101,
+        "eligible": true
+      },
+      "selected_guarded": {
+        "config": {
+          "family": "guarded",
+          "q_weight": 0.7,
+          "right_weight": 1.05,
+          "evidence_ratio": 1.0
+        },
+        "top1": 793,
+        "total": 826,
+        "topic_groups": 541,
+        "macro_accuracy": 0.9534812076401725,
+        "macro_fraction": [
+          3095,
+          3246
+        ],
+        "changed_top1": 34,
+        "safety_regressions": 0,
+        "safety_baseline_correct": 101,
+        "eligible": true
+      },
+      "best_unconstrained": {
+        "config": {
+          "family": "additive",
+          "q_weight": 0.7,
+          "right_weight": 1.05,
+          "evidence_ratio": 0.0
+        },
+        "top1": 795,
+        "total": 826,
+        "topic_groups": 541,
+        "macro_accuracy": 0.9559457794208256,
+        "macro_fraction": [
+          3103,
+          3246
+        ],
+        "changed_top1": 43,
+        "safety_regressions": 0,
+        "safety_baseline_correct": 101,
+        "eligible": true
+      },
+      "dev_sweep": [
+        {
+          "config": {
+            "family": "baseline",
+            "q_weight": 0.7,
+            "right_weight": 0.0,
+            "evidence_ratio": 0.0
+          },
+          "top1": 770,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9279112754158965,
+          "macro_fraction": [
+            502,
+            541
+          ],
+          "changed_top1": 0,
+          "safety_regressions": 0,
+          "safety_baseline_correct": 101,
+          "eligible": true
+        },
+        {
+          "config": {
+            "family": "additive",
+            "q_weight": 0.35,
+            "right_weight": 0.35,
+            "evidence_ratio": 0.0
+          },
+          "top1": 796,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9528650646950092,
+          "macro_fraction": [
+            1031,
+            1082
+          ],
+          "changed_top1": 38,
+          "safety_regressions": 1,
+          "safety_baseline_correct": 101,
+          "eligible": false
+        },
+        {
+          "config": {
+            "family": "additive",
+            "q_weight": 0.35,
+            "right_weight": 0.7,
+            "evidence_ratio": 0.0
+          },
+          "top1": 795,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9528650646950092,
+          "macro_fraction": [
+            1031,
+            1082
+          ],
+          "changed_top1": 43,
+          "safety_regressions": 1,
+          "safety_baseline_correct": 101,
+          "eligible": false
+        },
+        {
+          "config": {
+            "family": "additive",
+            "q_weight": 0.35,
+            "right_weight": 1.05,
+            "evidence_ratio": 0.0
+          },
+          "top1": 795,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9547134935304991,
+          "macro_fraction": [
+            1033,
+            1082
+          ],
+          "changed_top1": 51,
+          "safety_regressions": 1,
+          "safety_baseline_correct": 101,
+          "eligible": false
+        },
+        {
+          "config": {
+            "family": "additive",
+            "q_weight": 0.35,
+            "right_weight": 1.4,
+            "evidence_ratio": 0.0
+          },
+          "top1": 794,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9540973505853358,
+          "macro_fraction": [
+            3097,
+            3246
+          ],
+          "changed_top1": 60,
+          "safety_regressions": 2,
+          "safety_baseline_correct": 101,
+          "eligible": false
+        },
+        {
+          "config": {
+            "family": "additive",
+            "q_weight": 0.7,
+            "right_weight": 0.35,
+            "evidence_ratio": 0.0
+          },
+          "top1": 788,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9473197781885397,
+          "macro_fraction": [
+            1025,
+            1082
+          ],
+          "changed_top1": 22,
+          "safety_regressions": 0,
+          "safety_baseline_correct": 101,
+          "eligible": true
+        },
+        {
+          "config": {
+            "family": "additive",
+            "q_weight": 0.7,
+            "right_weight": 0.7,
+            "evidence_ratio": 0.0
+          },
+          "top1": 796,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9550215650030807,
+          "macro_fraction": [
+            1550,
+            1623
+          ],
+          "changed_top1": 34,
+          "safety_regressions": 0,
+          "safety_baseline_correct": 101,
+          "eligible": true
+        },
+        {
+          "config": {
+            "family": "additive",
+            "q_weight": 0.7,
+            "right_weight": 1.05,
+            "evidence_ratio": 0.0
+          },
+          "top1": 795,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9559457794208256,
+          "macro_fraction": [
+            3103,
+            3246
+          ],
+          "changed_top1": 43,
+          "safety_regressions": 0,
+          "safety_baseline_correct": 101,
+          "eligible": true
+        },
+        {
+          "config": {
+            "family": "additive",
+            "q_weight": 0.7,
+            "right_weight": 1.4,
+            "evidence_ratio": 0.0
+          },
+          "top1": 793,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9525569932224276,
+          "macro_fraction": [
+            1546,
+            1623
+          ],
+          "changed_top1": 48,
+          "safety_regressions": 1,
+          "safety_baseline_correct": 101,
+          "eligible": false
+        },
+        {
+          "config": {
+            "family": "guarded",
+            "q_weight": 0.7,
+            "right_weight": 0.7,
+            "evidence_ratio": 1.0
+          },
+          "top1": 792,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9513247073321011,
+          "macro_fraction": [
+            1544,
+            1623
+          ],
+          "changed_top1": 28,
+          "safety_regressions": 0,
+          "safety_baseline_correct": 101,
+          "eligible": true
+        },
+        {
+          "config": {
+            "family": "guarded",
+            "q_weight": 0.7,
+            "right_weight": 0.7,
+            "evidence_ratio": 2.0
+          },
+          "top1": 787,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9467036352433764,
+          "macro_fraction": [
+            3073,
+            3246
+          ],
+          "changed_top1": 21,
+          "safety_regressions": 0,
+          "safety_baseline_correct": 101,
+          "eligible": true
+        },
+        {
+          "config": {
+            "family": "guarded",
+            "q_weight": 0.7,
+            "right_weight": 1.05,
+            "evidence_ratio": 1.0
+          },
+          "top1": 793,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9534812076401725,
+          "macro_fraction": [
+            3095,
+            3246
+          ],
+          "changed_top1": 34,
+          "safety_regressions": 0,
+          "safety_baseline_correct": 101,
+          "eligible": true
+        },
+        {
+          "config": {
+            "family": "guarded",
+            "q_weight": 0.7,
+            "right_weight": 1.05,
+            "evidence_ratio": 2.0
+          },
+          "top1": 788,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9485520640788663,
+          "macro_fraction": [
+            3079,
+            3246
+          ],
+          "changed_top1": 25,
+          "safety_regressions": 0,
+          "safety_baseline_correct": 101,
+          "eligible": true
+        },
+        {
+          "config": {
+            "family": "guarded",
+            "q_weight": 0.7,
+            "right_weight": 1.4,
+            "evidence_ratio": 1.0
+          },
+          "top1": 792,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9507085643869377,
+          "macro_fraction": [
+            1543,
+            1623
+          ],
+          "changed_top1": 37,
+          "safety_regressions": 1,
+          "safety_baseline_correct": 101,
+          "eligible": false
+        },
+        {
+          "config": {
+            "family": "guarded",
+            "q_weight": 0.7,
+            "right_weight": 1.4,
+            "evidence_ratio": 2.0
+          },
+          "top1": 787,
+          "total": 826,
+          "topic_groups": 541,
+          "macro_accuracy": 0.9467036352433764,
+          "macro_fraction": [
+            3073,
+            3246
+          ],
+          "changed_top1": 27,
+          "safety_regressions": 0,
+          "safety_baseline_correct": 101,
+          "eligible": true
+        }
+      ],
+      "selection": "zero reviewed safety regressions, then macro accuracy per topic/source group, raw top1, fewer changed first candidates, baseline/simple family, retained q, lower suffix weight, stronger evidence ratio",
+      "no_right": "exact original none-pool z+.7q",
+      "short_guard": "fewer than3 Unicode letters/numbers: original none-pool z+.7q"
+    },
+    "implementation": {
+      "grid": [
+        {
+          "family": "baseline",
+          "q_weight": 0.7,
+          "right_weight": 0.0,
+          "evidence_ratio": 0.0
+        },
+        {
+          "family": "additive",
+          "q_weight": 0.35,
+          "right_weight": 0.35,
+          "evidence_ratio": 0.0
+        },
+        {
+          "family": "additive",
+          "q_weight": 0.35,
+          "right_weight": 0.7,
+          "evidence_ratio": 0.0
+        },
+        {
+          "family": "additive",
+          "q_weight": 0.35,
+          "right_weight": 1.05,
+          "evidence_ratio": 0.0
+        },
+        {
+          "family": "additive",
+          "q_weight": 0.35,
+          "right_weight": 1.4,
+          "evidence_ratio": 0.0
+        },
+        {
+          "family": "additive",
+          "q_weight": 0.7,
+          "right_weight": 0.35,
+          "evidence_ratio": 0.0
+        },
+        {
+          "family": "additive",
+          "q_weight": 0.7,
+          "right_weight": 0.7,
+          "evidence_ratio": 0.0
+        },
+        {
+          "family": "additive",
+          "q_weight": 0.7,
+          "right_weight": 1.05,
+          "evidence_ratio": 0.0
+        },
+        {
+          "family": "additive",
+          "q_weight": 0.7,
+          "right_weight": 1.4,
+          "evidence_ratio": 0.0
+        },
+        {
+          "family": "guarded",
+          "q_weight": 0.7,
+          "right_weight": 0.7,
+          "evidence_ratio": 1.0
+        },
+        {
+          "family": "guarded",
+          "q_weight": 0.7,
+          "right_weight": 0.7,
+          "evidence_ratio": 2.0
+        },
+        {
+          "family": "guarded",
+          "q_weight": 0.7,
+          "right_weight": 1.05,
+          "evidence_ratio": 1.0
+        },
+        {
+          "family": "guarded",
+          "q_weight": 0.7,
+          "right_weight": 1.05,
+          "evidence_ratio": 2.0
+        },
+        {
+          "family": "guarded",
+          "q_weight": 0.7,
+          "right_weight": 1.4,
+          "evidence_ratio": 1.0
+        },
+        {
+          "family": "guarded",
+          "q_weight": 0.7,
+          "right_weight": 1.4,
+          "evidence_ratio": 2.0
+        }
+      ],
+      "controls": {
+        "baseline": {
+          "family": "baseline",
+          "q_weight": 0.7,
+          "right_weight": 0.0,
+          "evidence_ratio": 0.0
+        },
+        "previous_suffix_only": {
+          "family": "previous",
+          "q_weight": 0.0,
+          "right_weight": 0.7,
+          "evidence_ratio": 0.0
+        },
+        "joint_qr": {
+          "family": "additive",
+          "q_weight": 0.7,
+          "right_weight": 0.7,
+          "evidence_ratio": 0.0
+        }
+      },
+      "beams": 8,
+      "zenz_left_chars": 40,
+      "qwen_left_chars": 64,
+      "right_chars": 40,
+      "selection": "development macro source/topic-group accuracy subject to zero reviewed safety regressions",
+      "guard": "Suffix gain must exceed evidence_ratio*max(0,candidate q deficit), relative to same-pool legacy winner; winner always eligible; no candidates deleted",
+      "short_guard": "<3 lexical Unicode letters/numbers in first40 right chars: original none pool and exact legacy z+.7q",
+      "no_right": "original none pool exact legacy z+.7q for all settings",
+      "score": "z + retained q_weight*q + right_weight*r; explicit same suffix token boundaries as v2",
+      "safety": "separate reviewed development-only answers; never model input",
+      "cache": "partial caches permitted; inputs exact; cached q/r preserved; model and scoring provenance verified",
+      "fresh_variant_q": "first observed q per candidate reused within topic_group/context/kana; computed q and origins recorded; original none generated/cands exact; none z pinned to first within declared numeric tolerance; resume reconstructs/verifies",
+      "max_none_z_drift": 0.001,
+      "condition_scope": "none describes zenz no-right pool; substantive right may still be used by Qwen suffix scoring",
+      "timing": "offline pooled union scoring; not live interaction latency"
+    },
+    "runtime": {
+      "torch": "2.11.0",
+      "transformers": "5.17.0"
+    }
+  },
+  "results": {
+    "development_all": {
+      "all": {
+        "original_no_right_baseline": {
+          "total": 826,
+          "top1": 732,
+          "top5": 805,
+          "exact_top1": 725,
+          "raw_pool": 807,
+          "valid_pool": 805,
+          "no_valid_pool": 1,
+          "effective_pools": {
+            "none": 826
+          },
+          "guard_reasons": {
+            "absent_right": 323,
+            "legacy": 503
+          }
+        },
+        "baseline": {
+          "total": 826,
+          "top1": 770,
+          "top5": 819,
+          "exact_top1": 764,
+          "raw_pool": 822,
+          "valid_pool": 820,
+          "no_valid_pool": 1,
+          "effective_pools": {
+            "none": 323,
+            "right": 503
+          },
+          "guard_reasons": {
+            "absent_right": 323,
+            "legacy": 503
+          }
+        },
+        "previous_suffix_only": {
+          "total": 826,
+          "top1": 792,
+          "top5": 820,
+          "exact_top1": 786,
+          "raw_pool": 822,
+          "valid_pool": 820,
+          "no_valid_pool": 1,
+          "effective_pools": {
+            "none": 323,
+            "right": 503
+          },
+          "guard_reasons": {
+            "absent_right": 323,
+            "previous_suffix_only": 503
+          }
+        },
+        "joint_qr": {
+          "total": 826,
+          "top1": 796,
+          "top5": 819,
+          "exact_top1": 790,
+          "raw_pool": 822,
+          "valid_pool": 820,
+          "no_valid_pool": 1,
+          "effective_pools": {
+            "none": 323,
+            "right": 503
+          },
+          "guard_reasons": {
+            "absent_right": 323,
+            "additive": 503
+          }
+        },
+        "selected": {
+          "total": 826,
+          "top1": 795,
+          "top5": 819,
+          "exact_top1": 789,
+          "raw_pool": 822,
+          "valid_pool": 820,
+          "no_valid_pool": 1,
+          "effective_pools": {
+            "none": 323,
+            "right": 503
+          },
+          "guard_reasons": {
+            "absent_right": 323,
+            "additive": 503
+          }
+        },
+        "selected_guarded": {
+          "total": 826,
+          "top1": 793,
+          "top5": 819,
+          "exact_top1": 787,
+          "raw_pool": 822,
+          "valid_pool": 820,
+          "no_valid_pool": 1,
+          "effective_pools": {
+            "none": 423,
+            "right": 403
+          },
+          "guard_reasons": {
+            "absent_right": 323,
+            "legacy_winner_retained": 363,
+            "supported_replacement": 34,
+            "guard_rejected_additive_top": 6,
+            "short_right_original_pool": 100
+          }
+        }
+      },
+      "case_type/natural_full": {
+        "original_no_right_baseline": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "legacy": 100
+          }
+        },
+        "baseline": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "legacy": 100
+          }
+        },
+        "previous_suffix_only": {
+          "total": 100,
+          "top1": 96,
+          "top5": 100,
+          "exact_top1": 96,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "previous_suffix_only": 100
+          }
+        },
+        "joint_qr": {
+          "total": 100,
+          "top1": 99,
+          "top5": 100,
+          "exact_top1": 99,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "additive": 100
+          }
+        },
+        "selected": {
+          "total": 100,
+          "top1": 98,
+          "top5": 100,
+          "exact_top1": 98,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "additive": 100
+          }
+        },
+        "selected_guarded": {
+          "total": 100,
+          "top1": 98,
+          "top5": 100,
+          "exact_top1": 98,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "legacy_winner_retained": 97,
+            "supported_replacement": 2,
+            "guard_rejected_additive_top": 1
+          }
+        }
+      },
+      "case_type/natural_short": {
+        "original_no_right_baseline": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "legacy": 100
+          }
+        },
+        "baseline": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "legacy": 100
+          }
+        },
+        "previous_suffix_only": {
+          "total": 100,
+          "top1": 96,
+          "top5": 100,
+          "exact_top1": 96,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "previous_suffix_only": 100
+          }
+        },
+        "joint_qr": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "additive": 100
+          }
+        },
+        "selected": {
+          "total": 100,
+          "top1": 98,
+          "top5": 100,
+          "exact_top1": 98,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "additive": 100
+          }
+        },
+        "selected_guarded": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "short_right_original_pool": 100
+          }
+        }
+      },
+      "case_type/natural_no_right": {
+        "original_no_right_baseline": {
+          "total": 123,
+          "top1": 122,
+          "top5": 122,
+          "exact_top1": 121,
+          "raw_pool": 122,
+          "valid_pool": 122,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 123
+          },
+          "guard_reasons": {
+            "absent_right": 123
+          }
+        },
+        "baseline": {
+          "total": 123,
+          "top1": 122,
+          "top5": 122,
+          "exact_top1": 121,
+          "raw_pool": 122,
+          "valid_pool": 122,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 123
+          },
+          "guard_reasons": {
+            "absent_right": 123
+          }
+        },
+        "previous_suffix_only": {
+          "total": 123,
+          "top1": 122,
+          "top5": 122,
+          "exact_top1": 121,
+          "raw_pool": 122,
+          "valid_pool": 122,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 123
+          },
+          "guard_reasons": {
+            "absent_right": 123
+          }
+        },
+        "joint_qr": {
+          "total": 123,
+          "top1": 122,
+          "top5": 122,
+          "exact_top1": 121,
+          "raw_pool": 122,
+          "valid_pool": 122,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 123
+          },
+          "guard_reasons": {
+            "absent_right": 123
+          }
+        },
+        "selected": {
+          "total": 123,
+          "top1": 122,
+          "top5": 122,
+          "exact_top1": 121,
+          "raw_pool": 122,
+          "valid_pool": 122,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 123
+          },
+          "guard_reasons": {
+            "absent_right": 123
+          }
+        },
+        "selected_guarded": {
+          "total": 123,
+          "top1": 122,
+          "top5": 122,
+          "exact_top1": 121,
+          "raw_pool": 122,
+          "valid_pool": 122,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 123
+          },
+          "guard_reasons": {
+            "absent_right": 123
+          }
+        }
+      }
+    },
+    "fresh_natural_development_only": {
+      "all": {
+        "original_no_right_baseline": {
+          "total": 300,
+          "top1": 300,
+          "top5": 300,
+          "exact_top1": 300,
+          "raw_pool": 300,
+          "valid_pool": 300,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 300
+          },
+          "guard_reasons": {
+            "legacy": 200,
+            "absent_right": 100
+          }
+        },
+        "baseline": {
+          "total": 300,
+          "top1": 300,
+          "top5": 300,
+          "exact_top1": 300,
+          "raw_pool": 300,
+          "valid_pool": 300,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200,
+            "none": 100
+          },
+          "guard_reasons": {
+            "legacy": 200,
+            "absent_right": 100
+          }
+        },
+        "previous_suffix_only": {
+          "total": 300,
+          "top1": 292,
+          "top5": 300,
+          "exact_top1": 292,
+          "raw_pool": 300,
+          "valid_pool": 300,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200,
+            "none": 100
+          },
+          "guard_reasons": {
+            "previous_suffix_only": 200,
+            "absent_right": 100
+          }
+        },
+        "joint_qr": {
+          "total": 300,
+          "top1": 299,
+          "top5": 300,
+          "exact_top1": 299,
+          "raw_pool": 300,
+          "valid_pool": 300,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200,
+            "none": 100
+          },
+          "guard_reasons": {
+            "additive": 200,
+            "absent_right": 100
+          }
+        },
+        "selected": {
+          "total": 300,
+          "top1": 296,
+          "top5": 300,
+          "exact_top1": 296,
+          "raw_pool": 300,
+          "valid_pool": 300,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200,
+            "none": 100
+          },
+          "guard_reasons": {
+            "additive": 200,
+            "absent_right": 100
+          }
+        },
+        "selected_guarded": {
+          "total": 300,
+          "top1": 298,
+          "top5": 300,
+          "exact_top1": 298,
+          "raw_pool": 300,
+          "valid_pool": 300,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100,
+            "none": 200
+          },
+          "guard_reasons": {
+            "legacy_winner_retained": 97,
+            "short_right_original_pool": 100,
+            "absent_right": 100,
+            "supported_replacement": 2,
+            "guard_rejected_additive_top": 1
+          }
+        }
+      },
+      "case_type/natural_full": {
+        "original_no_right_baseline": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "legacy": 100
+          }
+        },
+        "baseline": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "legacy": 100
+          }
+        },
+        "previous_suffix_only": {
+          "total": 100,
+          "top1": 96,
+          "top5": 100,
+          "exact_top1": 96,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "previous_suffix_only": 100
+          }
+        },
+        "joint_qr": {
+          "total": 100,
+          "top1": 99,
+          "top5": 100,
+          "exact_top1": 99,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "additive": 100
+          }
+        },
+        "selected": {
+          "total": 100,
+          "top1": 98,
+          "top5": 100,
+          "exact_top1": 98,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "additive": 100
+          }
+        },
+        "selected_guarded": {
+          "total": 100,
+          "top1": 98,
+          "top5": 100,
+          "exact_top1": 98,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "legacy_winner_retained": 97,
+            "supported_replacement": 2,
+            "guard_rejected_additive_top": 1
+          }
+        }
+      },
+      "case_type/natural_short": {
+        "original_no_right_baseline": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "legacy": 100
+          }
+        },
+        "baseline": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "legacy": 100
+          }
+        },
+        "previous_suffix_only": {
+          "total": 100,
+          "top1": 96,
+          "top5": 100,
+          "exact_top1": 96,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "previous_suffix_only": 100
+          }
+        },
+        "joint_qr": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "additive": 100
+          }
+        },
+        "selected": {
+          "total": 100,
+          "top1": 98,
+          "top5": 100,
+          "exact_top1": 98,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 100
+          },
+          "guard_reasons": {
+            "additive": 100
+          }
+        },
+        "selected_guarded": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "short_right_original_pool": 100
+          }
+        }
+      },
+      "case_type/natural_no_right": {
+        "original_no_right_baseline": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "absent_right": 100
+          }
+        },
+        "baseline": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "absent_right": 100
+          }
+        },
+        "previous_suffix_only": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "absent_right": 100
+          }
+        },
+        "joint_qr": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "absent_right": 100
+          }
+        },
+        "selected": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "absent_right": 100
+          }
+        },
+        "selected_guarded": {
+          "total": 100,
+          "top1": 100,
+          "top5": 100,
+          "exact_top1": 100,
+          "raw_pool": 100,
+          "valid_pool": 100,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 100
+          },
+          "guard_reasons": {
+            "absent_right": 100
+          }
+        }
+      }
+    },
+    "heldout": {
+      "all": {
+        "original_no_right_baseline": {
+          "total": 600,
+          "top1": 570,
+          "top5": 591,
+          "exact_top1": 570,
+          "raw_pool": 597,
+          "valid_pool": 597,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 600
+          },
+          "guard_reasons": {
+            "legacy": 400,
+            "absent_right": 200
+          }
+        },
+        "baseline": {
+          "total": 600,
+          "top1": 571,
+          "top5": 591,
+          "exact_top1": 571,
+          "raw_pool": 597,
+          "valid_pool": 597,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 400,
+            "none": 200
+          },
+          "guard_reasons": {
+            "legacy": 400,
+            "absent_right": 200
+          }
+        },
+        "previous_suffix_only": {
+          "total": 600,
+          "top1": 572,
+          "top5": 595,
+          "exact_top1": 572,
+          "raw_pool": 597,
+          "valid_pool": 597,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 400,
+            "none": 200
+          },
+          "guard_reasons": {
+            "previous_suffix_only": 400,
+            "absent_right": 200
+          }
+        },
+        "joint_qr": {
+          "total": 600,
+          "top1": 573,
+          "top5": 594,
+          "exact_top1": 573,
+          "raw_pool": 597,
+          "valid_pool": 597,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 400,
+            "none": 200
+          },
+          "guard_reasons": {
+            "additive": 400,
+            "absent_right": 200
+          }
+        },
+        "selected": {
+          "total": 600,
+          "top1": 573,
+          "top5": 595,
+          "exact_top1": 573,
+          "raw_pool": 597,
+          "valid_pool": 597,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 400,
+            "none": 200
+          },
+          "guard_reasons": {
+            "additive": 400,
+            "absent_right": 200
+          }
+        },
+        "selected_guarded": {
+          "total": 600,
+          "top1": 571,
+          "top5": 593,
+          "exact_top1": 571,
+          "raw_pool": 597,
+          "valid_pool": 597,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 401,
+            "right": 199
+          },
+          "guard_reasons": {
+            "short_right_original_pool": 201,
+            "absent_right": 200,
+            "legacy_winner_retained": 185,
+            "supported_replacement": 13,
+            "guard_rejected_additive_top": 1
+          }
+        }
+      },
+      "case_type/natural_full": {
+        "original_no_right_baseline": {
+          "total": 200,
+          "top1": 190,
+          "top5": 197,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 200
+          },
+          "guard_reasons": {
+            "legacy": 200
+          }
+        },
+        "baseline": {
+          "total": 200,
+          "top1": 191,
+          "top5": 197,
+          "exact_top1": 191,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200
+          },
+          "guard_reasons": {
+            "legacy": 200
+          }
+        },
+        "previous_suffix_only": {
+          "total": 200,
+          "top1": 190,
+          "top5": 199,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200
+          },
+          "guard_reasons": {
+            "previous_suffix_only": 200
+          }
+        },
+        "joint_qr": {
+          "total": 200,
+          "top1": 191,
+          "top5": 198,
+          "exact_top1": 191,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200
+          },
+          "guard_reasons": {
+            "additive": 200
+          }
+        },
+        "selected": {
+          "total": 200,
+          "top1": 191,
+          "top5": 199,
+          "exact_top1": 191,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200
+          },
+          "guard_reasons": {
+            "additive": 200
+          }
+        },
+        "selected_guarded": {
+          "total": 200,
+          "top1": 191,
+          "top5": 199,
+          "exact_top1": 191,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 1,
+            "right": 199
+          },
+          "guard_reasons": {
+            "short_right_original_pool": 1,
+            "legacy_winner_retained": 185,
+            "supported_replacement": 13,
+            "guard_rejected_additive_top": 1
+          }
+        }
+      },
+      "case_type/natural_short": {
+        "original_no_right_baseline": {
+          "total": 200,
+          "top1": 190,
+          "top5": 197,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 200
+          },
+          "guard_reasons": {
+            "legacy": 200
+          }
+        },
+        "baseline": {
+          "total": 200,
+          "top1": 190,
+          "top5": 197,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200
+          },
+          "guard_reasons": {
+            "legacy": 200
+          }
+        },
+        "previous_suffix_only": {
+          "total": 200,
+          "top1": 192,
+          "top5": 199,
+          "exact_top1": 192,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200
+          },
+          "guard_reasons": {
+            "previous_suffix_only": 200
+          }
+        },
+        "joint_qr": {
+          "total": 200,
+          "top1": 192,
+          "top5": 199,
+          "exact_top1": 192,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200
+          },
+          "guard_reasons": {
+            "additive": 200
+          }
+        },
+        "selected": {
+          "total": 200,
+          "top1": 192,
+          "top5": 199,
+          "exact_top1": 192,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "right": 200
+          },
+          "guard_reasons": {
+            "additive": 200
+          }
+        },
+        "selected_guarded": {
+          "total": 200,
+          "top1": 190,
+          "top5": 197,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 200
+          },
+          "guard_reasons": {
+            "short_right_original_pool": 200
+          }
+        }
+      },
+      "case_type/natural_no_right": {
+        "original_no_right_baseline": {
+          "total": 200,
+          "top1": 190,
+          "top5": 197,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 200
+          },
+          "guard_reasons": {
+            "absent_right": 200
+          }
+        },
+        "baseline": {
+          "total": 200,
+          "top1": 190,
+          "top5": 197,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 200
+          },
+          "guard_reasons": {
+            "absent_right": 200
+          }
+        },
+        "previous_suffix_only": {
+          "total": 200,
+          "top1": 190,
+          "top5": 197,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 200
+          },
+          "guard_reasons": {
+            "absent_right": 200
+          }
+        },
+        "joint_qr": {
+          "total": 200,
+          "top1": 190,
+          "top5": 197,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 200
+          },
+          "guard_reasons": {
+            "absent_right": 200
+          }
+        },
+        "selected": {
+          "total": 200,
+          "top1": 190,
+          "top5": 197,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 200
+          },
+          "guard_reasons": {
+            "absent_right": 200
+          }
+        },
+        "selected_guarded": {
+          "total": 200,
+          "top1": 190,
+          "top5": 197,
+          "exact_top1": 190,
+          "raw_pool": 199,
+          "valid_pool": 199,
+          "no_valid_pool": 0,
+          "effective_pools": {
+            "none": 200
+          },
+          "guard_reasons": {
+            "absent_right": 200
+          }
+        }
+      }
+    },
+    "heldout_paired_contrasts": {
+      "all": {
+        "selected_vs_baseline": {
+          "total": 600,
+          "wins": 11,
+          "losses": 9,
+          "delta_pp": 0.3333333333333333,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -1.5,
+            2.3333333333333335
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "selected_vs_previous": {
+          "total": 600,
+          "wins": 3,
+          "losses": 2,
+          "delta_pp": 0.16666666666666666,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -0.6666666666666666,
+            1.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "additive_vs_baseline": {
+          "total": 600,
+          "wins": 11,
+          "losses": 9,
+          "delta_pp": 0.3333333333333333,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -1.5,
+            2.3333333333333335
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "guarded_vs_additive": {
+          "total": 600,
+          "wins": 4,
+          "losses": 6,
+          "delta_pp": -0.3333333333333333,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -1.3333333333333333,
+            0.6666666666666666
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "guarded_vs_baseline": {
+          "total": 600,
+          "wins": 6,
+          "losses": 6,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -1.1666666666666667,
+            1.1666666666666667
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "selected_vs_original_no_right": {
+          "total": 600,
+          "wins": 12,
+          "losses": 9,
+          "delta_pp": 0.5,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -1.5,
+            2.6666666666666665
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        }
+      },
+      "case_type/natural_full": {
+        "selected_vs_baseline": {
+          "total": 200,
+          "wins": 5,
+          "losses": 5,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -3.0,
+            3.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "selected_vs_previous": {
+          "total": 200,
+          "wins": 2,
+          "losses": 1,
+          "delta_pp": 0.5,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -1.0,
+            2.5
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "additive_vs_baseline": {
+          "total": 200,
+          "wins": 5,
+          "losses": 5,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -3.0,
+            3.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "guarded_vs_additive": {
+          "total": 200,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "guarded_vs_baseline": {
+          "total": 200,
+          "wins": 5,
+          "losses": 5,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -3.0,
+            3.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "selected_vs_original_no_right": {
+          "total": 200,
+          "wins": 6,
+          "losses": 5,
+          "delta_pp": 0.5,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -3.0,
+            4.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        }
+      },
+      "case_type/natural_short": {
+        "selected_vs_baseline": {
+          "total": 200,
+          "wins": 6,
+          "losses": 4,
+          "delta_pp": 1.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -2.0,
+            4.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "selected_vs_previous": {
+          "total": 200,
+          "wins": 1,
+          "losses": 1,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -1.5,
+            1.5
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "additive_vs_baseline": {
+          "total": 200,
+          "wins": 6,
+          "losses": 4,
+          "delta_pp": 1.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -2.0,
+            4.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "guarded_vs_additive": {
+          "total": 200,
+          "wins": 4,
+          "losses": 6,
+          "delta_pp": -1.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -4.0,
+            2.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "guarded_vs_baseline": {
+          "total": 200,
+          "wins": 1,
+          "losses": 1,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -1.5,
+            1.5
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "selected_vs_original_no_right": {
+          "total": 200,
+          "wins": 6,
+          "losses": 4,
+          "delta_pp": 1.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            -2.0,
+            4.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        }
+      },
+      "case_type/natural_no_right": {
+        "selected_vs_baseline": {
+          "total": 200,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "selected_vs_previous": {
+          "total": 200,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "additive_vs_baseline": {
+          "total": 200,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "guarded_vs_additive": {
+          "total": 200,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "guarded_vs_baseline": {
+          "total": 200,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        },
+        "selected_vs_original_no_right": {
+          "total": 200,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 200,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory2000 source/topic-group bootstrap draws; context variants clustered; no multiplicity correction"
+        }
+      }
+    },
+    "safety": {
+      "total": 101,
+      "baseline_correct": 101,
+      "regressions": 0,
+      "fixes": 0
+    },
+    "prior_semantic_fix_retention": {
+      "total": 7,
+      "retained": 5,
+      "cases": [
+        {
+          "id": "right-holdout-20261028-006",
+          "answers": [
+            "自信が"
+          ],
+          "prediction": "自信が",
+          "retained": true
+        },
+        {
+          "id": "right-holdout-20261028-012",
+          "answers": [
+            "開場は"
+          ],
+          "prediction": "会場は",
+          "retained": false
+        },
+        {
+          "id": "right-holdout-20261028-038",
+          "answers": [
+            "確立"
+          ],
+          "prediction": "確立",
+          "retained": true
+        },
+        {
+          "id": "right-holdout-20261028-045",
+          "answers": [
+            "賞状を"
+          ],
+          "prediction": "賞状を",
+          "retained": true
+        },
+        {
+          "id": "right-holdout-20261028-058",
+          "answers": [
+            "炭を"
+          ],
+          "prediction": "炭を",
+          "retained": true
+        },
+        {
+          "id": "right-holdout-20261028-077",
+          "answers": [
+            "芽の高さを測っている"
+          ],
+          "prediction": "芽の高さを測っている",
+          "retained": true
+        },
+        {
+          "id": "natural-right:11254413",
+          "answers": [
+            "講堂は"
+          ],
+          "prediction": "坑道は",
+          "retained": false
+        }
+      ]
+    },
+    "interpretation": [
+      "The selected additive setting satisfies all101 known old safety cases, but retains only5/7 previous semantic fixes; candidate priors again favor 会場 over 開場 and 坑道 over 講堂.",
+      "Natural full-right strict top1 is unchanged at191/200 versus the right-generation baseline:5 wins and5 losses. Short-right gains2/200:6 wins and4 losses. Confidence intervals include no gain.",
+      "Fresh natural development strict top1 falls from100 to98 for both full and short right, although global development source/topic macro accuracy selected this setting. Post-hoc review attributes those two source misses to spellings, not a new semantic error.",
+      "Guarded short-right fallback preserves the original no-right ranking exactly but loses useful suffix fixes; total heldout top1 is571/600 versus573/600 selected additive.",
+      "No convincing general natural-sentence top1 improvement is established. Keep the setting experimental rather than change production defaults."
+    ]
+  },
+  "post_unseal_review": {
+    "policy": "Observations only, no label edits, new parameter selection, or lenient recomputed headline accuracy. These now-revealed cases can only be development evidence in a future iteration.",
+    "full": {
+      "version": 1,
+      "created_utc": "2026-10-27T17:56:14.017608+00:00",
+      "scope": "Post-hoc observations on completed sealed-v3.1 natural_full, right candidate pool, selected versus baseline. No inference, tuning, label edits, or lenient rescored headline.",
+      "review_coverage": "Extracted all 200 rows; manually assessed all 9 selected misses and every changed top1 (14 changes total), including the one both-wrong change. 183 unchanged strict-correct rows retain their prior pre-inference source review.",
+      "frozen_headline": {
+        "baseline_top1": 191,
+        "selected_top1": 191,
+        "total": 200,
+        "baseline_top5": 197,
+        "selected_top5": 199,
+        "wins": 5,
+        "losses": 5,
+        "delta_pp": 0.0
+      },
+      "strict_transition_counts": {
+        "unchanged_correct": 183,
+        "win": 5,
+        "loss": 5,
+        "changed_both_correct": 3,
+        "changed_both_wrong": 1,
+        "unchanged_wrong": 3
+      },
+      "diagnostic_counts_not_recomputed_accuracy": {
+        "five_strict_losses": {
+          "clear_semantic_regression": 1,
+          "acceptable_orthography_reference_gap": 4
+        },
+        "five_strict_wins": {
+          "clear_contextual_semantic_gain": 2,
+          "source_lexeme_recovery_with_underdetermined_context": 2,
+          "orthographic_gain_not_clear_semantic_gain": 1
+        },
+        "nine_selected_strict_misses": {
+          "acceptable_orthography_reference_gap": 6,
+          "clear_semantic_regression": 1,
+          "clear_semantic_error_candidate_pool_gap": 1,
+          "wrong_source_lexeme_changed_from_already_wrong": 1
+        },
+        "hidden_changes_both_strict_wrong": 1,
+        "newly_lost_semantically_acceptable_baseline_among_both_wrong_changes_found": 0
+      },
+      "sources": [
+        {
+          "id": "kanjipedia-toki",
+          "publisher": "公益財団法人 日本漢字能力検定協会",
+          "title": "漢字ペディア：時（とき）",
+          "url": "https://www.kanjipedia.jp/kotoba/0002881200",
+          "evidence": "Lists 時 as とき with temporal period/occasion senses; supports the temporal noun spelling without prescribing the specific source style."
+        },
+        {
+          "id": "kanjipedia-iru",
+          "publisher": "公益財団法人 日本漢字能力検定協会",
+          "title": "漢字ペディア：居る（いる）",
+          "url": "https://www.kanjipedia.jp/kotoba/0001427300",
+          "evidence": "Lists existence/staying at a location as the first sense of 居る and notes that modern writing normally uses hiragana. Supports validity plus a separate style caveat."
+        },
+        {
+          "id": "kanjipedia-ikasu",
+          "publisher": "公益財団法人 日本漢字能力検定協会",
+          "title": "漢字ペディア：生かす",
+          "url": "https://www.kanjipedia.jp/kotoba/0003834200",
+          "evidence": "Lists preserving life and making effective use as senses. These differ from 行かせる; they do not establish that a special context could never select 生かせる."
+        },
+        {
+          "id": "yonechiku-custard-man",
+          "publisher": "株式会社ヨネチク（商品販売元）",
+          "title": "奶皇包（カスタードマン）4個入り",
+          "url": "https://yonechiku.com/products/%E5%86%B7%E5%87%8D%E5%95%86%E5%93%81-%E5%A5%B6%E7%9A%87%E5%8C%85-%E3%82%AB%E3%82%B9%E3%82%BF%E3%83%BC%E3%83%89%E3%83%9E%E3%83%B3-4%E5%80%8B%E5%85%A5",
+          "evidence": "Official seller uses カスタードマン for a custard-filled Chinese steamed bun. This is direct spelling usage evidence, not a claim about the particular Tatoeba source product."
+        }
+      ],
+      "observations": [
+        {
+          "id": "natural-v3:13428432:full",
+          "strict_transition": "win",
+          "input": {
+            "id": "natural-v3:13428432:full",
+            "split": "sealed",
+            "context": "",
+            "kana": "そしおぱすはりょうしんを",
+            "right_context": "持たない。",
+            "topic_group": "natural-v3:13428432",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "ソシオパスは良心を"
+          ],
+          "baseline_top1": "ソシオパスは両親を",
+          "selected_top1": "ソシオパスは良心を",
+          "baseline_full_text": "ソシオパスは両親を持たない。",
+          "selected_full_text": "ソシオパスは良心を持たない。",
+          "baseline_strict_correct": false,
+          "selected_strict_correct": true,
+          "selected_top5": [
+            "ソシオパスは良心を",
+            "ソシオパスは両親を",
+            "そしおぱすはりょうしんを",
+            "ソシオパスハリョウシンヲ"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "clear_contextual_semantic_gain",
+          "confidence": "high",
+          "observation": "両親→良心 restores the intended conscience sense in the source sentence about a sociopath. This is a clear contextually supported lexical gain; this linguistic assessment does not endorse the source sentence as a clinical definition.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13806898:full",
+          "strict_transition": "win",
+          "input": {
+            "id": "natural-v3:13806898:full",
+            "split": "sealed",
+            "context": "この",
+            "kana": "ぶんしょうは「せかいのせいかい",
+            "right_context": "」に出てくる。",
+            "topic_group": "natural-v3:13806898",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "文章は「世界の正解"
+          ],
+          "baseline_top1": "文章は「世界の政界",
+          "selected_top1": "文章は「世界の正解",
+          "baseline_full_text": "この文章は「世界の政界」に出てくる。",
+          "selected_full_text": "この文章は「世界の正解」に出てくる。",
+          "baseline_strict_correct": false,
+          "selected_strict_correct": true,
+          "selected_top5": [
+            "文章は「世界の正解",
+            "文章は「世界の政界",
+            "文章は「世界の世界",
+            "文章は「世界の星界",
+            "文章は「世界の青海"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "source_lexeme_recovery_with_underdetermined_context",
+          "confidence": "medium",
+          "observation": "政界→正解 matches the quoted source title 世界の正解. Since the sentence supplies no identity or content of that title, 世界の政界 is also a possible title; source recovery is real, but a general semantic-disambiguation claim is weaker than for 黄ばんだ.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13176186:full",
+          "strict_transition": "loss",
+          "input": {
+            "id": "natural-v3:13176186:full",
+            "split": "sealed",
+            "context": "通知表をもらう",
+            "kana": "ときは、まいかい",
+            "right_context": "緊張する。",
+            "topic_group": "natural-v3:13176186",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "ときは、毎回"
+          ],
+          "baseline_top1": "ときは、毎回",
+          "selected_top1": "時は、毎回",
+          "baseline_full_text": "通知表をもらうときは、毎回緊張する。",
+          "selected_full_text": "通知表をもらう時は、毎回緊張する。",
+          "baseline_strict_correct": true,
+          "selected_strict_correct": false,
+          "selected_top5": [
+            "時は、毎回",
+            "ときは、毎回",
+            "トキは、毎回",
+            "ときは、まいかい",
+            "ときは、毎会"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "acceptable_orthography_reference_gap",
+          "confidence": "high",
+          "observation": "通知表をもらう時は、毎回緊張する has the same temporal meaning as ときは. Kanji 時 is a normal spelling here. This is a strict-reference loss, not a semantic regression. Formal editorial policies sometimes prefer kana for such temporal clauses; no such house-style constraint was frozen.",
+          "evidence_sources": [
+            "kanjipedia-toki"
+          ]
+        },
+        {
+          "id": "natural-v3:13176214:full",
+          "strict_transition": "changed_both_correct",
+          "input": {
+            "id": "natural-v3:13176214:full",
+            "split": "sealed",
+            "context": "",
+            "kana": "かんじどりるのまるつけ",
+            "right_context": "が、大変だった。",
+            "topic_group": "natural-v3:13176214",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "漢字ドリルの丸つけ",
+            "漢字ドリルの丸付け"
+          ],
+          "baseline_top1": "漢字ドリルの丸付け",
+          "selected_top1": "漢字ドリルの丸つけ",
+          "baseline_full_text": "漢字ドリルの丸付けが、大変だった。",
+          "selected_full_text": "漢字ドリルの丸つけが、大変だった。",
+          "baseline_strict_correct": true,
+          "selected_strict_correct": true,
+          "selected_top5": [
+            "漢字ドリルの丸つけ",
+            "漢字ドリルの丸付け",
+            "漢字ドリルのまるつけ",
+            "感じドリルの丸つけ",
+            "漢字ドリルの○付け"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "accepted_orthography_change",
+          "confidence": "high",
+          "observation": "丸付け→丸つけ is an already accepted spelling change with identical grading meaning.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13540083:full",
+          "strict_transition": "win",
+          "input": {
+            "id": "natural-v3:13540083:full",
+            "split": "sealed",
+            "context": "彼は静かに",
+            "kana": "つくえにこしかけ、きばん",
+            "right_context": "だアルバムをめくった。",
+            "topic_group": "natural-v3:13540083",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "机に腰掛け、黄ばん",
+            "机に腰かけ、黄ばん"
+          ],
+          "baseline_top1": "机に腰掛け、基盤",
+          "selected_top1": "机に腰掛け、黄ばん",
+          "baseline_full_text": "彼は静かに机に腰掛け、基盤だアルバムをめくった。",
+          "selected_full_text": "彼は静かに机に腰掛け、黄ばんだアルバムをめくった。",
+          "baseline_strict_correct": false,
+          "selected_strict_correct": true,
+          "selected_top5": [
+            "机に腰掛け、黄ばん",
+            "机に腰掛け、基盤",
+            "机に腰かけ、黄ばん",
+            "机に腰かけ、基盤",
+            "机に腰掛け、基板"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "clear_contextual_semantic_gain",
+          "confidence": "high",
+          "observation": "基盤＋だアルバム gives an incoherent phrase, whereas 黄ばん＋だアルバム reconstructs 黄ばんだアルバム. The right context resolves the truncated verb stem and gives a clear semantic/morphological gain.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13535192:full",
+          "strict_transition": "changed_both_wrong",
+          "input": {
+            "id": "natural-v3:13535192:full",
+            "split": "sealed",
+            "context": "何の",
+            "kana": "けんりでわたしたちをいか",
+            "right_context": "せるんだ？",
+            "topic_group": "natural-v3:13535192",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "権利で私たちを行か",
+            "権利で私達を行か"
+          ],
+          "baseline_top1": "権利で私たちを怒",
+          "selected_top1": "権利で私達を生か",
+          "baseline_full_text": "何の権利で私たちを怒せるんだ？",
+          "selected_full_text": "何の権利で私達を生かせるんだ？",
+          "baseline_strict_correct": false,
+          "selected_strict_correct": false,
+          "selected_top5": [
+            "権利で私達を生か",
+            "権利で私たちを生か",
+            "権利で私たちを行か",
+            "権利で私達を怒",
+            "権利で私たちを怒"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "wrong_source_lexeme_changed_from_already_wrong",
+          "confidence": "high_for_source_mismatch_medium_for_relative_severity",
+          "observation": "Reference yields 何の権利で私たちを行かせるんだ？. Baseline 怒＋せる does not reconstruct the usual modern anger causative 怒らせる; selected 生か＋せる is well formed but means keeping alive or enabling use, not making/letting us go. A special narrative could support 生かせる, so relative severity is not reliably ordered from this isolated sentence. Both miss the source meaning; this is the only changed top1 with both strict scores wrong, not a newly lost previously correct case.",
+          "evidence_sources": [
+            "kanjipedia-ikasu"
+          ]
+        },
+        {
+          "id": "natural-v3:13147016:full",
+          "strict_transition": "loss",
+          "input": {
+            "id": "natural-v3:13147016:full",
+            "split": "sealed",
+            "context": "",
+            "kana": "あそびをとおしてまなべることは、いがい",
+            "right_context": "と多い。",
+            "topic_group": "natural-v3:13147016",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "遊びを通して学べることは、意外"
+          ],
+          "baseline_top1": "遊びを通して学べることは、意外",
+          "selected_top1": "遊びを通して学べることは、以外",
+          "baseline_full_text": "遊びを通して学べることは、意外と多い。",
+          "selected_full_text": "遊びを通して学べることは、以外と多い。",
+          "baseline_strict_correct": true,
+          "selected_strict_correct": false,
+          "selected_top5": [
+            "遊びを通して学べることは、以外",
+            "遊びを通して学べることは、意外",
+            "あそびを通して学べることは、以外",
+            "遊びを通して学べる事は、以外",
+            "遊びを通して学べる事は、意外"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "clear_semantic_regression",
+          "confidence": "high",
+          "observation": "遊びを通して学べることは、意外と多い requires 意外 (unexpectedly). 以外 means exclusion/outside and does not produce the intended 意外と多い construction. The correct candidate remains rank 2, so this is a ranking error, not a candidate-pool miss.",
+          "evidence_sources": [],
+          "frozen_score_diagnosis": {
+            "condition": "right",
+            "score_meanings": {
+              "z": "conversion-model score for the candidate in the right-conditioned pool",
+              "q": "candidate own language-model score",
+              "r": "right-context continuation language-model score"
+            },
+            "candidate_component_scores": {
+              "correct_igai": {
+                "z": -0.26714658737182617,
+                "q": -36.998348236083984,
+                "r": -8.093847274780273
+              },
+              "incorrect_igai": {
+                "z": -2.564635753631592,
+                "q": -38.560848236083984,
+                "r": -4.748003005981445
+              }
+            },
+            "incorrect_minus_correct_raw": {
+              "z": -2.2974891662597656,
+              "q": -1.5625,
+              "r": 3.345844268798828
+            },
+            "selected_formula": "z + 0.7*q + 1.05*r",
+            "incorrect_minus_correct_weighted": {
+              "z": -2.2974891662597656,
+              "0.7*q": -1.09375,
+              "1.05*r": 3.5131364822387696
+            },
+            "incorrect_minus_correct_selected_total": 0.121897315979004,
+            "correct_baseline_margin_z_plus_0_7q": 3.3912391662597656,
+            "interpretation": "Both the conversion score z and candidate score q prefer 意外, but the erroneous candidate gets a larger right-continuation score r. That weighted suffix advantage slightly exceeds both candidate-side penalties and reverses top1. This directly demonstrates that keeping positive q does not by itself prevent a sufficiently mistaken r from overturning it.",
+            "guarded_contrast": {
+              "config": {
+                "family": "guarded",
+                "q_weight": 0.7,
+                "right_weight": 1.05,
+                "evidence_ratio": 1.0
+              },
+              "frozen_prediction": {
+                "candidates": [
+                  "遊びを通して学べることは、以外",
+                  "遊びを通して学べることは、意外",
+                  "あそびを通して学べることは、以外",
+                  "遊びを通して学べる事は、以外",
+                  "遊びを通して学べる事は、意外"
+                ],
+                "effective_pool": "right",
+                "reason": "supported_replacement",
+                "baseline_top": "遊びを通して学べることは、意外",
+                "additive_top": "遊びを通して学べることは、以外",
+                "raw_q_deficit": 1.5625,
+                "raw_suffix_gain": 3.345844268798828,
+                "evidence_ratio": 1.0,
+                "rank": 2
+              },
+              "predicate": "r(new)-r(anchor) > evidence_ratio * max(0,q(anchor)-q(new))",
+              "left_raw_suffix_gain": 3.345844268798828,
+              "right_threshold": 1.5625,
+              "passes": true,
+              "explanation": "The frozen guarded alternative also accepts 以外 because raw suffix gain 3.345844 exceeds its q-deficit threshold 1.562500. The gate reuses the same mistaken continuation score as its evidence and does not independently test lexical meaning. z is included in additive ranking but is not included in the separate support predicate. Right text と多い。 has three lexical characters and does not trigger the short-right fallback."
+            },
+            "root_cause_limit": "The observed arithmetic establishes the score reversal and gate behavior, not why the language model assigns the counterintuitive r values. No tokenization, calibration, or training-corpus cause is asserted without further evidence."
+          }
+        },
+        {
+          "id": "natural-v3:13714047:full",
+          "strict_transition": "changed_both_correct",
+          "input": {
+            "id": "natural-v3:13714047:full",
+            "split": "sealed",
+            "context": "その選手はハードルに",
+            "kana": "あしをひっかけ",
+            "right_context": "たんだ。",
+            "topic_group": "natural-v3:13714047",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "足を引っ掛け",
+            "足を引っかけ",
+            "足をひっかけ"
+          ],
+          "baseline_top1": "足を引っ掛け",
+          "selected_top1": "足をひっかけ",
+          "baseline_full_text": "その選手はハードルに足を引っ掛けたんだ。",
+          "selected_full_text": "その選手はハードルに足をひっかけたんだ。",
+          "baseline_strict_correct": true,
+          "selected_strict_correct": true,
+          "selected_top5": [
+            "足をひっかけ",
+            "足を引っ掛け",
+            "足を引っかけ",
+            "脚をひっかけ",
+            "脚を引っかけ"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "accepted_orthography_change",
+          "confidence": "high",
+          "observation": "引っ掛け→ひっかけ preserves the same hurdle-tripping verb and is already in the frozen answer list.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13065842:full",
+          "strict_transition": "unchanged_wrong",
+          "input": {
+            "id": "natural-v3:13065842:full",
+            "split": "sealed",
+            "context": "彼女の",
+            "kana": "かみが、とつぜんふい",
+            "right_context": "た風にふわりと揺れた。",
+            "topic_group": "natural-v3:13065842",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "髪が、突然吹い"
+          ],
+          "baseline_top1": "髪が、突然ふい",
+          "selected_top1": "髪が、突然ふい",
+          "baseline_full_text": "彼女の髪が、突然ふいた風にふわりと揺れた。",
+          "selected_full_text": "彼女の髪が、突然ふいた風にふわりと揺れた。",
+          "baseline_strict_correct": false,
+          "selected_strict_correct": false,
+          "selected_top5": [
+            "髪が、突然ふい",
+            "髪が、とつぜんふい",
+            "髪が、突然吹い",
+            "髪が、とつぜん吹い",
+            "髪が、突然噴い"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "acceptable_orthography_reference_gap",
+          "confidence": "high",
+          "observation": "Full reconstruction is 彼女の髪が、突然ふいた風にふわりと揺れた. ふいた is the kana spelling of 吹いた in this context. The unconverted verb is a possible style/conversion-completeness issue, not a different meaning. Both systems choose the same spelling; no regression.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13714060:full",
+          "strict_transition": "loss",
+          "input": {
+            "id": "natural-v3:13714060:full",
+            "split": "sealed",
+            "context": "あの",
+            "kana": "ふうふはわたしたち",
+            "right_context": "の仲人です。",
+            "topic_group": "natural-v3:13714060",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "夫婦は私たち",
+            "夫婦は私達"
+          ],
+          "baseline_top1": "夫婦は私たち",
+          "selected_top1": "夫婦はわたしたち",
+          "baseline_full_text": "あの夫婦は私たちの仲人です。",
+          "selected_full_text": "あの夫婦はわたしたちの仲人です。",
+          "baseline_strict_correct": true,
+          "selected_strict_correct": false,
+          "selected_top5": [
+            "夫婦はわたしたち",
+            "夫婦は私たち",
+            "夫婦は私達",
+            "ふうふはわたしたち",
+            "夫婦はわたし達"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "acceptable_orthography_reference_gap",
+          "confidence": "high",
+          "observation": "夫婦はわたしたちの仲人です preserves the identical pronoun 私たち. Normal hiragana pronoun spelling is missing from the frozen references; this is not a semantic regression.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13643334:full",
+          "strict_transition": "loss",
+          "input": {
+            "id": "natural-v3:13643334:full",
+            "split": "sealed",
+            "context": "",
+            "kana": "これはわたしたち",
+            "right_context": "の決断でした。",
+            "topic_group": "natural-v3:13643334",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "これは私たち",
+            "これは私達"
+          ],
+          "baseline_top1": "これは私たち",
+          "selected_top1": "これはわたしたち",
+          "baseline_full_text": "これは私たちの決断でした。",
+          "selected_full_text": "これはわたしたちの決断でした。",
+          "baseline_strict_correct": true,
+          "selected_strict_correct": false,
+          "selected_top5": [
+            "これはわたしたち",
+            "これは私たち",
+            "これは私達",
+            "これはわたし達",
+            "コレはわたしたち"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "acceptable_orthography_reference_gap",
+          "confidence": "high",
+          "observation": "これはわたしたちの決断でした preserves 私たち exactly in meaning. The shift is a normal kana pronoun spelling, not a semantic regression.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13540122:full",
+          "strict_transition": "unchanged_wrong",
+          "input": {
+            "id": "natural-v3:13540122:full",
+            "split": "sealed",
+            "context": "",
+            "kana": "きょうのかすたーどまんは",
+            "right_context": "売り切れ。",
+            "topic_group": "natural-v3:13540122",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "今日のカスタードまんは"
+          ],
+          "baseline_top1": "今日のカスタードマンは",
+          "selected_top1": "今日のカスタードマンは",
+          "baseline_full_text": "今日のカスタードマンは売り切れ。",
+          "selected_full_text": "今日のカスタードマンは売り切れ。",
+          "baseline_strict_correct": false,
+          "selected_strict_correct": false,
+          "selected_top5": [
+            "今日のカスタードマンは",
+            "きょうのカスタードマンは",
+            "今日のカスタードまんは",
+            "きょうのカスタードまんは",
+            "今日のカスタード万葉"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "acceptable_orthography_reference_gap",
+          "confidence": "high",
+          "observation": "カスタードマン can name the custard-filled steamed bun, rather than necessarily a fictional man/character. A Japanese vendor directly labels its 奶皇包 product カスタードマン. In 今日の…は売り切れ this is an ordinary product-name spelling alternative to カスタードまん. Both systems are unchanged; strict source spelling remains unmatched.",
+          "evidence_sources": [
+            "yonechiku-custard-man"
+          ]
+        },
+        {
+          "id": "natural-v3:13440751:full",
+          "strict_transition": "changed_both_correct",
+          "input": {
+            "id": "natural-v3:13440751:full",
+            "split": "sealed",
+            "context": "",
+            "kana": "このばしょだとなぜか",
+            "right_context": "電波がつながらない。",
+            "topic_group": "natural-v3:13440751",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "この場所だとなぜか",
+            "この場所だと何故か"
+          ],
+          "baseline_top1": "この場所だとなぜか",
+          "selected_top1": "この場所だと何故か",
+          "baseline_full_text": "この場所だとなぜか電波がつながらない。",
+          "selected_full_text": "この場所だと何故か電波がつながらない。",
+          "baseline_strict_correct": true,
+          "selected_strict_correct": true,
+          "selected_top5": [
+            "この場所だと何故か",
+            "この場所だとなぜか",
+            "この場所だとナゼか",
+            "このバショだとなぜか",
+            "このばしょだとなぜか"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "accepted_orthography_change",
+          "confidence": "high",
+          "observation": "なぜか→何故か is an already accepted spelling change with no meaning change.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13894225:full",
+          "strict_transition": "unchanged_wrong",
+          "input": {
+            "id": "natural-v3:13894225:full",
+            "split": "sealed",
+            "context": "ゴリラは、",
+            "kana": "そうそうきには",
+            "right_context": "登らない。",
+            "topic_group": "natural-v3:13894225",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "そうそう木には"
+          ],
+          "baseline_top1": "草創期には",
+          "selected_top1": "草創期には",
+          "baseline_full_text": "ゴリラは、草創期には登らない。",
+          "selected_full_text": "ゴリラは、草創期には登らない。",
+          "baseline_strict_correct": false,
+          "selected_strict_correct": false,
+          "selected_top5": [
+            "草創期には",
+            "葬送期には",
+            "早々きには",
+            "草々期には",
+            "草双樹には"
+          ],
+          "frozen_answer_present_in_right_pool": false,
+          "classification": "clear_semantic_error_candidate_pool_gap",
+          "confidence": "high",
+          "observation": "Source is ゴリラは、そうそう木には登らない. 草創期には replaces the adverb そうそう plus object 木 with an unrelated founding/initial era noun and loses the tree meaning. No frozen accepted answer occurs in any of the three generated pools; the right pool has neither そうそう木には nor a reasonable tree equivalent. Reranking these candidates cannot recover the target.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13881313:full",
+          "strict_transition": "loss",
+          "input": {
+            "id": "natural-v3:13881313:full",
+            "split": "sealed",
+            "context": "",
+            "kana": "ぼくらはちゅうごくにはい",
+            "right_context": "ません。",
+            "topic_group": "natural-v3:13881313",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "僕らは中国にはい"
+          ],
+          "baseline_top1": "僕らは中国にはい",
+          "selected_top1": "僕らは中国には居",
+          "baseline_full_text": "僕らは中国にはいません。",
+          "selected_full_text": "僕らは中国には居ません。",
+          "baseline_strict_correct": true,
+          "selected_strict_correct": false,
+          "selected_top5": [
+            "僕らは中国には居",
+            "僕らは中国にはい",
+            "僕らは中国に入",
+            "ぼくらは中国にはい",
+            "ぼくらは中国に入"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "acceptable_orthography_reference_gap",
+          "confidence": "high",
+          "observation": "僕らは中国には居ません uses the lexical existence verb 居る, not an auxiliary after another verb. It is semantically the same as いません. Kanji is valid although the dictionary explicitly says modern writing usually uses hiragana, so a style preference for the baseline is reasonable.",
+          "evidence_sources": [
+            "kanjipedia-iru"
+          ]
+        },
+        {
+          "id": "natural-v3:13428387:full",
+          "strict_transition": "win",
+          "input": {
+            "id": "natural-v3:13428387:full",
+            "split": "sealed",
+            "context": "",
+            "kana": "かれはもりでのばな",
+            "right_context": "を見つけた。",
+            "topic_group": "natural-v3:13428387",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "彼は森で野花"
+          ],
+          "baseline_top1": "彼は森で野ばな",
+          "selected_top1": "彼は森で野花",
+          "baseline_full_text": "彼は森で野ばなを見つけた。",
+          "selected_full_text": "彼は森で野花を見つけた。",
+          "baseline_strict_correct": false,
+          "selected_strict_correct": true,
+          "selected_top5": [
+            "彼は森で野花",
+            "彼は森での花",
+            "彼は森で野ばな",
+            "彼は森で野バナ",
+            "彼は森でノバナ"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "orthographic_gain_not_clear_semantic_gain",
+          "confidence": "high",
+          "observation": "野ばな→野花 restores the conventional full-kanji source spelling. 野ばな is a mixed-script spelling of the same のばな lexeme, not a different object. This is a source-spelling/conversion-completeness gain; do not count it as evidence of resolving a different intended meaning.",
+          "evidence_sources": []
+        },
+        {
+          "id": "natural-v3:13543049:full",
+          "strict_transition": "win",
+          "input": {
+            "id": "natural-v3:13543049:full",
+            "split": "sealed",
+            "context": "",
+            "kana": "はのいろがとても",
+            "right_context": "美しいです。",
+            "topic_group": "natural-v3:13543049",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_full"
+          },
+          "frozen_answers": [
+            "葉の色がとても"
+          ],
+          "baseline_top1": "歯の色がとても",
+          "selected_top1": "葉の色がとても",
+          "baseline_full_text": "歯の色がとても美しいです。",
+          "selected_full_text": "葉の色がとても美しいです。",
+          "baseline_strict_correct": false,
+          "selected_strict_correct": true,
+          "selected_top5": [
+            "葉の色がとても",
+            "波の色がとても",
+            "歯の色がとても",
+            "端の色がとても",
+            "はの色がとても"
+          ],
+          "frozen_answer_present_in_right_pool": true,
+          "classification": "source_lexeme_recovery_with_underdetermined_context",
+          "confidence": "medium",
+          "observation": "歯→葉 recovers the intended source noun. But with no left context, both 歯の色がとても美しいです and 葉の色がとても美しいです are grammatical and plausible; the supplied right context alone does not uniquely determine the object. This is a source recovery, not conclusive proof that the baseline meaning was impossible.",
+          "evidence_sources": []
+        }
+      ],
+      "conclusions": [
+        "There is a real 意外→以外 regression; same 191/200 top1 does not imply no behavioral regression.",
+        "Several strict misses are spelling/reference-coverage issues, but no post-hoc lenient accuracy is reported and the original 5 wins / 5 losses remains the headline.",
+        "良心 and 黄ばん are the two clearest contextual gains. The title and 葉 recover the source, but their isolated contexts are underdetermined; 野花 is principally a spelling gain.",
+        "The only changed both-wrong top1 remains a different wrong source lexeme. It is not evidence of a hidden new semantic loss from a previously valid baseline output.",
+        "そうそう木 lacks a suitable generated candidate, while 意外 and 行か remain in top5. Candidate coverage and candidate ranking are separate failure modes."
+      ],
+      "five_strict_wins_interpretation": [
+        {
+          "id": "natural-v3:13428432:full",
+          "baseline": "ソシオパスは両親を",
+          "selected": "ソシオパスは良心を",
+          "classification": "clear_contextual_semantic_gain",
+          "observation": "両親→良心 restores the intended conscience sense in the source sentence about a sociopath. This is a clear contextually supported lexical gain; this linguistic assessment does not endorse the source sentence as a clinical definition."
+        },
+        {
+          "id": "natural-v3:13806898:full",
+          "baseline": "文章は「世界の政界",
+          "selected": "文章は「世界の正解",
+          "classification": "source_lexeme_recovery_with_underdetermined_context",
+          "observation": "政界→正解 matches the quoted source title 世界の正解. Since the sentence supplies no identity or content of that title, 世界の政界 is also a possible title; source recovery is real, but a general semantic-disambiguation claim is weaker than for 黄ばんだ."
+        },
+        {
+          "id": "natural-v3:13540083:full",
+          "baseline": "机に腰掛け、基盤",
+          "selected": "机に腰掛け、黄ばん",
+          "classification": "clear_contextual_semantic_gain",
+          "observation": "基盤＋だアルバム gives an incoherent phrase, whereas 黄ばん＋だアルバム reconstructs 黄ばんだアルバム. The right context resolves the truncated verb stem and gives a clear semantic/morphological gain."
+        },
+        {
+          "id": "natural-v3:13428387:full",
+          "baseline": "彼は森で野ばな",
+          "selected": "彼は森で野花",
+          "classification": "orthographic_gain_not_clear_semantic_gain",
+          "observation": "野ばな→野花 restores the conventional full-kanji source spelling. 野ばな is a mixed-script spelling of the same のばな lexeme, not a different object. This is a source-spelling/conversion-completeness gain; do not count it as evidence of resolving a different intended meaning."
+        },
+        {
+          "id": "natural-v3:13543049:full",
+          "baseline": "歯の色がとても",
+          "selected": "葉の色がとても",
+          "classification": "source_lexeme_recovery_with_underdetermined_context",
+          "observation": "歯→葉 recovers the intended source noun. But with no left context, both 歯の色がとても美しいです and 葉の色がとても美しいです are grammatical and plausible; the supplied right context alone does not uniquely determine the object. This is a source recovery, not conclusive proof that the baseline meaning was impossible."
+        }
+      ]
+    },
+    "short": {
+      "phase": "post_unseal_read_only_diagnosis",
+      "labels_changed": false,
+      "parameters_changed": false,
+      "new_model_calls": 0,
+      "scope": "All200 short-right cases, all changed top1 outputs including both-wrong changes, paired explicit no-right cases, and author-stratified frozen outcomes.",
+      "counts": {
+        "short": 200,
+        "selected_vs_baseline_wins": 6,
+        "selected_vs_baseline_losses": 4,
+        "selected_top1": 192,
+        "baseline_top1": 190,
+        "guarded_top1": 190,
+        "changed_top1": 12,
+        "guard_vs_paired_no_right_top5_mismatches": []
+      },
+      "changes": [
+        {
+          "id": "natural-v3:13428432:short",
+          "author": "demiurgastel",
+          "source_sentence": "ソシオパスは良心を持たない。",
+          "input": {
+            "id": "natural-v3:13428432:short",
+            "split": "sealed",
+            "context": "",
+            "kana": "そしおぱすはりょうしんを",
+            "right_context": "持た",
+            "topic_group": "natural-v3:13428432",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "ソシオパスは良心を"
+          ],
+          "baseline": "ソシオパスは両親を",
+          "baseline_rank": 2,
+          "selected": "ソシオパスは良心を",
+          "selected_rank": 1,
+          "guarded": "ソシオパスは両親を",
+          "guarded_rank": 2,
+          "classification": "measured_win",
+          "review_note": "Semantic recovery: sociopath/conscience 良心 instead of parents 両親; full source supports the intended meaning."
+        },
+        {
+          "id": "natural-v3:13806898:short",
+          "author": "TanukiKun",
+          "source_sentence": "この文章は「世界の正解」に出てくる。",
+          "input": {
+            "id": "natural-v3:13806898:short",
+            "split": "sealed",
+            "context": "この",
+            "kana": "ぶんしょうは「せかいのせいかい",
+            "right_context": "」に",
+            "topic_group": "natural-v3:13806898",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "文章は「世界の正解"
+          ],
+          "baseline": "文章は「世界の政界",
+          "baseline_rank": 2,
+          "selected": "文章は「世界の正解",
+          "selected_rank": 1,
+          "guarded": "文章は「世界の正解",
+          "guarded_rank": 1,
+          "classification": "measured_win",
+          "review_note": "Quoted-title word recovery 政界→正解. Source title is fixed; short suffix」に alone supplies limited disambiguation, so not independently strong semantic evidence."
+        },
+        {
+          "id": "natural-v3:13492094:short",
+          "author": "Gardenia",
+          "source_sentence": "過去の失敗を反省し、そこから大切な教訓を学んだ。",
+          "input": {
+            "id": "natural-v3:13492094:short",
+            "split": "sealed",
+            "context": "過去の失敗を反省",
+            "kana": "し、そこからたいせつ",
+            "right_context": "な教",
+            "topic_group": "natural-v3:13492094",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "し、そこから大切"
+          ],
+          "baseline": "し、そこから大切",
+          "baseline_rank": 1,
+          "selected": "し、そこからたいせつ",
+          "selected_rank": 2,
+          "guarded": "し、そこから大切",
+          "guarded_rank": 1,
+          "classification": "measured_loss",
+          "review_note": "Finite-reference spelling-only loss 大切→たいせつ; meaning unchanged."
+        },
+        {
+          "id": "natural-v3:13540083:short",
+          "author": "LeviHighway",
+          "source_sentence": "彼は静かに机に腰掛け、黄ばんだアルバムをめくった。",
+          "input": {
+            "id": "natural-v3:13540083:short",
+            "split": "sealed",
+            "context": "彼は静かに",
+            "kana": "つくえにこしかけ、きばん",
+            "right_context": "だア",
+            "topic_group": "natural-v3:13540083",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "机に腰掛け、黄ばん",
+            "机に腰かけ、黄ばん"
+          ],
+          "baseline": "机に腰掛け、基盤",
+          "baseline_rank": null,
+          "selected": "机に腰掛け、黄ばん",
+          "selected_rank": 1,
+          "guarded": "机に腰掛け、基盤",
+          "guarded_rank": null,
+          "classification": "measured_win",
+          "review_note": "Clear morphological/semantic fix 基盤→黄ばん beforeだアルバム."
+        },
+        {
+          "id": "natural-v3:13535192:short",
+          "author": "LeviHighway",
+          "source_sentence": "何の権利で私たちを行かせるんだ？",
+          "input": {
+            "id": "natural-v3:13535192:short",
+            "split": "sealed",
+            "context": "何の",
+            "kana": "けんりでわたしたちをいか",
+            "right_context": "せる",
+            "topic_group": "natural-v3:13535192",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "権利で私たちを行か",
+            "権利で私達を行か"
+          ],
+          "baseline": "権利で私たちを怒",
+          "baseline_rank": null,
+          "selected": "権利で私たちを生か",
+          "selected_rank": 2,
+          "guarded": "権利で私たちを怒",
+          "guarded_rank": null,
+          "classification": "both_wrong_change",
+          "review_note": "怒→生か, while source says行か; both disagree with intended action. No hidden correct-to-wrong semantic loss identified here."
+        },
+        {
+          "id": "natural-v3:13147016:short",
+          "author": "Gardenia",
+          "source_sentence": "遊びを通して学べることは、意外と多い。",
+          "input": {
+            "id": "natural-v3:13147016:short",
+            "split": "sealed",
+            "context": "",
+            "kana": "あそびをとおしてまなべることは、いがい",
+            "right_context": "と多",
+            "topic_group": "natural-v3:13147016",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "遊びを通して学べることは、意外"
+          ],
+          "baseline": "遊びを通して学べることは、意外",
+          "baseline_rank": 1,
+          "selected": "遊びを通して学べることは、以外",
+          "selected_rank": 2,
+          "guarded": "遊びを通して学べることは、意外",
+          "guarded_rank": 1,
+          "classification": "measured_loss",
+          "review_note": "Clear semantic regression 意外→以外 beforeと多; expected意外と多い."
+        },
+        {
+          "id": "natural-v3:13479219:short",
+          "author": "Gardenia",
+          "source_sentence": "気持ちを整理して、休止するかどうか決めたいです。",
+          "input": {
+            "id": "natural-v3:13479219:short",
+            "split": "sealed",
+            "context": "気持ちを",
+            "kana": "せいりして、きゅうしする",
+            "right_context": "かど",
+            "topic_group": "natural-v3:13479219",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "整理して、休止する"
+          ],
+          "baseline": "整理して、急死する",
+          "baseline_rank": 2,
+          "selected": "整理して、休止する",
+          "selected_rank": 1,
+          "guarded": "整理して、急死する",
+          "guarded_rank": 2,
+          "classification": "measured_win",
+          "review_note": "Clear semantic fix 急死→休止 after気持ちを整理して; right suffixかど."
+        },
+        {
+          "id": "natural-v3:13714060:short",
+          "author": "GreySquirrel",
+          "source_sentence": "あの夫婦は私たちの仲人です。",
+          "input": {
+            "id": "natural-v3:13714060:short",
+            "split": "sealed",
+            "context": "あの",
+            "kana": "ふうふはわたしたち",
+            "right_context": "の仲",
+            "topic_group": "natural-v3:13714060",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "夫婦は私たち",
+            "夫婦は私達"
+          ],
+          "baseline": "夫婦は私たち",
+          "baseline_rank": 1,
+          "selected": "夫婦はわたしたち",
+          "selected_rank": 2,
+          "guarded": "夫婦は私たち",
+          "guarded_rank": 1,
+          "classification": "measured_loss",
+          "review_note": "Finite-reference spelling-only loss 私たち→わたしたち; meaning unchanged."
+        },
+        {
+          "id": "natural-v3:13643334:short",
+          "author": "ninefi",
+          "source_sentence": "これは私たちの決断でした。",
+          "input": {
+            "id": "natural-v3:13643334:short",
+            "split": "sealed",
+            "context": "",
+            "kana": "これはわたしたち",
+            "right_context": "の決",
+            "topic_group": "natural-v3:13643334",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "これは私たち",
+            "これは私達"
+          ],
+          "baseline": "これは私たち",
+          "baseline_rank": 1,
+          "selected": "これはわたしたち",
+          "selected_rank": 2,
+          "guarded": "これは私たち",
+          "guarded_rank": 1,
+          "classification": "measured_loss",
+          "review_note": "Finite-reference spelling-only loss 私たち→わたしたち; meaning unchanged."
+        },
+        {
+          "id": "natural-v3:13440751:short",
+          "author": "Gardenia",
+          "source_sentence": "この場所だとなぜか電波がつながらない。",
+          "input": {
+            "id": "natural-v3:13440751:short",
+            "split": "sealed",
+            "context": "",
+            "kana": "このばしょだとなぜか",
+            "right_context": "電波",
+            "topic_group": "natural-v3:13440751",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "この場所だとなぜか",
+            "この場所だと何故か"
+          ],
+          "baseline": "この場所だとなぜか",
+          "baseline_rank": 1,
+          "selected": "この場所だと何故か",
+          "selected_rank": 1,
+          "guarded": "この場所だとなぜか",
+          "guarded_rank": 1,
+          "classification": "both_correct_change",
+          "review_note": "なぜか→何故か; both accepted orthographies."
+        },
+        {
+          "id": "natural-v3:13428387:short",
+          "author": "demiurgastel",
+          "source_sentence": "彼は森で野花を見つけた。",
+          "input": {
+            "id": "natural-v3:13428387:short",
+            "split": "sealed",
+            "context": "",
+            "kana": "かれはもりでのばな",
+            "right_context": "を見",
+            "topic_group": "natural-v3:13428387",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "彼は森で野花"
+          ],
+          "baseline": "彼は森で野ばな",
+          "baseline_rank": 3,
+          "selected": "彼は森で野花",
+          "selected_rank": 1,
+          "guarded": "彼は森で野ばな",
+          "guarded_rank": 3,
+          "classification": "measured_win",
+          "review_note": "Finite-reference spelling-only win 野ばな→野花; meaning unchanged."
+        },
+        {
+          "id": "natural-v3:13543049:short",
+          "author": "LeviHighway",
+          "source_sentence": "葉の色がとても美しいです。",
+          "input": {
+            "id": "natural-v3:13543049:short",
+            "split": "sealed",
+            "context": "",
+            "kana": "はのいろがとても",
+            "right_context": "美し",
+            "topic_group": "natural-v3:13543049",
+            "domain": "natural_tatoeba_insertion",
+            "case_type": "natural_short"
+          },
+          "answers": [
+            "葉の色がとても"
+          ],
+          "baseline": "歯の色がとても",
+          "baseline_rank": 2,
+          "selected": "葉の色がとても",
+          "selected_rank": 1,
+          "guarded": "歯の色がとても",
+          "guarded_rank": 2,
+          "classification": "measured_win",
+          "review_note": "Lexical/source recovery 歯→葉. With no left context and only美し to the right, either surface can be plausible; source determines the label."
+        }
+      ],
+      "loss_interpretation": "Four measured losses comprise one clear semantic regression (意外→以外) and three finite-reference hiragana/kanji differences. The one both-wrong changed prediction is already semantically incorrect before the change; no hidden correct-to-wrong semantic loss found among these changed short predictions.",
+      "guard_interpretation": "All200 guarded short full top5 lists exactly equal paired explicit no-right legacy results. This prevents the意外 regression and spelling misses, but gives up real right-dependent fixes. It additionally loses correctキッチンの電気つけ to no-right電気付, while the right baseline was already correct; hence fallback is a candidate-pool policy change, not a free safety improvement.",
+      "residual_candidate_gap": {
+        "id": "natural-v3:13894225:short",
+        "source": "ゴリラは、そうそう木には登らない。",
+        "top1": "草創期には",
+        "gold": "そうそう木には",
+        "finding": "Gold absent from all8 right-pool generated/validated candidates; ranking cannot recover it."
+      },
+      "author_outcomes": {
+        "Gardenia": {
+          "natural_full": {
+            "total": 100,
+            "baseline": 99,
+            "selected": 97,
+            "selected_guarded": 97
+          },
+          "natural_short": {
+            "total": 100,
+            "baseline": 98,
+            "selected": 97,
+            "selected_guarded": 98
+          },
+          "natural_no_right": {
+            "total": 100,
+            "baseline": 98,
+            "selected": 98,
+            "selected_guarded": 98
+          }
+        },
+        "Other": {
+          "natural_full": {
+            "total": 100,
+            "baseline": 92,
+            "selected": 94,
+            "selected_guarded": 94
+          },
+          "natural_short": {
+            "total": 100,
+            "baseline": 92,
+            "selected": 95,
+            "selected_guarded": 92
+          },
+          "natural_no_right": {
+            "total": 100,
+            "baseline": 92,
+            "selected": 92,
+            "selected_guarded": 92
+          }
+        }
+      },
+      "development_comparison": {
+        "authors": {
+          "Gardenia": 80,
+          "Other": 20
+        },
+        "full_baseline_correct": 100,
+        "full_selected_correct": 98,
+        "selected_misses": [
+          "鍋を囲ん→鍋をかこん",
+          "常→つね"
+        ],
+        "miss_kind": "Both are finite-reference spelling differences.",
+        "caution": "Heldout deliberately changes author mix to100Gardenia/100others. Its baseline full accuracy is99/100Gardenia vs92/100others. Perfect100-case dev accuracy does not imply universal accuracy, and source/topic clustering does not remove shared author/style dependence."
+      },
+      "limitations": [
+        "Fixed two-character suffixes can cut a word mid-form; results apply to this explicit truncation test.",
+        "Finite spelling references hide some equivalent renderings; no posthoc lenient headline accuracy was recomputed.",
+        "Only200 independent source groups; three context variants are paired, not600 independent sentences."
+      ]
+    },
+    "implication": "A threshold on the same suffix likelihood is not independent evidence of semantic correctness. Future candidate-pair calibration needs separate training evidence and a newly sealed evaluation, not weight tuning on these revealed200 sources."
+  },
+  "validation": {
+    "python_tests": {
+      "passed": 103,
+      "command": "/home/_WD_/.local/share/wime/python/bin/python -m unittest discover -s emacs-packages/wime/test -p test_japanese*.py",
+      "scope": "All Japanese Python tests after final scorer implementation; no implementation changes since."
+    },
+    "independent_audit": {
+      "version": "20261028-balanced-independent-invariants-v1",
+      "scope": "Read-only independent audit after completed frozen report. No source/model/label edits, GPU inference, or parameter reselection.",
+      "selected": {
+        "family": "additive",
+        "q_weight": 0.7,
+        "right_weight": 1.05,
+        "evidence_ratio": 0.0
+      },
+      "sealed_versions": {
+        "checks": [
+          {
+            "file": "sealed.inputs.json",
+            "older_path": "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3/sealed.inputs.json",
+            "newer_path": "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/sealed.inputs.json",
+            "older_sha256": "012a0911a6ff566c77a74850f876b59e723cc0e81bb2398996d95ce0248ab72e",
+            "newer_sha256": "012a0911a6ff566c77a74850f876b59e723cc0e81bb2398996d95ce0248ab72e",
+            "byte_identical": true
+          },
+          {
+            "file": "sealed.labels.json",
+            "older_path": "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3/sealed.labels.json",
+            "newer_path": "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/sealed.labels.json",
+            "older_sha256": "4bca8c75964ebe2697b5798593697e8e51b82cd65b5a4893245af9bb9a1ae15e",
+            "newer_sha256": "4bca8c75964ebe2697b5798593697e8e51b82cd65b5a4893245af9bb9a1ae15e",
+            "byte_identical": true
+          }
+        ],
+        "all_byte_identical": true
+      },
+      "phase_bindings": {
+        "dev_rows_match_frozen_selection": true,
+        "sealed_run_binds_same_selection": true,
+        "report_binds_same_selection_and_sealed_rows": true
+      },
+      "predictions": {
+        "dev": 826,
+        "sealed": 600,
+        "fresh_rows": 900,
+        "fresh_source_groups": 300,
+        "variants_per_source": 3,
+        "all_shared_q_and_z_provenance_replayed": true
+      },
+      "historical_cache": {
+        "rows": 526,
+        "input_and_pools_exact": true,
+        "q_r_z_generated_candidates_exact": true,
+        "union_and_recorded_scoring_times_exact": true
+      },
+      "paired_invariants": {
+        "all900_none_pools_identical_within_source": true,
+        "verified_fields": [
+          "generated",
+          "cands",
+          "z",
+          "q"
+        ],
+        "no_right_full_ranking_comparisons": 14400,
+        "no_right_mismatches": 0,
+        "short_guard_full_ranking_comparisons": 5400,
+        "short_guard_mismatches": 0
+      },
+      "numerical_drift": {
+        "observed_max_q_adjustment": 0.47060203552246094,
+        "observed_max_none_z_adjustment": 1.430511474609375e-06,
+        "allowed_max_none_z_adjustment": 0.001,
+        "q_policy": "First seen candidate score retained across fresh source variants; raw values and origins recorded; no numeric cap on q batch variation.",
+        "none_z_policy": "First none z retained only within declared tolerance; candidate lists must reproduce exactly."
+      },
+      "sensitivity": {
+        "method": "Restore each fresh row original computed q in all pools and computed none z; for no-right restore all three z copies. Compare first candidates for fixed baseline and already-selected config only; no tuning.",
+        "rows": 900,
+        "standalone_no_right_rows": 300,
+        "baseline_top1_changes": [],
+        "baseline_no_right_top1_changes": [],
+        "selected_top1_changes": [],
+        "limitation": "Only first-candidate sensitivity; subleading ordering and raw score values may differ."
+      }
+    },
+    "verified_manifest_dependencies": 26,
+    "primary_rechecked_dependency_hashes": true,
+    "first_attempt": "Initial dev attempt stopped after536/826 rows when tiny no-right z floating-point drift violated exact equality. No selection or new heldout predictions existed. Preserved that attempt, diagnosed repeated generation as identical, then pinned only z drift <=1e-3 to first observation and restarted from the immutable historical526 rows.",
+    "drift_sensitivity": "Restoring every fresh row raw q and no-right z changes neither baseline nor selected top1 in any of900 fresh predictions. Full ranking invariance uses the recorded shared reference scores.",
+    "production_defaults_changed": false
+  },
+  "artifacts": {
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/natural-source-pool.json": "5daf48371b7e459b73fda4f1b90ecd0c9d3d2b89da87e5f276e4c29d866173d6",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/natural-source-overlap.json": "85eaaeccec3e8f838936984e02e29c8bd9673e27adf42aa16ecfc0d988a47a38",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/natural-extraction-runtime.json": "cabdbe757b757b5de0022f5bea1618aafe8bf57805a87e90531f07f6d93a61ca",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/natural-review-queue.json": "c841eb8f0315fb35366549e1891875aa15d9f05b16f9db69cde4576acac8a5cc",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/natural-reviews.json": "72b6abae970e8704a6dabe626a5ed92a720e705070b85b214145a39d8291c162",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/natural-reviewed-full.json": "a684046ffbb82603c33440125bca0747c81e7384a3beeba18540d6e4c1d3b856",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/natural-reviewed-overlap.json": "5a6d797f91dea05baa7d1ec391b32bce48ffa6e2a0264be7fe3397dd5845f2ed",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/review-manifest.json": "e5ab27689a351363aae805879d01679dd50e404fc446add8434d02a2f7ac70e6",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/review-queue-extra.json": "e1ad9603219c78819a9eb98b810087c9e0026e79ce8b059a28d816698348f37e",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/natural-review-extra.json": "47e65d6a1567a81b13b5a0ae43ff833556af375d398d7686e6200b179fd57e2d",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/natural-extra-full.json": "a803af3892519b3bbdb9083d17bb2e88d16b0936c72cf246515714ca00881127",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/natural-extra-overlap.json": "9fa1b971ef4224e88eacacbd1c37784d45ab2e12cc763ed2003f5425ff0156b0",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/extra-review-manifest.json": "4459cbc7a4b8e137cd183e6d4b90763df466a9a0fa962feba2ea1ba9412c0502",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/reading-coverage-preflight.json": "3fb28715ed8dfeee0bd01b02178628c7acee4ae4f4cb7fd9207ede5f0a3cf0fb",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/disclosed-provenance.json": "f51afae6ebd20f5a6f8d5fc860acc8337937ba2b540cbd7563ade3d92446fd79",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/disclosed.dev.json": "8d2cc7f502ea57ab088d56e6f2311f339ea19ba3d0b7b932055993e73c0a051b",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/disclosed.pools.jsonl": "3f12b914180fa5b54dbde6524dbdb86906b5b4f7ae2d2bc6438308c7fb4e86e0",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/dev-review.json": "ca69bb3418516144225373a82d911cc9ba57a8546e39297b5b5eb13452264959",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/dev-review-addendum.json": "ee0ec6adde66aec80fc4852ed9b5e3ef17d31e8f3ce9df84bc1594e6774e2772",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/safety-cases.v2.json": "9df0406d45ff4c32889ec61fcc045c7476af206ad7b98ae2ca8f80997a87b371",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/none-z-diagnostic.json": "adbee190e33e7cce4cfd4f546feec42d6b958ecca7c274f18e3733ddbfb9af9e",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/experiment-before-paired-z-pin/dev.rows.jsonl": "0f90e1f66a3e999915445232f07d110a1d363485472067b9e7b3cb584edfb3b6",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/experiment/manifest.json": "29bd2690ab70cdb5bc1cceb93bb10a0a892a6999d3e4769e06f8acfc592a58f2",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/experiment/dev.rows.jsonl": "ad2f3889122eb7617f31d62d46e8fc26211a3f8bd1506e83d5a1c38fdc95d339",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/experiment/selection.json": "e51fd6c45a318c65bc03c68fdbcc153f59cc6136cb08263723f6368cff5d6d33",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/experiment/dev.summary.json": "08e0f830f45ca4226b596e97a1f96f9b681cb95299d815f2b22fc52db3ab497a",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/experiment/sealed.run.json": "e56387cf7a73956a99534194f6c57082365283dd1c9f4dabdf5b50cd6f3ee651",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/experiment/sealed.rows.jsonl": "19fbc1bd4fbffb61fd5d476436b8720e9d27e572002dbed834e4e9048270c58e",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/experiment/report.json": "9e1a21b1a7109fa4ca595f089a186dd82120a133c82d9f7f04048be95c34ccc6",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/full-right-diagnosis.json": "1e98689ca5b62e9b1cd9e726473cf275cd581c0f017c17cd69845dd5cee78cbd",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/short-right-diagnosis.json": "5bafcf1c4e9a98fa7b37e6ed26cc6be1a64f951bef25cfab3be041d630d8bf6c",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/balanced-invariants.json": "04451b29827bc9e86bfcc04cda45de9f6f28971294dc86e5176d09ce79b966c7",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/prepare-disclosed.py": "eb959c2216ce13273b90052207e9f88283492ca80059defd481851897198a107",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/combine-reviews.py": "3714577cae44aa566cbb4c19bc5a7218ef0ae6f25029354cb0cce57ab5df16b4",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/assemble-sealed.py": "a729564a465b8049ecd760fdbae80aa5a249f4900a6095d118ca87b951bc9f30",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/revise-development.py": "a9e709838a20f2ff6abb8ef9570eeaa958c4adc926affc44a4178107b6a4e176",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/run-phase.sh": "f5d3907243b8fd7647dce47d8ab4eca2cdca5bdf4ff2db656a94d0ac34c58c99",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/save-measurements.py": "5e8e5e8145c81d0f5ac1c60379b511e6f1b611e9f912ecb1270be7d7438e0e9e",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3/manifest.json": "9207bb6b77a576bb8119d9740ab510a11fd0276386ca023f07a4108268c9ba88",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3/dev.json": "dd58c6cd0ea9e820584bd311897a042fbc76dc98926fe9e3ace4596873fdce94",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3/sealed.inputs.json": "012a0911a6ff566c77a74850f876b59e723cc0e81bb2398996d95ce0248ab72e",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3/sealed.labels.json": "4bca8c75964ebe2697b5798593697e8e51b82cd65b5a4893245af9bb9a1ae15e",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3/training-exclusions.json": "ad1eae82c58b93ee6a687faa6d7648d38dfd7d001bfd3f7051fecdf15eb24c6e",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3/selection-audit.json": "01acf88b0a01c74b490021203e4f77b653105b08fa9b4e1338bcf0fc6b1d48f1",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/manifest.json": "a34bc33009fd3b49c10032335beee756c0afeb3aeb05b223476ad3950f0ce8f6",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/dev.json": "9df3f650e003692facb2bb5e9ad7ad883a71563a23da786dcd1f92049099e2cd",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/sealed.inputs.json": "012a0911a6ff566c77a74850f876b59e723cc0e81bb2398996d95ce0248ab72e",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/sealed.labels.json": "4bca8c75964ebe2697b5798593697e8e51b82cd65b5a4893245af9bb9a1ae15e",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/training-exclusions.json": "f7a0afaa66f7f0d0541fff73c648b3c2d51e10ebe75276c8d2fcd5101236eb29",
+    "/home/_WD_/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/selection-audit.json": "01acf88b0a01c74b490021203e4f77b653105b08fa9b4e1338bcf0fc6b1d48f1",
+    "emacs-packages/wime/neural/prepare-japanese-natural-context.py": "4b33a210a0204c9dd460916d961e6c01912d0c32b350958b949780e77c0f7340",
+    "emacs-packages/wime/neural/experiment-japanese-balanced-ranking.py": "203a7a1a012a409df5aea3415da20a2eb338721122b3069734e7b93205231a4a",
+    "emacs-packages/wime/test/test_japanese_natural_context.py": "4a3f4cc9d4e7270efe1830bc625b88642cc054704a888859550ffc2dc3fa7d14",
+    "emacs-packages/wime/test/test_japanese_balanced_ranking.py": "22d0f095ba769d39c7b788484c9410f03ebf03c8379da9994f5a688fedf33b87",
+    "emacs-packages/wime/test/japanese-natural-context-evaluation.json": "f86378b5490341364746e97ba68f359d5c53f5215bc660ecc4ad54360a40ec54",
+    "/home/disk/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/manifest.json": "a34bc33009fd3b49c10032335beee756c0afeb3aeb05b223476ad3950f0ce8f6",
+    "/home/disk/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/dev.json": "9df3f650e003692facb2bb5e9ad7ad883a71563a23da786dcd1f92049099e2cd",
+    "/home/disk/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/sealed.inputs.json": "012a0911a6ff566c77a74850f876b59e723cc0e81bb2398996d95ce0248ab72e",
+    "/home/disk/.cache/wime-japanese/evaluation-balanced-ranking-20261028/sealed-v3.1/sealed.labels.json": "4bca8c75964ebe2697b5798593697e8e51b82cd65b5a4893245af9bb9a1ae15e",
+    "/home/_WD_/.local/share/wime/japanese/readings.json": "e72c0851a46c69a63c531d3f7ff4880e67876956ed3467f0026bff2c93361316",
+    "/home/disk/Projects/dev-monorepo/emacs-packages/wime/neural/experiment-japanese.py": "728cace949c79a59fe907297092ab2eb474ecaea7b639c40c115fa45e4b17922",
+    "/home/disk/Projects/dev-monorepo/emacs-packages/wime/neural/japanese.py": "f2f417962cafbbb0af785d6d0c57a698791576ad0fdf16875900fb824afd1a25",
+    "/home/disk/Projects/dev-monorepo/emacs-packages/wime/neural/rescorer.py": "1e13b814d3dabd6ebbde90eb3e152fb16b9adb5c790db86fb05883147246dd3c",
+    "/home/_WD_/.local/share/wime/japanese/zenz/config.json": "da59f9290c4cbb07b577e2a2b30947a376204885eb653d498681f6c7051dbd6f",
+    "/home/_WD_/.local/share/wime/japanese/zenz/generation_config.json": "57bf2fbacdfaf5542680d879935a6357941a6491e1021f930d383926523e5e0d",
+    "/home/_WD_/.local/share/wime/japanese/zenz/model.safetensors": "ff72d2de8b27e2bd03bdb81e2505414e288b5411cf59e9efea5cd8d7a7c3b9fa",
+    "/home/_WD_/.local/share/wime/japanese/zenz/tokenizer.json": "34b3739b7bebc20e9ee07b46bf06c1f64f81aa213cd49e01704bc822f0bf685c",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/config.json": "ed1c1723241f23f7f4e23430759cbd7dcfb4103cbdfe052bfe7626b57c2615b4",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/merges.txt": "a9d356d7bdf1ef4949e3e748e95b8e10ad9d4e2e838eddc38a0a7b6b94d1db8d",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/model.safetensors-00001-of-00001.safetensors": "928acbf11878c32185bbd863514d191769285065ab9ea14fbfe431303f5fdf2d",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/model.safetensors.index.json": "74d2ddfe79f10f35b27b498632f02b97b60dd9ec39b35d7c5a890c399284e319",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/preprocessor_config.json": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/tokenizer.json": "fe000e3ed39ed12b8d2481d527d44f93c65d37e87645d2dcc80d1bf9d50d2927",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/tokenizer_config.json": "e611fbccc7c29ef3b1cafb1cb7ea548d189968632901d678fd62be68c47885de",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/video_preprocessor_config.json": "d039cd7d88b3502a99edd455496b75b44ecf7dd3b3669748bafac37e6cecc085",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/vocab.json": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003",
+    "/home/disk/Projects/dev-monorepo/emacs-packages/wime/neural/experiment-japanese-balanced-ranking.py": "203a7a1a012a409df5aea3415da20a2eb338721122b3069734e7b93205231a4a",
+    "/home/disk/Projects/dev-monorepo/emacs-packages/wime/neural/experiment-japanese-right-ranking.py": "1f45a0e16f50a9cf121a080a84826f44e2416f27cac5f9a93c3b2f4d5bca3955",
+    "/home/disk/.cache/wime-japanese/evaluation-balanced-ranking-20261028/disclosed.pools.jsonl": "3f12b914180fa5b54dbde6524dbdb86906b5b4f7ae2d2bc6438308c7fb4e86e0",
+    "/home/disk/.cache/wime-japanese/evaluation-right-ranking-20261028/experiment/manifest.json": "ddb7559dd83b4337a2351e8691d99bfd6cbaf448bc40b2a85aa010084d373193",
+    "/home/disk/.cache/wime-japanese/evaluation-balanced-ranking-20261028/safety-cases.v2.json": "9df0406d45ff4c32889ec61fcc045c7476af206ad7b98ae2ca8f80997a87b371"
+  }
+}
