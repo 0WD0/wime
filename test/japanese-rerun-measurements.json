@@ -1,0 +1,336 @@
+{
+  "date": "2026-10-27",
+  "purpose": "Replay the original 1350 Tatoeba and 200 AJIMEE cases after systematic reading coverage fixes.",
+  "implementation_commit": "bed03a35",
+  "environment": {
+    "python": "3.12.12 (main, Feb 12 2026, 00:42:14) [Clang 21.1.4 ]",
+    "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.44",
+    "torch": "2.11.0+cu130",
+    "transformers": "5.17.0",
+    "tokenizers": "0.23.2",
+    "cuda": "13.0",
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "dtype": "bfloat16",
+    "incremental": false,
+    "backend": "Current production Decoder, fresh session for each complete composition"
+  },
+  "completed": true,
+  "protocol": {
+    "normalization": "NFKC, whole string, any reference answer",
+    "tatoeba": "1350 cases, no context; 2026 subset has 165 cases",
+    "ajimee": "200 cases, original 100 with context and 100 without context",
+    "comparison": "old and current tables replayed with identical current models and weights; historical engines are cached reference results",
+    "caveat": "This is a regression rerun, not an untouched holdout: examples from these sets informed the earlier coverage audit.",
+    "latency": "Fresh complete composition with warm models, not incremental input latency"
+  },
+  "results": {
+    "tatoeba": {
+      "historical_wime": {
+        "total": 1350,
+        "top1": 1101,
+        "top5": 1236,
+        "top1_percent": 81.55555555555556,
+        "top5_percent": 91.55555555555556,
+        "groups": {
+          "2025": {
+            "total": 1185,
+            "top1": 976,
+            "top5": 1092
+          },
+          "2026": {
+            "total": 165,
+            "top1": 125,
+            "top5": 144
+          }
+        }
+      },
+      "historical_zenz_v3_2_small": {
+        "total": 1350,
+        "top1": 1149,
+        "top5": 1189,
+        "top1_percent": 85.11111111111111,
+        "top5_percent": 88.07407407407408,
+        "groups": {
+          "2025": {
+            "total": 1185,
+            "top1": 1019,
+            "top5": 1051
+          },
+          "2026": {
+            "total": 165,
+            "top1": 130,
+            "top5": 138
+          }
+        }
+      },
+      "old_table_same_models": {
+        "total": 1350,
+        "top1": 1163,
+        "top5": 1290,
+        "top1_percent": 86.14814814814815,
+        "top5_percent": 95.55555555555556,
+        "ms_p50": 1039.1973870027869,
+        "ms_p95": 2877.5425940002606,
+        "ms_max": 7097.162677997403,
+        "spellable": 1312,
+        "errors": {
+          "unsupported_reference": 38,
+          "correct_in_top5": 127,
+          "correct_below_top5": 11,
+          "supported_but_absent": 11
+        },
+        "groups": {
+          "2025": {
+            "total": 1185,
+            "top1": 1028,
+            "top5": 1137
+          },
+          "2026": {
+            "total": 165,
+            "top1": 135,
+            "top5": 153
+          }
+        }
+      },
+      "current": {
+        "total": 1350,
+        "top1": 1170,
+        "top5": 1306,
+        "top1_percent": 86.66666666666667,
+        "top5_percent": 96.74074074074075,
+        "ms_p50": 1094.533453000622,
+        "ms_p95": 3092.0843910025724,
+        "ms_max": 7556.281811001099,
+        "spellable": 1329,
+        "errors": {
+          "unsupported_reference": 21,
+          "correct_in_top5": 136,
+          "correct_below_top5": 11,
+          "supported_but_absent": 12
+        },
+        "groups": {
+          "2025": {
+            "total": 1185,
+            "top1": 1034,
+            "top5": 1147
+          },
+          "2026": {
+            "total": 165,
+            "top1": 136,
+            "top5": 159
+          }
+        }
+      }
+    },
+    "ajimee": {
+      "historical_wime": {
+        "total": 200,
+        "top1": 149,
+        "top5": 166,
+        "top1_percent": 74.5,
+        "top5_percent": 83.0,
+        "groups": {
+          "context": {
+            "total": 100,
+            "top1": 76,
+            "top5": 83
+          },
+          "plain": {
+            "total": 100,
+            "top1": 73,
+            "top5": 83
+          }
+        }
+      },
+      "historical_zenz_v3_2_small": {
+        "total": 200,
+        "top1": 172,
+        "top5": 175,
+        "top1_percent": 86.0,
+        "top5_percent": 87.5,
+        "groups": {
+          "context": {
+            "total": 100,
+            "top1": 83,
+            "top5": 84
+          },
+          "plain": {
+            "total": 100,
+            "top1": 89,
+            "top5": 91
+          }
+        }
+      },
+      "old_table_same_models": {
+        "total": 200,
+        "top1": 165,
+        "top5": 174,
+        "top1_percent": 82.5,
+        "top5_percent": 87.0,
+        "ms_p50": 1825.9968560014386,
+        "ms_p95": 7836.8110390001675,
+        "ms_max": 14824.038034003024,
+        "spellable": 180,
+        "errors": {
+          "unsupported_reference": 20,
+          "correct_in_top5": 9,
+          "correct_below_top5": 1,
+          "supported_but_absent": 5
+        },
+        "groups": {
+          "context": {
+            "total": 100,
+            "top1": 79,
+            "top5": 84
+          },
+          "plain": {
+            "total": 100,
+            "top1": 86,
+            "top5": 90
+          }
+        }
+      },
+      "current": {
+        "total": 200,
+        "top1": 175,
+        "top5": 187,
+        "top1_percent": 87.5,
+        "top5_percent": 93.5,
+        "ms_p50": 1993.3305350023147,
+        "ms_p95": 8419.966401001147,
+        "ms_max": 15859.92886999884,
+        "spellable": 195,
+        "errors": {
+          "unsupported_reference": 5,
+          "correct_in_top5": 12,
+          "correct_below_top5": 1,
+          "supported_but_absent": 7
+        },
+        "groups": {
+          "context": {
+            "total": 100,
+            "top1": 83,
+            "top5": 90
+          },
+          "plain": {
+            "total": 100,
+            "top1": 92,
+            "top5": 97
+          }
+        }
+      }
+    }
+  },
+  "paired": {
+    "tatoeba_vs_old_table": {
+      "total": 1350,
+      "wins": 12,
+      "losses": 5,
+      "net": 7,
+      "delta_percentage_points": 0.5185185185185185,
+      "mcnemar_exact_two_sided_p": 0.143463134765625,
+      "coverage_gains": 17,
+      "coverage_losses": 0
+    },
+    "tatoeba_vs_historical_wime": {
+      "total": 1350,
+      "wins": 113,
+      "losses": 44,
+      "net": 69,
+      "delta_percentage_points": 5.111111111111111,
+      "mcnemar_exact_two_sided_p": 3.4857370548626024e-08
+    },
+    "tatoeba_vs_historical_zenz_v3_2_small": {
+      "total": 1350,
+      "wins": 53,
+      "losses": 32,
+      "net": 21,
+      "delta_percentage_points": 1.5555555555555556,
+      "mcnemar_exact_two_sided_p": 0.02945636178577888
+    },
+    "ajimee_vs_old_table": {
+      "total": 200,
+      "wins": 10,
+      "losses": 0,
+      "net": 10,
+      "delta_percentage_points": 5.0,
+      "mcnemar_exact_two_sided_p": 0.001953125,
+      "coverage_gains": 15,
+      "coverage_losses": 0
+    },
+    "ajimee_vs_historical_wime": {
+      "total": 200,
+      "wins": 30,
+      "losses": 4,
+      "net": 26,
+      "delta_percentage_points": 13.0,
+      "mcnemar_exact_two_sided_p": 6.16488978266716e-06
+    },
+    "ajimee_vs_historical_zenz_v3_2_small": {
+      "total": 200,
+      "wins": 9,
+      "losses": 6,
+      "net": 3,
+      "delta_percentage_points": 1.5,
+      "mcnemar_exact_two_sided_p": 0.60723876953125
+    }
+  },
+  "historical_sources": {
+    "/home/_WD_/.cache/wime-japanese/baselines/result-wime-test.json": "65a3419ae79e6f8361818f0aca72aa9f3a0a4b1ae686f61589deb48cc9e9bbe8",
+    "/home/_WD_/.cache/wime-japanese/baselines/result-v3.2-small-azookey-test.json": "c3decc9e793c45071d5877a6f7cf9d836bf1306a0d90cc85bf56b7efb028304f",
+    "/home/_WD_/.cache/wime-japanese/baselines/result-wime-ajimee.json": "f2acd36ff334d16de6b6e03c714cfc1ffac34ad64616f7fccd4bf31238b5cba1",
+    "/home/_WD_/.cache/wime-japanese/baselines/result-v3.2-small-ajimee-anco.json": "76efdcceda3141393318f5bcc162b918151c9e07aef15853d8e88ca3a6052ba1"
+  },
+  "run_manifest": {
+    "weight": 0.6,
+    "rerank_weight": 0.7,
+    "tables": {
+      "old": "/home/_WD_/.cache/wime-japanese/rerun-20261027-reading-coverage/readings-old.json",
+      "current": "/home/_WD_/.cache/wime-japanese/rerun-20261027-reading-coverage/readings-current.json"
+    },
+    "normalization": "NFKC full-string match; any supplied answer",
+    "latency": "warm models, fresh session per complete composition; alternating variant order",
+    "cases": 1550,
+    "sha256": {
+      "/home/disk/.cache/wime-japanese/rerun-20261027-reading-coverage/cases.json": "016ca3e2d3238d1eefd2ff63129bfdc3d190604f6c9d372272db73ace65ffa6c",
+      "/home/disk/.cache/wime-japanese/rerun-20261027-reading-coverage/readings-old.json": "7525d67af8c1562969f5b88ddb55163bcddef62e17e7bb125cc0d4756f419446",
+      "/home/disk/.cache/wime-japanese/rerun-20261027-reading-coverage/readings-current.json": "e72c0851a46c69a63c531d3f7ff4880e67876956ed3467f0026bff2c93361316",
+      "/home/_WD_/.local/share/wime/japanese/kana-model.safetensors": "cb5abe01010f88de82617a89ab1b5b3f1d4bfda4a284de4c80b64126615c662d",
+      "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/model.safetensors-00001-of-00001.safetensors": "928acbf11878c32185bbd863514d191769285065ab9ea14fbfe431303f5fdf2d",
+      "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/tokenizer.json": "fe000e3ed39ed12b8d2481d527d44f93c65d37e87645d2dcc80d1bf9d50d2927",
+      "/home/_WD_/.local/share/wime/japanese/zenz/model.safetensors": "ff72d2de8b27e2bd03bdb81e2505414e288b5411cf59e9efea5cd8d7a7c3b9fa",
+      "/home/_WD_/.local/share/wime/japanese/zenz/tokenizer.json": "34b3739b7bebc20e9ee07b46bf06c1f64f81aa213cd49e01704bc822f0bf685c",
+      "/home/disk/Projects/dev-monorepo/emacs-packages/wime/neural/benchmark-japanese.py": "ffc3521224d11a9d40515b3cf3ef9c5dd9d346c3a774013c1f88198bf91f182f",
+      "/home/disk/Projects/dev-monorepo/emacs-packages/wime/neural/japanese.py": "f2f417962cafbbb0af785d6d0c57a698791576ad0fdf16875900fb824afd1a25",
+      "/home/disk/Projects/dev-monorepo/emacs-packages/wime/neural/rescorer.py": "1e13b814d3dabd6ebbde90eb3e152fb16b9adb5c790db86fb05883147246dd3c"
+    }
+  },
+  "verification": {
+    "rows": 3100,
+    "unique_case_variants": 3100,
+    "saved_top5_matches_recomputed": true,
+    "input_hashes_verified_after_run": true
+  },
+  "artifacts": {
+    "cases.json": {
+      "path": "/home/_WD_/.cache/wime-japanese/rerun-20261027-reading-coverage/cases.json",
+      "sha256": "016ca3e2d3238d1eefd2ff63129bfdc3d190604f6c9d372272db73ace65ffa6c"
+    },
+    "run/rows.jsonl": {
+      "path": "/home/_WD_/.cache/wime-japanese/rerun-20261027-reading-coverage/run/rows.jsonl",
+      "sha256": "1335d1b164938360617f96e7e668d36de2ce406a8dd6e8998a1e9ff0c7cf7543"
+    },
+    "run/summary.json": {
+      "path": "/home/_WD_/.cache/wime-japanese/rerun-20261027-reading-coverage/run/summary.json",
+      "sha256": "a04b10bbaef93115c92e0e6ffe3bf7e0a345796e3003cd29241e1e82e9e41f57"
+    },
+    "comparison.json": {
+      "path": "/home/_WD_/.cache/wime-japanese/rerun-20261027-reading-coverage/comparison.json",
+      "sha256": "a0f8a1b8bcb7237b0739da3bce8171a684439880172fe29f3b28f095865ff435"
+    },
+    "analyse.py": {
+      "path": "/home/_WD_/.cache/wime-japanese/rerun-20261027-reading-coverage/analyse.py",
+      "sha256": "025511889bf96c8ec04ff1b286c66bc1237faf81a4fe3889645a3162132b035f"
+    }
+  }
+}
