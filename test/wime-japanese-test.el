@@ -51,6 +51,15 @@
            (progn (activate-input-method ,name) ,@body)
          (deactivate-input-method)))))
 
+(ert-deftest wime-japanese-base-types-ordinary-romaji ()
+  (dolist (case '(("nihongo" "にほんご") ("shichitsu" "しちつ") ("ga;kou" "がっこう")
+                  ("nihon" "にほん") ("GA:KOU" "ガッコウ")))
+    (wime-japanese-test--with-scheme "wime-japanese-base"
+      (dolist (key (string-to-list (car case)))
+        (should-not (funcall input-method-function key)))
+      (wime-japanese-commit-kana)
+      (should (equal (buffer-string) (cadr case))))))
+
 (ert-deftest wime-japanese-onishi-types-ordinary-romaji ()
   ;; Physical QWERTY keys, read as nihongo, shichitsu, ga;kou, and nihon.
   (dolist (case '(("ks;fknf" "にほんご") ("l;sc;sjle" "しちつ")
@@ -103,6 +112,9 @@
     (should (equal (wime-japanese--convert "sh") '("せん" . "")))
     (activate-input-method "wime-japanese")
     (should (equal (wime-japanese--convert "sh") '("すう" . "")))
+    (activate-input-method "wime-japanese-base")
+    (should (equal (wime-japanese--convert "sh") '("" . "sh")))
+    (should (equal (wime-japanese--convert "desu") '("です" . "")))
     (should (= (wime-japanese--translate-key ?h) ?h))))
 
 (ert-deftest wime-japanese-pending-keys-name-the-kana-they-can-start ()

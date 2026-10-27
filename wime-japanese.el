@@ -57,7 +57,7 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
   :group 'wime)
 
 (defvar-local wime-japanese--scheme 'azik
-  "Current scheme: azik, onishi, or onishi-azik.")
+  "Current scheme: base, azik, onishi, or onishi-azik.")
 
 (defvar-local wime-japanese--table nil
   "Loaded AZIK table: (FILE RULES PREFIXES); RULES maps keys to (PENDING . KANA).")
@@ -73,6 +73,7 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
 (defun wime-japanese--rule-file ()
   "Rule file for this buffer's input scheme."
   (pcase wime-japanese--scheme
+    ('base (expand-file-name "base.eld" wime-japanese--directory))
     ('onishi (expand-file-name "romaji.eld" wime-japanese--directory))
     ('onishi-azik (expand-file-name "onishi-azik.eld" wime-japanese--directory))
     (_ wime-japanese-azik-file)))
@@ -128,7 +129,7 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
   "Translate physical QWERTY KEY to the selected scheme's logical key.
 Shift follows the physical key even when a letter moves to punctuation.
 This runs only at the input-method boundary; stored keys are logical romaji."
-  (if (and (characterp key) (< key 128) (memq wime-japanese--scheme '(azik onishi onishi-azik)))
+  (if (and (characterp key) (< key 128) (memq wime-japanese--scheme '(base azik onishi onishi-azik)))
       (let* ((shifted '((?: . ?\;) (?< . ?,) (?> . ?.) (?? . ?/) (?_ . ?-)))
              (base (or (alist-get key shifted) (downcase key)))
              (mapped (alist-get base (wime-japanese--layout-keys))))
@@ -386,6 +387,7 @@ Shift used, first the shifted kana in katakana and the rest in hiragana."
   (setq wime-japanese--table nil wime-japanese--keymap nil)
   (setq wime-japanese--scheme
         (pcase name
+          ("wime-japanese-base" 'base)
           ("wime-japanese-onishi" 'onishi)
           ("wime-japanese-onishi-azik" 'onishi-azik)
           (_ 'azik)))
@@ -400,6 +402,8 @@ Shift used, first the shifted kana in katakana and the rest in hiragana."
 
 (register-input-method "wime-japanese" "Japanese" #'wime-japanese-activate "日"
                        "AZIK romaji, decoded by the local language models")
+(register-input-method "wime-japanese-base" "Japanese" #'wime-japanese-activate "日B"
+                       "QWERTY with ordinary romaji")
 (register-input-method "wime-japanese-onishi" "Japanese" #'wime-japanese-activate "大"
                        "Onishi layout with ordinary romaji")
 (register-input-method "wime-japanese-onishi-azik" "Japanese" #'wime-japanese-activate "大A"

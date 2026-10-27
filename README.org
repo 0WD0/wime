@@ -134,22 +134,25 @@ uv pip install --python ~/.local/share/wime/python/bin/python \
 
 * 日本語
 
-=M-x set-input-method= 可选择三个方案：
+=M-x set-input-method= 可选择四个方案：
 
 | 名称 | 键位与规则 | 运行时规则表 |
 |------+------------+--------------|
+| =wime-japanese-base= | QWERTY + 普通罗马字：=shi= し、=chi= ち、=tsu= つ | =japanese/base.eld= |
 | =wime-japanese= | QWERTY + AZIK：=kz= かん、=kp= こう、=ds= です | =japanese/azik.eld= |
 | =wime-japanese-onishi= | [[https://o24.works/layout/][原版大西配列]] + 普通罗马字 | =japanese/romaji.eld= |
 | =wime-japanese-onishi-azik= | [[https://zenn.dev/maki10645/articles/68f7c10a018691][文章版大西 AZIK]]，包括 J/Z 交换 | =japanese/onishi-azik.eld= |
 
 大西键位只在日文输入时由 wime 重排，系统和键盘固件保持 QWERTY。
-三套方案的促音都用逻辑键 =;=，在大西配列中是 QWERTY 的 =B= 位置。
+四套方案的促音都用逻辑键 =;=，在大西配列中是 QWERTY 的 =B= 位置。
 文章版用 =c= 输入 ん；子音后 =n/s/r/h/t= 对应 an/in/un/en/on，
 =c/,/v/l= 对应 ou/ai/ei/uu，小假名用 =l= 前缀。
 它不沿用普通 AZIK 的 =ds= です、=ms= ます等词级简写。
-三个方案统一编辑 =japanese/rules.eld= 后生成，分别位于 =:azik=、=:onishi=、=:onishi-azik=：
+四个方案统一编辑 =japanese/rules.eld= 后生成，分别位于 =:base=、=:azik=、=:onishi=、=:onishi-azik=：
 
-- =:layout-rows= 是物理键位重排，三个方案各自配置；原版 AZIK 默认保持 QWERTY。
+- =:inherits= 继承另一个方案。=:onishi= 默认继承 =:base= 的普通罗马字规则，只覆盖键位。
+  子方案可以覆盖字段；列表整体替换，显式空列表会清空父方案的同名字段。
+- =:layout-rows= 是物理键位重排，四个方案各自配置；base 和原版 AZIK 默认保持 QWERTY。
 - =:rows= 绑定假名行，如 =("hg" "hy")= 表示用 hg 输入 hy 行。
   行内可用 =:vowels= 和 =:extensions= 限定参与生成的元音、后缀，空列表表示禁用。
 - =:extensions= 定义后缀，如 =(ei "v" "e" "い")= 表示子音 + v 输出 e 段假名 + い；
@@ -165,7 +168,7 @@ uv pip install --python ~/.local/share/wime/python/bin/python \
 emacs -Q --batch -l emacs-packages/wime/gen/japanese.el -f wime-japanese-generate
 #+end_src
 
-生成 =azik.eld=、=romaji.eld=、=onishi-azik.eld= 和 =layouts.eld=，不访问 ddskk 或网络。
+生成 =base.eld=、=azik.eld=、=romaji.eld=、=onishi-azik.eld= 和 =layouts.eld=，不访问 ddskk 或网络。
 将命令最后一项换成 =wime-japanese-check= 可以只检查产物是否过期。
 重新启用输入法会重读规则和键位；wdoom 的快照需重新打包后使用。
 规则表每行一条 =(按键 假名 [剩余按键])=，行尾注释是等效普通罗马字。

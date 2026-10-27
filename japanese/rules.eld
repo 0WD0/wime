@@ -1,4 +1,4 @@
-;;; Source definitions for all three Japanese schemes.  Read as data, never evaluated.
+;;; Source definitions for all four Japanese schemes.  Read as data, never evaluated.
 ;; Generate: emacs -Q --batch -l emacs-packages/wime/gen/japanese.el -f wime-japanese-generate
 ;; https://o24.works/layout/
 ;; https://zenn.dev/maki10645/articles/68f7c10a018691 (2025-01-09 article)
@@ -14,7 +14,7 @@
 (
  :physical-rows ("qwertyuiop" "asdfghjkl;" "zxcvbnm,./" "-")
  :vowels ("a" "i" "u" "e" "o")
- :sokuon-key ";"                         ; っ in all three schemes
+ :sokuon-key ";"                         ; っ in all four schemes
 
  ;; Canonical syllables in a/i/u/e/o order.  nil means no syllable.
  ;; These also supply the ordinary-romaji comments in the generated tables.
@@ -76,6 +76,26 @@
  ;; Shared punctuation; digits select candidates and Shift marks kana.
  :punctuation
  (("!" "！") ("," "、") ("-" "ー") ("." "。") ("?" "？") ("[" "「") ("]" "」"))
+
+ :base
+ (
+  ;; Ordinary romaji on QWERTY; Onishi inherits these rules.
+  :layout-rows ("qwertyuiop" "asdfghjkl;" "zxcvbnm,./" "-")
+  :rows
+  ("" "b" "by" "ch" ("cy" "ty") "d" "dh"
+   "dw" "dy" "f" "fy" "g" "gw" "gy"
+   "h" "hy" "j" "jy" "k" "kw" "ky"
+   ("l" "x") ("lk" "xk") ("ly" "xy") "m" "my" "n" "ny"
+   "p" "py" "r" "ry" "s" "sh" "sy"
+   "t" "th" "ts" "tw" "ty" "v" "vy"
+   "w" "wh" "x" "xk" "xw" "xy" "y"
+   "z" "zy")
+  :nasal-keys ("n" "nn" "n'") ; standalone ん
+  :extra-rules
+  (("lwa" "ゎ"))
+  :remove ()
+  :overrides ()
+ )
 
  :azik
  (
@@ -265,22 +285,10 @@
 
  :onishi
  (
-  ;; Each row corresponds to the same physical row above.
+  ;; Inherit ordinary romaji; only physical positions differ by default.
+  ;; Child fields replace parent fields, including empty lists.
+  :inherits :base
   :layout-rows ("qlu,.fwryp" "eiao-ktnsh" "zxcv;gdmjb" "/")
-  :rows
-  ("" "b" "by" "ch" ("cy" "ty") "d" "dh"
-   "dw" "dy" "f" "fy" "g" "gw" "gy"
-   "h" "hy" "j" "jy" "k" "kw" "ky"
-   ("l" "x") ("lk" "xk") ("ly" "xy") "m" "my" "n" "ny"
-   "p" "py" "r" "ry" "s" "sh" "sy"
-   "t" "th" "ts" "tw" "ty" "v" "vy"
-   "w" "wh" "x" "xk" "xw" "xy" "y"
-   "z" "zy")
-  :nasal-keys ("n" "nn" "n'") ; standalone ん
-  :extra-rules
-  (("lwa" "ゎ"))
-  :remove ()
-  :overrides ()
  )
 
  :onishi-azik

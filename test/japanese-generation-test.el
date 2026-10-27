@@ -105,15 +105,46 @@
   (let* ((source (wime-japanese-gen-test--source))
          (scheme (plist-get source :onishi)))
     (setf (plist-get scheme :rows)
-          (cons '("q" "k") (delete "k" (plist-get scheme :rows)))
+          (cons '("q" "k") (delete "k" (copy-tree (plist-get (wime-japanese-gen--scheme source :onishi) :rows))))
           (plist-get scheme :remove) '("shi")
           (plist-get scheme :overrides) '(("qa" "くぁ")))
+    (setf (plist-get source :onishi) scheme)
     (wime-japanese-gen-test--with-generated source
       (with-temp-buffer
         (let ((wime-japanese--scheme 'onishi))
           (should (equal (wime-japanese--convert "qaqi") '("くぁき" . "")))
           (should-not (gethash "ka" (car (wime-japanese--rules))))
           (should-not (gethash "shi" (car (wime-japanese--rules)))))))))
+
+(ert-deftest wime-japanese-generation-base-rules-are-shared-with-local-overrides ()
+  (let* ((source (wime-japanese-gen-test--source))
+         (base (plist-get source :base))
+         (onishi (plist-get source :onishi)))
+    (push '("qa" "くぁ") (plist-get base :extra-rules))
+    (setf (plist-get onishi :overrides) '(("qa" "くゎ"))
+          (plist-get onishi :nasal-keys) nil)
+    (setf (plist-get source :onishi) onishi)
+    (wime-japanese-gen-test--with-generated source
+      (with-temp-buffer
+        (unwind-protect
+            (progn
+              (activate-input-method "wime-japanese-base")
+              (should (equal (wime-japanese--convert "qa") '("くぁ" . "")))
+              (should (equal (wime-japanese--convert "nn") '("ん" . "")))
+              (activate-input-method "wime-japanese-onishi")
+              (should (equal (wime-japanese--convert "qa") '("くゎ" . "")))
+              (should-not (gethash "nn" (car (wime-japanese--rules))))
+              (activate-input-method "wime-japanese")
+              (should (equal (wime-japanese--convert "qa") '("んあ" . ""))))
+          (deactivate-input-method))))))
+
+(ert-deftest wime-japanese-generation-rejects-invalid-inheritance ()
+  (dolist (parent '(:missing :onishi))
+    (let* ((source (wime-japanese-gen-test--source))
+           (base (plist-get source :base)))
+      (setf (plist-get base :inherits) parent)
+      (setf (plist-get source :base) base)
+      (should-error (wime-japanese-gen--outputs source)))))
 
 (ert-deftest wime-japanese-generation-rejects-conflicting-definitions-before-writing ()
   (let* ((source (wime-japanese-gen-test--source))
@@ -141,6 +172,7 @@
   (let* ((source (wime-japanese-gen-test--source))
          (scheme (plist-get source :onishi)))
     (push '("q" "typo") (plist-get scheme :rows))
+    (setf (plist-get source :onishi) scheme)
     (should-error (wime-japanese-gen--outputs source)))
   (dolist (binding '(("k" "k" :extensions (typo)) ("k" "k" :vowels ("z"))
                      ("k" "k" :extensons (ou))))

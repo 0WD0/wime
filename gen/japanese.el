@@ -220,12 +220,25 @@ LITERAL permits explicitly preserved historical aliases and punctuation."
     (insert ")\n")
     (buffer-string)))
 
+(defun wime-japanese-gen--scheme (source name &optional ancestors)
+  "Resolve NAME in SOURCE, with child fields replacing inherited fields.
+An explicit nil overrides a parent value.  Reject missing parents and cycles."
+  (when (memq name ancestors) (error "Scheme inheritance cycle: %S" (cons name ancestors)))
+  (let ((scheme (plist-get source name)))
+    (unless (and (keywordp name) (proper-list-p scheme) scheme
+                 (zerop (% (length scheme) 2))
+                 (cl-loop for (key _value) on scheme by #'cddr always (keywordp key)))
+      (error "Unknown or invalid scheme: %S" name))
+    (if-let* ((parent (plist-get scheme :inherits)))
+        (append scheme (wime-japanese-gen--scheme source parent (cons name ancestors)))
+      scheme)))
+
 (defun wime-japanese-gen--outputs (source)
   "Build and validate all generated file contents before writing anything."
   (let ((romaji (wime-japanese-gen--romaji source)) outputs layouts)
-    (dolist (entry '((:azik azik "azik.eld") (:onishi onishi "romaji.eld")
+    (dolist (entry '((:base base "base.eld") (:azik azik "azik.eld") (:onishi onishi "romaji.eld")
                      (:onishi-azik onishi-azik "onishi-azik.eld")))
-      (let* ((scheme (plist-get source (car entry)))
+      (let* ((scheme (wime-japanese-gen--scheme source (car entry)))
              (rules (wime-japanese-gen--rules source scheme)))
         (push (cons (nth 1 entry) (wime-japanese-gen--layout source scheme)) layouts)
         (push (cons (nth 2 entry) (wime-japanese-gen--table-text (symbol-name (nth 1 entry)) rules romaji)) outputs)))
