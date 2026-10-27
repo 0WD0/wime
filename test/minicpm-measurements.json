@@ -1,0 +1,396 @@
+{
+  "date": "2026-10-28",
+  "status": "isolated experiment; retain Qwen default",
+  "workspace": "/home/disk/Projects/dev-monorepo-wime-minicpm",
+  "base_commit": "9834bb3d",
+  "implementation_commits": [
+    "0781e0f1",
+    "666361c9"
+  ],
+  "purpose": "Compare MiniCPM5-2B final and Base with Qwen3.5-2B-Base through the current Chinese constrained decoder.",
+  "protocol": {
+    "development_compositions": 48,
+    "test_compositions": 192,
+    "categories": 6,
+    "selection": "Best development top1; ties prefer the weight nearest production 1.5, then lower weight.",
+    "weights": [
+      0.75,
+      1.5,
+      2.25
+    ],
+    "seed": "wime-minicpm-20261028",
+    "conditional_checkpoint_sha256": "1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e",
+    "context_characters": 64,
+    "context_anchor": 2,
+    "beam": 16,
+    "per_hypothesis": 24,
+    "typing_compositions": 6,
+    "typing_events": 116,
+    "precision": "BF16 general LM; FP32 conditional model; TF32 disabled",
+    "timing": "Warm backend decode only; no Emacs/IPC/40ms debounce; fresh session per full composition.",
+    "gpu_execution": "Serial processes under shared Wime GPU lock; one model per process; no concurrent training observed.",
+    "sources_verified_unchanged_after_evaluation": true,
+    "source_code_identical_across_models": true
+  },
+  "environment": {
+    "python": "3.12.12",
+    "torch": "2.11.0+cu130",
+    "transformers": "5.17.0",
+    "gpu": "NVIDIA GeForce RTX 4090"
+  },
+  "models": {
+    "qwen": {
+      "model_class": "Qwen3_5ForCausalLM",
+      "parameters": 1881825088,
+      "selected_weight": 1.5,
+      "startup_seconds": 3.041028767998796,
+      "gpu_peak_allocated_mib": 4420.7158203125,
+      "gpu_peak_reserved_mib": 18404.0,
+      "test": {
+        "overall": {
+          "total": 192,
+          "top1": 172,
+          "top5": 190,
+          "empty": 0,
+          "p50_ms": 195.7878749963129,
+          "p95_ms": 677.9145050022635
+        },
+        "categories": {
+          "chat": {
+            "total": 32,
+            "top1": 23,
+            "top5": 30,
+            "empty": 0,
+            "p50_ms": 250.48975400568452,
+            "p95_ms": 560.9489790003863
+          },
+          "chat_short": {
+            "total": 32,
+            "top1": 27,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 102.12463000061689,
+            "p95_ms": 170.9613549974165
+          },
+          "kubernetes": {
+            "total": 32,
+            "top1": 32,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 424.73762999725295,
+            "p95_ms": 772.4600509973243
+          },
+          "kubernetes_short": {
+            "total": 32,
+            "top1": 29,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 108.96851700090338,
+            "p95_ms": 200.14959500258556
+          },
+          "python": {
+            "total": 32,
+            "top1": 31,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 437.3375369978021,
+            "p95_ms": 760.2816799990251
+          },
+          "python_short": {
+            "total": 32,
+            "top1": 30,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 147.71635599754518,
+            "p95_ms": 204.6100320003461
+          }
+        }
+      },
+      "typing": {
+        "compositions": 6,
+        "events": 116,
+        "top1": 5,
+        "p50_ms": 55.47537800157443,
+        "p95_ms": 382.44603400380583
+      },
+      "rescorer": "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base",
+      "development_top1": {
+        "0.75": 42,
+        "1.5": 42,
+        "2.25": 41
+      }
+    },
+    "minicpm": {
+      "model_class": "LlamaForCausalLM",
+      "parameters": 2516756480,
+      "selected_weight": 1.5,
+      "startup_seconds": 6.600374772002397,
+      "gpu_peak_allocated_mib": 5535.505859375,
+      "gpu_peak_reserved_mib": 19006.0,
+      "test": {
+        "overall": {
+          "total": 192,
+          "top1": 166,
+          "top5": 187,
+          "empty": 0,
+          "p50_ms": 195.5104030057555,
+          "p95_ms": 706.4271650015144
+        },
+        "categories": {
+          "chat": {
+            "total": 32,
+            "top1": 18,
+            "top5": 29,
+            "empty": 0,
+            "p50_ms": 297.0235360044171,
+            "p95_ms": 686.8289400008507
+          },
+          "chat_short": {
+            "total": 32,
+            "top1": 27,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 120.77896000118926,
+            "p95_ms": 225.94883399870014
+          },
+          "kubernetes": {
+            "total": 32,
+            "top1": 31,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 429.21827800455503,
+            "p95_ms": 979.1335219997563
+          },
+          "kubernetes_short": {
+            "total": 32,
+            "top1": 30,
+            "top5": 31,
+            "empty": 0,
+            "p50_ms": 91.27110299596097,
+            "p95_ms": 167.04516299796524
+          },
+          "python": {
+            "total": 32,
+            "top1": 31,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 364.7954990010476,
+            "p95_ms": 650.9836179975537
+          },
+          "python_short": {
+            "total": 32,
+            "top1": 29,
+            "top5": 31,
+            "empty": 0,
+            "p50_ms": 124.42827300401405,
+            "p95_ms": 167.52210399863543
+          }
+        }
+      },
+      "typing": {
+        "compositions": 6,
+        "events": 116,
+        "top1": 5,
+        "p50_ms": 40.462392003973946,
+        "p95_ms": 246.4110949949827
+      },
+      "rescorer": "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B",
+      "development_top1": {
+        "0.75": 41,
+        "1.5": 41,
+        "2.25": 40
+      },
+      "upstream": {
+        "repo": "openbmb/MiniCPM5-2B",
+        "revision": "f97400052a43d642bbc6e9975e2397e3ae6a6b52"
+      }
+    },
+    "minicpm-base": {
+      "model_class": "LlamaForCausalLM",
+      "parameters": 2516756480,
+      "selected_weight": 0.75,
+      "startup_seconds": 7.490724388000672,
+      "gpu_peak_allocated_mib": 5535.505859375,
+      "gpu_peak_reserved_mib": 19010.0,
+      "test": {
+        "overall": {
+          "total": 192,
+          "top1": 167,
+          "top5": 188,
+          "empty": 0,
+          "p50_ms": 155.42693600582425,
+          "p95_ms": 570.4192379998858
+        },
+        "categories": {
+          "chat": {
+            "total": 32,
+            "top1": 21,
+            "top5": 29,
+            "empty": 0,
+            "p50_ms": 176.33848900004523,
+            "p95_ms": 416.2439420033479
+          },
+          "chat_short": {
+            "total": 32,
+            "top1": 27,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 71.68586199986748,
+            "p95_ms": 146.8948379988433
+          },
+          "kubernetes": {
+            "total": 32,
+            "top1": 30,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 356.8324859952554,
+            "p95_ms": 651.6394510035752
+          },
+          "kubernetes_short": {
+            "total": 32,
+            "top1": 29,
+            "top5": 31,
+            "empty": 0,
+            "p50_ms": 90.64665400364902,
+            "p95_ms": 168.06975099461852
+          },
+          "python": {
+            "total": 32,
+            "top1": 31,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 364.10915299347835,
+            "p95_ms": 658.3105259996955
+          },
+          "python_short": {
+            "total": 32,
+            "top1": 29,
+            "top5": 32,
+            "empty": 0,
+            "p50_ms": 122.25544700049795,
+            "p95_ms": 167.89791300107026
+          }
+        }
+      },
+      "typing": {
+        "compositions": 6,
+        "events": 116,
+        "top1": 5,
+        "p50_ms": 41.88973199779866,
+        "p95_ms": 263.1882549976581
+      },
+      "rescorer": "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B-Base",
+      "development_top1": {
+        "0.75": 43,
+        "1.5": 42,
+        "2.25": 41
+      },
+      "upstream": {
+        "repo": "openbmb/MiniCPM5-2B-Base",
+        "revision": "96a57cd572a02506b4500f54427dca24970c1bac"
+      }
+    }
+  },
+  "paired_against_qwen": {
+    "minicpm": {
+      "rescued": 1,
+      "regressed": 7,
+      "changed_top1": 13
+    },
+    "minicpm-base": {
+      "rescued": 3,
+      "regressed": 8,
+      "changed_top1": 14
+    }
+  },
+  "validation": {
+    "python_regression_tests_passed": 23,
+    "real_tokenizer_continuation_mismatches": 0,
+    "bundled_worker": "Both MiniCPM models passed JSON-line decode, pinned-character and auxiliary-code smoke requests without external PYTHONPATH.",
+    "temporary_trial": "Switching both models and restoring exact variables passed with the original neural mode both enabled and disabled."
+  },
+  "conclusions": [
+    "Neither MiniCPM checkpoint improved top1 or top5 on this fixed small heldout sample.",
+    "MiniCPM had lower median per-key backend latency on the six typing probes; Base also reduced full-composition latency.",
+    "Keep Qwen as the default; both MiniCPM checkpoints remain available for temporary Chinese-only trials."
+  ],
+  "limitations": [
+    "Small category-balanced samples are exploratory, not representative natural typing accuracy or evidence of universal model superiority.",
+    "Development selection has only 48 samples; the Base weight wins by one example over 1.5.",
+    "Gold pronunciations are automatically derived; pretrained corpus overlap is unknown.",
+    "Latency excludes Emacs, IPC and 40 ms debounce; startup does not simulate an uncached machine.",
+    "Peak allocated/reserved GPU memory are PyTorch allocator counters, not total device usage; reserved is larger than live tensor memory.",
+    "Learned user preferences were disabled. Japanese was not evaluated and its Qwen token table is disabled during the temporary trial.",
+    "Candidate uncertainty UI thresholds remain calibrated for Qwen."
+  ],
+  "artifacts": {
+    "qwen/summary.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/qwen/summary.json",
+      "sha256": "893848c19076dabaf6f85a6b90fc4418212c3c8a937c47c6e40f99087666d118"
+    },
+    "qwen/test.jsonl": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/qwen/test.jsonl",
+      "sha256": "92c58d5c64425a9d2f6128e775c038951d12b806af8e092bab7bd58b1be3f967"
+    },
+    "qwen/typing.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/qwen/typing.json",
+      "sha256": "3f8bd9f0e6a2be0a17ab50b1a0add0287f241f5615100d66b1cde05bb64fe3d5"
+    },
+    "qwen/selection.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/qwen/selection.json",
+      "sha256": "9214dc7f834b91462b5fcce86490f6a5dac5fdce3007bcc96950c443e881cdf7"
+    },
+    "minicpm/summary.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/minicpm/summary.json",
+      "sha256": "a4b920670eb5d1cd588083920c9cfd129f2c5f2dc5955450562384918cc2bab9"
+    },
+    "minicpm/test.jsonl": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/minicpm/test.jsonl",
+      "sha256": "a23b2dd2cbc9c1dc1a8437cad8b0fdd590fe8af14bcaf16de5fc9147b54c1e2d"
+    },
+    "minicpm/typing.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/minicpm/typing.json",
+      "sha256": "22989b57fb939b510684000432f68addac777b9c7543996ccf1ecacfc31070b4"
+    },
+    "minicpm/selection.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/minicpm/selection.json",
+      "sha256": "a981efd5c08214bc0ebdd29ab7d54b9057116f16bc32b6e5a18c2b2053f20afd"
+    },
+    "minicpm-base/summary.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/minicpm-base/summary.json",
+      "sha256": "81f2d64c377359404a421a1a8845d6a682b322ab32afc6034f4ed47d09fdda02"
+    },
+    "minicpm-base/test.jsonl": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/minicpm-base/test.jsonl",
+      "sha256": "e296b9a43b8a668a9fad862104d486d8bb5f20a6f26ff909b45646783db802f8"
+    },
+    "minicpm-base/typing.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/minicpm-base/typing.json",
+      "sha256": "e62253cf36a5bc3aaadcfcd121f1a02e7f7180f7291b888177dd8d4a5766df1b"
+    },
+    "minicpm-base/selection.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/minicpm-base/selection.json",
+      "sha256": "42794a2057f0d575a5f0c5751bbd315821a860075711f888968002ab8d331af1"
+    },
+    "plan": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/comparison/plan.json",
+      "sha256": "c6ee43c96e813d3d39fd8f5c879e6409de5c4cfba5b9b8b68d9d969e34e9da66"
+    },
+    "worker_smoke": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/worker-smoke.json",
+      "sha256": "d3b30fe462598672faffdb9024fb9f497b5749869c2b3fa9c89af0a06fb9b8e9"
+    },
+    "trial": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/try-minicpm.el",
+      "sha256": "ee4503fb58ce6ea8c16a30704db70f8ed26056cfb75ff0ec020dbfcdfbe17f3b"
+    },
+    "runtime_manifest": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/runtime-manifest.json",
+      "sha256": "73882cdbd8b70d46f791d4a969a6f309c10fcd1425fb6ddf8c0a0f7b74551c33"
+    },
+    "python_dependencies": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/python-dependencies.json",
+      "sha256": "ec606771d02e802d776ef395c6fec168fea122b454cfdc0367d8f78a9da664cf"
+    }
+  }
+}
