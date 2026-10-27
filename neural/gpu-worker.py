@@ -9,6 +9,8 @@ An optional --rescorer adds a weighted general-LM score to every verified
 candidate, including the seed pool, and interleaves its token proposals with
 the model's per-character proposals. With --database as well, the decode
 operation replaces the dictionary lattice: see decoder.py. With
+--decoder-kind text, the experimental byte-constrained text decoder handles
+Chinese decoding instead; legacy decoding remains the default. With
 --japanese-model and --japanese-table as well, the japanese operation
 decodes typed kana, and --japanese-zenz reranks it: see japanese.py.
 """
@@ -162,22 +164,54 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
     return result
 
 
-def main():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("model")
     parser.add_argument("--rescorer", help="directory of a transformers causal LM")
     parser.add_argument("--rescorer-weight", type=float, default=1.5)
     parser.add_argument("--database", help="wime word database, whose readings enable decode")
+    parser.add_argument("--decoder-kind", choices=("legacy", "text"), default="legacy",
+                        help="Chinese decoder backend; text is experimental")
+    parser.add_argument("--text-rewind-tokens", type=int, default=2,
+                        help="experimental text decoder: committed tail tokens to heal")
+    parser.add_argument("--text-guide-weight", type=float, default=1.0,
+                        help="experimental text decoder: small-model search guidance weight")
+    parser.add_argument("--text-final-mode", choices=("lm", "fused"), default="lm",
+                        help="experimental text decoder: LM-only or transitional fused final ranking")
     parser.add_argument("--japanese-model", help="kana-conditioned model (train-japanese.py)")
     parser.add_argument("--japanese-table", help="reading table for the rescorer (build-japanese-table.py)")
     parser.add_argument("--japanese-zenz", help="zenz directory (convert-zenz.py) for the final Japanese ranking")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.decoder_kind == "text" and not (args.rescorer and args.database):
+        parser.error("--decoder-kind text requires --rescorer and --database")
+    if args.text_rewind_tokens < 0:
+        parser.error("--text-rewind-tokens must be nonnegative")
+    if not math.isfinite(args.text_guide_weight) or args.text_guide_weight < 0:
+        parser.error("--text-guide-weight must be finite and nonnegative")
+    return args
+
+
+def make_decoder(args, evaluator, rescorer):
+    """Load only the selected Chinese backend, keeping the wire protocol shared."""
+    if rescorer is None or not args.database:
+        return None
+    from decoder import readings
+    table = readings(args.database)
+    if args.decoder_kind == "text":
+        from text_decoder import TextDecoder
+        return TextDecoder(evaluator, rescorer, table,
+                           rewind_tokens=args.text_rewind_tokens,
+                           guide_weight=args.text_guide_weight,
+                           final_mode=args.text_final_mode)
+    from decoder import Decoder, Units
+    return Decoder(evaluator, rescorer, Units(rescorer.tokenizer, table))
+
+
+def main():
+    args = parse_args()
     evaluator = ConditionalEvaluator(args.model, device="cuda")
     rescorer = Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
-    decoder = None
-    if rescorer and args.database:
-        from decoder import Decoder, Units, readings
-        decoder = Decoder(evaluator, rescorer, Units(rescorer.tokenizer, readings(args.database)))
+    decoder = make_decoder(args, evaluator, rescorer)
     # Pay CUDA/kernel initialization once, before the first interactive request.
     evaluator.evaluate("", "aaaa", ["中文"])
     if rescorer:

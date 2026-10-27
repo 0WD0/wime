@@ -1,8 +1,12 @@
 """Worker contract tests run without a GPU or model artifact."""
 import importlib.util
+import contextlib
+import io
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 directory = Path(__file__).resolve().parents[1] / "neural"
 sys.path.insert(0, str(directory))
@@ -15,6 +19,51 @@ class WorkerContract(unittest.TestCase):
     def request(self, **changes):
         return dict(dict(id=1, context="", syllables=2, candidates=[], operation="verify",
                          input="bmyi", draft="编译"), **changes)
+
+    def test_decoder_selection_defaults_to_legacy(self):
+        args = worker.parse_args(["model", "--rescorer", "lm", "--database", "words"])
+        self.assertEqual(args.decoder_kind, "legacy")
+        table, units, evaluator = object(), object(), object()
+        rescorer = SimpleNamespace(tokenizer=object())
+        legacy = SimpleNamespace(readings=mock.Mock(return_value=table),
+                                 Units=mock.Mock(return_value=units), Decoder=mock.Mock())
+        text = SimpleNamespace(TextDecoder=mock.Mock())
+        with mock.patch.dict(sys.modules, decoder=legacy, text_decoder=text):
+            result = worker.make_decoder(args, evaluator, rescorer)
+        legacy.readings.assert_called_once_with("words")
+        legacy.Units.assert_called_once_with(rescorer.tokenizer, table)
+        legacy.Decoder.assert_called_once_with(evaluator, rescorer, units)
+        self.assertIs(result, legacy.Decoder.return_value)
+        text.TextDecoder.assert_not_called()
+        self.assertIsNone(worker.make_decoder(worker.parse_args(["model"]), evaluator, None))
+
+    def test_text_decoder_selection_passes_experimental_configuration(self):
+        args = worker.parse_args(["model", "--rescorer", "lm", "--database", "words",
+                                  "--decoder-kind", "text", "--text-rewind-tokens", "3",
+                                  "--text-guide-weight", "0", "--text-final-mode", "fused"])
+        table, evaluator, rescorer = object(), object(), object()
+        # A backend-specific import must not require legacy Units or Decoder.
+        legacy = SimpleNamespace(readings=mock.Mock(return_value=table))
+        text = SimpleNamespace(TextDecoder=mock.Mock())
+        with mock.patch.dict(sys.modules, decoder=legacy, text_decoder=text):
+            result = worker.make_decoder(args, evaluator, rescorer)
+        text.TextDecoder.assert_called_once_with(evaluator, rescorer, table,
+                                                 rewind_tokens=3, guide_weight=0.0,
+                                                 final_mode="fused")
+        self.assertIs(result, text.TextDecoder.return_value)
+
+    def test_invalid_text_configuration_fails_before_loading_models(self):
+        cases = [["--decoder-kind", "text"],
+                 ["--decoder-kind", "text", "--rescorer", "lm"],
+                 ["--text-rewind-tokens", "-1"],
+                 ["--text-guide-weight", "nan"],
+                 ["--text-guide-weight", "inf"],
+                 ["--text-guide-weight", "-1"]]
+        for flags in cases:
+            with self.subTest(flags=flags), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as raised:
+                    worker.parse_args(["model"] + flags)
+                self.assertEqual(raised.exception.code, 2)
 
     def test_malformed_envelopes_are_rejected(self):
         for request in [None, [], {}, self.request(id=True), self.request(syllables=-1),
