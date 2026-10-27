@@ -2,6 +2,38 @@
 (require 'ert)
 (require 'wime-japanese)
 
+(defmacro wime-japanese-test--with-rules (contents &rest body)
+  "Run BODY with a temporary rule table containing CONTENTS."
+  (declare (indent 1))
+  `(let ((wime-japanese-azik-file (make-temp-file "wime-azik-" nil ".eld"))
+         (wime-japanese--table nil))
+     (unwind-protect
+         (progn
+           (with-temp-file wime-japanese-azik-file (insert ,contents))
+           ,@body)
+       (delete-file wime-japanese-azik-file))))
+
+(ert-deftest wime-japanese-rule-data-preserves-comments-punctuation-and-pending ()
+  (wime-japanese-test--with-rules
+      ";; A hand-edited table.\n((\"ba\" \"ば\")\n (\"bb\" \"っ\" \"b\") ; retain b\n (\";\" \"っ\") (\"z \" \"\\u3000\"))\n; End.\n"
+    (should (equal (wime-japanese--convert "bba;z ") '("っばっ　" . "")))
+    (should (= (hash-table-count (car (wime-japanese--rules))) 4))))
+
+(ert-deftest wime-japanese-rule-data-rejects-duplicate-keys ()
+  (wime-japanese-test--with-rules "((\"ka\" \"か\") (\"ka\" \"が\"))"
+    (should (string-match-p "Duplicate AZIK keys"
+                            (error-message-string (should-error (wime-japanese--rules)))))
+    (should-not wime-japanese--table)))
+
+(ert-deftest wime-japanese-rule-data-rejects-malformed-tables ()
+  (dolist (contents '("[\"ka\" \"か\"]" "((\"ka\"))" "((\"ka\" 1))"
+                      "((\"ka\" \"か\" nil))" "((\"ka\" \"か\" \"\" \"extra\"))"
+                      "((\"\" \"か\"))" "((\"ka\" \"\"))" "((\"ka\" . \"か\"))"
+                      "((\"ka\" \"か\")) (" "((\"ka\" \"か\")) nil" "((\"ka\" \"か\")"))
+    (wime-japanese-test--with-rules contents
+      (should-error (wime-japanese--rules))
+      (should-not wime-japanese--table))))
+
 (ert-deftest wime-japanese-azik-converts-like-skk ()
   (dolist (case '(("kz" "かん" "") ("kl" "こん" "") ("nihlgo" "にほんご" "") ("ds" "です" "")
                   ("xa;ta" "しゃった" "") ("k" "" "k") ("ky" "" "ky") ("n" "" "n") ("nn" "ん" "")

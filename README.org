@@ -136,7 +136,8 @@ uv pip install --python ~/.local/share/wime/python/bin/python \
 
 =M-x set-input-method RET wime-japanese= 启用。
 按键用 AZIK 扩展罗马字（ =kz= かん、 =kp= こう、 =ds= です、 =;= っ），
-规则表 =japanese/azik.json= 由 =gen/azik-from-ddskk.el= 从 ddskk 导出，
+规则表 =japanese/azik.eld= 最初由 =gen/azik-from-ddskk.el= 从 ddskk 导出，
+每行一条 =(按键 假名 [剩余按键])=，可直接编辑并添加分号注释；重新导出会覆盖本地调整。
 换一张表就能用别的变体。
 预编辑区显示已转换的假名和还在等待的键；
 数字选候选，空格上屏当前候选， =RET= 上屏假名， =DEL= 删键， =ESC= 取消。

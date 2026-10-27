@@ -1,7 +1,7 @@
 ;;; wime-japanese.el --- AZIK Japanese input decoded by the CUDA worker -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Keys convert to kana by the AZIK table (japanese/azik.json, exported from
+;; Keys convert to kana by the AZIK table (japanese/azik.eld, exported from
 ;; ddskk), with SKK's rules: a key sequence that may still grow waits, and
 ;; keys left over from a finished rule stay pending.  After a pause the
 ;; worker decodes the kana with the rescorer and a kana-conditioned model;
@@ -17,13 +17,16 @@
 
 (require 'cl-lib)
 (require 'json)
+(require 'lisp-mode)
 (require 'japan-util)
 (require 'wime)
 (require 'wime-neural)
 
 (defcustom wime-japanese-azik-file
-  (expand-file-name "japanese/azik.json" (file-name-directory (or load-file-name buffer-file-name)))
-  "Romaji table: a JSON array of [KEYS PENDING KANA] rules."
+  (expand-file-name "japanese/azik.eld" (file-name-directory (or load-file-name buffer-file-name)))
+  "Romaji table: a data list of (KEYS KANA [PENDING]) rules.
+Each rule contains two strings, with an optional third string for trailing
+keys to keep pending.  Semicolon comments are allowed; forms are not evaluated."
   :type 'file :group 'wime)
 
 (defcustom wime-japanese-model-file nil
@@ -61,12 +64,27 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
   "Return (RULES . PREFIXES) for `wime-japanese-azik-file'."
   (unless (equal (car wime-japanese--table) wime-japanese-azik-file)
     (let ((rules (make-hash-table :test #'equal)) (prefixes (make-hash-table :test #'equal)))
-      (seq-doseq (row (with-temp-buffer
-                        (insert-file-contents wime-japanese-azik-file)
-                        (json-parse-buffer :array-type 'array)))
-        (puthash (aref row 0) (cons (aref row 1) (aref row 2)) rules)
-        (dotimes (i (length (aref row 0)))
-          (puthash (substring (aref row 0) 0 i) t prefixes)))
+      (let ((rows (with-temp-buffer
+                    (insert-file-contents wime-japanese-azik-file)
+                    (with-syntax-table emacs-lisp-mode-syntax-table
+                      (prog1 (read (current-buffer))
+                        (forward-comment (point-max))
+                        (unless (eobp)
+                          (error "Trailing data in AZIK table %s" wime-japanese-azik-file)))))))
+        (unless (proper-list-p rows)
+          (error "Expected a rule list in AZIK table %s" wime-japanese-azik-file))
+        (dolist (row rows)
+          (unless (and (memq (proper-list-p row) '(2 3))
+                       (seq-every-p #'stringp row)
+                       (not (string-empty-p (car row)))
+                       (not (string-empty-p (cadr row))))
+            (error "Invalid AZIK rule in %s: %S" wime-japanese-azik-file row))
+          (let ((keys (car row)))
+            (when (gethash keys rules)
+              (error "Duplicate AZIK keys in %s: %S" wime-japanese-azik-file keys))
+            (puthash keys (cons (or (nth 2 row) "") (cadr row)) rules)
+            (dotimes (i (length keys))
+              (puthash (substring keys 0 i) t prefixes)))))
       (remhash "" prefixes)
       (setq wime-japanese--table (list wime-japanese-azik-file rules prefixes))))
   (cdr wime-japanese--table))
