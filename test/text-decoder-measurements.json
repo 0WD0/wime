@@ -1,0 +1,685 @@
+{
+  "schema": 1,
+  "date": "2026-10-28",
+  "scope": "Phase 1 implementation and bounded development validation; not a held-out model selection claim.",
+  "code_commits": [
+    "ea81342c",
+    "0a30a5ac",
+    "1ef4cf9b",
+    "413cc92f"
+  ],
+  "implementation": {
+    "entry": "gpu-worker.py --decoder-kind text; legacy remains the default",
+    "constraints": "Independent acyclic byte graph over dictionary readings, hard pins, and auxiliary codes; no conditional-model probability or vocabulary gate. Supports partial UTF-8 tokens and complete/trailing-half syllables.",
+    "healing": "Rewind up to two context tokens, regenerate their exact bytes under a fixed-prefix constraint, and remove only that literal prefix from returned candidates. Preserve at least one causal prefix token for tokenizers without BOS.",
+    "search": "Main LM proposes constrained token paths. Conditional model guides completed-character prefixes only. Finite per-progress beam and terminal dedup by surface; two token histories per intermediate surface.",
+    "ranking": "Canonical tokenization of context plus candidate, teacher-forced main-LM score per new character. The conditional score is not part of final LM ranking. Explicit learned bonuses still apply. A same-pool fused control is recorded.",
+    "prefix_cache": "LRU of two exact immutable context prefills. Recompute generated paths on independently copied and expanded cache branches; never reuse padded or mutated recurrent states. Cached next-token rows own separate bounded storage so a retained row cannot keep its discarded batch alive.",
+    "fallback": "Return no candidates for incompatible pins/aux or unsupported exact context roundtrip, leaving fallback handling to the existing UI.",
+    "task_training": "Not implemented in this phase."
+  },
+  "design": {
+    "rows_per_model": 60,
+    "independent_source_documents": 20,
+    "categories": 5,
+    "variants": [
+      "whole",
+      "suffix",
+      "single"
+    ],
+    "selection": "For each category, hash each source document with seed + colon + category + colon + document; take first four hashes among existing architecture dev90 and retain all three variants. Candidate predictions did not influence selection.",
+    "dataset_sha256": "1637b40b8cd273ec9db04855386fc07a447b9e7671e5e40342d08810ac87682b",
+    "development_only": true,
+    "previously_inspected_data": true,
+    "gold_used_only_after_generation": true,
+    "diagnostic_rows_per_model": 18,
+    "diagnostics_separate_from_accuracy": true,
+    "unseen_test_rows_run": 0,
+    "parameters": {
+      "beam": 16,
+      "per_hypothesis": 24,
+      "rewind_tokens": 2,
+      "guide_weight": 1.0,
+      "final_mode": "lm",
+      "memo_limit": 1024,
+      "paths_per_surface": 2,
+      "cache_prefix": true
+    },
+    "comparisons": "The same fixed dev60 under old decoder outputs, uncached new decoder (v1), and cached new decoder (v2). Old candidate pools rescored with canonical joint LM are retained as controls.",
+    "quantiles": "Median is mean of the two middle observations; p95 is nearest-rank ceil(0.95*n). Raw runner summary.json uses upper middle for p50; figures here recompute standard median from jsonl.",
+    "timing_scope": "Single warmed GPU runs, sequential samples, worker computation only; not interactive end-to-end latency. Qwen uses the available fallback recurrent kernels.",
+    "measurement_revision": "v2 frozen source matches 1ef4cf9b. Later 413cc92f only clones cached score rows to bound backing-storage ownership; the timing table was not rerun after that allocation change. Final runtime was tested separately on both models."
+  },
+  "models": {
+    "qwen": {
+      "model": {
+        "label": "qwen",
+        "path": "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base",
+        "weight": 1.5
+      },
+      "old": {
+        "rows": 60,
+        "top1": {
+          "legacy": 52,
+          "legacy_pool_joint_fusion": 54,
+          "legacy_pool_joint_lm": 55
+        },
+        "oracle": {
+          "legacy": 57,
+          "character": 54,
+          "union": 58
+        },
+        "variants": {
+          "whole": {
+            "legacy": 15,
+            "legacy_pool_joint_fusion": 16,
+            "legacy_pool_joint_lm": 16
+          },
+          "suffix": {
+            "legacy": 17,
+            "legacy_pool_joint_fusion": 18,
+            "legacy_pool_joint_lm": 19
+          },
+          "single": {
+            "legacy": 20,
+            "legacy_pool_joint_fusion": 20,
+            "legacy_pool_joint_lm": 20
+          }
+        }
+      },
+      "new": {
+        "rows": 60,
+        "top1": 55,
+        "same_pool_fused_top1": 55,
+        "oracle": 57,
+        "empty": 0
+      },
+      "paired": {
+        "legacy": {
+          "rescued": [
+            "0e14a1094de5ae7230854b28/whole",
+            "0e14a1094de5ae7230854b28/suffix",
+            "3a0247053b50a3fbfdc1ece9/whole",
+            "3a0247053b50a3fbfdc1ece9/suffix"
+          ],
+          "regressed": [
+            "018862b29bf3f3062ee840d6/whole"
+          ]
+        },
+        "legacy_pool_joint_lm": {
+          "rescued": [
+            "3a0247053b50a3fbfdc1ece9/whole",
+            "3a0247053b50a3fbfdc1ece9/suffix"
+          ],
+          "regressed": [
+            "0b8041f1f3ff7d3565beed8b/whole",
+            "0b8041f1f3ff7d3565beed8b/suffix"
+          ]
+        }
+      },
+      "recall": {
+        "added": [
+          "3a0247053b50a3fbfdc1ece9/whole",
+          "3a0247053b50a3fbfdc1ece9/suffix"
+        ],
+        "lost": [
+          "0b8041f1f3ff7d3565beed8b/whole",
+          "0b8041f1f3ff7d3565beed8b/suffix"
+        ]
+      },
+      "remaining": [
+        {
+          "id": "03fb6ef7ed580989689f3bff/whole",
+          "reference": [
+            "就会禁锢在旧模式里"
+          ],
+          "prediction": "就会紧固在旧模式里",
+          "reference_rank": null
+        },
+        {
+          "id": "0b8041f1f3ff7d3565beed8b/whole",
+          "reference": [
+            "我们的哲学家怔住了"
+          ],
+          "prediction": "我们的哲学家睁住了",
+          "reference_rank": null
+        },
+        {
+          "id": "0b8041f1f3ff7d3565beed8b/suffix",
+          "reference": [
+            "学家怔住了"
+          ],
+          "prediction": "学家睁住了",
+          "reference_rank": null
+        },
+        {
+          "id": "018862b29bf3f3062ee840d6/whole",
+          "reference": [
+            "必杀技是借由同时按下双肩上的西洋棋按钮变成城堡人"
+          ],
+          "prediction": "必杀技是藉由同时按下双肩上的西洋棋按钮变成城堡人",
+          "reference_rank": 2
+        },
+        {
+          "id": "228cef36e7cc3f2486fc0829/whole",
+          "reference": [
+            "留连忘返"
+          ],
+          "prediction": "流连忘返",
+          "reference_rank": 2
+        }
+      ],
+      "latency": {
+        "v1": {
+          "median_ms": 403.15,
+          "p95_ms": 1605.15,
+          "max_ms": 4329.49,
+          "over_2_seconds": 3
+        },
+        "v2": {
+          "median_ms": 354.95,
+          "p95_ms": 1480.39,
+          "max_ms": 3536.5,
+          "over_2_seconds": 2
+        },
+        "v2_variants": {
+          "whole": {
+            "median_ms": 665.64,
+            "p95_ms": 2481.83,
+            "max_ms": 3536.5,
+            "over_2_seconds": 2
+          },
+          "suffix": {
+            "median_ms": 358.5,
+            "p95_ms": 1275.59,
+            "max_ms": 1619.38,
+            "over_2_seconds": 0
+          },
+          "single": {
+            "median_ms": 234.02,
+            "p95_ms": 290.03,
+            "max_ms": 324.47,
+            "over_2_seconds": 0
+          }
+        }
+      },
+      "cache_differences": {
+        "prediction": 0,
+        "top1": 0,
+        "oracle": 0,
+        "fused_prediction": 0,
+        "fused_top1": 0,
+        "candidate_set": 13,
+        "candidate_order": 35
+      },
+      "diagnostics": {
+        "rows": 18,
+        "expected_empty": 3,
+        "actual_empty": 3,
+        "all_returned_candidates_pass_length_reading_pin_aux_checks": true,
+        "known_ranking_probes": [
+          {
+            "id": "known-failure/003c1ed5e2862521233a9e03/whole",
+            "reference": [
+              "邯钢拿出"
+            ],
+            "prediction": "韩刚拿出",
+            "reference_rank": 2,
+            "without_healing_prediction": "韩刚拿出"
+          },
+          {
+            "id": "known-failure/045db8cb2236ee086e5ac3e7/single",
+            "reference": [
+              "站"
+            ],
+            "prediction": "站",
+            "reference_rank": 1,
+            "without_healing_prediction": "站"
+          },
+          {
+            "id": "known-failure/0011d1576de51f7ae9b6d6c5/single",
+            "reference": [
+              "为"
+            ],
+            "prediction": "为",
+            "reference_rank": 1,
+            "without_healing_prediction": "为"
+          },
+          {
+            "id": "known-failure/022ebbc1f3e7ab0a30be5bf3/whole",
+            "reference": [
+              "枝江市"
+            ],
+            "prediction": "纸浆是",
+            "reference_rank": null,
+            "without_healing_prediction": "纸浆是"
+          }
+        ],
+        "attribution": "Station and 为 remain top1 without search healing under canonical final scoring. Their ranking recovery alone is not evidence of a healing gain; a controlled toy test establishes cross-boundary token availability.",
+        "cache_differences": {
+          "candidate_order": 7,
+          "candidate_set": 1,
+          "top1_prediction": 0,
+          "oracle": 0,
+          "fused_prediction": 0
+        }
+      }
+    },
+    "minicpm": {
+      "model": {
+        "label": "minicpm",
+        "path": "/home/_WD_/.cache/wime-minicpm-investigation/MiniCPM5-2B",
+        "weight": 1.5
+      },
+      "old": {
+        "rows": 60,
+        "top1": {
+          "legacy": 52,
+          "legacy_pool_joint_fusion": 53,
+          "legacy_pool_joint_lm": 53
+        },
+        "oracle": {
+          "legacy": 56,
+          "character": 54,
+          "union": 57
+        },
+        "variants": {
+          "whole": {
+            "legacy": 15,
+            "legacy_pool_joint_fusion": 16,
+            "legacy_pool_joint_lm": 16
+          },
+          "suffix": {
+            "legacy": 17,
+            "legacy_pool_joint_fusion": 17,
+            "legacy_pool_joint_lm": 17
+          },
+          "single": {
+            "legacy": 20,
+            "legacy_pool_joint_fusion": 20,
+            "legacy_pool_joint_lm": 20
+          }
+        }
+      },
+      "new": {
+        "rows": 60,
+        "top1": 55,
+        "same_pool_fused_top1": 54,
+        "oracle": 58,
+        "empty": 0
+      },
+      "paired": {
+        "legacy": {
+          "rescued": [
+            "3a0247053b50a3fbfdc1ece9/whole",
+            "3a0247053b50a3fbfdc1ece9/suffix",
+            "22eec33f650f497d962a9961/whole"
+          ],
+          "regressed": []
+        },
+        "legacy_pool_joint_lm": {
+          "rescued": [
+            "3a0247053b50a3fbfdc1ece9/whole",
+            "3a0247053b50a3fbfdc1ece9/suffix"
+          ],
+          "regressed": []
+        }
+      },
+      "recall": {
+        "added": [
+          "3a0247053b50a3fbfdc1ece9/whole",
+          "3a0247053b50a3fbfdc1ece9/suffix"
+        ],
+        "lost": []
+      },
+      "remaining": [
+        {
+          "id": "0b8041f1f3ff7d3565beed8b/whole",
+          "reference": [
+            "我们的哲学家怔住了"
+          ],
+          "prediction": "我们的哲学家挣住了",
+          "reference_rank": null
+        },
+        {
+          "id": "0b8041f1f3ff7d3565beed8b/suffix",
+          "reference": [
+            "学家怔住了"
+          ],
+          "prediction": "学家挣住了",
+          "reference_rank": null
+        },
+        {
+          "id": "0b098fdc44da08013948e2da/whole",
+          "reference": [
+            "井内贞行"
+          ],
+          "prediction": "井内真行",
+          "reference_rank": 2
+        },
+        {
+          "id": "0b098fdc44da08013948e2da/suffix",
+          "reference": [
+            "贞行"
+          ],
+          "prediction": "真行",
+          "reference_rank": 2
+        },
+        {
+          "id": "228cef36e7cc3f2486fc0829/whole",
+          "reference": [
+            "留连忘返"
+          ],
+          "prediction": "流连忘返",
+          "reference_rank": 2
+        }
+      ],
+      "latency": {
+        "v1": {
+          "median_ms": 314.84,
+          "p95_ms": 1380.5,
+          "max_ms": 4218.86,
+          "over_2_seconds": 2
+        },
+        "v2": {
+          "median_ms": 268.36,
+          "p95_ms": 1175.44,
+          "max_ms": 3097.12,
+          "over_2_seconds": 1
+        },
+        "v2_variants": {
+          "whole": {
+            "median_ms": 507.79,
+            "p95_ms": 1864.27,
+            "max_ms": 3097.12,
+            "over_2_seconds": 1
+          },
+          "suffix": {
+            "median_ms": 276.19,
+            "p95_ms": 1007.91,
+            "max_ms": 1348.4,
+            "over_2_seconds": 0
+          },
+          "single": {
+            "median_ms": 168.18,
+            "p95_ms": 204.6,
+            "max_ms": 244.84,
+            "over_2_seconds": 0
+          }
+        }
+      },
+      "cache_differences": {
+        "prediction": 0,
+        "top1": 0,
+        "oracle": 0,
+        "fused_prediction": 0,
+        "fused_top1": 0,
+        "candidate_set": 16,
+        "candidate_order": 45
+      },
+      "diagnostics": {
+        "rows": 18,
+        "expected_empty": 3,
+        "actual_empty": 3,
+        "all_returned_candidates_pass_length_reading_pin_aux_checks": true,
+        "known_ranking_probes": [
+          {
+            "id": "known-failure/003c1ed5e2862521233a9e03/whole",
+            "reference": [
+              "邯钢拿出"
+            ],
+            "prediction": "韩刚拿出",
+            "reference_rank": 5,
+            "without_healing_prediction": "韩刚拿出"
+          },
+          {
+            "id": "known-failure/045db8cb2236ee086e5ac3e7/single",
+            "reference": [
+              "站"
+            ],
+            "prediction": "站",
+            "reference_rank": 1,
+            "without_healing_prediction": "站"
+          },
+          {
+            "id": "known-failure/0011d1576de51f7ae9b6d6c5/single",
+            "reference": [
+              "为"
+            ],
+            "prediction": "为",
+            "reference_rank": 1,
+            "without_healing_prediction": "为"
+          },
+          {
+            "id": "known-failure/022ebbc1f3e7ab0a30be5bf3/whole",
+            "reference": [
+              "枝江市"
+            ],
+            "prediction": "纸浆是",
+            "reference_rank": null,
+            "without_healing_prediction": "纸浆是"
+          }
+        ],
+        "attribution": "Station and 为 remain top1 without search healing under canonical final scoring. Their ranking recovery alone is not evidence of a healing gain; a controlled toy test establishes cross-boundary token availability.",
+        "cache_differences": {
+          "candidate_order": 9,
+          "candidate_set": 3,
+          "top1_prediction": 0,
+          "oracle": 0,
+          "fused_prediction": 0
+        }
+      }
+    }
+  },
+  "verification": {
+    "cpu_unit_tests": {
+      "total": 63,
+      "passed": 63,
+      "modules": {
+        "test_byte_constraints": 10,
+        "test_token_bytes": 8,
+        "test_text_decoder": 11,
+        "test_prefix_cache": 8,
+        "test_gpu_worker": 12,
+        "test_decoder": 11,
+        "test_rescorer": 3
+      }
+    },
+    "real_gpu_cache_fp32": [
+      {
+        "model": "qwen",
+        "dtype": "float32",
+        "mean_abs": 1.6287011703752796e-06,
+        "max_abs": 1.33514404296875e-05,
+        "tail_max_abs": 7.62939453125e-06
+      },
+      {
+        "model": "minicpm",
+        "dtype": "float32",
+        "mean_abs": 3.874857611663174e-06,
+        "max_abs": 2.47955322265625e-05,
+        "tail_max_abs": 6.67572021484375e-06
+      }
+    ],
+    "real_gpu_cache_bf16": {
+      "contexts_per_model": 3,
+      "paths_per_context": 4,
+      "all_24_next_argmax_equal": true,
+      "repeat_max_abs": 0.0,
+      "models": {
+        "qwen": {
+          "max_next_mean_abs": 0.025392167270183563,
+          "max_next_abs": 0.22018814086914062,
+          "max_tail_abs": 0.06313514709472656
+        },
+        "minicpm": {
+          "max_next_mean_abs": 0.06846924871206284,
+          "max_next_abs": 0.7742347717285156,
+          "max_tail_abs": 0.1892232894897461
+        }
+      },
+      "interpretation": "FP32 near-equivalence supports the cache indexing and mutation-isolation implementation; BF16 evaluation is not bitwise equivalent and has observable lower-candidate differences."
+    },
+    "real_worker": {
+      "bundle": "Built via bundle-gpu.py from actual CUDA-runtime sources plus pinned pypinyin 0.55.0; all 101 files match saved hashes.",
+      "requests_per_model": 6,
+      "models": [
+        {
+          "model": "qwen",
+          "returncode": 0,
+          "response_ids": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "scores_equal_before_row_clone": true
+        },
+        {
+          "model": "minicpm",
+          "returncode": 0,
+          "response_ids": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "scores_equal_before_row_clone": true
+        }
+      ],
+      "cases": [
+        "你好",
+        "context-boundary 车/站",
+        "fully pinned 邯钢拿出",
+        "auxiliary codes",
+        "conflicting pin",
+        "single half syllable"
+      ],
+      "not_a_full_bazel_build": true,
+      "final_source_smoke": "12/12 responses, candidate lists and scores exactly equal to the pre-row-clone worker run."
+    },
+    "emacs_trial": {
+      "status": "passed",
+      "tests": 4,
+      "unexpected": 0,
+      "scope": "CPU-only Emacs batch tests. wime-neural-mode mocked; no worker started, no GPU call, no production activation or startup configuration saved.",
+      "checks": [
+        "Loading trial file does not activate the mode or change existing worker/model settings.",
+        "Qwen and MiniCPM model switches build commands with text-worker.py, expected rescorer/model/database arguments, and no Japanese arguments.",
+        "Restore preserves all changed values and original bound/unbound status.",
+        "Originally enabled and disabled neural mode states are restored; switching trial models preserves the first snapshot.",
+        "Unknown model is rejected before settings or mode change."
+      ],
+      "configuration": {
+        "program": "/home/_WD_/.cache/wime-minicpm-investigation/text-decoder-comparison/runtime/text-worker.py",
+        "timeout_seconds": 6,
+        "startup_timeout_seconds": 30,
+        "context_anchor": 2,
+        "single_character": true
+      },
+      "sha256": {
+        "/home/_WD_/.cache/wime-minicpm-investigation/text-decoder-comparison/try-text-decoder.el": "fec5fd68f8ab02d698e70fdf781bfcb54d83ed983258d27932560653a616f308",
+        "/home/_WD_/.cache/wime-minicpm-investigation/text-decoder-comparison/test-trial.el": "c551d3e82e0910974ee5ced879f61ba494c80190351723fb602b6ce48bab9f85"
+      },
+      "command": [
+        "emacs",
+        "-Q",
+        "--batch",
+        "-L",
+        "/home/disk/Projects/dev-monorepo-wime-minicpm/emacs-packages/wime",
+        "--eval",
+        "(setq load-prefer-newer t)",
+        "-l",
+        "/home/_WD_/.cache/wime-minicpm-investigation/text-decoder-comparison/test-trial.el"
+      ]
+    },
+    "memo_storage_regression": "Repeatedly retains a hot path across four batches larger than the LRU budget, checking total backing-storage bytes, bitwise unchanged BF16 scores, and cache-hit count.",
+    "independent_final_audit": {
+      "dev_rows": 120,
+      "diagnostic_rows": 36,
+      "candidates": 2249,
+      "all_passed": [
+        "distinct surfaces",
+        "character count",
+        "dictionary readings",
+        "pins",
+        "auxiliary codes",
+        "diagnostic empty/unique/prefix expectations"
+      ],
+      "v1_v2_top1_text_and_gold_recall_unchanged": true,
+      "remaining_blocking_findings": []
+    }
+  },
+  "limits": [
+    "Small development set, including previously inspected failure patterns. Do not infer generalization or conclude MiniCPM beats Qwen.",
+    "The two MiniCPM recall gains are whole/suffix variants of one source document (衞桢固).",
+    "Qwen ties its old-pool canonical-LM control: new recall gains are offset by lost 怔住了 paths.",
+    "Finite guided beam can prune the canonical best answer; removing hard probability gates does not guarantee recall.",
+    "Canonical final score is not exact marginalization over tokenizations. Bounded rewind does not heal every possible merge. A no-BOS one-token context cannot be entirely rewound without inventing a causal prefix.",
+    "Lower candidate ranks and pools can vary under BF16 cache/kernel-shape differences; numeric validation does not imply bitwise identity.",
+    "UI retains its existing first-half-syllable trigger and BMP candidate filtering; backend half-syllable and supplementary-Unicode tests do not extend UI support.",
+    "Long-sentence latency and guide scoring remain unsuitable for making this the default."
+  ],
+  "next_work": [
+    "Reduce redundant byte-frontier model evaluations and batch conditional prefix scoring without reintroducing rare-character gates; preserve the independent text constraints.",
+    "Use the current counterexamples to audit search pruning separately from canonical ranking, including 怔住了 and 枝江市.",
+    "After search cost and recall stabilize, train one task-conditioned scoring objective and use the small model for proposal/lookahead under that objective. Do not resume tuning two whole-text priors as if they were independent evidence.",
+    "Validate the next change on a preselected small new document-level sample; do not expand to the full 4864+1920 tests yet."
+  ],
+  "trial": {
+    "file": "/home/_WD_/.cache/wime-minicpm-investigation/text-decoder-comparison/try-text-decoder.el",
+    "activate": "Load the file, then M-x wime-text-decoder-trial and choose Qwen3.5-2B-Base or MiniCPM5-2B.",
+    "restore": "M-x wime-text-decoder-restore",
+    "activated": false,
+    "timeout_seconds": 6,
+    "startup_timeout_seconds": 30,
+    "settings_saved_to_startup": false,
+    "runtime": "/home/_WD_/.cache/wime-minicpm-investigation/text-decoder-comparison/runtime",
+    "runtime_files": 101,
+    "description": "Trial changes only the current Emacs session and restores previous values, bound/unbound states, and neural-mode state. Requires an existing Wime database."
+  },
+  "artifacts": {
+    "root": "/home/_WD_/.cache/wime-minicpm-investigation/text-decoder-comparison",
+    "sha256": {
+      "dev60.json": "1637b40b8cd273ec9db04855386fc07a447b9e7671e5e40342d08810ac87682b",
+      "diagnostics.json": "c139d162ca9a774e35819349a5bef53e8cd7c0fc30df20310ef68d6bf6ce80a8",
+      "v1/plan.json": "24b7461c261907fafc068e2f932bea543ca99390685641551303f45957218a02",
+      "v2/plan.json": "b89eb082f47adc75a6060fc7ffb381d0cdd2d50c215e9edb17cd995936d9adc0",
+      "baseline-metrics.json": "b8061170422f477f398bc3e1c65de121359d0e7c333afd40cfa8de1f2143558d",
+      "profile.json": "560a30aacc27261cd31412c0114f6b519e91c27251df125cb613b3ab2e3aae92",
+      "cache-equivalence.json": "3f11df32880d5642d803af29bffb57ab3ff389cee84fa2a449d5453f765c8341",
+      "cache-equivalence-fp32.json": "a2f4bcfc63289e10eb681a726426da5b856f536487a3d4e655652a2d8fbcba8d",
+      "worker-smoke.json": "44a33377ee9443d81c8e3cbd3b44480d6fa3f37effd1ad3bfd79ee5949b11ce3",
+      "try-text-decoder.el": "fec5fd68f8ab02d698e70fdf781bfcb54d83ed983258d27932560653a616f308",
+      "test-trial.el": "c551d3e82e0910974ee5ced879f61ba494c80190351723fb602b6ce48bab9f85",
+      "trial-test-result.json": "076361c931d3d388293b2da90834454679c0693660d1f3b11b5fc2731966a0b5",
+      "runtime-manifest.json": "e9a1329a490e9bdaaf4ff94078c46674cc4944896155da988d08d81a3566747f",
+      "runtime-sha256.json": "af9e242a447b77928d2b36279d123b931c0a6e37e8a746c54aa5b4b0e1f1a7aa",
+      "v1/qwen/dev.jsonl": "52439d66398d2471e99a99e271abd241db2e6196d4d03dcb39a61f93b0a4a264",
+      "v1/qwen/diagnostics.jsonl": "c2c8f16d6363b9817274663547dc30b067fdd000cd21d044f3f6522843486ea8",
+      "v1/qwen/summary.json": "4130c834a05aad2e116f5ca7a5af1cb3ff6c337d3fef39b8e46a08ab14bc83e2",
+      "v1/minicpm/dev.jsonl": "fd45511d4529ed6aedb9bd4a3f90f4a657aba3e47d4c66547bfdcb77a95c0a2a",
+      "v1/minicpm/diagnostics.jsonl": "98364d75544fb745ccb23ed36c4227b5e258d5b2e99dbae9c8f29148cef2ae0b",
+      "v1/minicpm/summary.json": "a88ed7c3a88000abb53db8a71a06ac7ac7047e4f47a61d478cd1115c6d044b82",
+      "v2/qwen/dev.jsonl": "00f1d3a052e58379354200b86058979ce8bf4690f01f4f8e096ee825f8037ae6",
+      "v2/qwen/diagnostics.jsonl": "17cfbbbed92ef1847a19135d5c8ce1f339da822fe5e4562bc9d2e12640a2cbdd",
+      "v2/qwen/summary.json": "63c61c41d20868ae6c17519a4d3b5942bfaaa8a3b12f4411418284f3c3e16e65",
+      "v2/minicpm/dev.jsonl": "e937ea84a8fe413adca65a1fb4298fb66b1dd86aafabde76988fb22b257ecee0",
+      "v2/minicpm/diagnostics.jsonl": "51c10a3ea1ac8701e01e6a7ce1a9f01e06a860fdf041622a58ef55cb36fba12e",
+      "v2/minicpm/summary.json": "a176f33158918e73ecb42c9cba7e75fd10de0ecf905cb9bb32eeca1cdebef23d",
+      "worker-smoke-final.json": "ca3ee16297a984d971d3f8d032576b4259a38efe62f2e18702f1ad49127d8351"
+    },
+    "post_measurement_source_changes": {
+      "text_decoder.py": {
+        "sha256": "303337e5293349eafab1794f131047c2d5426e16f1a25e78a2bb092b03636e6f",
+        "commit": "413cc92f",
+        "reason": "Clone rows before storing them in the LRU; no scoring math changes."
+      }
+    },
+    "runtime_matches_current_source_and_101_file_manifest": true
+  }
+}
