@@ -1,0 +1,395 @@
+{
+  "date": "2026-10-28",
+  "status": "focused diagnostic experiments; no overall model ranking",
+  "full_comparison": "Stopped at user request after 271 Qwen development cases at weight 0.5; no heldout full-suite evaluation started. No matching process remains running.",
+  "protocol": {
+    "seed": "wime-minicpm-focused-20261028",
+    "models": [
+      {
+        "label": "qwen",
+        "path": "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base",
+        "weight": 1.5
+      },
+      {
+        "label": "minicpm",
+        "path": "/home/_WD_/.cache/wime-minicpm-investigation/MiniCPM5-2B",
+        "weight": 1.5
+      },
+      {
+        "label": "minicpm-base",
+        "path": "/home/_WD_/.cache/wime-minicpm-investigation/MiniCPM5-2B-Base",
+        "weight": 0.75
+      }
+    ],
+    "conditional": "/home/_WD_/.local/share/wime/models/1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e.safetensors",
+    "database": "/home/_WD_/.cache/wime-minicpm-investigation/full-comparison/inputs/wanxiang.db",
+    "code": "/home/_WD_/.cache/wime-minicpm-investigation/full-comparison/code",
+    "suites": {
+      "newcases": {
+        "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/newcases.json",
+        "sha256": "d7621ab8da530d90f64ca60c593c7c27e75e89b51e84545d9f717985f9615e4a",
+        "rows": 90,
+        "documents": 30
+      },
+      "context-probes": {
+        "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/context-probes.json",
+        "sha256": "5a8ba286780ea699e7237c8d3c3e3d9c7fb9aa7413665aea25c41a4401bbd1b4",
+        "rows": 20,
+        "documents": 10
+      }
+    },
+    "selection": "New cases: six hashed parents per category, one unique source document per parent, all three variants. Context probes: ten hashed nonempty-context cases where prior model predictions differed; original versus empty context.",
+    "interpretation": "Fixed prior pilot weights; no tuning on either suite. New cases are 30 document clusters, not 90 independent observations. Context probes are deliberately selected diagnostics, not a quality benchmark."
+  },
+  "models": {
+    "qwen": {
+      "weight": 1.5,
+      "overall": {
+        "total": 90,
+        "exact_top1": 75,
+        "exact_top5": 85,
+        "alternative_top1": 77,
+        "alternative_top5": 86
+      },
+      "categories": {
+        "chid_prose": {
+          "total": 18,
+          "exact_top1": 17,
+          "exact_top5": 17,
+          "alternative_top1": 17,
+          "alternative_top5": 17
+        },
+        "encyclopedia": {
+          "total": 18,
+          "exact_top1": 14,
+          "exact_top5": 16,
+          "alternative_top1": 14,
+          "alternative_top5": 16
+        },
+        "entity": {
+          "total": 18,
+          "exact_top1": 11,
+          "exact_top5": 17,
+          "alternative_top1": 11,
+          "alternative_top5": 17
+        },
+        "idiom": {
+          "total": 18,
+          "exact_top1": 15,
+          "exact_top5": 17,
+          "alternative_top1": 17,
+          "alternative_top5": 18
+        },
+        "news": {
+          "total": 18,
+          "exact_top1": 18,
+          "exact_top5": 18,
+          "alternative_top1": 18,
+          "alternative_top5": 18
+        }
+      },
+      "variants": {
+        "whole": {
+          "total": 30,
+          "exact_top1": 23,
+          "exact_top5": 28,
+          "alternative_top1": 25,
+          "alternative_top5": 29
+        },
+        "suffix": {
+          "total": 30,
+          "exact_top1": 25,
+          "exact_top5": 27,
+          "alternative_top1": 25,
+          "alternative_top5": 27
+        },
+        "single": {
+          "total": 30,
+          "exact_top1": 27,
+          "exact_top5": 30,
+          "alternative_top1": 27,
+          "alternative_top5": 30
+        }
+      },
+      "unsupported_gold": {
+        "newcases": [],
+        "context-probes": []
+      }
+    },
+    "minicpm": {
+      "weight": 1.5,
+      "overall": {
+        "total": 90,
+        "exact_top1": 74,
+        "exact_top5": 84,
+        "alternative_top1": 76,
+        "alternative_top5": 85
+      },
+      "categories": {
+        "chid_prose": {
+          "total": 18,
+          "exact_top1": 16,
+          "exact_top5": 18,
+          "alternative_top1": 16,
+          "alternative_top5": 18
+        },
+        "encyclopedia": {
+          "total": 18,
+          "exact_top1": 12,
+          "exact_top5": 15,
+          "alternative_top1": 12,
+          "alternative_top5": 15
+        },
+        "entity": {
+          "total": 18,
+          "exact_top1": 12,
+          "exact_top5": 16,
+          "alternative_top1": 12,
+          "alternative_top5": 16
+        },
+        "idiom": {
+          "total": 18,
+          "exact_top1": 16,
+          "exact_top5": 17,
+          "alternative_top1": 18,
+          "alternative_top5": 18
+        },
+        "news": {
+          "total": 18,
+          "exact_top1": 18,
+          "exact_top5": 18,
+          "alternative_top1": 18,
+          "alternative_top5": 18
+        }
+      },
+      "variants": {
+        "whole": {
+          "total": 30,
+          "exact_top1": 22,
+          "exact_top5": 25,
+          "alternative_top1": 24,
+          "alternative_top5": 26
+        },
+        "suffix": {
+          "total": 30,
+          "exact_top1": 25,
+          "exact_top5": 29,
+          "alternative_top1": 25,
+          "alternative_top5": 29
+        },
+        "single": {
+          "total": 30,
+          "exact_top1": 27,
+          "exact_top5": 30,
+          "alternative_top1": 27,
+          "alternative_top5": 30
+        }
+      },
+      "unsupported_gold": {
+        "newcases": [],
+        "context-probes": []
+      }
+    },
+    "minicpm-base": {
+      "weight": 0.75,
+      "overall": {
+        "total": 90,
+        "exact_top1": 76,
+        "exact_top5": 85,
+        "alternative_top1": 78,
+        "alternative_top5": 85
+      },
+      "categories": {
+        "chid_prose": {
+          "total": 18,
+          "exact_top1": 16,
+          "exact_top5": 17,
+          "alternative_top1": 16,
+          "alternative_top5": 17
+        },
+        "encyclopedia": {
+          "total": 18,
+          "exact_top1": 12,
+          "exact_top5": 15,
+          "alternative_top1": 12,
+          "alternative_top5": 15
+        },
+        "entity": {
+          "total": 18,
+          "exact_top1": 14,
+          "exact_top5": 17,
+          "alternative_top1": 14,
+          "alternative_top5": 17
+        },
+        "idiom": {
+          "total": 18,
+          "exact_top1": 16,
+          "exact_top5": 18,
+          "alternative_top1": 18,
+          "alternative_top5": 18
+        },
+        "news": {
+          "total": 18,
+          "exact_top1": 18,
+          "exact_top5": 18,
+          "alternative_top1": 18,
+          "alternative_top5": 18
+        }
+      },
+      "variants": {
+        "whole": {
+          "total": 30,
+          "exact_top1": 22,
+          "exact_top5": 26,
+          "alternative_top1": 24,
+          "alternative_top5": 26
+        },
+        "suffix": {
+          "total": 30,
+          "exact_top1": 25,
+          "exact_top5": 29,
+          "alternative_top1": 25,
+          "alternative_top5": 29
+        },
+        "single": {
+          "total": 30,
+          "exact_top1": 29,
+          "exact_top5": 30,
+          "alternative_top1": 29,
+          "alternative_top5": 30
+        }
+      },
+      "unsupported_gold": {
+        "newcases": [],
+        "context-probes": []
+      }
+    }
+  },
+  "paired_exact_against_qwen": {
+    "minicpm": {
+      "rescued": 4,
+      "regressed": 5
+    },
+    "minicpm-base": {
+      "rescued": 4,
+      "regressed": 3
+    }
+  },
+  "context_probes": {
+    "qwen": {
+      "cases": 10,
+      "original_context_exact": 5,
+      "empty_context_exact": 3,
+      "helped_exact_match": 2,
+      "hurt_exact_match": 0,
+      "changed_predictions": 5
+    },
+    "minicpm": {
+      "cases": 10,
+      "original_context_exact": 1,
+      "empty_context_exact": 2,
+      "helped_exact_match": 1,
+      "hurt_exact_match": 2,
+      "changed_predictions": 8
+    },
+    "minicpm-base": {
+      "cases": 10,
+      "original_context_exact": 4,
+      "empty_context_exact": 1,
+      "helped_exact_match": 4,
+      "hurt_exact_match": 1,
+      "changed_predictions": 7
+    }
+  },
+  "label_audit": {
+    "scope": "Alternative-aware rescoring only; original frozen inputs and exact-match outputs remain unchanged. Variants were identified from source records before examining per-case model outputs.",
+    "sources": [
+      {
+        "original": "半涂而废",
+        "alternative": "半途而废",
+        "url": "https://dict.idioms.moe.edu.tw/idiomView.jsp?ID=4150&la=0&webMd=1"
+      },
+      {
+        "original": "大杀风景",
+        "alternative": "大煞风景",
+        "url": "https://dict.revised.moe.edu.tw/dictView.jsp?ID=41651&la=0&powerMode=0"
+      }
+    ],
+    "variants_apply_only_to_whole_idioms": true,
+    "other_ambiguities": [
+      "Source substrings such as 的节, 置系 and 置必 are not standalone natural phrases.",
+      "Pronoun 他/她 and 的/得 disagreements can reflect ambiguity or source style; these were not silently relabeled."
+    ]
+  },
+  "limitations": [
+    "90 cases are three related variants from 30 source documents, not 90 independent observations.",
+    "Five domains contain six documents each. These small category results are hypotheses for focused follow-up, not estimates of general user accuracy.",
+    "The 10 context probes were intentionally selected from previous disagreements and must not be merged into the new-case accuracy score.",
+    "Weights are frozen at the prior pilot settings; no optimization or model changes were made on these samples.",
+    "Timings in raw artifacts are single-pass backend observations, not end-to-end or repeat-controlled latency evidence."
+  ],
+  "artifacts": {
+    "qwen/summary.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/qwen/summary.json",
+      "sha256": "21dde46ce5536166e8f01335b30a24cdfcdbc231c6facb0400e9ff78b9fb0bda"
+    },
+    "qwen/newcases.jsonl": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/qwen/newcases.jsonl",
+      "sha256": "b201dcfe74f1119091c958ad70bcb21e540f161a176b043b42574e18f2280bdc"
+    },
+    "qwen/context-probes.jsonl": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/qwen/context-probes.jsonl",
+      "sha256": "0814d19bf9bd409b069695e23fcfe849da9df55599f007eb8b47f6b0a012549a"
+    },
+    "minicpm/summary.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/minicpm/summary.json",
+      "sha256": "64ea37572dd04cee03cc8f57a99fd46ec90eea993df7d1db19b2082cdcd4f97d"
+    },
+    "minicpm/newcases.jsonl": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/minicpm/newcases.jsonl",
+      "sha256": "6cc4a3d6a373cdf59d7104259c63f346f9c9c79c3b5ff9828f706f03b9362317"
+    },
+    "minicpm/context-probes.jsonl": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/minicpm/context-probes.jsonl",
+      "sha256": "e8836a2b015fe98438ebfbfaf495ee4ba59abd6bebc1ff252e371c9d1ed10b56"
+    },
+    "minicpm-base/summary.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/minicpm-base/summary.json",
+      "sha256": "017d8c4123a02860f7741a2ef9c89b8d12ef24e0a4782d3ea3ee3bbc03ab116d"
+    },
+    "minicpm-base/newcases.jsonl": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/minicpm-base/newcases.jsonl",
+      "sha256": "cf14bb041ae4da1ff57d3b34de92064c45318968d2a7ab9c3c5c76e3d9e3c793"
+    },
+    "minicpm-base/context-probes.jsonl": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/minicpm-base/context-probes.jsonl",
+      "sha256": "83434db86f7c618811d6921807045ee13cb0a1273cd7235d7adf8ecaffa2a985"
+    },
+    "plan.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/plan.json",
+      "sha256": "76a90d9d4c802824a74f14973f381d28367bdc6083c61bd4f1c66018d5001d9c"
+    },
+    "run-model.py": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/run-model.py",
+      "sha256": "8d8ed79b166ca7ab14c1d55b014165558efa7c669dd4d7f119fbc3ab13d418e3"
+    },
+    "newcases.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/newcases.json",
+      "sha256": "d7621ab8da530d90f64ca60c593c7c27e75e89b51e84545d9f717985f9615e4a"
+    },
+    "context-probes.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/context-probes.json",
+      "sha256": "5a8ba286780ea699e7237c8d3c3e3d9c7fb9aa7413665aea25c41a4401bbd1b4"
+    },
+    "label-audit.json": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/focused-comparison/label-audit.json",
+      "sha256": "ac6984d08d0984ee5a47c6183cf64746ba03e78660863b1a60aa2c82aa6e1d19"
+    }
+  },
+  "observations": [
+    "Exact top1 is Qwen 75/90, MiniCPM final 74/90, Base 76/90. Verified idiom alternatives add two hits equally to every model.",
+    "Base scores 29/30 on these single-character suffix cases versus 27/30 for the other models; all three tie at 25/30 on suffixes.",
+    "Entity examples contain gains and failures: MiniCPM variants recover 替代民主极点 and 索马里语 suffixes, while Qwen preserves 旭川新道.",
+    "Context helps and hurts on selected probes. The post-trained model changes 看了七月与安生没 into 看了七月与安生妹 in one supplied context; this is a targeted diagnostic, not a general instruction-tuning conclusion."
+  ]
+}
