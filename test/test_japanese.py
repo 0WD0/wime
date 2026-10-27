@@ -5,6 +5,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 import torch  # noqa: E402
@@ -127,6 +128,36 @@ class Lexicon(unittest.TestCase):
     def test_each_reading_keeps_its_most_frequent_writings(self):
         lexicon = {"加奈": {"かな": 3}, "仮名": {"かな": 90, "かめい": 5}, "哉": {"かな": 1}}
         self.assertEqual(sorted(ja.frequent(lexicon, 2)), [("仮名", "かな"), ("仮名", "かめい"), ("加奈", "かな")])
+
+    def test_unprioritized_word_keeps_its_reading_across_token_boundaries(self):
+        class SplitTokenizer:
+            vocab = ["実", "装", "す", "る"]
+
+            def __len__(self):
+                return len(self.vocab)
+
+            def decode(self, ids):
+                return "".join(self.vocab[i] for i in ids)
+
+            def __call__(self, text):
+                return dict(input_ids=[self.vocab.index(c) if c in self.vocab else 0 for c in text])
+
+        # The model splits 実装, and neither word has JMdict's common flag.
+        # Its whole-word reading must survive even without a corpus lexicon.
+        writings = {"実装": {"じっそう"}, "実装する": {"じっそうする"}}
+        chars = {"実": {("じつ", "")}, "装": {("そう", "")}}
+        with patch.object(ja, "jmdict", return_value=(writings, set())), \
+                patch.object(ja, "kanjidic", return_value=chars):
+            units = ja.build_table(SplitTokenizer(), "unused", "unused")
+        self.assertIn(["実装", [0, 1]], units["じっそう"])
+        self.assertTrue(ja.spells(units.get, "じっそうする", "実装する"))
+        # Reuse the shorter word; don't inflate the beam with redundant compounds.
+        self.assertNotIn("じっそうする", units)
+        self.assertFalse(ja.spells(units.get, "じっそうする", "実装"))
+        self.assertFalse(ja.spells(units.get, "じっそうする", "実装する", "kkkkkk"))
+        before = sum(map(len, units.values()))
+        ja.complete_dictionary(units, SplitTokenizer(), writings)
+        self.assertEqual(sum(map(len, units.values())), before)
 
 
 class CausalModel:

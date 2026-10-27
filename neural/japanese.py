@@ -160,13 +160,54 @@ def frequent(lexicon, top):
     return [(w, r) for r, ws in by_reading.items() for _, w in sorted(ws, reverse=True)[:top]]
 
 
+def spells(get_units, kana, text, constraints=None):
+    """Whether GET_UNITS can cover KANA and TEXT (NFKC-equal), without omissions."""
+    text = unicodedata.normalize("NFKC", text)
+
+    @functools.lru_cache(maxsize=None)
+    def reach(i, j):
+        if i == len(kana):
+            return j == len(text)
+        for end in range(i + 1, min(len(kana), i + MAXREAD) + 1):
+            units = [u for u, _ in (get_units(kana[i:end]) or ())]
+            if end == i + 1 and not is_kana(kana[i]):
+                units.append(kana[i])
+            for u in units:
+                if constraints and not span_pattern(kana[i:end], constraints[i:end]).fullmatch(u):
+                    continue
+                n = unicodedata.normalize("NFKC", u)
+                if n and text.startswith(n, j) and reach(end, j + len(n)):
+                    return True
+        return False
+    return reach(0, 0)
+
+
+def complete_dictionary(index, tokenizer, writings):
+    """Add dictionary readings the existing units cannot spell.
+
+    Token boundaries can hide sound changes: 実 + 装 reads じつ + そう,
+    while 実装 reads じっそう. JMdict's priority flag must not decide whether
+    that word is possible. Shorter words first let compounds reuse them.
+    """
+    for text in sorted(writings, key=lambda text: (len(text), text)):
+        if len(text) < 2:
+            continue
+        missing = [r for r in sorted(writings[text])
+                   if 0 < len(r) <= MAXREAD and not spells(index.get, r, text)]
+        if missing:
+            ids = tokenizer(text)["input_ids"]
+            for r in missing:
+                index.setdefault(r, []).append([text, ids])
+
+
 def build_table(tokenizer, jmdict_path, kanjidic_path, lexicon=None, top=4):
     """{reading: [[text, [token ids]], ...]} for TOKENIZER's vocabulary.
     LEXICON ({writing: {reading: corpus count}}) adds the TOP most frequent
     writings of each reading; the LM splits most of them. More crowd the
     beam with names and slow decoding down. Every KANJIDIC kanji the LM has
     a token for reads alone; multi-character tokens compose readings from
-    graded kanji only: rarer readings let Chinese tokens spell Japanese kana."""
+    graded kanji only: rarer readings let Chinese tokens spell Japanese kana.
+    Dictionary words also supply readings that cannot cross token boundaries."""
     writings, common = jmdict(jmdict_path)
     for w, r in frequent(lexicon or {}, top):
         writings[w].add(r)
@@ -207,6 +248,7 @@ def build_table(tokenizer, jmdict_path, kanjidic_path, lexicon=None, top=4):
     for letter, r in LETTERS.items():
         for text in (letter, letter.lower()):
             index[r].append([text, tokenizer(text)["input_ids"]])
+    complete_dictionary(index, tokenizer, writings)
     return dict(index)
 
 
@@ -224,24 +266,7 @@ class Table:
 
     def spells(self, kana, text, constraints=None):
         """Whether decoding could write KANA as TEXT (NFKC-equal), under CONSTRAINTS."""
-        text = unicodedata.normalize("NFKC", text)
-
-        @functools.lru_cache(maxsize=None)
-        def reach(i, j):
-            if i == len(kana):
-                return j == len(text)
-            for end in range(i + 1, min(len(kana), i + MAXREAD) + 1):
-                units = [u for u, _ in self.get(kana[i:end])]
-                if end == i + 1 and not is_kana(kana[i]):
-                    units.append(kana[i])
-                for u in units:
-                    if constraints and not span_pattern(kana[i:end], constraints[i:end]).fullmatch(u):
-                        continue
-                    n = unicodedata.normalize("NFKC", u)
-                    if n and text.startswith(n, j) and reach(end, j + len(n)):
-                        return True
-            return False
-        return reach(0, 0)
+        return spells(self.get, kana, text, constraints)
 
 
 # --- zenz --------------------------------------------------------------------
