@@ -16,6 +16,7 @@ import torch
 
 from byte_constraints import PinyinConstraint, ReadingIndex, TokenTrie
 from decoder import Decoder
+from prefix_cache import PrefixCacheLM
 from token_bytes import heal_context, raw_token_bytes
 
 
@@ -38,25 +39,44 @@ class TextDecoder(Decoder):
 
     def __init__(self, evaluator, rescorer, readings_map, beam=16,
                  per_hypothesis=24, rewind_tokens=2, guide_weight=1.0,
-                 final_mode="lm", memo_limit=1024, paths_per_surface=2):
+                 final_mode="lm", memo_limit=1024, paths_per_surface=2,
+                 cache_prefix=True):
         if (type(beam) is not int or beam < 1 or type(per_hypothesis) is not int
                 or per_hypothesis < 1 or type(memo_limit) is not int or memo_limit < 1
                 or not math.isfinite(guide_weight) or guide_weight < 0
                 or final_mode not in ("lm", "fused")
                 or type(paths_per_surface) is not int or paths_per_surface < 1
+                or type(cache_prefix) is not bool
                 or type(rewind_tokens) is not int or rewind_tokens < 0):
             raise ValueError("invalid text decoder settings")
         super().__init__(evaluator, rescorer, None, beam, per_hypothesis)
+        self.device = getattr(rescorer, "device", self.device)
         self.reading_index = ReadingIndex(readings_map)
         self.token_bytes = raw_token_bytes(rescorer.tokenizer)
         self.tokens = TokenTrie(self.token_bytes)
         self.rewind_tokens, self.guide_weight = rewind_tokens, guide_weight
         self.final_mode, self.memo_limit = final_mode, memo_limit
         self.paths_per_surface = paths_per_surface
+        self.cache_prefix, self._prefix_lm = cache_prefix, None
         self._prefix = None
         self._memo = OrderedDict()
         self.last_audit = {}
         self.last_components = []
+
+    def _cached_model(self):
+        if self._prefix_lm is None:
+            self._prefix_lm = PrefixCacheLM(self.rescorer)
+        return self._prefix_lm
+
+    def lm_next(self, context, sequences):
+        if self.cache_prefix:
+            return self._cached_model().next(context, sequences)
+        return super().lm_next(context, sequences)
+
+    def lm_tails(self, context, prefixes, tails):
+        if self.cache_prefix:
+            return self._cached_model().tails(context, prefixes, tails)
+        return super().lm_tails(context, prefixes, tails)
 
     def _next(self, prefix, sequences):
         if self._prefix != tuple(prefix):
@@ -112,7 +132,8 @@ class TextDecoder(Decoder):
     def decode(self, context, code, anchor=0, known=None, pins=(), learned=(),
                weight=0.0, aux=()):
         self.last_audit = dict(lm_rows=0, expanded_paths=0, expanded_tokens=0,
-                               frontiers=0, guide_texts=0, final_mode=self.final_mode)
+                               frontiers=0, guide_texts=0, final_mode=self.final_mode,
+                               cache_prefix=self.cache_prefix)
         self.last_components = []
         if not code:
             return []

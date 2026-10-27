@@ -21,6 +21,7 @@ gpu_runtime(
         "byte_constraints.py",
         "token_bytes.py",
         "text_decoder.py",
+        "prefix_cache.py",
         "japanese.py",
         "conditional.py",
         "context-pinyin.json",
