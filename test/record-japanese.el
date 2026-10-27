@@ -17,6 +17,9 @@
       wime-japanese-zenz-directory (getenv "WIME_JAPANESE_ZENZ")
       wime-neural-search-method 'verify wime-neural-delay 0 wime-neural-startup-timeout 120)
 
+(when (getenv "WIME_JAPANESE_SCHEME")
+  (setq-default wime-japanese--scheme (intern (getenv "WIME_JAPANESE_SCHEME"))))
+
 (defun record-japanese--shift (key)
   "KEY as typed with Shift held, or nil when Shift would type another rule."
   (cond ((and (>= key ?a) (<= key ?z)) (upcase key))
@@ -63,50 +66,55 @@ per kana) says, or nil when no key sequence converts back to exactly that."
               (or (memq wime-neural--timer timer-list) wime-neural--busy wime-neural--pending))
     (accept-process-output wime-neural--process 0.001)))
 
-(let* ((cases (with-temp-buffer
-                (insert-file-contents (getenv "WIME_CASES"))
-                (json-parse-buffer :object-type 'alist :array-type 'list)))
-       (limit (string-to-number (or (getenv "WIME_LIMIT") "100000")))
-       (interval (and (getenv "WIME_TYPING_INTERVAL") (string-to-number (getenv "WIME_TYPING_INTERVAL"))))
-       (skipped 0) (processed 0) completed current-id results)
-  (unwind-protect
-      (progn
-        (wime-neural-mode 1)
-        (dolist (case (seq-take cases limit))
-          (setq current-id (alist-get 'id case))
-          (let ((keys (record-japanese--keys (alist-get 'input case)
-                                             (and (getenv "WIME_EXPLICIT") (alist-get 'shift case)))))
-            (if (not keys)
-                (cl-incf skipped)
-              (with-temp-buffer
-                (let (start)
-                  (dolist (key (string-to-list (substring keys 0 -1)))
-                    (wime-japanese-input-method key)
-                    (when interval
-                      (let ((until (+ (float-time) interval)))
-                        (while (< (float-time) until)
-                          (accept-process-output wime-neural--process 0.001)))))
-                  (setq start (float-time))
-                  (wime-japanese-input-method (aref keys (1- (length keys))))
-                  (record-japanese--wait (+ start 60))
-                  (when (or wime-neural--failed wime-neural--busy wime-neural--pending)
-                    (error "Japanese worker did not complete for case %s (%d kana)"
-                           current-id (length (alist-get 'input case))))
-                  (push `(:id ,(alist-get 'id case) :keys ,keys :kana ,(alist-get 'input case)
-                          :gold ,(alist-get 'gold case) :result ,(car wime-japanese--candidates)
-                          :candidates ,(vconcat (seq-take wime-japanese--candidates 5))
-                          :worker_ms ,(or wime-neural-last-latency :null)
-                          :wall_ms ,(* 1000 (- (float-time) start)))
-                        results)
-                  (wime-japanese--reset)))))
-          (cl-incf processed)
-          (when (zerop (% processed 25))
-            (message "Japanese recording: %d cases, %d skipped" processed skipped)))
-        (setq completed t current-id nil))
-    (wime-neural-mode -1)
-    ;; Keep completed measurements when a later case fails.  Consumers can
-    ;; distinguish a full run from a partial result without parsing a backtrace.
-    (with-temp-file (getenv "WIME_RECORDING")
-      (insert (json-serialize `(:completed ,(if completed t :false)
-                               :failed_id ,(or current-id :null)
-                               :skipped ,skipped :results ,(vconcat (nreverse results))))))))
+(defun record-japanese--run ()
+  (let* ((cases (with-temp-buffer
+                  (insert-file-contents (getenv "WIME_CASES"))
+                  (json-parse-buffer :object-type 'alist :array-type 'list)))
+	 (limit (string-to-number (or (getenv "WIME_LIMIT") "100000")))
+	 (interval (and (getenv "WIME_TYPING_INTERVAL") (string-to-number (getenv "WIME_TYPING_INTERVAL"))))
+	 (skipped 0) (processed 0) completed current-id results)
+    (unwind-protect
+	(progn
+          (wime-neural-mode 1)
+          (dolist (case (seq-take cases limit))
+            (setq current-id (alist-get 'id case))
+            (let ((keys (record-japanese--keys (alist-get 'input case)
+                                               (and (getenv "WIME_EXPLICIT") (alist-get 'shift case)))))
+              (if (not keys)
+                  (cl-incf skipped)
+		(with-temp-buffer
+                  (insert (or (alist-get 'context case) ""))
+                  (let (start)
+                    (dolist (key (string-to-list (substring keys 0 -1)))
+                      (wime-japanese-input-method key)
+                      (when interval
+			(let ((until (+ (float-time) interval)))
+                          (while (< (float-time) until)
+                            (accept-process-output wime-neural--process 0.001)))))
+                    (setq start (float-time))
+                    (wime-japanese-input-method (aref keys (1- (length keys))))
+                    (record-japanese--wait (+ start 60))
+                    (when (or wime-neural--failed wime-neural--busy wime-neural--pending)
+                      (error "Japanese worker did not complete for case %s (%d kana)"
+                             current-id (length (alist-get 'input case))))
+                    (push `(:id ,(alist-get 'id case) :keys ,keys :kana ,(alist-get 'input case)
+				:gold ,(alist-get 'gold case) :result ,(car wime-japanese--candidates)
+				:candidates ,(vconcat (seq-take wime-japanese--candidates 5))
+				:worker_ms ,(or wime-neural-last-latency :null)
+				:wall_ms ,(* 1000 (- (float-time) start)))
+                          results)
+                    (wime-japanese--reset)))))
+            (cl-incf processed)
+            (when (zerop (% processed 25))
+              (message "Japanese recording: %d cases, %d skipped" processed skipped)))
+          (setq completed t current-id nil))
+      (wime-neural-mode -1)
+      ;; Keep completed measurements when a later case fails.  Consumers can
+      ;; distinguish a full run from a partial result without parsing a backtrace.
+      (with-temp-file (getenv "WIME_RECORDING")
+	(insert (json-serialize `(:completed ,(if completed t :false)
+					     :failed_id ,(or current-id :null)
+					     :skipped ,skipped :results ,(vconcat (nreverse results)))))))))
+
+(unless (getenv "WIME_RECORDING_HELPERS_ONLY")
+  (record-japanese--run))
