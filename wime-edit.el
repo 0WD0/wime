@@ -21,11 +21,6 @@
   "Face for suspended Chinese text whose readings are still editable."
   :group 'wime)
 
-(defface wime-edit-pending-label-face
-  '((t (:inherit warning :weight bold)))
-  "Face for the visible suspended-input label."
-  :group 'wime)
-
 (defface wime-edit-active-face
   '((t (:inherit highlight :underline t)))
   "Face for the Chinese text currently being converted."
@@ -145,17 +140,11 @@ of truth.  Widen only for display; confirmation still respects narrowing."
                           (wime-edit--unit-p
                            (get-text-property position 'wime-edit-unit)))
                 (setq position (next-single-property-change position 'wime-edit-unit nil (point-max))))
-              (let* ((overlay (make-overlay start position nil nil nil))
-                     (help "暂存文字；移动光标继续修改，空格确认"))
+              (let ((overlay (make-overlay start position nil nil nil)))
                 (overlay-put overlay 'face 'wime-edit-pending-face)
-                ;; At a shared endpoint, the auxiliary code comes first,
-                ;; then this label, then any virtual correction lines.
                 (overlay-put overlay 'priority 1)
-                (overlay-put overlay 'help-echo help)
+                (overlay-put overlay 'help-echo "暂存文字；移动光标继续修改，空格确认")
                 (overlay-put overlay 'evaporate t)
-                (overlay-put overlay 'after-string
-                             (propertize " ⟦暂存⟧" 'face 'wime-edit-pending-label-face
-                                         'help-echo help))
                 (push overlay wime-edit--pending-decorations))))))))))
 
 (defun wime-edit--reset ()

@@ -169,7 +169,7 @@
     (dolist (overlay wime-edit--pending-decorations)
       (should (overlay-buffer overlay))
       (should (overlay-get overlay 'face))
-      (should (string-match-p "暂存" (or (overlay-get overlay 'after-string) ""))))
+      (should-not (overlay-get overlay 'after-string)))
     (wime-edit-test--command #'backward-char 1)
     (should (wime-edit--active-p))
     (wime-edit-test--type "B")
@@ -253,7 +253,7 @@
       (should (= (overlay-start overlay) 1))
       (should (= (overlay-end overlay) 2))
       (should (overlay-get overlay 'face))
-      (should (string-match-p "暂存" (or (overlay-get overlay 'after-string) ""))))))
+      (should-not (overlay-get overlay 'after-string)))))
 
 (ert-deftest wime-edit-undo-space-confirmation-restores-visible-pending-readings ()
   (wime-edit-test--buffer
@@ -269,7 +269,7 @@
       (should (= (overlay-start overlay) 1))
       (should (= (overlay-end overlay) 3))
       (should (overlay-get overlay 'face))
-      (should (string-match-p "暂存" (or (overlay-get overlay 'after-string) ""))))))
+      (should-not (overlay-get overlay 'after-string)))))
 
 (ert-deftest wime-edit-english-space-retains-pending-readings ()
   (wime-edit-test--buffer
@@ -285,7 +285,7 @@
     (let ((overlay (car wime-edit--pending-decorations)))
       (should (= (overlay-start overlay) 1))
       (should (= (overlay-end overlay) 2))
-      (should (string-match-p "暂存" (or (overlay-get overlay 'after-string) ""))))))
+      (should-not (overlay-get overlay 'after-string)))))
 
 (ert-deftest wime-edit-toggle-allows-literals-and-resumes-earlier-readings ()
   (wime-edit-test--buffer
