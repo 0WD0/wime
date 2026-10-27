@@ -178,6 +178,12 @@ def parse_args(argv=None):
                         help="experimental text decoder: small-model search guidance weight")
     parser.add_argument("--text-final-mode", choices=("lm", "fused"), default="lm",
                         help="experimental text decoder: LM-only or transitional fused final ranking")
+    parser.add_argument("--text-cache-guide", action=argparse.BooleanOptionalAction, default=True,
+                        help="experimental text decoder: reuse conditional prefix distributions")
+    parser.add_argument("--text-cache-requests", type=int, default=8,
+                        help="experimental text decoder: exact request-result cache entries (0 disables)")
+    parser.add_argument("--text-cache-paths", type=int, default=0,
+                        help="experimental text decoder: parent-state cache limit (0 disables)")
     parser.add_argument("--japanese-model", help="kana-conditioned model (train-japanese.py)")
     parser.add_argument("--japanese-table", help="reading table for the rescorer (build-japanese-table.py)")
     parser.add_argument("--japanese-zenz", help="zenz directory (convert-zenz.py) for the final Japanese ranking")
@@ -188,6 +194,8 @@ def parse_args(argv=None):
         parser.error("--text-rewind-tokens must be nonnegative")
     if not math.isfinite(args.text_guide_weight) or args.text_guide_weight < 0:
         parser.error("--text-guide-weight must be finite and nonnegative")
+    if args.text_cache_requests < 0 or args.text_cache_paths < 0:
+        parser.error("text cache entry limits must be nonnegative")
     return args
 
 
@@ -202,7 +210,10 @@ def make_decoder(args, evaluator, rescorer):
         return TextDecoder(evaluator, rescorer, table,
                            rewind_tokens=args.text_rewind_tokens,
                            guide_weight=args.text_guide_weight,
-                           final_mode=args.text_final_mode)
+                           final_mode=args.text_final_mode,
+                           cache_guide=args.text_cache_guide,
+                           cache_requests=args.text_cache_requests,
+                           cache_paths=args.text_cache_paths)
     from decoder import Decoder, Units
     return Decoder(evaluator, rescorer, Units(rescorer.tokenizer, table))
 

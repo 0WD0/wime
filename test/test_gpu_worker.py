@@ -49,7 +49,8 @@ class WorkerContract(unittest.TestCase):
             result = worker.make_decoder(args, evaluator, rescorer)
         text.TextDecoder.assert_called_once_with(evaluator, rescorer, table,
                                                  rewind_tokens=3, guide_weight=0.0,
-                                                 final_mode="fused")
+                                                 final_mode="fused", cache_guide=True,
+                                                 cache_requests=8, cache_paths=0)
         self.assertIs(result, text.TextDecoder.return_value)
 
     def test_invalid_text_configuration_fails_before_loading_models(self):
@@ -58,12 +59,21 @@ class WorkerContract(unittest.TestCase):
                  ["--text-rewind-tokens", "-1"],
                  ["--text-guide-weight", "nan"],
                  ["--text-guide-weight", "inf"],
-                 ["--text-guide-weight", "-1"]]
+                 ["--text-guide-weight", "-1"],
+                 ["--text-cache-requests", "-1"],
+                 ["--text-cache-paths", "-1"]]
         for flags in cases:
             with self.subTest(flags=flags), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as raised:
                     worker.parse_args(["model"] + flags)
                 self.assertEqual(raised.exception.code, 2)
+
+    def test_text_cache_controls_can_disable_reuse_or_enable_path_experiment(self):
+        args = worker.parse_args(["model", "--no-text-cache-guide", "--text-cache-requests", "0",
+                                  "--text-cache-paths", "128"])
+        self.assertFalse(args.text_cache_guide)
+        self.assertEqual(args.text_cache_requests, 0)
+        self.assertEqual(args.text_cache_paths, 128)
 
     def test_malformed_envelopes_are_rejected(self):
         for request in [None, [], {}, self.request(id=True), self.request(syllables=-1),

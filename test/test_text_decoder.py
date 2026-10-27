@@ -215,6 +215,48 @@ class TextDecoding(unittest.TestCase):
             self.assertEqual(decoder.last_audit["fallback"], "incompatible_context_or_constraints")
         self.assertEqual(decoder.last_components, [])
 
+    def test_repeated_requests_reuse_results_without_aliasing_or_stale_constraints(self):
+        decoder = Toy(cache_requests=8)
+        original = list(decoder.decode("", "hj"))
+        before = (len(decoder.next_calls), len(decoder.tail_calls), len(decoder.conditional_texts))
+        decoder.last_components.clear()
+        decoder.last_audit["final_scoring"] = "tampered"
+        repeated = decoder.decode("", "hj")
+        self.assertEqual(repeated, original)
+        self.assertEqual(before, (len(decoder.next_calls), len(decoder.tail_calls),
+                                  len(decoder.conditional_texts)))
+        self.assertTrue(decoder.last_audit["request_cache_hit"])
+        self.assertEqual(decoder.last_audit["lm_rows"], 0)
+        self.assertEqual(decoder.last_audit["guide_texts"], 0)
+        self.assertNotEqual(decoder.last_audit["final_scoring"], "tampered")
+        self.assertTrue(decoder.last_components)
+        repeated.clear()
+        self.assertEqual(decoder.decode("", "hj"), original)
+        self.assertEqual(decoder.decode("", "hj", pins=[(0, "邯")])[0][0], "邯")
+        self.assertFalse(decoder.last_audit["request_cache_hit"])
+        self.assertEqual(decoder.decode("", "hj", aux=[(0, "u")])[0][0], "韩")
+        self.assertFalse(decoder.last_audit["request_cache_hit"])
+        self.assertEqual(decoder.decode("", "hj", learned=[(0, "邯")], weight=20)[0][0], "邯")
+        self.assertFalse(decoder.last_audit["request_cache_hit"])
+        self.assertEqual(decoder.decode("", "hj"), original)
+        self.assertTrue(decoder.last_audit["request_cache_hit"])
+
+    def test_request_key_tracks_context_known_reading_anchor_and_search_settings(self):
+        decoder = Toy(cache_requests=16)
+        for args in [dict(), dict(context="车"), dict(known={"text": "车", "input": "ie"}),
+                     dict(anchor=2)]:
+            context = args.pop("context", "")
+            decoder.decode(context, "hj", **args)
+            self.assertFalse(decoder.last_audit["request_cache_hit"])
+            decoder.decode(context, "hj", **args)
+            self.assertTrue(decoder.last_audit["request_cache_hit"])
+        decoder.rewind_tokens = 0
+        decoder.decode("", "hj", anchor=2)
+        self.assertFalse(decoder.last_audit["request_cache_hit"])
+        decoder.final_mode = "fused"
+        decoder.decode("", "hj", anchor=2)
+        self.assertFalse(decoder.last_audit["request_cache_hit"])
+
 
 if __name__ == "__main__":
     unittest.main()

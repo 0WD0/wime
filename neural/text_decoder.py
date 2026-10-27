@@ -40,13 +40,18 @@ class TextDecoder(Decoder):
     def __init__(self, evaluator, rescorer, readings_map, beam=16,
                  per_hypothesis=24, rewind_tokens=2, guide_weight=1.0,
                  final_mode="lm", memo_limit=1024, paths_per_surface=2,
-                 cache_prefix=True):
+                 cache_prefix=True, cache_guide=True, cache_paths=0,
+                 cache_requests=8):
         if (type(beam) is not int or beam < 1 or type(per_hypothesis) is not int
                 or per_hypothesis < 1 or type(memo_limit) is not int or memo_limit < 1
                 or not math.isfinite(guide_weight) or guide_weight < 0
                 or final_mode not in ("lm", "fused")
                 or type(paths_per_surface) is not int or paths_per_surface < 1
                 or type(cache_prefix) is not bool
+                or type(cache_guide) is not bool
+                or type(cache_paths) is not int or cache_paths < 0
+                or (cache_paths and not cache_prefix)
+                or type(cache_requests) is not int or cache_requests < 0
                 or type(rewind_tokens) is not int or rewind_tokens < 0):
             raise ValueError("invalid text decoder settings")
         super().__init__(evaluator, rescorer, None, beam, per_hypothesis)
@@ -58,6 +63,9 @@ class TextDecoder(Decoder):
         self.final_mode, self.memo_limit = final_mode, memo_limit
         self.paths_per_surface = paths_per_surface
         self.cache_prefix, self._prefix_lm = cache_prefix, None
+        self.cache_guide, self._guide_scores = cache_guide, None
+        self.cache_paths, self._branch_lm = cache_paths, None
+        self.cache_requests, self._requests = cache_requests, None
         self._prefix = None
         self._memo = OrderedDict()
         self.last_audit = {}
@@ -70,8 +78,22 @@ class TextDecoder(Decoder):
 
     def lm_next(self, context, sequences):
         if self.cache_prefix:
+            if self.cache_paths:
+                if self._branch_lm is None:
+                    from branch_cache import BranchCacheLM
+                    self._branch_lm = BranchCacheLM(self.rescorer, self._cached_model(),
+                                                    max_paths=self.cache_paths)
+                return self._branch_lm.next(context, sequences)
             return self._cached_model().next(context, sequences)
         return super().lm_next(context, sequences)
+
+    def model_score(self, prompt, texts):
+        if self.cache_guide:
+            if self._guide_scores is None:
+                from conditional_prefix import ConditionalPrefixScores
+                self._guide_scores = ConditionalPrefixScores(self.evaluator)
+            return self._guide_scores.score(prompt, texts)
+        return super().model_score(prompt, texts)
 
     def lm_tails(self, context, prefixes, tails):
         if self.cache_prefix:
@@ -130,12 +152,45 @@ class TextDecoder(Decoder):
                                         [tuple(s[common:]) for s in chunk]))
         return [score / len(text) for score, text in zip(scores, texts)], "joint_canonical"
 
-    @torch.inference_mode()
     def decode(self, context, code, anchor=0, known=None, pins=(), learned=(),
                weight=0.0, aux=()):
+        if not self.cache_requests:
+            return self._decode(context, code, anchor, known, pins, learned, weight, aux)
+        from request_cache import RequestCache
+        if self._requests is None:
+            self._requests = RequestCache(self.cache_requests)
+        # Materialize optional iterables once, so the key and computation see
+        # exactly the same constraints. Model weights/vocabulary are fixed for
+        # the lifetime of this decoder, as for its lower-level score caches.
+        pins, learned, aux = tuple(pins), tuple(learned), tuple(aux)
+        key = (context, code, anchor, repr(known), repr(pins), repr(learned), weight,
+               repr(aux), self.beam, self.per_hypothesis, self.rewind_tokens,
+               self.guide_weight, self.final_mode, self.paths_per_surface,
+               self.weight, self.memo_limit, self.cache_prefix, self.cache_guide,
+               self.cache_paths)
+        previous = self._requests.get(key)
+        if previous is not None:
+            self.last_audit, self.last_components = previous["audit"], previous["components"]
+            self.last_audit.update(request_cache_hit=True, lm_rows=0, expanded_paths=0,
+                                   expanded_tokens=0, frontiers=0, guide_texts=0)
+            if self._guide_scores is not None:
+                self.last_audit["guide_cache"] = self._guide_scores.stats.copy()
+            if self._branch_lm is not None:
+                self.last_audit["path_cache"] = self._branch_lm.stats.copy()
+            return previous["candidates"]
+        candidates = self._decode(context, code, anchor, known, pins, learned, weight, aux)
+        self.last_audit["request_cache_hit"] = False
+        self._requests.put(key, dict(candidates=candidates, audit=self.last_audit,
+                                     components=self.last_components))
+        return candidates
+
+    @torch.inference_mode()
+    def _decode(self, context, code, anchor=0, known=None, pins=(), learned=(),
+                weight=0.0, aux=()):
         self.last_audit = dict(lm_rows=0, expanded_paths=0, expanded_tokens=0,
                                frontiers=0, guide_texts=0, final_mode=self.final_mode,
-                               cache_prefix=self.cache_prefix)
+                               cache_prefix=self.cache_prefix, cache_guide=self.cache_guide,
+                               cache_paths=self.cache_paths)
         self.last_components = []
         if not code:
             return []
@@ -266,4 +321,8 @@ class TextDecoder(Decoder):
                           mvalue / len(text) + self.weight * qvalue) + bonus(text) / len(text))
                   for text, qvalue, mvalue in zip(texts, q, m)]
         self.last_audit.update(final_candidates=len(values), final_scoring=method)
+        if self._guide_scores is not None:
+            self.last_audit["guide_cache"] = self._guide_scores.stats.copy()
+        if self._branch_lm is not None:
+            self.last_audit["path_cache"] = self._branch_lm.stats.copy()
         return sorted(values, key=lambda pair: pair[1], reverse=True)
