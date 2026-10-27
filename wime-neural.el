@@ -118,12 +118,18 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   context-reading (context-anchor wime-neural-context-anchor)
   (seed-candidates wime-neural-seed-candidates)
   (prior-confidence wime-neural-prior-confidence)
-  (prior-weight wime-neural-prior-weight))
+  (prior-weight wime-neural-prior-weight)
+  edit-generation)
 
 (defvar wime-neural-mode)
 (declare-function wime-japanese--current-p "wime-japanese" (job))
 (declare-function wime-japanese--request "wime-japanese" (job))
 (declare-function wime-japanese--apply "wime-japanese" (job response))
+(declare-function wime-edit--active-p "wime-edit" ())
+(declare-function wime-edit--writable-p "wime-edit" ())
+(declare-function wime-edit--decodable-p "wime-edit" ())
+(defvar wime-edit-mode)
+(defvar wime-edit--generation)
 (defvar wime-neural--process nil)
 (defvar wime-neural--busy nil)
 (defvar wime-neural--pending nil)
@@ -147,7 +153,16 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                 (and (wime--active-p) (= wime--selected 0)
                      (equal wime--input (wime-neural--job-input job))
                      (eq wime--candidate-records (wime-neural--job-records job))))
-              (= (point) (wime-neural--job-position job))
+              (if (and (not (eq (wime-neural--job-method job) 'japanese))
+                       (wime-neural--job-edit-generation job))
+                  ;; Moving within an editable run changes neither its keys
+                  ;; nor its context.  Re-adoption and edits do, even when
+                  ;; they happen to restore identical text and candidates.
+                  (and (bound-and-true-p wime-edit-mode)
+                       (wime-edit--active-p) (wime-edit--writable-p)
+                       (= wime-edit--generation
+                          (wime-neural--job-edit-generation job)))
+                (= (point) (wime-neural--job-position job)))
               (= (buffer-chars-modified-tick) (wime-neural--job-tick job))
               ;; Overlay properties and narrowing can change the context
               ;; without advancing buffer-chars-modified-tick.
@@ -170,7 +185,11 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 (defun wime-neural--schedule ()
   "Schedule a bounded comparison after the traditional candidates appear."
   (wime-neural--reset)
-  (when (and wime-neural-mode (not wime-neural--failed) wime-neural-model-file)
+  (when (and wime-neural-mode (not wime-neural--failed) wime-neural-model-file
+             ;; Flattened keys cannot express an incomplete middle syllable.
+             ;; Wait for its second key before asking the worker to decode.
+             (or (not (bound-and-true-p wime-edit-mode))
+                 (wime-edit--decodable-p)))
     (let* ((records wime--candidate-records)
            (units (wime--parse wime--input))
            (n (length units))
@@ -193,6 +212,9 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
         (let ((job (wime-neural--make-job
                     :id (cl-incf wime-neural--serial) :buffer (current-buffer)
                     :input wime--input :position (point)
+                    :edit-generation (and (bound-and-true-p wime-edit-mode)
+                                          (wime-edit--active-p)
+                                          wime-edit--generation)
                     :tick (buffer-chars-modified-tick) :context (wime-neural--context)
                     :context-reading (wime--context-reading (wime-neural--context))
                     :records records :syllables n :method method :pins wime--pins

@@ -1,0 +1,465 @@
+;;; wime-edit.el --- Editable Chinese compositions -*- lexical-binding: t; -*-
+
+;;; Commentary:
+;; Buffer characters carry immutable reading records, so ordinary edits and
+;; undo retain the readings of untouched characters.  Literal text separates
+;; Chinese runs.  Only the run at point participates in conversion; switching
+;; input methods suspends conversion without throwing away those records.
+
+;;; Code:
+
+(require 'wime)
+
+(defcustom wime-edit-max-syllables 24
+  "Maximum Chinese characters reconsidered together around point."
+  :type 'natnum :group 'wime)
+
+(cl-defstruct (wime-edit--unit (:constructor wime-edit--make-unit))
+  keys pin original)
+
+(defvar-local wime-edit--start nil)
+(defvar-local wime-edit--end nil)
+(defvar-local wime-edit--units nil)
+(defvar-local wime-edit--generation 0)
+(defvar-local wime-edit--decoration nil)
+(defvar-local wime-edit--internal nil)
+(defvar-local wime-edit--undoing nil)
+(defvar-local wime-edit--paused-point nil)
+(defvar wime-edit-mode)
+
+;; Plain insertions next to a Chinese character must not inherit its reading.
+(add-to-list 'text-property-default-nonsticky '(wime-edit-unit . t))
+
+(defun wime-edit--unit-at (position)
+  "Return the reading at accessible POSITION, if any."
+  (when (and (<= (point-min) position) (< position (point-max)))
+    (let ((unit (get-text-property position 'wime-edit-unit)))
+      (and (wime-edit--unit-p unit) unit))))
+
+(defun wime-edit--editable-unit-at (position)
+  (and (wime-edit--unit-at position)
+       (not (get-char-property position 'read-only))
+       (not (invisible-p position))
+       (wime-edit--unit-at position)))
+
+(defun wime-edit--active-p ()
+  "Whether an editable Chinese run is currently selected."
+  (and wime-edit-mode (markerp wime-edit--start) (marker-buffer wime-edit--start)
+       (markerp wime-edit--end) (marker-buffer wime-edit--end)
+       (eq (marker-buffer wime-edit--start) (current-buffer))
+       (eq (marker-buffer wime-edit--end) (current-buffer))))
+
+(defun wime-edit--writable-p ()
+  "Whether the active run is accessible, visible and editable."
+  (and (wime-edit--active-p) (not buffer-read-only)
+       (<= (point-min) wime-edit--start wime-edit--end (point-max))
+       (let ((p (marker-position wime-edit--start)) (ok t))
+         (while (and ok (< p wime-edit--end))
+           (setq ok (not (or (get-char-property p 'read-only) (invisible-p p))))
+           (cl-incf p))
+         ok)))
+
+(defun wime-edit--clear-decoration ()
+  (when (overlayp wime-edit--decoration) (delete-overlay wime-edit--decoration))
+  (setq wime-edit--decoration nil))
+
+(defun wime-edit--reset ()
+  "Forget active conversion state, retaining buffer text and readings."
+  (cl-incf wime-edit--generation)
+  (dolist (marker (list wime-edit--start wime-edit--end))
+    (when (markerp marker) (set-marker marker nil)))
+  (setq wime-edit--start nil wime-edit--end nil wime-edit--units nil)
+  (wime-edit--clear-decoration))
+
+(defun wime-edit-pause ()
+  "Hide conversion choices while retaining editable readings."
+  (interactive)
+  (wime--reset)
+  (setq wime-edit--paused-point (point)))
+
+(defun wime-edit--bounds ()
+  "Find the bounded Chinese run touching point, within the input area."
+  (let* ((p (cond ((wime-edit--editable-unit-at (point)) (point))
+                  ((wime-edit--editable-unit-at (1- (point))) (1- (point))))))
+    (when p
+      (let ((start p) (end (1+ p)) (floor (wime--input-start))
+            (field (get-char-property p 'field))
+            (limit (max 1 wime-edit-max-syllables)))
+        (while (and (> start floor) (wime-edit--editable-unit-at (1- start))
+                    (equal field (get-char-property (1- start) 'field)))
+          (cl-decf start))
+        (while (and (< end (point-max)) (wime-edit--editable-unit-at end)
+                    (equal field (get-char-property end 'field)))
+          (cl-incf end))
+        ;; A bounded window keeps idle decoding practical in long paragraphs.
+        (setq start (max start (- (min end (point)) limit)))
+        (setq end (min end (+ start limit)))
+        (cons start end)))))
+
+(defun wime-edit--read-units (start end)
+  (cl-loop for p from start below end collect (wime-edit--unit-at p)))
+
+(defun wime-edit--load-input ()
+  "Derive the existing engine's input and hard pins from reading records."
+  (setq wime--input (mapconcat #'wime-edit--unit-keys wime-edit--units "")
+        wime--pins
+        (cl-loop for unit in wime-edit--units for i from 0
+                 when (wime-edit--unit-pin unit)
+                 collect (list i (wime-edit--unit-pin unit)
+                               (caar (wime--parse (wime-edit--unit-keys unit)))))))
+
+(defun wime-edit--adopt (start end)
+  "Select the reading-bearing buffer run START..END."
+  (wime--reset)
+  (setq wime-edit--start (copy-marker start)
+        wime-edit--end (copy-marker end t)
+        wime-edit--units (wime-edit--read-units start end))
+  (wime-edit--load-input))
+
+(defun wime-edit--sync ()
+  "Select the run at point, leaving literal text and suspended input alone."
+  (when (and wime-edit-mode wime-mode (not wime-edit--internal))
+    (let ((bounds (wime-edit--bounds)))
+      (cond
+       ((null bounds) (when (wime-edit--active-p) (wime--reset)))
+       ((and (wime-edit--active-p)
+             (= (car bounds) wime-edit--start) (= (cdr bounds) wime-edit--end)) nil)
+       (t
+        (wime-edit--adopt (car bounds) (cdr bounds))
+        (if (wime-edit--writable-p) (wime--refresh) (wime--reset)))))))
+
+(defun wime-edit--post-command ()
+  (unless (memq this-command '(undo undo-only undo-redo))
+    (setq wime-edit--undoing nil))
+  (unless (or wime-edit--internal wime-edit--undoing
+              (eq (point) wime-edit--paused-point)
+              (memq this-command '(wime-edit-pause wime-edit-finish
+                                   wime-edit-return toggle-input-method
+                                   undo undo-only undo-redo)))
+    (wime-edit--sync)))
+
+(defun wime-edit--before-change (_start _end)
+  (unless wime-edit--internal
+    ;; All outstanding responses refer to the previous buffer contents.
+    (when (wime-edit--active-p) (wime--reset))))
+
+(defun wime-edit--after-change (start end _old-length)
+  (unless wime-edit--internal
+    (setq wime-edit--undoing undo-in-progress)
+    ;; Undo restores exact reading properties.  Other inserted/replaced text,
+    ;; including yanked text, is literal and cannot acquire a stale reading.
+    (unless undo-in-progress
+      (let ((wime-edit--internal t))
+        (with-silent-modifications
+          (remove-text-properties start end '(wime-edit-unit nil)))))))
+
+(defun wime-edit--candidate-text ()
+  "Return a full reading, with a one-character fallback for incomplete keys."
+  (let* ((n (length wime-edit--units))
+         (candidate (seq-find
+                     (lambda (c) (and (= (wime-candidate-end c) n)
+                                      (= (length (wime-candidate-text c)) n)))
+                     wime--candidate-records)))
+    (or (and (not (wime-edit--decodable-p))
+             (mapconcat #'wime-edit--unit-text wime-edit--units ""))
+        (and candidate (wime-candidate-text candidate))
+        (let (wime--candidate-records wime--search-cache wime--pins)
+          (apply #'concat
+               (mapcar (lambda (unit)
+                         (or (and (wime-edit--unit-pin unit)
+                                  (char-to-string (wime-edit--unit-pin unit)))
+                             (car (wime--candidates-for
+                                   (caar (wime--parse (wime-edit--unit-keys unit)))
+                                   (cdar (wime--parse (wime-edit--unit-keys unit)))))
+                             (substring (wime-edit--unit-keys unit) 0 1)))
+                       wime-edit--units))))))
+
+(defun wime-edit--decodable-p ()
+  "Whether flattening this run preserves its syllable boundaries."
+  (cl-every (lambda (u) (= (length (caar (wime--parse (wime-edit--unit-keys u)))) 2))
+            (butlast wime-edit--units)))
+
+(defun wime-edit--pending-refresh ()
+  "Display an incomplete interior syllable without changing its neighbors."
+  (setq wime--candidate-records nil wime--candidates nil
+        wime--candidate-scores nil wime--span-choices nil)
+  (wime-active-mode 1)
+  (wime--display)
+  (run-hooks 'wime-candidates-updated-hook))
+
+(defun wime-edit--unit-text (unit)
+  "Keep an existing UNIT's displayed text while an interior key is pending."
+  (let ((p (marker-position wime-edit--start)) found)
+    (while (and (< p wime-edit--end) (not found))
+      (when (eq (wime-edit--unit-at p) unit)
+        (setq found (char-to-string (char-after p))))
+      (cl-incf p))
+    (or found (and (wime-edit--unit-pin unit) (char-to-string (wime-edit--unit-pin unit)))
+        (substring (wime-edit--unit-keys unit) 0 1))))
+
+(defun wime-edit--replace (text units &optional cursor)
+  "Replace the selected run with TEXT and UNITS, preserving point and mark.
+CURSOR, when provided, is the desired offset after a user input operation.
+All real edits remain undoable; ordinary buffer modification hooks still run."
+  (when (wime-edit--writable-p)
+    (let* ((start (marker-position wime-edit--start))
+           (end (marker-position wime-edit--end))
+           (old-length (- end start))
+           (position (point)) (mark-position (mark t))
+           (old (buffer-substring start end))
+           (old-units (wime-edit--read-units start end))
+           (replacement (copy-sequence text))
+           (wime-edit--internal t))
+      (cl-loop for unit in units for i from 0
+               for source = (or (cl-position unit old-units :test #'eq)
+                                (and (= old-length (length text)) i))
+               do (when source
+                    (set-text-properties i (1+ i) (text-properties-at source old) replacement))
+               do (put-text-property i (1+ i) 'wime-edit-unit unit replacement))
+      (unless (equal-including-properties old replacement)
+        (atomic-change-group
+          (save-excursion
+            (goto-char start)
+            ;; Retain unrelated mode-owned properties on existing characters.
+            (if (= old-length (length text))
+                (cl-loop for i from 0 below old-length
+                         for unit in units
+                         do (unless (= (char-after (+ start i)) (aref text i))
+                              (goto-char (+ start i))
+                              (let ((props (text-properties-at (point))))
+                                (delete-char 1)
+                                (insert (apply #'propertize (substring text i (1+ i)) props))))
+                         do (put-text-property (+ start i) (+ start i 1) 'wime-edit-unit unit))
+              (let ((prefix 0) (suffix 0) (new-length (length text)))
+                (while (and (< prefix (min old-length new-length))
+                            (equal-including-properties (substring old prefix (1+ prefix))
+                                                        (substring replacement prefix (1+ prefix))))
+                  (cl-incf prefix))
+                (while (and (< suffix (- (min old-length new-length) prefix))
+                            (equal-including-properties (substring old (- old-length suffix 1) (- old-length suffix))
+                                                        (substring replacement (- new-length suffix 1) (- new-length suffix))))
+                  (cl-incf suffix))
+                (goto-char (+ start prefix))
+                (delete-region (point) (- end suffix))
+                (insert (substring replacement prefix (- new-length suffix))))))
+          (set-marker wime-edit--start start)
+          (set-marker wime-edit--end (+ start (length text)))))
+      (setq wime-edit--units units)
+      (goto-char (cond (cursor (+ start cursor))
+                       ((< position start) position)
+                       ((<= position end) (+ start (min (- position start) (length text))))
+                       (t (+ position (- (length text) old-length)))))
+      (when (and (= old-length (length text)) mark-position (<= start mark-position end))
+        (set-marker (mark-marker) (+ start (min (- mark-position start) (length text))))))))
+
+(defun wime-edit--render ()
+  "Publish a reading in the buffer and show non-textual conversion details."
+  (when (and (wime-edit--active-p) (wime-edit--writable-p))
+    (let* ((text (wime-edit--candidate-text))
+           (units (cl-loop for unit in wime-edit--units for i from 0
+                           for pin = (nth 1 (assq i wime--pins))
+                           collect (if (and (wime-edit--unit-original unit)
+                                            (equal pin (wime-edit--unit-pin unit))) unit
+                                     (wime-edit--make-unit
+                                      :keys (wime-edit--unit-keys unit) :pin pin
+                                      :original (or (wime-edit--unit-original unit) (aref text i)))))))
+      (wime-edit--replace text units)
+      (wime-edit--clear-decoration)
+      (setq wime-edit--decoration (make-overlay wime-edit--start wime-edit--end))
+      (overlay-put wime-edit--decoration 'face '(:underline t))
+      (overlay-put wime-edit--decoration 'help-echo
+                   (concat "双拼：" wime--input "；SPC 暂存，C-c C-c 确认"))
+      ;; Annotation is outside the buffer, so copying and saving yield text only.
+      (overlay-put wime-edit--decoration 'after-string
+                   (concat (propertize (concat " ⟦" wime--input "⟧") 'face 'wime-preedit-face)
+                           (when (and wime-show-candidates wime--candidates)
+                             (concat " " (if (wime--spans-p)
+                                              (wime--format-spans text)
+                                            (mapconcat
+                                             (lambda (pair) (format "%d.%s" (car pair) (cdr pair)))
+                                             (cl-loop for c in wime--candidates for i from 1
+                                                      collect (cons i c)) " ")))))))))
+
+(defun wime-edit--refresh (units cursor)
+  "Update reading UNITS and place point at the syllable boundary CURSOR."
+  (cl-incf wime-edit--generation)
+  (setq wime-edit--units units wime--search-cache nil)
+  (wime-edit--load-input)
+  (if units
+      (progn
+        (wime--refresh)
+        (goto-char (+ wime-edit--start cursor)))
+    (wime-edit--replace "" nil 0)
+    (wime--reset)))
+
+(defun wime-edit--type-code (key)
+  (wime-edit--sync)
+  (unless (wime-edit--active-p) (wime-edit--adopt (point) (point)))
+  (let* ((offset (- (point) wime-edit--start))
+         (previous (and (> offset 0) (nth (1- offset) wime-edit--units)))
+         (partial (and previous (= (length (caar (wime--parse (wime-edit--unit-keys previous)))) 1)))
+         (index (if partial (1- offset) offset))
+         (unit (wime-edit--make-unit
+                :keys (concat (and partial (wime-edit--unit-keys previous)) (char-to-string key))))
+         (units (append (seq-take wime-edit--units index) (list unit)
+                        (nthcdr (if partial offset index) wime-edit--units))))
+    (wime-edit--refresh units (1+ index))))
+
+(defun wime-edit--type-aux (key)
+  "Attach KEY to the character immediately before point."
+  (wime-edit--sync)
+  (when (and (wime-edit--active-p) (> (point) wime-edit--start))
+    (let* ((index (1- (- (point) wime-edit--start)))
+           (unit (nth index wime-edit--units)))
+      (when (= (length (caar (wime--parse (wime-edit--unit-keys unit)))) 2)
+        (wime-edit--refresh
+         (append (seq-take wime-edit--units index)
+                 (list (wime-edit--make-unit
+                        :keys (concat (wime-edit--unit-keys unit) (char-to-string key))
+                        :original (wime-edit--unit-original unit)))
+                 (nthcdr (1+ index) wime-edit--units)) (1+ index))
+        t))))
+
+(defun wime-edit--choose (text)
+  "Fix the explicitly chosen full TEXT without ending its editable run."
+  (when (= (length text) (length wime-edit--units))
+    (cl-incf wime-edit--generation)
+    (setq wime--pins
+          (cl-loop for unit in wime-edit--units for i from 0
+                   collect (list i (aref text i) (caar (wime--parse (wime-edit--unit-keys unit))))))
+    (wime--refresh)))
+
+(defun wime-edit--input-method (key)
+  (setq wime-edit--undoing nil wime-edit--paused-point nil)
+  (cond
+   ((wime--code-char-p
+     key (if (let ((unit (wime-edit--unit-at (1- (point)))))
+               (and unit (= (length (caar (wime--parse (wime-edit--unit-keys unit)))) 1)))
+             'final 'initial))
+    (wime-edit--type-code key) nil)
+   ((and (wime--aux-char-p key) (wime-edit--type-aux key)) nil)
+   ((and (wime-edit--active-p) (wime--digit-p key))
+    (if (wime--spans-p) (wime--select-digit key)
+      (let ((text (nth (if (= key ?0) 9 (- key ?1)) wime--candidates)))
+        (when text (wime-edit--choose text)))) nil)
+   ((and (wime-edit--active-p) (= key ?\s)) (wime-edit-pause) nil)
+   ((wime--punctuation-for key)
+    (wime-edit-pause)
+    (insert (wime--punctuation-for key)) nil)
+   (t (wime-edit-pause) (list key))))
+
+(defun wime-edit-delete-backward ()
+  "Remove one auxiliary/key input at the character before point."
+  (interactive)
+  (wime-edit--sync)
+  (if (and (wime-edit--active-p) (> (point) wime-edit--start))
+      (let* ((index (1- (- (point) wime-edit--start)))
+             (unit (nth index wime-edit--units))
+             (keys (substring (wime-edit--unit-keys unit) 0 -1)))
+        (wime-edit--refresh
+         (append (seq-take wime-edit--units index)
+                 (unless (string-empty-p keys) (list (wime-edit--make-unit :keys keys)))
+                 (nthcdr (1+ index) wime-edit--units))
+         (+ index (if (string-empty-p keys) 0 1))))
+    (backward-delete-char-untabify 1)))
+
+(defun wime-edit-finish ()
+  "Confirm pending readings in the accessible buffer, retaining its text."
+  (interactive)
+  (wime-edit-pause)
+  (let ((wime-edit--internal t))
+    (save-excursion
+      (goto-char (point-min))
+      (while (< (point) (point-max))
+        (if (not (wime-edit--unit-at (point))) (forward-char)
+          (let ((start (point)))
+            (while (and (< (point) (point-max)) (wime-edit--unit-at (point)))
+              (forward-char))
+            (let* ((end (point))
+                   (units (wime-edit--read-units start end))
+                   (raw (mapconcat #'wime-edit--unit-keys units ""))
+                   (parsed (wime--parse raw))
+                   (text (buffer-substring-no-properties start end))
+                   (original (concat (cl-loop for u in units for i from 0
+                                              collect (or (wime-edit--unit-original u) (aref text i))))))
+              (when (and (= (length parsed) (length text))
+                         (cl-every (lambda (u) (= (length (car u)) 2)) parsed)
+                         (string-match-p "\\`[一-鿿]+\\'" text)
+                         (wime--user-db))
+                (sqlite-execute (wime--user-db) "INSERT INTO commits VALUES (?, ?, ?, ?, ?, ?)"
+                                (list (float-time) raw (wime--full-code parsed) text original
+                                      (save-excursion (goto-char start) (wime--context-at-point))))
+                ;; Model revisions are not user corrections.  Only explicitly
+                ;; pinned/aux-filtered choices teach the reading preference.
+                (when (cl-some (lambda (u) (or (wime-edit--unit-pin u)
+                                               (not (string-empty-p
+                                                     (cdar (wime--parse (wime-edit--unit-keys u)))))))
+                               units)
+                  (wime--learn text parsed original))))))))
+    (atomic-change-group
+      (let ((position (point-min)))
+        (while (< position (point-max))
+          (let ((end (next-single-property-change position 'wime-edit-unit nil (point-max))))
+            (when (get-text-property position 'wime-edit-unit)
+              ;; Only discard our annotation, including on text a mode has
+              ;; since protected.  The text and its protection stay unchanged.
+              (let ((inhibit-read-only t))
+                (remove-text-properties position end '(wime-edit-unit nil))))
+            (setq position end)))))))
+
+(defun wime-edit-return ()
+  "Confirm converted text, then run the buffer's normal Return command."
+  (interactive)
+  (wime-edit-finish)
+  (let* ((wime-edit-mode nil) (command (key-binding (kbd "RET"))))
+    (when (and (commandp command) (not (eq command #'wime-edit-return)))
+      (call-interactively command))))
+
+(defvar wime-edit--keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "DEL") #'wime-edit-delete-backward)
+    (define-key map (kbd "<backspace>") #'wime-edit-delete-backward)
+    (define-key map (kbd "RET") #'wime-edit-return)
+    (define-key map (kbd "<return>") #'wime-edit-return)
+    (define-key map (kbd "TAB") #'wime-toggle-candidate-list)
+    (define-key map (kbd "<escape>") #'wime-edit-pause)
+    (define-key map (kbd "C-c C-c") #'wime-edit-finish)
+    map))
+
+(defun wime-edit-confirm-or-command ()
+  "Confirm pending readings, or run the normal C-c C-c binding."
+  (interactive)
+  (if (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil)
+      (wime-edit-finish)
+    (let* ((wime-edit-mode nil) (command (key-binding (kbd "C-c C-c"))))
+      (when (and (commandp command) (not (eq command #'wime-edit-confirm-or-command)))
+        (call-interactively command)))))
+
+(defvar wime-edit-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-c") #'wime-edit-confirm-or-command)
+    (define-key map (kbd "RET") #'wime-edit-return)
+    (define-key map (kbd "<return>") #'wime-edit-return)
+    map))
+
+;;;###autoload
+(define-minor-mode wime-edit-mode
+  "Keep Chinese readings attached to editable buffer characters.
+SPC pauses conversion.  Moving back to a character resumes it; uppercase
+auxiliary codes apply to the character before point.  C-c C-c confirms all
+pending text.  Switching input methods preserves readings for later edits."
+  :lighter " 半"
+  (if wime-edit-mode
+      (progn
+        (add-hook 'wime-reset-hook #'wime-edit--reset nil t)
+        (add-hook 'post-command-hook #'wime-edit--post-command nil t)
+        (add-hook 'before-change-functions #'wime-edit--before-change nil t)
+        (add-hook 'after-change-functions #'wime-edit--after-change nil t))
+    (wime-edit-finish)
+    (remove-hook 'wime-reset-hook #'wime-edit--reset t)
+    (remove-hook 'post-command-hook #'wime-edit--post-command t)
+    (remove-hook 'before-change-functions #'wime-edit--before-change t)
+    (remove-hook 'after-change-functions #'wime-edit--after-change t)))
+
+(provide 'wime-edit)
+;;; wime-edit.el ends here

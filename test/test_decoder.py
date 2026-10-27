@@ -53,6 +53,46 @@ class Toy(Decoder):
         return [0.0] * len(texts)
 
 
+class Lookahead(Toy):
+    """A one-character beam that prefers 证 only once the next keys are ju."""
+
+    def __init__(self):
+        super().__init__()
+        self.beam = self.per_hypothesis = 1
+        # A multi-character token could bypass the earlier pruned frontier.
+        self.units.longest = 1
+        for index in (self.units.index, self.units.partial):
+            for code, units in index.items():
+                index[code] = [unit for unit in units if len(unit[0]) == 1]
+        self.conditioned_on = []
+        self.lm_prefixes = []
+
+    def prompts(self, context, code, anchor, known):
+        return [code], [1]
+
+    def char_ids(self, texts):
+        return [[VOCAB.index(c) for c in text] for text in texts]
+
+    def lm_next(self, context, sequences):
+        self.lm_prefixes.extend(sequences)
+        return super().lm_next(context, sequences)
+
+    def preferred(self, prompt):
+        self.conditioned_on.append(prompt[0])
+        return "证据输入" if prompt[0].startswith("vgju") else "整输入"
+
+    def model_next(self, prompt, texts):
+        preferred = self.preferred(prompt)
+        rows = torch.full((len(texts), len(VOCAB)), -8.0)
+        for i, text in enumerate(texts):
+            rows[i, VOCAB.index(preferred[len(text)])] = 0.0
+        return rows
+
+    def model_score(self, prompt, texts):
+        preferred = self.preferred(prompt)
+        return [-8.0 * sum(a != b for a, b in zip(text, preferred)) for text in texts]
+
+
 class Decoding(unittest.TestCase):
     def test_the_language_model_spells_the_keys(self):
         texts = [t for t, _ in Toy().decode("", "vgjuuuru")]
@@ -70,7 +110,7 @@ class Decoding(unittest.TestCase):
         self.assertTrue(texts and all(len(t) == 4 and t[3] == "入" for t in texts))
         self.assertEqual(Toy().decode("", "v"), [])
 
-    def test_typing_reuses_kept_frontiers(self):
+    def test_typing_reuses_language_model_prefixes(self):
         decoder = Toy()
         first = decoder.decode("", "vgjuuu")
         before = decoder.forwards
@@ -81,6 +121,48 @@ class Decoding(unittest.TestCase):
         self.assertEqual(decoder.forwards, before)
         decoder.decode("ctx", "vgjuuu")
         self.assertGreater(decoder.forwards, before)
+
+    def test_later_syllables_recover_an_earlier_pruned_reading(self):
+        decoder = Lookahead()
+        self.assertEqual(decoder.decode("", "vg")[0][0], "整")
+        decoder.conditioned_on.clear()
+        self.assertEqual(decoder.decode("", "vgju")[0][0], "证据")
+        # Both the first and second frontier see all current syllables.
+        self.assertTrue(decoder.conditioned_on)
+        self.assertEqual(set(decoder.conditioned_on), {"vgju"})
+        # Existing general-LM rows remain valid despite rebuilding the beam.
+        self.assertEqual(decoder.lm_prefixes.count(()), 1)
+        decoder.conditioned_on.clear()
+        self.assertEqual(decoder.decode("", "vg")[0][0], "整")
+        self.assertEqual(set(decoder.conditioned_on), {"vg"})
+        self.assertEqual(decoder.lm_prefixes.count(()), 1)
+
+    def test_pasted_input_uses_later_syllables_before_first_pruning(self):
+        decoder = Lookahead()
+        self.assertEqual(decoder.decode("", "vgju")[0][0], "证据")
+        self.assertEqual(set(decoder.conditioned_on), {"vgju"})
+        # Replacing the second syllable also revisits the first character.
+        self.assertEqual(decoder.decode("", "vguu")[0][0], "整输")
+
+    def test_half_syllables_reuse_complete_frontiers(self):
+        decoder = Lookahead()
+        decoder.decode("", "vgju")
+        frontier = decoder.session.kept[1]
+        decoder.conditioned_on.clear()
+        self.assertEqual(decoder.decode("", "vgjuu")[0][0], "证据输")
+        self.assertIs(decoder.session.kept[1], frontier)
+        self.assertEqual(set(decoder.conditioned_on), {"vgju"})
+        decoder.conditioned_on.clear()
+        decoder.decode("", "vgju")
+        self.assertEqual(decoder.conditioned_on, [])
+
+    def test_rebuilding_respects_pins_and_auxiliary_codes(self):
+        decoder = Lookahead()
+        decoder.decode("", "vg", pins=[(0, "整")])
+        self.assertEqual(decoder.decode("", "vgju", pins=[(0, "整")])[0][0], "整据")
+        self.assertEqual(decoder.decode("", "vgju")[0][0], "证据")
+        decoder.decode("", "vg", aux=[(0, "s")])
+        self.assertEqual(decoder.decode("", "vgju", aux=[(0, "s")])[0][0], "整据")
 
     def test_a_new_pin_keeps_the_frontiers_before_it(self):
         decoder = Toy()

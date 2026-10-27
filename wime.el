@@ -165,7 +165,17 @@ Return point to disable context.  Errors or invalid markers also yield none.")
             (t (setq start (point)))))
     (max (point-min) (min (point) start))))
 
+(defvar wime-edit--start)
+(declare-function wime-edit--active-p "wime-edit")
+
 (defun wime--context ()
+  "Return committed context before the current composition."
+  (save-excursion
+    (when (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
+      (goto-char wime-edit--start))
+    (wime--context-at-point)))
+
+(defun wime--context-at-point ()
   "Return the visible, editable suffix before the insertion point.
 Honor narrowing, input-area and field boundaries; stop at protected or
 hidden characters instead of joining text across them.  Paragraph limits
@@ -309,6 +319,20 @@ Qwen3.5-2B rescorer."
 
 (defvar-local wime--overlay nil
   "Overlay showing the preedit and candidates.")
+
+(defcustom wime-editable-preedit nil
+  "Display Chinese compositions as editable buffer text.
+Enable `wime-edit-mode' when activating wime.  Readings survive cursor
+movement and switching to literal input until explicitly confirmed."
+  :type 'boolean :group 'wime)
+
+(autoload 'wime-edit-mode "wime-edit" nil t)
+(defvar wime-edit--keymap)
+(declare-function wime-edit--render "wime-edit")
+(declare-function wime-edit--decodable-p "wime-edit")
+(declare-function wime-edit--pending-refresh "wime-edit")
+(declare-function wime-edit--input-method "wime-edit" (key))
+(declare-function wime-edit-delete-backward "wime-edit")
 
 (defconst wime--default-keys "abcdefghijklmnopqrstuvwxyz;"
   "Code keys assumed when the database does not describe its scheme.")
@@ -855,14 +879,23 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
 (defun wime--display ()
   "Render the preedit and candidate list at point."
   (wime--clear-overlay)
-  (when (wime--active-p)
+  (if (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
+      (wime-edit--render)
+    (when (wime--active-p)
     (let ((text (wime--format)))
       (unless (string-empty-p text)
         (setq wime--overlay (make-overlay (point) (point)))
-        (overlay-put wime--overlay 'after-string text)))))
+        (overlay-put wime--overlay 'after-string text))))))
 
 (defun wime--refresh ()
   "Recompute candidates from the raw input and refresh the display."
+  (if (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p)
+           (not (wime-edit--decodable-p)))
+      (wime-edit--pending-refresh)
+    (wime--refresh-keys)))
+
+(defun wime--refresh-keys ()
+  "Refresh a composition whose flattened input retains syllable boundaries."
   (let ((units (wime--parse wime--input)))
     ;; A pin survives only while the syllable it fixed keeps its keys.
     (setq wime--pins (seq-filter (lambda (pin)
@@ -982,6 +1015,13 @@ In the span view only numbered alternatives respond; others do nothing."
 
 (defun wime-input-method (key)
   "Process KEY for the wanxiang input method."
+  (cond
+   ((wime--text-read-only-p) (list key))
+   ((bound-and-true-p wime-edit-mode) (wime-edit--input-method key))
+   (t (wime--legacy-input-method key))))
+
+(defun wime--legacy-input-method (key)
+  "Process KEY with the floating composition interface."
   (if (wime--text-read-only-p)
       (list key)
     (cond
@@ -1015,11 +1055,13 @@ In the span view only numbered alternatives respond; others do nothing."
 (defun wime-delete-backward ()
   "Delete the last typed key."
   (interactive)
+  (if (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
+      (wime-edit-delete-backward)
   (when (and wime--input (not (string-empty-p wime--input)))
     (setq wime--input (substring wime--input 0 -1)))
   (if (wime--active-p)
       (wime--refresh)
-    (wime--reset)))
+    (wime--reset))))
 
 (defun wime-commit-raw ()
   "Commit the typed input as literal text."
@@ -1033,7 +1075,8 @@ In the span view only numbered alternatives respond; others do nothing."
 
 (defun wime--clear-before-unrelated-command ()
   "Drop the composition before a command that does not belong to wime."
-  (unless (or (not (symbolp this-command))
+  (unless (or (bound-and-true-p wime-edit-mode)
+              (not (symbolp this-command))
               (string-prefix-p "wime-" (symbol-name this-command))
               (string-match-p "self-insert" (symbol-name this-command)))
     (wime--reset)))
@@ -1056,9 +1099,13 @@ In the span view only numbered alternatives respond; others do nothing."
   :keymap nil
   (if wime-active-mode
       (progn
-        (internal-push-keymap wime-active-mode-map 'overriding-terminal-local-map)
+        (internal-push-keymap (if (bound-and-true-p wime-edit-mode)
+                                 wime-edit--keymap wime-active-mode-map)
+                             'overriding-terminal-local-map)
         (add-hook 'pre-command-hook #'wime--clear-before-unrelated-command nil t))
     (internal-pop-keymap wime-active-mode-map 'overriding-terminal-local-map)
+    (when (boundp 'wime-edit--keymap)
+      (internal-pop-keymap wime-edit--keymap 'overriding-terminal-local-map))
     (remove-hook 'pre-command-hook #'wime--clear-before-unrelated-command t)))
 
 (define-minor-mode wime-mode
@@ -1068,6 +1115,7 @@ In the span view only numbered alternatives respond; others do nothing."
 
 (defun wime-activate (_name)
   "Activate the wanxiang input method."
+  (when wime-editable-preedit (wime-edit-mode 1))
   (setq-local input-method-function #'wime-input-method)
   (setq-local deactivate-current-input-method-function #'wime-deactivate)
   (wime-mode 1))

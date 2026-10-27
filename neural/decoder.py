@@ -8,14 +8,14 @@ ranked by  m + w * q + bonus:  m the pinyin-conditioned model's log
 probability of the text given every key typed so far, q the LM's, and the
 bonus learned readings earn per character they cover.
 
-A Session decodes one composition a syllable at a time: earlier frontiers
-stay pruned, each new syllable expands into the newest position only, and
-every surviving text is scored again by the conditional model under the
-current keys. LM distributions are memoized by token prefix, so a syllable
-costs one LM forward. A trailing half syllable is decoded provisionally:
-its last character's reading must start with the typed key. Pinned
-characters and typed auxiliary codes are hard constraints at their position;
-changing one keeps the frontiers before it.
+A Session revisits the composition whenever its complete syllables change:
+every frontier is pruned with all currently typed complete syllables in the
+conditional model's prompt, so later keys can recover an earlier reading.
+LM distributions are memoized by token prefix and reused across these
+searches. A trailing half syllable is decoded provisionally: its last
+character's reading must start with the typed key. Pinned characters and
+typed auxiliary codes are hard constraints at their position; changing one
+keeps the frontiers before it when the complete input is unchanged.
 """
 import collections
 import itertools
@@ -195,7 +195,7 @@ class Decoder:
             # Frontiers before the first changed position cover no constrained one.
             first = min(p for p in set(constraints) | set(session.constraints)
                         if constraints.get(p) != session.constraints.get(p))
-            session.kept, session.code = session.kept[:first + 1], session.code[:2 * first]
+            session.kept = session.kept[:first + 1]
             session.constraints = constraints
         return session.decode(code)
 
@@ -327,19 +327,21 @@ class Session:
         syllables, half = len(code) // 2, len(code) % 2
         if not syllables:
             return []
-        common = 0
-        while common < min(syllables, len(self.code) // 2) and code[2 * common:2 * common + 2] == self.code[2 * common:2 * common + 2]:
-            common += 1
-        self.kept, self.code = self.kept[:common + 1], code[:2 * common]
-        if common == 0 or len(self.memo) > MEMO:
-            # A new composition (or a very long one): LM rows of earlier prefixes go.
+        complete = code[:2 * syllables]
+        if complete != self.code:
+            # Earlier pruning depended on the old complete input. Revisit it
+            # even on append/delete so newly informative suffixes can change
+            # the first character, including readings no longer in the beam.
+            self.kept, self.code = self.kept[:1], complete
+        if len(self.memo) > MEMO:
+            # General-LM rows depend only on the unchanged left context and
+            # output token prefix, so key edits do not invalidate them.
             self.memo, self.tails = {}, {}
-        for end in range(common + 1, syllables + 1):
-            self.code = code[:2 * end]
-            prompt = self.prompt(self.code, end)
-            self.kept.append(self.finish(self.expand(self.code, end, prompt), prompt, end))
+        prompt = self.prompt(complete, syllables)
+        for end in range(len(self.kept), syllables + 1):
+            self.kept.append(self.finish(self.expand(code[:2 * end], end, prompt), prompt, end))
         if half:
-            prompt = self.prompt(code[:2 * syllables], syllables + 1)
+            prompt = self.prompt(complete, syllables + 1)
             final = self.finish(self.expand(code, syllables + 1, prompt), prompt, syllables)
         else:
             final = self.kept[syllables]
