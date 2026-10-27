@@ -1,0 +1,476 @@
+{
+  "version": 1,
+  "source_cases_sha256": "016ca3e2d3238d1eefd2ff63129bfdc3d190604f6c9d372272db73ace65ffa6c",
+  "review_scope": {
+    "reviewer": "Codex agent linguistic review; not native-human annotation",
+    "all_cases": "All 1550 receive structural, unusual-character, duplicate-input, source-alignment and optional reading-table/analyzer checks. Analyzer disagreements never automatically change labels.",
+    "focused_review": "All 26 original table-unsupported items; all 63 Tatoeba items with ASCII letters/digits or numeric characters; 197 nonnumeric Tatoeba analyzer disagreements screened, retaining valid alternatives and analyzer errors; AJIMEE analyzer disagreements screened.",
+    "not_claimed": "No claim of exhaustive human verification of every reading or of completeness of every acceptable-spelling list. Remaining uncertainty is recorded separately.",
+    "prediction_independence": "Corrections use original text/transcription, lexical evidence and linguistic context, not the spelling preferred by the conversion model. The historical 1550-case file remains immutable."
+  },
+  "dictionary_evidence": {
+    "file": "/usr/share/tagainijisho/jmdict.db",
+    "sha256": "de88ab2c69d21e1aedaff756453531a3f31931329175d434745f8a7949468209",
+    "version": "JMdict 2022-11-26"
+  },
+  "corrections": [
+    {
+      "suite": "tatoeba",
+      "case_index": 124,
+      "case_id": "12965053",
+      "before": {
+        "kana": "わたしのてんわばんごうはぜろきゅうぜろのいちにさんよんのごろくななはちです。"
+      },
+      "after": {
+        "kana": "わたしのでんわばんごうはぜろきゅうぜろのいちにさんよんのごろくななはちです。"
+      },
+      "reason": "電話の標準読みはでんわ。原注音のてんは清濁の誤り。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/12965053",
+        "source_transcription": "[私|わたし]の[電話|てん|わ][番号|ばん|ごう]は[0|ゼロ][9|きゅう][0|ゼロ]の[1|いち][2|に][3|さん][4|よん]の[5|ご][6|ろく][7|なな][8|はち]です。",
+        "reference": "JMdict 電話=でんわ"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 194,
+      "case_id": "12984434",
+      "before": {
+        "kana": "とむをてつだうのはちょっと"
+      },
+      "after": {
+        "kana": "とむをてつだうのはちょっと..."
+      },
+      "reason": "原文の三つのピリオドが[.|]で無音扱いされていた。忠実変換の評価では句読点も入力に残す。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/12984434",
+        "source_transcription": "トムを[手伝|て|つだ]うのはちょっと[.|][.|][.|]",
+        "reference": "source has [.|][.|][.|]; preserve the original literal punctuation"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 217,
+      "case_id": "13011305",
+      "before": {
+        "kana": "にせんじゅうさんねんねんにもおなじことがあった。"
+      },
+      "after": {
+        "kana": "にせんじゅうさんねんにもおなじことがあった。"
+      },
+      "reason": "2013の注音が既に年を含み、その後の年の注音でねんが重複している。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13011305",
+        "source_transcription": "[2013|にせんじゅうさんねん][年|ねん]にも[同|おな]じことがあった。",
+        "reference": "source [2013|にせんじゅうさんねん][年|ねん]"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 304,
+      "case_id": "13056011",
+      "before": {
+        "kana": "「よりょくのほんのわずかなじょうよでれいきゃくかたゆいしたいわかたまりをもみくだき、つかみつぶし」てらだとらひこ「あさまさんろくより」"
+      },
+      "after": {
+        "kana": "「よりょくのほんのわずかなじょうよでれいきゃくこけつしたがんかいをもみくだき、つかみつぶし」てらだとらひこ「あさまさんろくより」"
+      },
+      "reason": "固結と岩塊を単字訓読みで連結していた。複合語の読みを用い、浅間山麓の原注音は保持する。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13056011",
+        "source_transcription": "「[余力|よ|りょく]のほんのわずかな[剰余|じょう|よ]で[冷却|れい|きゃく][固|かた][結|ゆい]した[岩|いわ][塊|かたまり]を[揉|も]み[砕|くだ]き、つかみ[潰|つぶ]し」[寺田|てら|だ][寅彦|とら|ひこ]「[浅間|あさ|ま][山麓|さん|ろく]より」",
+        "reference": "JMdict 固結=こけつ; 岩塊=がんかい"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 307,
+      "case_id": "13059158",
+      "before": {
+        "kana": "ひさしぶりにえいがをかんにいったが、おもったいじょうにかんどうしてなみだがでた。"
+      },
+      "after": {
+        "kana": "ひさしぶりにえいがをみにいったが、おもったいじょうにかんどうしてなみだがでた。"
+      },
+      "reason": "映画を観に行くの観は動詞観るの連用形み。音読みかんを当てるのは誤り。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13059158",
+        "source_transcription": "[久|ひさ]しぶりに[映画|えい|が]を[観|かん]に[行|い]ったが、[思|おも]った[以上|い|じょう]に[感動|かん|どう]して[涙|なみだ]が[出|で]た。",
+        "reference": "JMdict 観る=みる"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 311,
+      "case_id": "13063823",
+      "before": {
+        "kana": "おはらのなかにあかちゃんがいるの。"
+      },
+      "after": {
+        "kana": "おなかのなかにあかちゃんがいるの。"
+      },
+      "reason": "お腹の中という定型表現ではおなか。お腹をお＋腹の単字読みはらとしていた。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13063823",
+        "source_transcription": "お[腹|はら]の[中|なか]に[赤|あか]ちゃんがいるの。",
+        "reference": "JMdict お腹=おなか"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 392,
+      "case_id": "13082947",
+      "before": {
+        "kana": "かーどのゆうこうきげんはにせんろねんいちがつです。"
+      },
+      "after": {
+        "kana": "かーどのゆうこうきげんはにせんろくねんいちがつです。"
+      },
+      "reason": "2006の原注音にせんろは六のくが欠落している。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13082947",
+        "source_transcription": "カードの[有効|ゆう|こう][期限|き|げん]は[2006|にせんろ][年|ねん][1月|いちがつ]です。",
+        "reference": "source [2006|にせんろ][年|ねん]"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 587,
+      "case_id": "13158689",
+      "before": {
+        "kana": "もうおしゅはのまない。"
+      },
+      "after": {
+        "kana": "もうおさけはのまない。"
+      },
+      "reason": "もうお酒は飲まないのお酒はおさけ。音読みしゅとの混成おしゅは原注音誤り。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13158689",
+        "source_transcription": "もうお[酒|しゅ]は[飲|の]まない。",
+        "reference": "JMdict お酒=おさけ/ごしゅ, not おしゅ"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 947,
+      "case_id": "13254203",
+      "before": {
+        "answers": [
+          "メアリーはJ-POPとK-POPを聴きます。"
+        ]
+      },
+      "after": {
+        "answers": [
+          "メアリーはJ-POPとK-POPを聴きます。",
+          "メアリーはJポップとKポップを聴きます。"
+        ]
+      },
+      "reason": "同じ無文脈入力に二つの独立した原文表記が存在する。J-POP/K-POPとJポップ/Kポップを両方受理する。各IDと重複の重みは維持する。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13254203",
+        "source_transcription": "メアリーは[J|じぇい][-POP|ポップ]と[K|けい][-POP|ポップ]を[聴|き]きます。",
+        "matching_input_source_id": "13254271"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 951,
+      "case_id": "13254271",
+      "before": {
+        "answers": [
+          "メアリーはJポップとKポップを聴きます。"
+        ]
+      },
+      "after": {
+        "answers": [
+          "メアリーはJポップとKポップを聴きます。",
+          "メアリーはJ-POPとK-POPを聴きます。"
+        ]
+      },
+      "reason": "同じ無文脈入力に二つの独立した原文表記が存在する。J-POP/K-POPとJポップ/Kポップを両方受理する。各IDと重複の重みは維持する。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13254271",
+        "source_transcription": "メアリーは[J|じぇい]ポップと[K|けい]ポップを[聴|き]きます。",
+        "matching_input_source_id": "13254203"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1023,
+      "case_id": "13315563",
+      "before": {
+        "kana": "ちょうさにはすうゖかげつかかるかもしれません。"
+      },
+      "after": {
+        "kana": "ちょうさにはすうかげつかかるかもしれません。"
+      },
+      "reason": "[数|すう]ヶ[月|かげつ]では月側の注音が既にヶを含む。裸ヶを機械的にゖへ変換して重ねていた。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13315563",
+        "source_transcription": "[調査|ちょう|さ]には[数|すう]ヶ[月|かげつ]かかるかもしれません。",
+        "reference": "source bracket segmentation plus hira U+30F6 -> U+3096 artifact"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1077,
+      "case_id": "13479050",
+      "before": {
+        "kana": "それだかすぎじゃない？"
+      },
+      "after": {
+        "kana": "それたかすぎじゃない？"
+      },
+      "reason": "それ高すぎの形容詞高いはたかい。接尾語高だかの読みを当てる箇所ではない。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13479050",
+        "source_transcription": "それ[高|だか]すぎじゃない？",
+        "reference": "JMdict 高い=たかい"
+      }
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1196,
+      "case_id": "13681977",
+      "before": {
+        "kana": "きょう、またおなじじがあった。"
+      },
+      "after": {
+        "kana": "きょう、またおなじことがあった。"
+      },
+      "reason": "同じ事があったの事は独立名詞こと。接尾的音読みじはこの文脈に適さない。",
+      "evidence": {
+        "source_url": "https://tatoeba.org/en/sentences/show/13681977",
+        "source_transcription": "[今日|きょう]、また[同|おな]じ[事|じ]があった。",
+        "reference": "source [同|おな]じ[事|じ]; contextual linguistic review"
+      }
+    }
+  ],
+  "pending_review": [
+    {
+      "suite": "tatoeba",
+      "case_index": 1048,
+      "case_id": "13384908",
+      "kana": "たみはもーせにもんくをいい、「わたしたちにのみみずをください。」といった。するともーせはこたえた。「なぜわたしにもんくをいうのですか？なぜぬしをためすのですか？」",
+      "answers": [
+        "民はモーセに文句を言い、「私たちに飲み水をください。」と言った。するとモーセは答えた。「なぜ私に文句を言うのですか？なぜ主を試すのですか？」"
+      ],
+      "reason": "聖書の主がぬしと注音されている。しゅが自然だが原典の読みを確認するまで未変更。"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1085,
+      "case_id": "13502538",
+      "kana": "きょうはほかにでないほうがいいとおもうんだ。",
+      "answers": [
+        "今日は外に出ないほうがいいと思うんだ。"
+      ],
+      "reason": "外に出ないのほかはそとが自然。外には辞書上ほかもあるので原注音者の意図確認待ち。"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1281,
+      "case_id": "13911138",
+      "kana": "ぱぱは、うちのまんしょんかにあるじむしょにいた。",
+      "answers": [
+        "パパは、うちのマンション下にある事務所にいた。"
+      ],
+      "reason": "マンション下のかはしたが自然。接尾語的な読みとの区別を確認するまで未変更。"
+    },
+    {
+      "suite": "ajimee",
+      "case_index": 48,
+      "case_id": "1116",
+      "kana": "、いちにんまえになることで、じたどもにせいじんいしきをふかめ、このときからかれらははじめてけっこんしかくをこうにんされ、",
+      "answers": [
+        "、一人前になることで、自他共に成人意識を深め、このときから彼等は初めて結婚資格を公認され、",
+        "、一人前になることで、自他共に成人意識を深め、このときから彼らは初めて結婚資格を公認され、",
+        "、一人前になることで、自他ともに成人意識を深め、このときから彼等は初めて結婚資格を公認され、",
+        "、一人前になることで、自他ともに成人意識を深め、このときから彼らは初めて結婚資格を公認され、",
+        "、一人前になることで、自他共に成人意識を深め、この時から彼等は初めて結婚資格を公認され、",
+        "、一人前になることで、自他共に成人意識を深め、この時から彼らは初めて結婚資格を公認され、",
+        "、一人前になることで、自他ともに成人意識を深め、この時から彼等は初めて結婚資格を公認され、",
+        "、一人前になることで、自他ともに成人意識を深め、この時から彼らは初めて結婚資格を公認され、"
+      ],
+      "reason": "自他共にがじたどもに。標準的なじたともにとの相違を上流注音まで確認する必要がある。"
+    },
+    {
+      "suite": "ajimee",
+      "case_index": 131,
+      "case_id": "1756",
+      "kana": "かれらがやみのしおきじんであるとけんとうをつけた",
+      "answers": [
+        "彼らが闇の仕置人であると見当をつけた"
+      ],
+      "reason": "仕置人がしおきじん。固有作品名か一般語かを左文・出典で確認する。"
+    },
+    {
+      "suite": "ajimee",
+      "case_index": 190,
+      "case_id": "2144",
+      "kana": "ているかいほうがたのばあいをのぞき、とじたれいきゃくけいかいろをながれており、せいじょうにかどうしているまはかんきょうへのあくえいきょう",
+      "answers": [
+        "ている開放型の場合を除き、閉じた冷却系回路を流れており、正常に稼働している間は環境への悪影響"
+      ],
+      "reason": "稼働している間はがいるまは。いるあいだはが自然だが上流注音を確認するまで未変更。"
+    }
+  ],
+  "reviewed_coverage": [
+    {
+      "suite": "ajimee",
+      "case_index": 21,
+      "case_id": "412",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "ajimee",
+      "case_index": 41,
+      "case_id": "1027",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "ajimee",
+      "case_index": 115,
+      "case_id": "1676",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "ajimee",
+      "case_index": 162,
+      "case_id": "1953",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "ajimee",
+      "case_index": 187,
+      "case_id": "2111",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 124,
+      "case_id": "12965053",
+      "disposition": "reference_corrected"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 136,
+      "case_id": "12975745",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 182,
+      "case_id": "12977869",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 194,
+      "case_id": "12984434",
+      "disposition": "reference_corrected"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 217,
+      "case_id": "13011305",
+      "disposition": "reference_corrected"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 304,
+      "case_id": "13056011",
+      "disposition": "reference_corrected"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 309,
+      "case_id": "13063821",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 390,
+      "case_id": "13082937",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 392,
+      "case_id": "13082947",
+      "disposition": "reference_corrected"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 416,
+      "case_id": "13088962",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 717,
+      "case_id": "13191993",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 746,
+      "case_id": "13198924",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 776,
+      "case_id": "13201668",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 860,
+      "case_id": "13225077",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1023,
+      "case_id": "13315563",
+      "disposition": "reference_corrected"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1039,
+      "case_id": "13356088",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1276,
+      "case_id": "13914998",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1278,
+      "case_id": "13914995",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1316,
+      "case_id": "13958191",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1321,
+      "case_id": "13959205",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    },
+    {
+      "suite": "tatoeba",
+      "case_index": 1324,
+      "case_id": "13982395",
+      "disposition": "retained_reading_requires_coverage_or_domain_review"
+    }
+  ]
+}
