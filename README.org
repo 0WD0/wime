@@ -32,7 +32,8 @@ wdoom 默认启用 =wime-editable-preedit=：候选是 buffer 中的真实文字
 普通插入和粘贴作为原样文字，把相邻中文段分开；明确选定的字保持固定。
 未确认中文按最多 =wime-edit-max-syllables=（默认 24）字的窗口重新转换，
 后输入的音节可改变前面的选字。英文和标点两侧目前分别转换，尚不做跨段联合解码。
-=ESC= 暂存后保留背景色、下划线和 =⟦暂存⟧= 标记，移动光标可继续修改。
+=ESC= 暂存并进入 Evil normal，保留背景色、下划线和 =⟦暂存⟧= 标记；
+回到 insert 后可继续修改。未启用 Evil 时只暂存。
 中文输入状态下，空格确认可访问区域内的待转换文字（包括已暂存的），
 再按空格正常输入空格。=C-c C-c= 保留原编辑模式的功能。
 设 =wime-editable-preedit= 为 nil，或在 buffer 中关闭 =wime-edit-mode= 可用旧界面。
@@ -40,8 +41,9 @@ wdoom 默认启用 =wime-editable-preedit=：候选是 buffer 中的真实文字
 ** 分段视图
 
 =wime-candidate-style= 为 =spans= 时（wdoom 装了重排模型后的默认），
-多音节输入只显示一条整句。
-模型拿不准的字加波浪线，后面跟着带编号的替代写法。
+半上屏正文只显示汉字，不显示双拼串或辅助码。
+模型拿不准的字加波浪线，替代写法在对应字词下方竖排，整段统一编号。
+双拼和辅助码仍保存在读音记录中，可继续补码纠错。
 按数字把那一段固定下来，其余部分重新解码；
 固定的字在它的按键改变前一直有效。
 
@@ -193,7 +195,8 @@ Bazel 在构建时下载上游 nightly 产物，不依赖本机安装：
 ERT 测试在仓库根目录运行，词库取自 =bazel-bin/=：
 
 #+begin_src sh
-emacs -Q --batch -L emacs-packages/wime --eval '(setq load-prefer-newer t)' \
+emacs -Q --batch -L emacs-packages/wime -L emacs-packages/evil -L emacs-packages/goto-chg \
+  --eval '(setq load-prefer-newer t)' \
   -l ert -l emacs-packages/wime/test/wime-test.el \
   -l emacs-packages/wime/test/wime-edit-test.el \
   -l emacs-packages/wime/test/wime-edit-neural-test.el \

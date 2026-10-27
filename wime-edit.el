@@ -10,6 +10,8 @@
 
 (require 'wime)
 
+(declare-function evil-normal-state "evil-states" (&optional arg))
+
 (defcustom wime-edit-max-syllables 24
   "Maximum Chinese characters reconsidered together around point."
   :type 'natnum :group 'wime)
@@ -38,6 +40,8 @@
 (defvar-local wime-edit--generation 0)
 (defvar-local wime-edit--decoration nil)
 (defvar-local wime-edit--pending-decorations nil)
+(defvar-local wime-edit--correction-decorations nil)
+(defvar-local wime-edit--correction-layout nil)
 (defvar-local wime-edit--internal nil)
 (defvar-local wime-edit--undoing nil)
 (defvar-local wime-edit--paused-point nil)
@@ -80,7 +84,9 @@
 
 (defun wime-edit--clear-decoration ()
   (when (overlayp wime-edit--decoration) (delete-overlay wime-edit--decoration))
-  (setq wime-edit--decoration nil))
+  (mapc #'delete-overlay wime-edit--correction-decorations)
+  (setq wime-edit--decoration nil wime-edit--correction-decorations nil
+        wime-edit--correction-layout nil wime--span-choices nil))
 
 (defun wime-edit--refresh-pending-decorations ()
   "Mark every suspended reading span without changing buffer text.
@@ -102,16 +108,14 @@ of truth.  Widen only for display; confirmation still respects narrowing."
            ((not (wime-edit--unit-p (get-text-property position 'wime-edit-unit)))
             (setq position (next-single-property-change position 'wime-edit-unit nil (point-max))))
            (t
-            (let ((start position) keys unit)
+            (let ((start position))
               (while (and (< position (point-max))
                           (not (and active-start (= position active-start)))
                           (wime-edit--unit-p
-                           (setq unit (get-text-property position 'wime-edit-unit))))
-                (push (wime-edit--unit-keys unit) keys)
+                           (get-text-property position 'wime-edit-unit)))
                 (setq position (next-single-property-change position 'wime-edit-unit nil (point-max))))
               (let* ((overlay (make-overlay start position nil nil nil))
-                     (help (concat "暂存双拼：" (apply #'concat (nreverse keys))
-                                   "；移动光标继续修改，空格确认")))
+                     (help "暂存文字；移动光标继续修改，空格确认"))
                 (overlay-put overlay 'face 'wime-edit-pending-face)
                 (overlay-put overlay 'help-echo help)
                 (overlay-put overlay 'evaporate t)
@@ -134,6 +138,13 @@ of truth.  Widen only for display; confirmation still respects narrowing."
   (interactive)
   (wime--reset)
   (setq wime-edit--paused-point (point)))
+
+(defun wime-edit-escape ()
+  "Suspend editable input and leave Evil insertion with the same key."
+  (interactive)
+  (wime-edit-pause)
+  (when (bound-and-true-p evil-local-mode)
+    (evil-normal-state)))
 
 (defun wime-edit--bounds ()
   "Find the bounded Chinese run touching point, within the input area."
@@ -191,10 +202,13 @@ of truth.  Widen only for display; confirmation still respects narrowing."
     (setq wime-edit--undoing nil))
   (unless (or wime-edit--internal wime-edit--undoing
               (eq (point) wime-edit--paused-point)
-              (memq this-command '(wime-edit-pause wime-edit-finish
+              (memq this-command '(wime-edit-pause wime-edit-escape wime-edit-finish
                                    wime-edit-return toggle-input-method
                                    undo undo-only undo-redo)))
-    (wime-edit--sync)))
+    (wime-edit--sync))
+  (when (and (wime-edit--active-p)
+             (not (equal wime-edit--correction-layout (wime-edit--layout-signature))))
+    (wime-edit--render)))
 
 (defun wime-edit--before-change (_start _end)
   (unless wime-edit--internal
@@ -311,6 +325,140 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
       (when (and (= old-length (length text)) mark-position (<= start mark-position end))
         (set-marker (mark-marker) (+ start (min (- mark-position start) (length text))))))))
 
+(defun wime-edit--layout-signature ()
+  "Return the window geometry relevant to correction rows."
+  (list (point-min) (point-max)
+        (mapcar (lambda (window)
+                  (list window (window-body-width window) (window-hscroll window)))
+                (get-buffer-window-list (current-buffer) nil t))))
+
+(defun wime-edit--correction-groups (text)
+  "Return (START END OPTIONS) groups, where OPTIONS contain (LABEL . TEXT).
+Span labels share one sequence across the whole run.  Whole-sentence labels
+keep their original indices so the existing digit selection remains valid."
+  (setq wime--span-choices nil)
+  (when (and wime-show-candidates wime--candidates)
+    (if (wime--spans-p)
+        (let ((label 0) groups choices)
+          (pcase-dolist (`(,start ,end ,alternatives)
+                         (wime--uncertain-spans text wime--candidate-scores))
+            (let (options)
+              (dolist (alternative alternatives)
+                (when (< label 10)
+                  (cl-incf label)
+                  (push (cons (% label 10) alternative) options)
+                  (push (list start end alternative) choices)))
+              (when options (push (list start end (nreverse options)) groups))))
+          (setq wime--span-choices (nreverse choices))
+          (nreverse groups))
+      (let ((label 0) options)
+        (dolist (candidate wime--candidates)
+          (cl-incf label)
+          (when (and (<= label 10) (= (length candidate) (length text))
+                     (not (equal candidate text)))
+            (push (cons (% label 10) candidate) options)))
+        (when options (list (list 0 (length text) (nreverse options))))))))
+
+(defun wime-edit--correction-cell (option)
+  (concat (propertize (format "%d." (car option)) 'face 'wime-label-face)
+          (propertize (cdr option) 'face 'wime-alternatives-face)))
+
+(defun wime-edit--correction-rows (columns)
+  "Lay out (COLUMN . OPTIONS) COLUMNS vertically, staggering overlaps."
+  (let ((right -2) band bands)
+    (dolist (column columns)
+      (when (and band (< (car column) (+ right 2)))
+        (push (nreverse band) bands)
+        (setq band nil))
+      (push column band)
+      (setq right (+ (car column)
+                     (apply #'max (mapcar (lambda (option)
+                                           (string-width (wime-edit--correction-cell option)))
+                                         (cdr column))))))
+    (when band (push (nreverse band) bands))
+    (mapconcat
+     (lambda (row-band)
+       (mapconcat
+        (lambda (row)
+          (concat "\n"
+                  (mapconcat
+                   (lambda (column)
+                     (when-let* ((option (nth row (cdr column))))
+                       (concat (propertize " " 'display `(space :align-to ,(car column)))
+                               (wime-edit--correction-cell option))))
+                   row-band "")))
+        (number-sequence 0 (1- (apply #'max (mapcar (lambda (column) (length (cdr column)))
+                                                   row-band)))) ""))
+     (nreverse bands) "")))
+
+(defun wime-edit--correction-location (position window)
+  "Return (ANCHOR COLUMN SOFT-WRAP) for a correction at POSITION in WINDOW."
+  (save-excursion
+    (goto-char position)
+    (let ((column (current-column)) (end (line-end-position)))
+      (if (not window) (list end column nil)
+        ;; Measure without our virtual candidate rows.  Normal text to the
+        ;; right stays on its original screen line, above the candidates.
+        (vertical-motion 0 window)
+        (setq column
+              (if (display-graphic-p (window-frame window))
+                  (/ (float (car (window-text-pixel-size window (point) position t)))
+                     (frame-char-width (window-frame window)))
+                (- column (current-column))))
+        (goto-char position)
+        (vertical-motion 1 window)
+        (list (min end (point)) column (< (point) end))))))
+
+(defun wime-edit--display-width (text window)
+  "Measure TEXT in the units used by display-space alignment."
+  (if (and window (display-graphic-p (window-frame window)))
+      (with-selected-window window
+        (/ (float (string-pixel-width text)) (frame-char-width (window-frame window))))
+    (string-width text)))
+
+(defun wime-edit--show-corrections (text)
+  "Display correction columns underneath their source text."
+  (let ((groups (wime-edit--correction-groups text))
+        (windows (or (get-buffer-window-list (current-buffer) nil t) '(nil))))
+    (dolist (group groups)
+      (let ((overlay (make-overlay (+ wime-edit--start (car group))
+                                   (+ wime-edit--start (nth 1 group)))))
+        (overlay-put overlay 'face 'wime-uncertain-face)
+        (overlay-put overlay 'priority 1)
+        (push overlay wime-edit--correction-decorations)))
+    (dolist (window windows)
+      (let (lines)
+        ;; Measure every column before inserting any virtual lines.
+        (dolist (group groups)
+          (pcase-let* ((`(,anchor ,column ,soft)
+                        (wime-edit--correction-location (+ wime-edit--start (car group)) window))
+                       (options (nth 2 group))
+                       (width (apply #'max (mapcar (lambda (option)
+                                                    (wime-edit--display-width
+                                                     (wime-edit--correction-cell option) window))
+                                                  options)))
+                       ;; Put the alternative's characters under the source;
+                       ;; its number occupies the small gutter to the left.
+                       (column (max 0 (- column (wime-edit--display-width
+                                                 (propertize (format "%d." (caar options))
+                                                             'face 'wime-label-face) window))))
+                       (column (if window
+                                   (max 0 (min column (- (window-body-width window) width 1)))
+                                 column))
+                       (line (assq anchor lines)))
+            (unless line
+              (setq line (list anchor soft nil))
+              (push line lines))
+            (setf (nth 2 line) (append (nth 2 line) (list (cons column options))))))
+        (dolist (line lines)
+          (let ((overlay (make-overlay (car line) (car line))))
+            (when window (overlay-put overlay 'window window))
+            (overlay-put overlay 'after-string
+                         (concat (wime-edit--correction-rows (nth 2 line))
+                                 (when (nth 1 line) "\n")))
+            (push overlay wime-edit--correction-decorations))))))
+  (setq wime-edit--correction-layout (wime-edit--layout-signature)))
+
 (defun wime-edit--render ()
   "Publish a reading in the buffer and show non-textual conversion details."
   (when (and (wime-edit--active-p) (wime-edit--writable-p))
@@ -327,18 +475,9 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
       (setq wime-edit--decoration (make-overlay wime-edit--start wime-edit--end))
       (overlay-put wime-edit--decoration 'face 'wime-edit-active-face)
       (overlay-put wime-edit--decoration 'help-echo
-                   (concat "双拼：" wime--input "；空格确认，ESC 暂存"))
-      ;; Annotation is outside the buffer, so copying and saving yield text only.
-      (overlay-put wime-edit--decoration 'after-string
-                   (concat (propertize (concat " ⟦待确认：" wime--input "⟧") 'face 'wime-preedit-face)
-                           (when (and wime-show-candidates wime--candidates)
-                             (concat " " (if (wime--spans-p)
-                                              (wime--format-spans text)
-                                            (mapconcat
-                                             (lambda (pair) (format "%d.%s" (car pair) (cdr pair)))
-                                             (cl-loop for c in wime--candidates for i from 1
-                                                      collect (cons i c)) " "))))))
-      (wime-edit--refresh-pending-decorations))))
+                   "空格确认，ESC 暂存；TAB 切换整句候选")
+      (wime-edit--refresh-pending-decorations)
+      (wime-edit--show-corrections text))))
 
 (defun wime-edit--refresh (units cursor)
   "Update reading UNITS and place point at the syllable boundary CURSOR."
@@ -399,9 +538,10 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
     (wime-edit--type-code key) nil)
    ((and (wime--aux-char-p key) (wime-edit--type-aux key)) nil)
    ((and (wime-edit--active-p) (wime--digit-p key))
-    (if (wime--spans-p) (wime--select-digit key)
-      (let ((text (nth (if (= key ?0) 9 (- key ?1)) wime--candidates)))
-        (when text (wime-edit--choose text)))) nil)
+    (when wime-show-candidates
+      (if (wime--spans-p) (wime--select-digit key)
+        (let ((text (nth (if (= key ?0) 9 (- key ?1)) wime--candidates)))
+          (when text (wime-edit--choose text))))) nil)
    ((and (= key ?\s)
          (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil))
     (wime-edit-finish) nil)
@@ -501,7 +641,7 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
     (define-key map (kbd "RET") #'wime-edit-return)
     (define-key map (kbd "<return>") #'wime-edit-return)
     (define-key map (kbd "TAB") #'wime-toggle-candidate-list)
-    (define-key map (kbd "<escape>") #'wime-edit-pause)
+    (define-key map (kbd "<escape>") #'wime-edit-escape)
     map))
 
 (defvar wime-edit-mode-map
