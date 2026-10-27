@@ -165,6 +165,21 @@ class TextDecoding(unittest.TestCase):
                                float(decoder._row([], ())[VOCAB.index("韩钢")]) / 2)
         self.assertGreater(component["邯钢"]["lm"], component["韩钢"]["lm"])
 
+    def test_memo_memory_remains_bounded_when_batches_exceed_the_budget(self):
+        decoder = Toy(memo_limit=2)
+        expected = decoder._row((1,), ()).to(torch.bfloat16).float()
+        # Keep one old path hot while replacing its batch siblings. A cached
+        # row view would keep each old batch's entire storage alive.
+        for batch in range(4):
+            sequences = [(batch, i) for i in range(4)] + [(5,)]
+            actual = decoder._next((1,), sequences)
+            self.assertTrue(torch.equal(actual, expected.expand(len(sequences), -1)))
+            self.assertLessEqual(len(decoder._memo), decoder.memo_limit)
+            storage = {row.untyped_storage().data_ptr(): row.untyped_storage().nbytes()
+                       for row in decoder._memo.values()}
+            self.assertLessEqual(sum(storage.values()), decoder.memo_limit * len(VOCAB) * 2)
+        self.assertEqual(Counter(seq for _, seq in decoder.next_calls)[(5,)], 1)
+
     def test_guide_score_is_not_added_to_final_lm_ranking(self):
         settings = dict(conditional_scores={"邯": -1000}, lm_scores={"韩": -10}, beam=16,
                         guide_weight=20)

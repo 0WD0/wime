@@ -84,7 +84,9 @@ class TextDecoder(Decoder):
         missing = [s for s in dict.fromkeys(sequences) if s not in self._memo]
         if missing:
             for seq, row in zip(missing, self.lm_next(list(prefix), missing).to(torch.bfloat16)):
-                self._memo[seq] = row
+                # A view would retain its whole batch after sibling rows are
+                # evicted, defeating the LRU's memory bound during editing.
+                self._memo[seq] = row.clone()
         # Keep current rows alive even if the cache budget is smaller than a
         # batch. Trimming after gathering avoids invalidating this request.
         rows = []
