@@ -42,6 +42,69 @@
                   ("bb" "b" "b") ("jbm" "jb" "m") ("ka," "か、" "")))
     (should (equal (wime-japanese--convert (car case)) (cons (nth 1 case) (nth 2 case))))))
 
+(defmacro wime-japanese-test--with-scheme (name &rest body)
+  "Run BODY in a buffer using the input method NAME."
+  (declare (indent 1))
+  `(with-temp-buffer
+     (let ((wime-neural-mode nil))
+       (unwind-protect
+           (progn (activate-input-method ,name) ,@body)
+         (deactivate-input-method)))))
+
+(ert-deftest wime-japanese-onishi-types-ordinary-romaji ()
+  ;; Physical QWERTY keys, read as nihongo, shichitsu, ga;kou, and nihon.
+  (dolist (case '(("ks;fknf" "にほんご") ("l;sc;sjle" "しちつ")
+                  ("ndbhfe" "がっこう") ("ks;fk" "にほん")
+                  ("zd.d" "ざじゃ") ("rtg" "、。ー")))
+    (wime-japanese-test--with-scheme "wime-japanese-onishi"
+      (dolist (key (string-to-list (car case)))
+        (should-not (funcall input-method-function key)))
+      (wime-japanese-commit-kana)
+      (should (equal (buffer-string) (cadr case))))))
+
+(ert-deftest wime-japanese-onishi-azik-types-article-rules ()
+  ;; Logical: nihtgo, ga;kc, kn/ks/kr/kh/kt, kc/k,/kv/kl, and the J/Z swap.
+  (dolist (case '(("ks;jnf" "にほんご") ("ndbhc" "がっこう")
+                  ("hkhlhih;hj" "かんきんくんけんこん")
+                  ("hchrhvhw" "こうかいけいくう") ("c" "ん")
+                  ("zd.d" "じゃざ") (",lml" "みんぢん")
+                  ("lnd" "しゃ") ("wd" "ぁ")
+                  ("nor/nrvr" "ぎゃいびゃいゔぁい")))
+    (wime-japanese-test--with-scheme "wime-japanese-onishi-azik"
+      (dolist (key (string-to-list (car case)))
+        (should-not (funcall input-method-function key)))
+      (wime-japanese-commit-kana)
+      (should (equal (buffer-string) (cadr case))))))
+
+(ert-deftest wime-japanese-onishi-shift-follows-the-physical-key ()
+  (dolist (case '(("wime-japanese-onishi" "NDBHFE" "GA:KOU")
+                  ("wime-japanese-onishi-azik" "NDBHC" "GA:KC")))
+    (wime-japanese-test--with-scheme (car case)
+      (mapc input-method-function (string-to-list (nth 1 case)))
+      (should (equal wime-japanese--keys (nth 2 case)))
+      (let ((kana (car (wime-japanese--convert wime-japanese--keys))))
+        (should (equal (substring-no-properties kana) "がっこう"))
+        (should (equal (wime-japanese-test--shift kana) "1111")))
+      (should (= (wime-japanese--translate-key ?:) ?H))
+      (should (= (wime-japanese--translate-key ??) ?B))
+      (wime-japanese-cancel))))
+
+(ert-deftest wime-japanese-scheme-switching-is-buffer-local ()
+  (wime-japanese-test--with-scheme "wime-japanese-onishi"
+    (should (equal (wime-japanese--convert "sh") '("" . "sh")))
+    (wime-japanese-test--with-scheme "wime-japanese-onishi-azik"
+      (should (equal (wime-japanese--convert "sh") '("せん" . "")))
+      (mapc input-method-function (string-to-list "hd"))
+      ;; Digits still select candidates; source-table digit rules are omitted.
+      (funcall input-method-function ?2)
+      (should (equal (buffer-string) "カ")))
+    (should (equal (wime-japanese--convert "sh") '("" . "sh")))
+    (activate-input-method "wime-japanese-onishi-azik")
+    (should (equal (wime-japanese--convert "sh") '("せん" . "")))
+    (activate-input-method "wime-japanese")
+    (should (equal (wime-japanese--convert "sh") '("すう" . "")))
+    (should (= (wime-japanese--translate-key ?h) ?h))))
+
 (ert-deftest wime-japanese-pending-keys-name-the-kana-they-can-start ()
   (should (equal (seq-take (wime-japanese--starts "k") 5) '("か" "き" "く" "け" "こ")))
   (should (equal (wime-japanese--starts "ky") '("き")))

@@ -134,11 +134,21 @@ uv pip install --python ~/.local/share/wime/python/bin/python \
 
 * 日本語
 
-=M-x set-input-method RET wime-japanese= 启用。
-按键用 AZIK 扩展罗马字（ =kz= かん、 =kp= こう、 =ds= です、 =;= っ），
-规则表 =japanese/azik.eld= 直接维护，每行一条 =(按键 假名 [剩余按键])=，
-可添加分号注释。促音统一用 =;= 输入。
-换一张表就能用别的变体。
+=M-x set-input-method= 可选择三个方案：
+
+| 名称 | 键位与规则 | 可编辑规则表 |
+|------+------------+--------------|
+| =wime-japanese= | QWERTY + AZIK：=kz= かん、=kp= こう、=ds= です | =japanese/azik.eld= |
+| =wime-japanese-onishi= | [[https://o24.works/layout/][原版大西配列]] + 普通罗马字 | =japanese/romaji.eld= |
+| =wime-japanese-onishi-azik= | [[https://zenn.dev/maki10645/articles/68f7c10a018691][文章版大西 AZIK]]，包括 J/Z 交换 | =japanese/onishi-azik.eld= |
+
+大西键位只在日文输入时由 wime 重排，系统和键盘固件保持 QWERTY。
+三套方案的促音都用逻辑键 =;=，在大西配列中是 QWERTY 的 =B= 位置。
+文章版用 =c= 输入 ん；子音后 =n/s/r/h/t= 对应 an/in/un/en/on，
+=c/,/v/l= 对应 ou/ai/ei/uu，小假名用 =l= 前缀。
+它不沿用普通 AZIK 的 =ds= です、=ms= ます等词级简写。
+规则表每行一条 =(按键 假名 [剩余按键])=，直接维护，行尾注释是等效普通罗马字。
+表里的按键是重排后的逻辑键；换方案用 =M-x set-input-method=，各缓冲区独立。
 预编辑区显示已转换的假名和还在等待的键；
 数字选候选，空格上屏当前候选， =RET= 上屏假名， =DEL= 删键， =ESC= 取消。
 

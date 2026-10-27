@@ -1,7 +1,7 @@
-;;; wime-japanese.el --- AZIK Japanese input decoded by the CUDA worker -*- lexical-binding: t; -*-
+;;; wime-japanese.el --- Japanese input decoded by the CUDA worker -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Keys convert to kana by the editable AZIK table (japanese/azik.eld):
+;; Keys convert to kana by editable romaji tables in japanese/:
 ;; a key sequence that may still grow waits, and
 ;; keys left over from a finished rule stay pending.  After a pause the
 ;; worker decodes the kana with the rescorer and a kana-conditioned model;
@@ -22,8 +22,12 @@
 (require 'wime)
 (require 'wime-neural)
 
+(defconst wime-japanese--directory
+  (expand-file-name "japanese/" (file-name-directory (or load-file-name buffer-file-name)))
+  "Directory containing the editable Japanese rule tables.")
+
 (defcustom wime-japanese-azik-file
-  (expand-file-name "japanese/azik.eld" (file-name-directory (or load-file-name buffer-file-name)))
+  (expand-file-name "azik.eld" wime-japanese--directory)
   "Romaji table: a data list of (KEYS KANA [PENDING]) rules.
 Each rule contains two strings, with an optional third string for trailing
 keys to keep pending.  Semicolon comments are allowed; forms are not evaluated."
@@ -52,7 +56,10 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
   "Face for kana typed with Shift held, to be written in kanji or katakana."
   :group 'wime)
 
-(defvar wime-japanese--table nil
+(defvar-local wime-japanese--scheme 'azik
+  "Current scheme: azik, onishi, or onishi-azik.")
+
+(defvar-local wime-japanese--table nil
   "Loaded AZIK table: (FILE RULES PREFIXES); RULES maps keys to (PENDING . KANA).")
 
 (defvar-local wime-japanese--keys "" "Keys typed in this composition.")
@@ -60,34 +67,64 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
 (defvar-local wime-japanese--selected 0 "Index of the selected candidate.")
 (defvar-local wime-japanese--overlay nil "Overlay showing the composition.")
 
+(defun wime-japanese--rule-file ()
+  "Rule file for this buffer's input scheme."
+  (pcase wime-japanese--scheme
+    ('onishi (expand-file-name "romaji.eld" wime-japanese--directory))
+    ('onishi-azik (expand-file-name "onishi-azik.eld" wime-japanese--directory))
+    (_ wime-japanese-azik-file)))
+
 (defun wime-japanese--rules ()
-  "Return (RULES . PREFIXES) for `wime-japanese-azik-file'."
-  (unless (equal (car wime-japanese--table) wime-japanese-azik-file)
-    (let ((rules (make-hash-table :test #'equal)) (prefixes (make-hash-table :test #'equal)))
-      (let ((rows (with-temp-buffer
-                    (insert-file-contents wime-japanese-azik-file)
-                    (with-syntax-table emacs-lisp-mode-syntax-table
-                      (prog1 (read (current-buffer))
-                        (forward-comment (point-max))
-                        (unless (eobp)
-                          (error "Trailing data in AZIK table %s" wime-japanese-azik-file)))))))
-        (unless (proper-list-p rows)
-          (error "Expected a rule list in AZIK table %s" wime-japanese-azik-file))
-        (dolist (row rows)
-          (unless (and (memq (proper-list-p row) '(2 3))
-                       (seq-every-p #'stringp row)
-                       (not (string-empty-p (car row)))
-                       (not (string-empty-p (cadr row))))
-            (error "Invalid AZIK rule in %s: %S" wime-japanese-azik-file row))
-          (let ((keys (car row)))
-            (when (gethash keys rules)
-              (error "Duplicate AZIK keys in %s: %S" wime-japanese-azik-file keys))
-            (puthash keys (cons (or (nth 2 row) "") (cadr row)) rules)
-            (dotimes (i (length keys))
-              (puthash (substring keys 0 i) t prefixes)))))
-      (remhash "" prefixes)
-      (setq wime-japanese--table (list wime-japanese-azik-file rules prefixes))))
-  (cdr wime-japanese--table))
+  "Return (RULES . PREFIXES) for the current scheme's rule file."
+  (let ((file (wime-japanese--rule-file)))
+    (unless (equal (car wime-japanese--table) file)
+      (let ((rules (make-hash-table :test #'equal)) (prefixes (make-hash-table :test #'equal)))
+        (let ((rows (with-temp-buffer
+                      (insert-file-contents file)
+                      (with-syntax-table emacs-lisp-mode-syntax-table
+                        (prog1 (read (current-buffer))
+                          (forward-comment (point-max))
+                          (unless (eobp)
+                            (error "Trailing data in AZIK table %s" file)))))))
+          (unless (proper-list-p rows)
+            (error "Expected a rule list in AZIK table %s" file))
+          (dolist (row rows)
+            (unless (and (memq (proper-list-p row) '(2 3))
+                         (seq-every-p #'stringp row)
+                         (not (string-empty-p (car row)))
+                         (not (string-empty-p (cadr row))))
+              (error "Invalid AZIK rule in %s: %S" file row))
+            (let ((keys (car row)))
+              (when (gethash keys rules)
+                (error "Duplicate AZIK keys in %s: %S" file keys))
+              (puthash keys (cons (or (nth 2 row) "") (cadr row)) rules)
+              (dotimes (i (length keys))
+                (puthash (substring keys 0 i) t prefixes)))))
+        (remhash "" prefixes)
+        (setq wime-japanese--table (list file rules prefixes))))
+    (cdr wime-japanese--table)))
+
+(defconst wime-japanese--onishi-keys
+  (cl-mapcar #'cons
+             (string-to-list "qwertyuiopasdfghjkl;zxcvbnm,./-")
+             (string-to-list (concat "qlu,.fwryp" "eiao-ktnsh" "zxcv;gdmjb/")))
+  "QWERTY to Onishi positions, from https://o24.works/layout/.")
+
+(defun wime-japanese--translate-key (key)
+  "Translate physical QWERTY KEY to the selected scheme's logical key.
+Shift follows the physical key even when a letter moves to punctuation.
+This runs only at the input-method boundary; stored keys are logical romaji."
+  (if (and (characterp key) (memq wime-japanese--scheme '(onishi onishi-azik)))
+      (let* ((shifted '((?: . ?\;) (?< . ?,) (?> . ?.) (?? . ?/) (?_ . ?-)))
+             (base (or (alist-get key shifted) (downcase key)))
+             (mapped (alist-get base wime-japanese--onishi-keys)))
+        (if (not mapped) key
+          ;; The article's layout swaps J/Z as well as adapting AZIK.
+          (when (eq wime-japanese--scheme 'onishi-azik)
+            (setq mapped (pcase mapped (?j ?z) (?z ?j) (_ mapped))))
+          (if (= base key) mapped
+            (or (car (rassq mapped shifted)) (upcase mapped)))))
+    key))
 
 (defun wime-japanese--base (key)
   "KEY as typed without Shift."
@@ -189,6 +226,12 @@ keys as typed."
   "Hiragana and katakana of the typed keys, pending keys appended; with
 Shift used, first the shifted kana in katakana and the rest in hiragana."
   (pcase-let ((`(,kana . ,pending) (wime-japanese--convert wime-japanese--keys)))
+    ;; A complete prefix (notably final n) can be committed while still
+    ;; allowing more keys to extend it during composition.
+    (when-let* ((rule (gethash (wime-japanese--unshifted pending)
+                              (car (wime-japanese--rules)))))
+      (setq kana (concat kana (wime-japanese--mark (cdr rule) pending))
+            pending (substring pending (- (length pending) (length (car rule))))))
     (delete-dups
      (append (when (wime-japanese--explicit-p wime-japanese--keys)
                (list (concat (mapconcat (lambda (i)
@@ -262,26 +305,27 @@ Shift used, first the shifted kana in katakana and the rest in hiragana."
 ;;; Input method
 
 (defun wime-japanese-input-method (key)
-  "Process KEY for AZIK Japanese input."
+  "Process physical KEY for the selected Japanese input scheme."
   (if (wime--text-read-only-p)
       (list key)
-    (cond
-     ((wime-japanese--key-p key)
-      (setq wime-japanese--keys (concat wime-japanese--keys (string key)))
-      (wime-japanese--refresh)
-      nil)
-     ((and (wime-japanese--active-p) (wime--digit-p key))
-      (let ((index (if (= key ?0) 9 (- key ?1))))
-        (when (< index (length wime-japanese--candidates))
-          (wime-japanese--commit (nth index wime-japanese--candidates))))
-      nil)
-     ((and (wime-japanese--active-p) (= key ?\s))
-      (wime-japanese--commit (nth wime-japanese--selected wime-japanese--candidates))
-      nil)
-     (t
-      (when (wime-japanese--active-p)
-        (wime-japanese--commit (nth wime-japanese--selected wime-japanese--candidates)))
-      (list key)))))
+    (let ((key (wime-japanese--translate-key key)))
+      (cond
+       ((wime-japanese--key-p key)
+        (setq wime-japanese--keys (concat wime-japanese--keys (string key)))
+        (wime-japanese--refresh)
+        nil)
+       ((and (wime-japanese--active-p) (wime--digit-p key))
+        (let ((index (if (= key ?0) 9 (- key ?1))))
+          (when (< index (length wime-japanese--candidates))
+            (wime-japanese--commit (nth index wime-japanese--candidates))))
+        nil)
+       ((and (wime-japanese--active-p) (= key ?\s))
+        (wime-japanese--commit (nth wime-japanese--selected wime-japanese--candidates))
+        nil)
+       (t
+        (when (wime-japanese--active-p)
+          (wime-japanese--commit (nth wime-japanese--selected wime-japanese--candidates)))
+        (list key))))))
 
 (defun wime-japanese-delete-backward ()
   "Delete the last typed key."
@@ -325,18 +369,28 @@ Shift used, first the shifted kana in katakana and the rest in hiragana."
     (internal-pop-keymap wime-japanese-active-mode-map 'overriding-terminal-local-map)
     (remove-hook 'pre-command-hook #'wime-japanese--clear-before-unrelated-command t)))
 
-(defun wime-japanese-activate (_name)
-  "Activate AZIK Japanese input."
+(defun wime-japanese-activate (name)
+  "Activate the Japanese input scheme registered as NAME."
+  (setq wime-japanese--scheme
+        (pcase name
+          ("wime-japanese-onishi" 'onishi)
+          ("wime-japanese-onishi-azik" 'onishi-azik)
+          (_ 'azik)))
   (setq-local input-method-function #'wime-japanese-input-method)
   (setq-local deactivate-current-input-method-function #'wime-japanese-deactivate))
 
 (defun wime-japanese-deactivate ()
-  "Deactivate AZIK Japanese input."
+  "Deactivate Japanese input."
   (wime-japanese--reset)
+  (kill-local-variable 'wime-japanese--scheme)
   (kill-local-variable 'input-method-function))
 
 (register-input-method "wime-japanese" "Japanese" #'wime-japanese-activate "日"
                        "AZIK romaji, decoded by the local language models")
+(register-input-method "wime-japanese-onishi" "Japanese" #'wime-japanese-activate "大"
+                       "Onishi layout with ordinary romaji")
+(register-input-method "wime-japanese-onishi-azik" "Japanese" #'wime-japanese-activate "大A"
+                       "Onishi layout with Makiyuki AZIK (article version)")
 
 (provide 'wime-japanese)
 ;;; wime-japanese.el ends here
