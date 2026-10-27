@@ -1,5 +1,5 @@
-;;; Generated onishi rules; edit onishi-rules.eld, then run gen/onishi.el.
-;; Each row is (LOGICAL-KEYS KANA); physical key positions are in onishi-layouts.eld.
+;;; Generated onishi rules; edit rules.eld, then run gen/japanese.el.
+;; Each row is (LOGICAL-KEYS KANA); physical key positions are in layouts.eld.
 ;; Comments give ordinary romaji, not this scheme's input keys.
 
 (

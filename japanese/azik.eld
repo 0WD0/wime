@@ -1,10 +1,6 @@
-;;; AZIK rules, initially exported from ddskk for an English keyboard.
-;; Each row is (KEYS KANA [PENDING]); omitted PENDING means no trailing keys.
-;; Keep one rule per line, grouped by first key and sorted within each group.
-;; Inline comments give ordinary romaji equivalents, not AZIK input keys.
-;; Spellings use shi/chi/tsu/fu/ji, n for ん, and - for ー.
-;; Standalone small kana use x; pending keys remain unconverted.
-;; Edit this file directly.  Sokuon (っ) uses ; exclusively.
+;;; Generated azik rules; edit rules.eld, then run gen/japanese.el.
+;; Each row is (LOGICAL-KEYS KANA); physical key positions are in layouts.eld.
+;; Comments give ordinary romaji, not this scheme's input keys.
 
 (
  ;; Punctuation
@@ -77,7 +73,7 @@
  ("cx" "ちぇい")        ; chei
  ("cya" "ちゃ")         ; cha
  ("cye" "ちぇ")         ; che
- ("cyi" "ちぃ")         ; cyi
+ ("cyi" "ちぃ")         ; tyi
  ("cyo" "ちょ")         ; cho
  ("cyu" "ちゅ")         ; chu
  ("cz" "ちゃん")        ; chan
@@ -87,7 +83,7 @@
  ("dch" "でゅー")       ; dhu-
  ("dci" "でぃ")         ; dhi
  ("dck" "でぃん")       ; dhin
- ("dcp" "どぅー")       ; doxu-
+ ("dcp" "どぅー")       ; dwu-
  ("dcu" "でゅ")         ; dhu
  ("dd" "でん")          ; den
  ("de" "で")            ; de
@@ -528,7 +524,7 @@
  ("tgh" "てゅー")       ; thu-
  ("tgi" "てぃ")         ; thi
  ("tgk" "てぃん")       ; thin
- ("tgp" "とぅー")       ; toxu-
+ ("tgp" "とぅー")       ; twu-
  ("tgu" "てゅ")         ; thu
  ("th" "つう")          ; tsuu
  ("ti" "ち")            ; chi
@@ -541,10 +537,10 @@
  ("tp" "とう")          ; tou
  ("tq" "たい")          ; tai
  ("tr" "たら")          ; tara
- ("tsa" "つぁ")         ; tsuxa
- ("tse" "つぇ")         ; tsuxe
- ("tsi" "つぃ")         ; tsuxi
- ("tso" "つぉ")         ; tsuxo
+ ("tsa" "つぁ")         ; tsa
+ ("tse" "つぇ")         ; tse
+ ("tsi" "つぃ")         ; tsi
+ ("tso" "つぉ")         ; tso
  ("tsu" "つ")           ; tsu
  ("tt" "たち")          ; tachi
  ("tu" "つ")            ; tsu
@@ -553,7 +549,7 @@
  ("tyd" "ちぇん")       ; chen
  ("tye" "ちぇ")         ; che
  ("tyh" "ちゅう")       ; chuu
- ("tyi" "ちぃ")         ; cyi
+ ("tyi" "ちぃ")         ; tyi
  ("tyj" "ちゅん")       ; chun
  ("tyl" "ちょん")       ; chon
  ("tyn" "ちゃん")       ; chan
@@ -581,10 +577,10 @@
  ("vq" "ゔぁい")        ; vai
  ("vu" "ゔ")            ; vu
  ("vw" "ゔぇい")        ; vei
- ("vya" "ゔゃ")         ; vuxya
+ ("vya" "ゔゃ")         ; vya
  ("vye" "ゔぇ")         ; ve
- ("vyo" "ゔょ")         ; vuxyo
- ("vyu" "ゔゅ")         ; vuxyu
+ ("vyo" "ゔょ")         ; vyo
+ ("vyu" "ゔゅ")         ; vyu
  ("vz" "ゔぁん")        ; van
 
  ;; w
@@ -593,7 +589,7 @@
  ("wd" "うぇん")        ; wen
  ("we" "うぇ")          ; we
  ("wf" "わい")          ; wai
- ("wha" "うぁ")         ; uxa
+ ("wha" "うぁ")         ; wha
  ("whe" "うぇ")         ; we
  ("whi" "うぃ")         ; wi
  ("who" "うぉ")         ; who

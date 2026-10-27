@@ -111,7 +111,7 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
   "Read the selected scheme's generated physical-to-logical key map."
   (unless (eq (car wime-japanese--keymap) wime-japanese--scheme)
     (let* ((layouts (with-temp-buffer
-                      (insert-file-contents (expand-file-name "onishi-layouts.eld" wime-japanese--directory))
+                      (insert-file-contents (expand-file-name "layouts.eld" wime-japanese--directory))
                       (read (current-buffer))))
            (rows (cdr (assq wime-japanese--scheme layouts))) keys)
       (unless rows (error "No key layout for %s" wime-japanese--scheme))
@@ -128,7 +128,7 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
   "Translate physical QWERTY KEY to the selected scheme's logical key.
 Shift follows the physical key even when a letter moves to punctuation.
 This runs only at the input-method boundary; stored keys are logical romaji."
-  (if (and (characterp key) (memq wime-japanese--scheme '(onishi onishi-azik)))
+  (if (and (characterp key) (< key 128) (memq wime-japanese--scheme '(azik onishi onishi-azik)))
       (let* ((shifted '((?: . ?\;) (?< . ?,) (?> . ?.) (?? . ?/) (?_ . ?-)))
              (base (or (alist-get key shifted) (downcase key)))
              (mapped (alist-get base (wime-japanese--layout-keys))))

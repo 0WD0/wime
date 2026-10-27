@@ -147,23 +147,26 @@ uv pip install --python ~/.local/share/wime/python/bin/python \
 文章版用 =c= 输入 ん；子音后 =n/s/r/h/t= 对应 an/in/un/en/on，
 =c/,/v/l= 对应 ou/ai/ei/uu，小假名用 =l= 前缀。
 它不沿用普通 AZIK 的 =ds= です、=ms= ます等词级简写。
-原有 =azik.eld= 直接维护；两套大西方案编辑 =japanese/onishi-rules.eld= 后生成：
+三个方案统一编辑 =japanese/rules.eld= 后生成，分别位于 =:azik=、=:onishi=、=:onishi-azik=：
 
-- =:layout-rows= 是物理键位重排，两套方案各自配置。
+- =:layout-rows= 是物理键位重排，三个方案各自配置；原版 AZIK 默认保持 QWERTY。
 - =:rows= 绑定假名行，如 =("hg" "hy")= 表示用 hg 输入 hy 行。
+  行内可用 =:vowels= 和 =:extensions= 限定参与生成的元音、后缀，空列表表示禁用。
 - =:extensions= 定义后缀，如 =(ei "v" "e" "い")= 表示子音 + v 输出 e 段假名 + い；
   将 v 改成 q，就会把 =kv= けい、=gyv= ぎぇい等整组改到 q。
+- =:extension-extras=、=:extension-overrides= 按后缀 ID 定义例外，修改后缀键时也会一起移动。
 - =:nasal-keys= 配置独立的 ん，=:sokuon-key= 配置促音。
   单条增补、删除、覆盖分别用 =:extra-rules=、=:remove=、=:overrides=；重复绑定会报错。
+  原版 AZIK 的词级简写也在这里维护；=:literal-rules= 保留历史标点和 Shift 别名。
 
 在仓库根目录执行：
 
 #+begin_src sh
-emacs -Q --batch -l emacs-packages/wime/gen/onishi.el -f wime-onishi-generate
+emacs -Q --batch -l emacs-packages/wime/gen/japanese.el -f wime-japanese-generate
 #+end_src
 
-生成 =romaji.eld=、=onishi-azik.eld= 和 =onishi-layouts.eld=，不访问 ddskk 或网络。
-将命令最后一项换成 =wime-onishi-check= 可以只检查产物是否过期。
+生成 =azik.eld=、=romaji.eld=、=onishi-azik.eld= 和 =layouts.eld=，不访问 ddskk 或网络。
+将命令最后一项换成 =wime-japanese-check= 可以只检查产物是否过期。
 重新启用输入法会重读规则和键位；wdoom 的快照需重新打包后使用。
 规则表每行一条 =(按键 假名 [剩余按键])=，行尾注释是等效普通罗马字。
 表里的按键是重排后的逻辑键；换方案用 =M-x set-input-method=，各缓冲区独立。
