@@ -49,6 +49,7 @@ GUARDED = [
 ]
 GRID = [BASELINE] + ADDITIVE + GUARDED
 MIN_RIGHT_LEXICAL_CHARS = 3
+MAX_NONE_Z_DRIFT = 1e-3
 
 
 def lexical_chars(text):
@@ -499,7 +500,8 @@ def fingerprint(args):
         score="z + retained q_weight*q + right_weight*r; explicit same suffix token boundaries as v2",
         safety="separate reviewed development-only answers; never model input",
         cache="partial caches permitted; inputs exact; cached q/r preserved; model and scoring provenance verified",
-        fresh_variant_q="first observed q per candidate reused within topic_group/context/kana; original computed q and origins recorded; original none generated/cands/z must reproduce exactly; resume reconstructs and verifies sharing",
+        fresh_variant_q="first observed q per candidate reused within topic_group/context/kana; computed q and origins recorded; original none generated/cands exact; none z pinned to first within declared numeric tolerance; resume reconstructs/verifies",
+        max_none_z_drift=MAX_NONE_Z_DRIFT,
         condition_scope="none describes zenz no-right pool; substantive right may still be used by Qwen suffix scoring",
         timing="offline pooled union scoring; not live interaction latency",
     )
@@ -512,7 +514,9 @@ def share_fresh_q(case, row, shared, replay=False):
     A different union batch can perturb BF16 candidate scores although the left
     context is identical. Retain the first observed q per candidate and record
     the freshly computed values so this adjustment is auditable. Suffix r stays
-    specific to each right context. The none pool must reproduce exactly.
+    specific to each right context. Original none candidates must reproduce
+    exactly; tiny repeated sum-logprob drift is pinned to the first z, with
+    computed values retained and drift above MAX_NONE_Z_DRIFT rejected.
     Cached previous-round rows bypass this function and stay unchanged.
     """
     right.align_rows([case], [row])
@@ -521,9 +525,9 @@ def share_fresh_q(case, row, shared, replay=False):
     group = shared.setdefault(
         key, dict(first_id=case["id"], none=copy.deepcopy(none), q={}, origins={})
     )
-    if none != group["none"]:
+    if any(none[name] != group["none"][name] for name in ("generated", "cands")):
         raise ValueError(
-            "fresh context variants changed original none pool/generated/z"
+            "fresh context variants changed original none pool/generated/cands"
         )
     union = row["q_union"]
     if replay:
@@ -531,6 +535,13 @@ def share_fresh_q(case, row, shared, replay=False):
         if not isinstance(saved, dict):
             raise ValueError("fresh saved row lacks shared-q provenance")
         computed = saved.get("computed_q")
+        computed_none_z = saved.get("computed_none_z")
+        if (
+            not isinstance(computed_none_z, list)
+            or len(computed_none_z) != len(none["z"])
+            or not all(math.isfinite(v) for v in computed_none_z)
+        ):
+            raise ValueError("invalid saved computed-none-z provenance")
         if (
             not isinstance(computed, list)
             or len(computed) != len(union)
@@ -544,6 +555,23 @@ def share_fresh_q(case, row, shared, replay=False):
             for t, q in zip(pool["cands"], pool["q"])
         }
         computed = [by_text[t] for t in union]
+        computed_none_z = list(none["z"])
+    z_drift = max(
+        (abs(a - b) for a, b in zip(computed_none_z, group["none"]["z"])), default=0.0
+    )
+    if z_drift > MAX_NONE_Z_DRIFT:
+        raise ValueError(
+            f"fresh original none z drift {z_drift} exceeds {MAX_NONE_Z_DRIFT}"
+        )
+    z_pools = ("none",) if case.get("right_context") else CONDITIONS
+    for name in z_pools:
+        if replay:
+            if row["pools"][name]["z"] != group["none"]["z"]:
+                raise ValueError(
+                    "saved fresh variants do not share identical original none z scores"
+                )
+        else:
+            row["pools"][name]["z"] = list(group["none"]["z"])
     reused = 0
     for text, value in zip(union, computed):
         if text in group["q"]:
@@ -554,6 +582,8 @@ def share_fresh_q(case, row, shared, replay=False):
         group_key=list(key),
         none_reference_id=group["first_id"],
         computed_q=computed,
+        computed_none_z=computed_none_z,
+        max_abs_none_z_adjustment=z_drift,
         q_origins=[group["origins"][t] for t in union],
         reused_candidates=reused,
         new_candidates=len(union) - reused,

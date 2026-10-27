@@ -180,8 +180,42 @@ class FreshVariantSharing(unittest.TestCase):
         experiment.share_fresh_q(a, row(a), shared)
         changed = row(b)
         changed["pools"]["none"]["z"][0] = 0.01
-        with self.assertRaisesRegex(ValueError, "original none pool"):
+        with self.assertRaisesRegex(ValueError, "none z drift"):
             experiment.share_fresh_q(b, changed, shared)
+
+    def test_tiny_none_z_noise_is_pinned_while_right_scores_are_preserved(self):
+        a, b, c = self.paired()
+        shared = {}
+        first = row(a)
+        experiment.share_fresh_q(a, first, shared)
+        second = row(b, z=(0.0001, -0.9999))
+        second["pools"]["right"]["z"] = [-5.0, -6.0]
+        second["pools"]["right_rescore"]["z"] = [-7.0, -8.0]
+        experiment.share_fresh_q(b, second, shared)
+        self.assertEqual(second["pools"]["none"]["z"], [0.0, -1.0])
+        self.assertEqual(second["pools"]["right"]["z"], [-5.0, -6.0])
+        self.assertEqual(second["pools"]["right_rescore"]["z"], [-7.0, -8.0])
+        self.assertEqual(second["shared_q"]["computed_none_z"], [0.0001, -0.9999])
+        self.assertAlmostEqual(second["shared_q"]["max_abs_none_z_adjustment"], 0.0001)
+        third = row(c, z=(0.0002, -0.9998))
+        experiment.share_fresh_q(c, third, shared)
+        for pool in third["pools"].values():
+            self.assertEqual(pool["z"], [0.0, -1.0])
+        experiment.verify_shared_rows([a, b, c], [first, second, third])
+        second["shared_q"]["computed_none_z"][0] = 0.01
+        with self.assertRaisesRegex(ValueError, "none z drift"):
+            experiment.verify_shared_rows([a, b, c], [first, second, third])
+
+    def test_generated_candidate_changes_are_still_rejected_even_with_equal_scores(
+        self,
+    ):
+        a, b, _ = self.paired()
+        state = {}
+        experiment.share_fresh_q(a, row(a), state)
+        changed = row(b)
+        changed["pools"]["none"]["generated"].append("未検証候補")
+        with self.assertRaisesRegex(ValueError, "original none pool"):
+            experiment.share_fresh_q(b, changed, state)
 
     def test_complete_rows_are_revalidated_before_selection_or_unsealing(self):
         a, b, _ = self.paired()
@@ -216,7 +250,7 @@ class FreshVariantSharing(unittest.TestCase):
             scorer = SimpleNamespace(tokenizer=object())
 
             def inspect(item, decoder):
-                return row(item, q=(-0.99, -2.01))
+                return row(item, q=(-0.99, -2.01), z=(0.00001, -0.99999))
 
             with (
                 patch.object(previous, "Rescorer", return_value=scorer),
@@ -234,6 +268,7 @@ class FreshVariantSharing(unittest.TestCase):
             saved = previous.read_rows(path)
             for item in saved:
                 self.assertEqual(item["pools"]["none"]["q"], [-1.0, -2.0])
+                self.assertEqual(item["pools"]["none"]["z"], [0.0, -1.0])
                 self.assertEqual(item["shared_q"]["none_reference_id"], "a")
             with patch.object(previous, "Rescorer") as model:
                 experiment.score_cases(args, [a, b, c], "dev")
