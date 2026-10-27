@@ -1,0 +1,2098 @@
+{
+  "date": "2026-10-28",
+  "completed": true,
+  "purpose": "Version existing regression labels, establish reviewed dev/heldout partitions, then isolate right context and candidate ranking without changing the live backend",
+  "implementation_commits": [
+    "0b7fc174",
+    "d2a4a529",
+    "4331f711"
+  ],
+  "existing_evaluation": {
+    "total": 1550,
+    "corrected_cases": 19,
+    "input_changes": 17,
+    "acceptable_answer_changes": 2,
+    "pending_identified_reading_questions": 0,
+    "scope": "All cases structurally/source audited; UniDic disagreement inventory and flagged linguistic review. Not a native-human certification of all 1550 labels.",
+    "reading_table_unsupported": {
+      "original": 26,
+      "corrected": 22
+    },
+    "corpus_overlap": {
+      "tatoeba": {
+        "total": 1350,
+        "shared8": 523,
+        "full_target": 17,
+        "full_available_surrounding": 2
+      },
+      "ajimee": {
+        "total": 200,
+        "shared8": 127,
+        "full_target": 19,
+        "full_available_surrounding": 12
+      }
+    },
+    "overlap_caution": "Local training/validation file membership, not proof a particular checkpoint consumed or memorized a sentence. Short/common exact strings can coincide.",
+    "paired_retest_counts": {
+      "changed_input_cases": 17,
+      "fresh_forward_compositions": 34,
+      "cached_label_rescores": 2,
+      "unchanged_cached_cases": 1531
+    },
+    "paired_input_effect": {
+      "fresh_original": {
+        "total": 17,
+        "top1": 9,
+        "top5": 11
+      },
+      "fresh_corrected": {
+        "total": 17,
+        "top1": 8,
+        "top5": 13
+      },
+      "original_cached_top1_reproduced": 17,
+      "pairs": [
+        {
+          "suite": "ajimee",
+          "case_index": 48,
+          "original_kana": "、いちにんまえになることで、じたどもにせいじんいしきをふかめ、このときからかれらははじめてけっこんしかくをこうにんされ、",
+          "corrected_kana": "、いちにんまえになることで、じたともにせいじんいしきをふかめ、このときからかれらははじめてけっこんしかくをこうにんされ、",
+          "cached_original_rank": 1,
+          "fresh_original_rank": 1,
+          "corrected_rank": 1,
+          "cached_original_top1": [
+            "、一人前になることで、自他共に成人意識を深め、この時から彼らは初めて結婚資格を公認され、"
+          ],
+          "fresh_original_top1": [
+            "、一人前になることで、自他共に成人意識を深め、この時から彼らは初めて結婚資格を公認され、"
+          ],
+          "corrected_top1": [
+            "、一人前になることで、自他ともに成人意識を深め、この時から彼らは初めて結婚資格を公認され、"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "ajimee",
+          "case_index": 131,
+          "original_kana": "かれらがやみのしおきじんであるとけんとうをつけた",
+          "corrected_kana": "かれらがやみのしおきにんであるとけんとうをつけた",
+          "cached_original_rank": 2,
+          "fresh_original_rank": 2,
+          "corrected_rank": 2,
+          "cached_original_top1": [
+            "彼らが闇の仕置人であると見当を付けた"
+          ],
+          "fresh_original_top1": [
+            "彼らが闇の仕置人であると見当を付けた"
+          ],
+          "corrected_top1": [
+            "彼らが闇の仕置人であると見当を付けた"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "ajimee",
+          "case_index": 190,
+          "original_kana": "ているかいほうがたのばあいをのぞき、とじたれいきゃくけいかいろをながれており、せいじょうにかどうしているまはかんきょうへのあくえいきょう",
+          "corrected_kana": "ているかいほうがたのばあいをのぞき、とじたれいきゃくけいかいろをながれており、せいじょうにかどうしているあいだはかんきょうへのあくえいきょう",
+          "cached_original_rank": 1,
+          "fresh_original_rank": 1,
+          "corrected_rank": 1,
+          "cached_original_top1": [
+            "ている開放型の場合を除き、閉じた冷却系回路を流れており、正常に稼働している間は環境への悪影響"
+          ],
+          "fresh_original_top1": [
+            "ている開放型の場合を除き、閉じた冷却系回路を流れており、正常に稼働している間は環境への悪影響"
+          ],
+          "corrected_top1": [
+            "ている開放型の場合を除き、閉じた冷却系回路を流れており、正常に稼働している間は環境への悪影響"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 124,
+          "original_kana": "わたしのてんわばんごうはぜろきゅうぜろのいちにさんよんのごろくななはちです。",
+          "corrected_kana": "わたしのでんわばんごうはぜろきゅうぜろのいちにさんよんのごろくななはちです。",
+          "cached_original_rank": null,
+          "fresh_original_rank": null,
+          "corrected_rank": null,
+          "cached_original_top1": [
+            "私の天和番号はゼロ九〇の一二三四の五六七八です。"
+          ],
+          "fresh_original_top1": [
+            "私の天和番号はゼロ九〇の一二三四の五六七八です。"
+          ],
+          "corrected_top1": [
+            "私の電話番号は090の一二三四の五六七八です。"
+          ],
+          "original_spellable": false,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 194,
+          "original_kana": "とむをてつだうのはちょっと",
+          "corrected_kana": "とむをてつだうのはちょっと...",
+          "cached_original_rank": null,
+          "fresh_original_rank": null,
+          "corrected_rank": 1,
+          "cached_original_top1": [
+            "トムを手伝うのはちょっと"
+          ],
+          "fresh_original_top1": [
+            "トムを手伝うのはちょっと"
+          ],
+          "corrected_top1": [
+            "トムを手伝うのはちょっと..."
+          ],
+          "original_spellable": false,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 217,
+          "original_kana": "にせんじゅうさんねんねんにもおなじことがあった。",
+          "corrected_kana": "にせんじゅうさんねんにもおなじことがあった。",
+          "cached_original_rank": null,
+          "fresh_original_rank": null,
+          "corrected_rank": null,
+          "cached_original_top1": [
+            "二千十三年年にも同じことがあった。"
+          ],
+          "fresh_original_top1": [
+            "二千十三年年にも同じことがあった。"
+          ],
+          "corrected_top1": [
+            "二千十三年にも同じことがあった。"
+          ],
+          "original_spellable": false,
+          "corrected_spellable": false
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 304,
+          "original_kana": "「よりょくのほんのわずかなじょうよでれいきゃくかたゆいしたいわかたまりをもみくだき、つかみつぶし」てらだとらひこ「あさまさんろくより」",
+          "corrected_kana": "「よりょくのほんのわずかなじょうよでれいきゃくこけつしたがんかいをもみくだき、つかみつぶし」てらだとらひこ「あさまさんろくより」",
+          "cached_original_rank": null,
+          "fresh_original_rank": null,
+          "corrected_rank": null,
+          "cached_original_top1": [
+            "「余力のほんのわずかな譲与で冷却かたゆいした岩塊をもみ砕き、掴み潰し」テラダトラヒコ「あさま山麓より」"
+          ],
+          "fresh_original_top1": [
+            "「余力のほんのわずかな譲与で冷却かたゆいした岩塊をもみ砕き、掴み潰し」テラダトラヒコ「あさま山麓より」"
+          ],
+          "corrected_top1": [
+            "「余力のほんのわずかな剰余で冷却固決した岩塊をもみ砕き、つかみ潰し」寺田寅彦「浅間山麓より」"
+          ],
+          "original_spellable": false,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 307,
+          "original_kana": "ひさしぶりにえいがをかんにいったが、おもったいじょうにかんどうしてなみだがでた。",
+          "corrected_kana": "ひさしぶりにえいがをみにいったが、おもったいじょうにかんどうしてなみだがでた。",
+          "cached_original_rank": 1,
+          "fresh_original_rank": 1,
+          "corrected_rank": 2,
+          "cached_original_top1": [
+            "久しぶりに映画を観に行ったが、思った以上に感動して涙が出た。"
+          ],
+          "fresh_original_top1": [
+            "久しぶりに映画を観に行ったが、思った以上に感動して涙が出た。"
+          ],
+          "corrected_top1": [
+            "久しぶりに映画を見に行ったが、思った以上に感動して涙が出た。"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 311,
+          "original_kana": "おはらのなかにあかちゃんがいるの。",
+          "corrected_kana": "おなかのなかにあかちゃんがいるの。",
+          "cached_original_rank": 1,
+          "fresh_original_rank": 1,
+          "corrected_rank": 1,
+          "cached_original_top1": [
+            "お腹の中に赤ちゃんがいるの。"
+          ],
+          "fresh_original_top1": [
+            "お腹の中に赤ちゃんがいるの。"
+          ],
+          "corrected_top1": [
+            "お腹の中に赤ちゃんがいるの。"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 392,
+          "original_kana": "かーどのゆうこうきげんはにせんろねんいちがつです。",
+          "corrected_kana": "かーどのゆうこうきげんはにせんろくねんいちがつです。",
+          "cached_original_rank": null,
+          "fresh_original_rank": null,
+          "corrected_rank": null,
+          "cached_original_top1": [
+            "カードの有効期限は二千路年一月です。"
+          ],
+          "fresh_original_top1": [
+            "カードの有効期限は二千路年一月です。"
+          ],
+          "corrected_top1": [
+            "カードの有効期限は二千六年一月です。"
+          ],
+          "original_spellable": false,
+          "corrected_spellable": false
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 587,
+          "original_kana": "もうおしゅはのまない。",
+          "corrected_kana": "もうおさけはのまない。",
+          "cached_original_rank": 1,
+          "fresh_original_rank": 1,
+          "corrected_rank": 1,
+          "cached_original_top1": [
+            "もうお酒は飲まない。"
+          ],
+          "fresh_original_top1": [
+            "もうお酒は飲まない。"
+          ],
+          "corrected_top1": [
+            "もうお酒は飲まない。"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 1023,
+          "original_kana": "ちょうさにはすうゖかげつかかるかもしれません。",
+          "corrected_kana": "ちょうさにはすうかげつかかるかもしれません。",
+          "cached_original_rank": null,
+          "fresh_original_rank": null,
+          "corrected_rank": 1,
+          "cached_original_top1": [
+            "調査には数ヶヶ月かかるかもしれません。"
+          ],
+          "fresh_original_top1": [
+            "調査には数ヶヶ月かかるかもしれません。"
+          ],
+          "corrected_top1": [
+            "調査には数ヶ月かかるかもしれません。"
+          ],
+          "original_spellable": false,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 1048,
+          "original_kana": "たみはもーせにもんくをいい、「わたしたちにのみみずをください。」といった。するともーせはこたえた。「なぜわたしにもんくをいうのですか？なぜぬしをためすのですか？」",
+          "corrected_kana": "たみはもーせにもんくをいい、「わたしたちにのみみずをください。」といった。するともーせはこたえた。「なぜわたしにもんくをいうのですか？なぜしゅをためすのですか？」",
+          "cached_original_rank": 1,
+          "fresh_original_rank": 1,
+          "corrected_rank": 2,
+          "cached_original_top1": [
+            "民はモーセに文句を言い、「私たちに飲み水をください。」と言った。するとモーセは答えた。「なぜ私に文句を言うのですか？なぜ主を試すのですか？」"
+          ],
+          "fresh_original_top1": [
+            "民はモーセに文句を言い、「私たちに飲み水をください。」と言った。するとモーセは答えた。「なぜ私に文句を言うのですか？なぜ主を試すのですか？」"
+          ],
+          "corrected_top1": [
+            "民はモーセに文句を言い、「私たちに飲み水をください。」と言った。するとモーセは答えた。「なぜ私に文句を言うのですか？なぜ酒を試すのですか？」"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 1077,
+          "original_kana": "それだかすぎじゃない？",
+          "corrected_kana": "それたかすぎじゃない？",
+          "cached_original_rank": 1,
+          "fresh_original_rank": 1,
+          "corrected_rank": 1,
+          "cached_original_top1": [
+            "それ高すぎじゃない？"
+          ],
+          "fresh_original_top1": [
+            "それ高すぎじゃない？"
+          ],
+          "corrected_top1": [
+            "それ高すぎじゃない？"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 1085,
+          "original_kana": "きょうはほかにでないほうがいいとおもうんだ。",
+          "corrected_kana": "きょうはそとにでないほうがいいとおもうんだ。",
+          "cached_original_rank": 2,
+          "fresh_original_rank": 2,
+          "corrected_rank": 2,
+          "cached_original_top1": [
+            "今日は外に出ない方がいいと思うんだ。"
+          ],
+          "fresh_original_top1": [
+            "今日は外に出ない方がいいと思うんだ。"
+          ],
+          "corrected_top1": [
+            "今日は外に出ない方がいいと思うんだ。"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 1196,
+          "original_kana": "きょう、またおなじじがあった。",
+          "corrected_kana": "きょう、またおなじことがあった。",
+          "cached_original_rank": 1,
+          "fresh_original_rank": 1,
+          "corrected_rank": 2,
+          "cached_original_top1": [
+            "今日、また同じ事があった。"
+          ],
+          "fresh_original_top1": [
+            "今日、また同じ事があった。"
+          ],
+          "corrected_top1": [
+            "今日、また同じことがあった。"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        },
+        {
+          "suite": "tatoeba",
+          "case_index": 1281,
+          "original_kana": "ぱぱは、うちのまんしょんかにあるじむしょにいた。",
+          "corrected_kana": "ぱぱは、うちのまんしょんしたにあるじむしょにいた。",
+          "cached_original_rank": 1,
+          "fresh_original_rank": 1,
+          "corrected_rank": 1,
+          "cached_original_top1": [
+            "パパは、うちのマンション下にある事務所にいた。"
+          ],
+          "fresh_original_top1": [
+            "パパは、うちのマンション下にある事務所にいた。"
+          ],
+          "corrected_top1": [
+            "パパは、うちのマンション下にある事務所にいた。"
+          ],
+          "original_spellable": true,
+          "corrected_spellable": true
+        }
+      ]
+    },
+    "label_only_effect": [
+      {
+        "suite": "tatoeba",
+        "case_index": 947,
+        "old_rank": 1,
+        "new_rank": 1,
+        "cached_best": [
+          "メアリーはJ-POPとK-POPを聴きます。",
+          "メアリーはJ-POPとK-POPを聞きます。",
+          "メアリーはJ-POPとK-POPをききます。",
+          "めありーはJ-POPとK-POPを聴きます。",
+          "メアリーはジェイポップとケイポップを聴きます。"
+        ]
+      },
+      {
+        "suite": "tatoeba",
+        "case_index": 951,
+        "old_rank": null,
+        "new_rank": 1,
+        "cached_best": [
+          "メアリーはJ-POPとK-POPを聴きます。",
+          "メアリーはJ-POPとK-POPを聞きます。",
+          "メアリーはJ-POPとK-POPをききます。",
+          "めありーはJ-POPとK-POPを聴きます。",
+          "メアリーはジェイポップとケイポップを聴きます。"
+        ]
+      }
+    ],
+    "cached_original_metrics": {
+      "tatoeba": {
+        "total": 1350,
+        "top1": 1170,
+        "top5": 1306
+      },
+      "ajimee": {
+        "total": 200,
+        "top1": 175,
+        "top5": 187
+      }
+    },
+    "mixed_corrected_replay_metrics": {
+      "tatoeba": {
+        "total": 1350,
+        "top1": 1170,
+        "top5": 1309
+      },
+      "ajimee": {
+        "total": 200,
+        "top1": 175,
+        "top5": 187
+      }
+    },
+    "replay_caution": "Only 17 inputs rerun in matched original/corrected pairs. The aggregate reuses 1533 cached predictions; 2 have updated labels. Fresh-original vs cached differences are explicitly exposed; do not attribute them to label corrections."
+  },
+  "evaluation": {
+    "dev": 180,
+    "sealed": 180,
+    "each_partition": {
+      "natural_tatoeba": 100,
+      "assistant_authored_context": 80
+    },
+    "natural_review": {
+      "total": 500,
+      "approved": 498,
+      "excluded": 2,
+      "eligible_after_overlap": 223,
+      "selected": 200,
+      "excluded_reasons": {
+        "training_or_validation_shared8": 255,
+        "too_short_for_membership_audit": 20,
+        "not_approved": 2
+      }
+    },
+    "controlled": {
+      "total": 160,
+      "per_partition": {
+        "disambiguation": 40,
+        "control": 40
+      },
+      "domains": 8,
+      "independently_reviewed_by_agent": true,
+      "natural_distribution": false
+    },
+    "separation": "Natural cases share no 8-char target span with audited local corpora or each other; controlled full surrounding texts do not occur in those corpora; topic groups do not cross dev/heldout.",
+    "freeze": "Inputs and labels hashed before inference. Dev none-pool selected ranking. All sealed predictions completed under selection hash before labels parsed for scoring.",
+    "heldout_status": "Opened once for this prespecified experiment; do not tune further on it and present that as another blind result.",
+    "source_attribution": "Natural sentences: Tatoeba IDs retained; export attribution/license in neural/japanese-sources.json. Controlled cases are assistant-authored.",
+    "upstream_pretraining_membership": "unknown",
+    "future_training_exclusions": "/home/_WD_/.cache/wime-japanese/evaluation-20261028/sealed-v1/training-exclusions.json"
+  },
+  "experiment": {
+    "protocol": {
+      "beams": 8,
+      "left_chars": 40,
+      "right_chars": 40,
+      "grid": [
+        [
+          0.0,
+          0
+        ],
+        [
+          0.0,
+          1
+        ],
+        [
+          0.35,
+          0
+        ],
+        [
+          0.35,
+          1
+        ],
+        [
+          0.7,
+          0
+        ],
+        [
+          0.7,
+          1
+        ],
+        [
+          1.05,
+          0
+        ],
+        [
+          1.05,
+          1
+        ]
+      ],
+      "baseline": [
+        0.7,
+        0
+      ],
+      "qwen_context": "production last 64 chars and Japanese neutral prefix",
+      "score": "zenz summed logprob including EOS; Qwen summed logprob without EOS",
+      "timing": "paired generation/scoring, pooled Qwen batch; not interactive latency",
+      "validation": "production Table.spells; no unvalidated model candidates",
+      "conditions": [
+        "none",
+        "right",
+        "right_rescore"
+      ]
+    },
+    "selected": {
+      "weight": 0.35,
+      "length_power": 0,
+      "dev_sweep": [
+        {
+          "weight": 0.0,
+          "length_power": 0,
+          "top1": 144
+        },
+        {
+          "weight": 0.0,
+          "length_power": 1,
+          "top1": 144
+        },
+        {
+          "weight": 0.35,
+          "length_power": 0,
+          "top1": 155
+        },
+        {
+          "weight": 0.35,
+          "length_power": 1,
+          "top1": 143
+        },
+        {
+          "weight": 0.7,
+          "length_power": 0,
+          "top1": 154
+        },
+        {
+          "weight": 0.7,
+          "length_power": 1,
+          "top1": 139
+        },
+        {
+          "weight": 1.05,
+          "length_power": 0,
+          "top1": 154
+        },
+        {
+          "weight": 1.05,
+          "length_power": 1,
+          "top1": 133
+        }
+      ],
+      "selection": "dev none-pool NFKC top1; ties baseline, no length norm, nearest baseline weight"
+    },
+    "dev": {
+      "all": {
+        "none": {
+          "zenz": {
+            "total": 180,
+            "top1": 144,
+            "top5": 171,
+            "exact_top1": 141,
+            "raw_pool": 172,
+            "valid_pool": 171,
+            "no_valid_pool": 1,
+            "wins": 3,
+            "losses": 13,
+            "paired_p_uncorrected": 0.021270751953125
+          },
+          "baseline": {
+            "total": 180,
+            "top1": 154,
+            "top5": 171,
+            "exact_top1": 151,
+            "raw_pool": 172,
+            "valid_pool": 171,
+            "no_valid_pool": 1,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 180,
+            "top1": 155,
+            "top5": 171,
+            "exact_top1": 152,
+            "raw_pool": 172,
+            "valid_pool": 171,
+            "no_valid_pool": 1,
+            "wins": 3,
+            "losses": 2,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right": {
+          "zenz": {
+            "total": 180,
+            "top1": 160,
+            "top5": 178,
+            "exact_top1": 157,
+            "raw_pool": 179,
+            "valid_pool": 178,
+            "no_valid_pool": 1,
+            "wins": 17,
+            "losses": 11,
+            "paired_p_uncorrected": 0.34492845088243484
+          },
+          "baseline": {
+            "total": 180,
+            "top1": 162,
+            "top5": 178,
+            "exact_top1": 159,
+            "raw_pool": 179,
+            "valid_pool": 178,
+            "no_valid_pool": 1,
+            "wins": 8,
+            "losses": 0,
+            "paired_p_uncorrected": 0.0078125
+          },
+          "dev_selected": {
+            "total": 180,
+            "top1": 166,
+            "top5": 178,
+            "exact_top1": 163,
+            "raw_pool": 179,
+            "valid_pool": 178,
+            "no_valid_pool": 1,
+            "wins": 13,
+            "losses": 1,
+            "paired_p_uncorrected": 0.0018310546875
+          }
+        },
+        "right_rescore": {
+          "zenz": {
+            "total": 180,
+            "top1": 157,
+            "top5": 171,
+            "exact_top1": 154,
+            "raw_pool": 172,
+            "valid_pool": 171,
+            "no_valid_pool": 1,
+            "wins": 14,
+            "losses": 11,
+            "paired_p_uncorrected": 0.6900379657745361
+          },
+          "baseline": {
+            "total": 180,
+            "top1": 162,
+            "top5": 171,
+            "exact_top1": 159,
+            "raw_pool": 172,
+            "valid_pool": 171,
+            "no_valid_pool": 1,
+            "wins": 8,
+            "losses": 0,
+            "paired_p_uncorrected": 0.0078125
+          },
+          "dev_selected": {
+            "total": 180,
+            "top1": 165,
+            "top5": 171,
+            "exact_top1": 162,
+            "raw_pool": 172,
+            "valid_pool": 171,
+            "no_valid_pool": 1,
+            "wins": 12,
+            "losses": 1,
+            "paired_p_uncorrected": 0.00341796875
+          }
+        }
+      },
+      "right_absent": {
+        "none": {
+          "zenz": {
+            "total": 100,
+            "top1": 86,
+            "top5": 98,
+            "exact_top1": 83,
+            "raw_pool": 99,
+            "valid_pool": 98,
+            "no_valid_pool": 1,
+            "wins": 2,
+            "losses": 10,
+            "paired_p_uncorrected": 0.03857421875
+          },
+          "baseline": {
+            "total": 100,
+            "top1": 94,
+            "top5": 98,
+            "exact_top1": 91,
+            "raw_pool": 99,
+            "valid_pool": 98,
+            "no_valid_pool": 1,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 100,
+            "top1": 96,
+            "top5": 98,
+            "exact_top1": 93,
+            "raw_pool": 99,
+            "valid_pool": 98,
+            "no_valid_pool": 1,
+            "wins": 2,
+            "losses": 0,
+            "paired_p_uncorrected": 0.5
+          }
+        },
+        "right": {
+          "zenz": {
+            "total": 100,
+            "top1": 86,
+            "top5": 98,
+            "exact_top1": 83,
+            "raw_pool": 99,
+            "valid_pool": 98,
+            "no_valid_pool": 1,
+            "wins": 2,
+            "losses": 10,
+            "paired_p_uncorrected": 0.03857421875
+          },
+          "baseline": {
+            "total": 100,
+            "top1": 94,
+            "top5": 98,
+            "exact_top1": 91,
+            "raw_pool": 99,
+            "valid_pool": 98,
+            "no_valid_pool": 1,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 100,
+            "top1": 96,
+            "top5": 98,
+            "exact_top1": 93,
+            "raw_pool": 99,
+            "valid_pool": 98,
+            "no_valid_pool": 1,
+            "wins": 2,
+            "losses": 0,
+            "paired_p_uncorrected": 0.5
+          }
+        },
+        "right_rescore": {
+          "zenz": {
+            "total": 100,
+            "top1": 86,
+            "top5": 98,
+            "exact_top1": 83,
+            "raw_pool": 99,
+            "valid_pool": 98,
+            "no_valid_pool": 1,
+            "wins": 2,
+            "losses": 10,
+            "paired_p_uncorrected": 0.03857421875
+          },
+          "baseline": {
+            "total": 100,
+            "top1": 94,
+            "top5": 98,
+            "exact_top1": 91,
+            "raw_pool": 99,
+            "valid_pool": 98,
+            "no_valid_pool": 1,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 100,
+            "top1": 96,
+            "top5": 98,
+            "exact_top1": 93,
+            "raw_pool": 99,
+            "valid_pool": 98,
+            "no_valid_pool": 1,
+            "wins": 2,
+            "losses": 0,
+            "paired_p_uncorrected": 0.5
+          }
+        }
+      },
+      "right_present": {
+        "none": {
+          "zenz": {
+            "total": 80,
+            "top1": 58,
+            "top5": 73,
+            "exact_top1": 58,
+            "raw_pool": 73,
+            "valid_pool": 73,
+            "no_valid_pool": 0,
+            "wins": 1,
+            "losses": 3,
+            "paired_p_uncorrected": 0.625
+          },
+          "baseline": {
+            "total": 80,
+            "top1": 60,
+            "top5": 73,
+            "exact_top1": 60,
+            "raw_pool": 73,
+            "valid_pool": 73,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 80,
+            "top1": 59,
+            "top5": 73,
+            "exact_top1": 59,
+            "raw_pool": 73,
+            "valid_pool": 73,
+            "no_valid_pool": 0,
+            "wins": 1,
+            "losses": 2,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right": {
+          "zenz": {
+            "total": 80,
+            "top1": 74,
+            "top5": 80,
+            "exact_top1": 74,
+            "raw_pool": 80,
+            "valid_pool": 80,
+            "no_valid_pool": 0,
+            "wins": 15,
+            "losses": 1,
+            "paired_p_uncorrected": 0.000518798828125
+          },
+          "baseline": {
+            "total": 80,
+            "top1": 68,
+            "top5": 80,
+            "exact_top1": 68,
+            "raw_pool": 80,
+            "valid_pool": 80,
+            "no_valid_pool": 0,
+            "wins": 8,
+            "losses": 0,
+            "paired_p_uncorrected": 0.0078125
+          },
+          "dev_selected": {
+            "total": 80,
+            "top1": 70,
+            "top5": 80,
+            "exact_top1": 70,
+            "raw_pool": 80,
+            "valid_pool": 80,
+            "no_valid_pool": 0,
+            "wins": 11,
+            "losses": 1,
+            "paired_p_uncorrected": 0.00634765625
+          }
+        },
+        "right_rescore": {
+          "zenz": {
+            "total": 80,
+            "top1": 71,
+            "top5": 73,
+            "exact_top1": 71,
+            "raw_pool": 73,
+            "valid_pool": 73,
+            "no_valid_pool": 0,
+            "wins": 12,
+            "losses": 1,
+            "paired_p_uncorrected": 0.00341796875
+          },
+          "baseline": {
+            "total": 80,
+            "top1": 68,
+            "top5": 73,
+            "exact_top1": 68,
+            "raw_pool": 73,
+            "valid_pool": 73,
+            "no_valid_pool": 0,
+            "wins": 8,
+            "losses": 0,
+            "paired_p_uncorrected": 0.0078125
+          },
+          "dev_selected": {
+            "total": 80,
+            "top1": 69,
+            "top5": 73,
+            "exact_top1": 69,
+            "raw_pool": 73,
+            "valid_pool": 73,
+            "no_valid_pool": 0,
+            "wins": 10,
+            "losses": 1,
+            "paired_p_uncorrected": 0.01171875
+          }
+        }
+      },
+      "case_type/disambiguation": {
+        "none": {
+          "zenz": {
+            "total": 40,
+            "top1": 19,
+            "top5": 33,
+            "exact_top1": 19,
+            "raw_pool": 33,
+            "valid_pool": 33,
+            "no_valid_pool": 0,
+            "wins": 1,
+            "losses": 2,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 20,
+            "top5": 33,
+            "exact_top1": 20,
+            "raw_pool": 33,
+            "valid_pool": 33,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 20,
+            "top5": 33,
+            "exact_top1": 20,
+            "raw_pool": 33,
+            "valid_pool": 33,
+            "no_valid_pool": 0,
+            "wins": 1,
+            "losses": 1,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right": {
+          "zenz": {
+            "total": 40,
+            "top1": 35,
+            "top5": 40,
+            "exact_top1": 35,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 15,
+            "losses": 0,
+            "paired_p_uncorrected": 6.103515625e-05
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 28,
+            "top5": 40,
+            "exact_top1": 28,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 8,
+            "losses": 0,
+            "paired_p_uncorrected": 0.0078125
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 31,
+            "top5": 40,
+            "exact_top1": 31,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 11,
+            "losses": 0,
+            "paired_p_uncorrected": 0.0009765625
+          }
+        },
+        "right_rescore": {
+          "zenz": {
+            "total": 40,
+            "top1": 32,
+            "top5": 33,
+            "exact_top1": 32,
+            "raw_pool": 33,
+            "valid_pool": 33,
+            "no_valid_pool": 0,
+            "wins": 12,
+            "losses": 0,
+            "paired_p_uncorrected": 0.00048828125
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 28,
+            "top5": 33,
+            "exact_top1": 28,
+            "raw_pool": 33,
+            "valid_pool": 33,
+            "no_valid_pool": 0,
+            "wins": 8,
+            "losses": 0,
+            "paired_p_uncorrected": 0.0078125
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 30,
+            "top5": 33,
+            "exact_top1": 30,
+            "raw_pool": 33,
+            "valid_pool": 33,
+            "no_valid_pool": 0,
+            "wins": 10,
+            "losses": 0,
+            "paired_p_uncorrected": 0.001953125
+          }
+        }
+      },
+      "case_type/control": {
+        "none": {
+          "zenz": {
+            "total": 40,
+            "top1": 39,
+            "top5": 40,
+            "exact_top1": 39,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 1,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 40,
+            "top5": 40,
+            "exact_top1": 40,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 39,
+            "top5": 40,
+            "exact_top1": 39,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 1,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right": {
+          "zenz": {
+            "total": 40,
+            "top1": 39,
+            "top5": 40,
+            "exact_top1": 39,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 1,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 40,
+            "top5": 40,
+            "exact_top1": 40,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 39,
+            "top5": 40,
+            "exact_top1": 39,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 1,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right_rescore": {
+          "zenz": {
+            "total": 40,
+            "top1": 39,
+            "top5": 40,
+            "exact_top1": 39,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 1,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 40,
+            "top5": 40,
+            "exact_top1": 40,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 39,
+            "top5": 40,
+            "exact_top1": 39,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 1,
+            "paired_p_uncorrected": 1.0
+          }
+        }
+      }
+    },
+    "sealed": {
+      "all": {
+        "none": {
+          "zenz": {
+            "total": 180,
+            "top1": 148,
+            "top5": 174,
+            "exact_top1": 147,
+            "raw_pool": 176,
+            "valid_pool": 175,
+            "no_valid_pool": 0,
+            "wins": 5,
+            "losses": 5,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 180,
+            "top1": 148,
+            "top5": 175,
+            "exact_top1": 146,
+            "raw_pool": 176,
+            "valid_pool": 175,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 180,
+            "top1": 149,
+            "top5": 175,
+            "exact_top1": 148,
+            "raw_pool": 176,
+            "valid_pool": 175,
+            "no_valid_pool": 0,
+            "wins": 1,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right": {
+          "zenz": {
+            "total": 180,
+            "top1": 162,
+            "top5": 177,
+            "exact_top1": 161,
+            "raw_pool": 178,
+            "valid_pool": 177,
+            "no_valid_pool": 0,
+            "wins": 19,
+            "losses": 5,
+            "paired_p_uncorrected": 0.006610751152038574
+          },
+          "baseline": {
+            "total": 180,
+            "top1": 156,
+            "top5": 177,
+            "exact_top1": 154,
+            "raw_pool": 178,
+            "valid_pool": 177,
+            "no_valid_pool": 0,
+            "wins": 10,
+            "losses": 2,
+            "paired_p_uncorrected": 0.03857421875
+          },
+          "dev_selected": {
+            "total": 180,
+            "top1": 160,
+            "top5": 177,
+            "exact_top1": 159,
+            "raw_pool": 178,
+            "valid_pool": 177,
+            "no_valid_pool": 0,
+            "wins": 14,
+            "losses": 2,
+            "paired_p_uncorrected": 0.004180908203125
+          }
+        },
+        "right_rescore": {
+          "zenz": {
+            "total": 180,
+            "top1": 160,
+            "top5": 175,
+            "exact_top1": 159,
+            "raw_pool": 176,
+            "valid_pool": 175,
+            "no_valid_pool": 0,
+            "wins": 17,
+            "losses": 5,
+            "paired_p_uncorrected": 0.01690053939819336
+          },
+          "baseline": {
+            "total": 180,
+            "top1": 154,
+            "top5": 175,
+            "exact_top1": 152,
+            "raw_pool": 176,
+            "valid_pool": 175,
+            "no_valid_pool": 0,
+            "wins": 8,
+            "losses": 2,
+            "paired_p_uncorrected": 0.109375
+          },
+          "dev_selected": {
+            "total": 180,
+            "top1": 158,
+            "top5": 175,
+            "exact_top1": 157,
+            "raw_pool": 176,
+            "valid_pool": 175,
+            "no_valid_pool": 0,
+            "wins": 12,
+            "losses": 2,
+            "paired_p_uncorrected": 0.012939453125
+          }
+        }
+      },
+      "right_absent": {
+        "none": {
+          "zenz": {
+            "total": 100,
+            "top1": 95,
+            "top5": 98,
+            "exact_top1": 94,
+            "raw_pool": 98,
+            "valid_pool": 98,
+            "no_valid_pool": 0,
+            "wins": 3,
+            "losses": 2,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 100,
+            "top1": 94,
+            "top5": 98,
+            "exact_top1": 92,
+            "raw_pool": 98,
+            "valid_pool": 98,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 100,
+            "top1": 95,
+            "top5": 98,
+            "exact_top1": 94,
+            "raw_pool": 98,
+            "valid_pool": 98,
+            "no_valid_pool": 0,
+            "wins": 1,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right": {
+          "zenz": {
+            "total": 100,
+            "top1": 95,
+            "top5": 98,
+            "exact_top1": 94,
+            "raw_pool": 98,
+            "valid_pool": 98,
+            "no_valid_pool": 0,
+            "wins": 3,
+            "losses": 2,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 100,
+            "top1": 94,
+            "top5": 98,
+            "exact_top1": 92,
+            "raw_pool": 98,
+            "valid_pool": 98,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 100,
+            "top1": 95,
+            "top5": 98,
+            "exact_top1": 94,
+            "raw_pool": 98,
+            "valid_pool": 98,
+            "no_valid_pool": 0,
+            "wins": 1,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right_rescore": {
+          "zenz": {
+            "total": 100,
+            "top1": 95,
+            "top5": 98,
+            "exact_top1": 94,
+            "raw_pool": 98,
+            "valid_pool": 98,
+            "no_valid_pool": 0,
+            "wins": 3,
+            "losses": 2,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 100,
+            "top1": 94,
+            "top5": 98,
+            "exact_top1": 92,
+            "raw_pool": 98,
+            "valid_pool": 98,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 100,
+            "top1": 95,
+            "top5": 98,
+            "exact_top1": 94,
+            "raw_pool": 98,
+            "valid_pool": 98,
+            "no_valid_pool": 0,
+            "wins": 1,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          }
+        }
+      },
+      "right_present": {
+        "none": {
+          "zenz": {
+            "total": 80,
+            "top1": 53,
+            "top5": 76,
+            "exact_top1": 53,
+            "raw_pool": 78,
+            "valid_pool": 77,
+            "no_valid_pool": 0,
+            "wins": 2,
+            "losses": 3,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 80,
+            "top1": 54,
+            "top5": 77,
+            "exact_top1": 54,
+            "raw_pool": 78,
+            "valid_pool": 77,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 80,
+            "top1": 54,
+            "top5": 77,
+            "exact_top1": 54,
+            "raw_pool": 78,
+            "valid_pool": 77,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right": {
+          "zenz": {
+            "total": 80,
+            "top1": 67,
+            "top5": 79,
+            "exact_top1": 67,
+            "raw_pool": 80,
+            "valid_pool": 79,
+            "no_valid_pool": 0,
+            "wins": 16,
+            "losses": 3,
+            "paired_p_uncorrected": 0.004425048828125
+          },
+          "baseline": {
+            "total": 80,
+            "top1": 62,
+            "top5": 79,
+            "exact_top1": 62,
+            "raw_pool": 80,
+            "valid_pool": 79,
+            "no_valid_pool": 0,
+            "wins": 10,
+            "losses": 2,
+            "paired_p_uncorrected": 0.03857421875
+          },
+          "dev_selected": {
+            "total": 80,
+            "top1": 65,
+            "top5": 79,
+            "exact_top1": 65,
+            "raw_pool": 80,
+            "valid_pool": 79,
+            "no_valid_pool": 0,
+            "wins": 13,
+            "losses": 2,
+            "paired_p_uncorrected": 0.00738525390625
+          }
+        },
+        "right_rescore": {
+          "zenz": {
+            "total": 80,
+            "top1": 65,
+            "top5": 77,
+            "exact_top1": 65,
+            "raw_pool": 78,
+            "valid_pool": 77,
+            "no_valid_pool": 0,
+            "wins": 14,
+            "losses": 3,
+            "paired_p_uncorrected": 0.012725830078125
+          },
+          "baseline": {
+            "total": 80,
+            "top1": 60,
+            "top5": 77,
+            "exact_top1": 60,
+            "raw_pool": 78,
+            "valid_pool": 77,
+            "no_valid_pool": 0,
+            "wins": 8,
+            "losses": 2,
+            "paired_p_uncorrected": 0.109375
+          },
+          "dev_selected": {
+            "total": 80,
+            "top1": 63,
+            "top5": 77,
+            "exact_top1": 63,
+            "raw_pool": 78,
+            "valid_pool": 77,
+            "no_valid_pool": 0,
+            "wins": 11,
+            "losses": 2,
+            "paired_p_uncorrected": 0.0224609375
+          }
+        }
+      },
+      "case_type/disambiguation": {
+        "none": {
+          "zenz": {
+            "total": 40,
+            "top1": 17,
+            "top5": 37,
+            "exact_top1": 17,
+            "raw_pool": 38,
+            "valid_pool": 38,
+            "no_valid_pool": 0,
+            "wins": 1,
+            "losses": 2,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 18,
+            "top5": 38,
+            "exact_top1": 18,
+            "raw_pool": 38,
+            "valid_pool": 38,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 18,
+            "top5": 38,
+            "exact_top1": 18,
+            "raw_pool": 38,
+            "valid_pool": 38,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right": {
+          "zenz": {
+            "total": 40,
+            "top1": 32,
+            "top5": 40,
+            "exact_top1": 32,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 16,
+            "losses": 2,
+            "paired_p_uncorrected": 0.001312255859375
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 26,
+            "top5": 40,
+            "exact_top1": 26,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 10,
+            "losses": 2,
+            "paired_p_uncorrected": 0.03857421875
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 29,
+            "top5": 40,
+            "exact_top1": 29,
+            "raw_pool": 40,
+            "valid_pool": 40,
+            "no_valid_pool": 0,
+            "wins": 13,
+            "losses": 2,
+            "paired_p_uncorrected": 0.00738525390625
+          }
+        },
+        "right_rescore": {
+          "zenz": {
+            "total": 40,
+            "top1": 30,
+            "top5": 38,
+            "exact_top1": 30,
+            "raw_pool": 38,
+            "valid_pool": 38,
+            "no_valid_pool": 0,
+            "wins": 14,
+            "losses": 2,
+            "paired_p_uncorrected": 0.004180908203125
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 24,
+            "top5": 38,
+            "exact_top1": 24,
+            "raw_pool": 38,
+            "valid_pool": 38,
+            "no_valid_pool": 0,
+            "wins": 8,
+            "losses": 2,
+            "paired_p_uncorrected": 0.109375
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 27,
+            "top5": 38,
+            "exact_top1": 27,
+            "raw_pool": 38,
+            "valid_pool": 38,
+            "no_valid_pool": 0,
+            "wins": 11,
+            "losses": 2,
+            "paired_p_uncorrected": 0.0224609375
+          }
+        }
+      },
+      "case_type/control": {
+        "none": {
+          "zenz": {
+            "total": 40,
+            "top1": 36,
+            "top5": 39,
+            "exact_top1": 36,
+            "raw_pool": 40,
+            "valid_pool": 39,
+            "no_valid_pool": 0,
+            "wins": 1,
+            "losses": 1,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 36,
+            "top5": 39,
+            "exact_top1": 36,
+            "raw_pool": 40,
+            "valid_pool": 39,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 36,
+            "top5": 39,
+            "exact_top1": 36,
+            "raw_pool": 40,
+            "valid_pool": 39,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right": {
+          "zenz": {
+            "total": 40,
+            "top1": 35,
+            "top5": 39,
+            "exact_top1": 35,
+            "raw_pool": 40,
+            "valid_pool": 39,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 1,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 36,
+            "top5": 39,
+            "exact_top1": 36,
+            "raw_pool": 40,
+            "valid_pool": 39,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 36,
+            "top5": 39,
+            "exact_top1": 36,
+            "raw_pool": 40,
+            "valid_pool": 39,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          }
+        },
+        "right_rescore": {
+          "zenz": {
+            "total": 40,
+            "top1": 35,
+            "top5": 39,
+            "exact_top1": 35,
+            "raw_pool": 40,
+            "valid_pool": 39,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 1,
+            "paired_p_uncorrected": 1.0
+          },
+          "baseline": {
+            "total": 40,
+            "top1": 36,
+            "top5": 39,
+            "exact_top1": 36,
+            "raw_pool": 40,
+            "valid_pool": 39,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          },
+          "dev_selected": {
+            "total": 40,
+            "top1": 36,
+            "top5": 39,
+            "exact_top1": 36,
+            "raw_pool": 40,
+            "valid_pool": 39,
+            "no_valid_pool": 0,
+            "wins": 0,
+            "losses": 0,
+            "paired_p_uncorrected": 1.0
+          }
+        }
+      }
+    },
+    "sealed_contrasts": {
+      "all": {
+        "right_at_baseline": {
+          "total": 180,
+          "wins": 10,
+          "losses": 2,
+          "delta_pp": 4.444444444444445,
+          "topic_groups": 164,
+          "cluster_bootstrap95_delta_pp": [
+            1.6666666666666667,
+            8.064516129032258
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "right_at_selected": {
+          "total": 180,
+          "wins": 13,
+          "losses": 2,
+          "delta_pp": 6.111111111111111,
+          "topic_groups": 164,
+          "cluster_bootstrap95_delta_pp": [
+            2.824858757062147,
+            10.112359550561798
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "right_rescore_at_baseline": {
+          "total": 180,
+          "wins": 8,
+          "losses": 2,
+          "delta_pp": 3.3333333333333335,
+          "topic_groups": 164,
+          "cluster_bootstrap95_delta_pp": [
+            1.1049723756906078,
+            6.145251396648045
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "ranking_without_right": {
+          "total": 180,
+          "wins": 1,
+          "losses": 0,
+          "delta_pp": 0.5555555555555556,
+          "topic_groups": 164,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            1.744186046511628
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "ranking_with_right": {
+          "total": 180,
+          "wins": 4,
+          "losses": 0,
+          "delta_pp": 2.2222222222222223,
+          "topic_groups": 164,
+          "cluster_bootstrap95_delta_pp": [
+            0.5494505494505495,
+            4.571428571428571
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        }
+      },
+      "right_present": {
+        "right_at_baseline": {
+          "total": 80,
+          "wins": 10,
+          "losses": 2,
+          "delta_pp": 10.0,
+          "topic_groups": 64,
+          "cluster_bootstrap95_delta_pp": [
+            3.75,
+            17.28395061728395
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "right_at_selected": {
+          "total": 80,
+          "wins": 13,
+          "losses": 2,
+          "delta_pp": 13.75,
+          "topic_groups": 64,
+          "cluster_bootstrap95_delta_pp": [
+            6.4935064935064934,
+            21.428571428571427
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "right_rescore_at_baseline": {
+          "total": 80,
+          "wins": 8,
+          "losses": 2,
+          "delta_pp": 7.5,
+          "topic_groups": 64,
+          "cluster_bootstrap95_delta_pp": [
+            2.5316455696202533,
+            13.580246913580247
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "ranking_without_right": {
+          "total": 80,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 64,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "ranking_with_right": {
+          "total": 80,
+          "wins": 3,
+          "losses": 0,
+          "delta_pp": 3.75,
+          "topic_groups": 64,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            7.792207792207792
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        }
+      },
+      "right_absent": {
+        "right_at_baseline": {
+          "total": 100,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 100,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "right_at_selected": {
+          "total": 100,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 100,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "right_rescore_at_baseline": {
+          "total": 100,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 100,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "ranking_without_right": {
+          "total": 100,
+          "wins": 1,
+          "losses": 0,
+          "delta_pp": 1.0,
+          "topic_groups": 100,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            3.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "ranking_with_right": {
+          "total": 100,
+          "wins": 1,
+          "losses": 0,
+          "delta_pp": 1.0,
+          "topic_groups": 100,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            3.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        }
+      },
+      "disambiguation": {
+        "right_at_baseline": {
+          "total": 40,
+          "wins": 10,
+          "losses": 2,
+          "delta_pp": 20.0,
+          "topic_groups": 24,
+          "cluster_bootstrap95_delta_pp": [
+            7.317073170731708,
+            34.146341463414636
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "right_at_selected": {
+          "total": 40,
+          "wins": 13,
+          "losses": 2,
+          "delta_pp": 27.5,
+          "topic_groups": 24,
+          "cluster_bootstrap95_delta_pp": [
+            14.285714285714286,
+            41.666666666666664
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "right_rescore_at_baseline": {
+          "total": 40,
+          "wins": 8,
+          "losses": 2,
+          "delta_pp": 15.0,
+          "topic_groups": 24,
+          "cluster_bootstrap95_delta_pp": [
+            5.0,
+            26.31578947368421
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "ranking_without_right": {
+          "total": 40,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 24,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "ranking_with_right": {
+          "total": 40,
+          "wins": 3,
+          "losses": 0,
+          "delta_pp": 7.5,
+          "topic_groups": 24,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            15.909090909090908
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        }
+      },
+      "control": {
+        "right_at_baseline": {
+          "total": 40,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 40,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "right_at_selected": {
+          "total": 40,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 40,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "right_rescore_at_baseline": {
+          "total": 40,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 40,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "ranking_without_right": {
+          "total": 40,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 40,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        },
+        "ranking_with_right": {
+          "total": 40,
+          "wins": 0,
+          "losses": 0,
+          "delta_pp": 0.0,
+          "topic_groups": 40,
+          "cluster_bootstrap95_delta_pp": [
+            0.0,
+            0.0
+          ],
+          "interpretation": "Exploratory paired contrast; 2000 topic-group bootstrap draws, fixed seed; intervals not adjusted for multiple comparisons"
+        }
+      }
+    },
+    "interpretation": "Right context improves these controlled ambiguity cases. The lower Qwen weight gains only one natural heldout case; not sufficient evidence to change the global default.",
+    "post_unseal_observations": [
+      "Left-only Qwen scoring can override right-informed zenz decisions, e.g. 紙/髪 and 公害/郊外. This is a next-experiment hypothesis, not a post-hoc setting change.",
+      "Reference alternatives are finite: context-sealed-080 mixed 3本/二冊 is reasonable but not listed. No labels or scores were changed after unsealing.",
+      "Some designed ambiguities admit wider readings (e.g. 保証/補償の期間); controlled-set gain is not a natural-distribution accuracy estimate.",
+      "Timing is pooled/offline scoring, not editor latency. No production default, right-context UI integration or model weights changed."
+    ]
+  },
+  "validation": {
+    "japanese_unit_tests_passed": 64,
+    "complete_dev_predictions": 180,
+    "complete_sealed_predictions": 180,
+    "no_skipped_predictions": true,
+    "source_and_model_hashes_verified_each_phase": true
+  },
+  "artifacts": {
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/sealed-v1/manifest.json": "e816c75160c01213b86b01fecc539b34cc12815c29d8c57e6d1afb2b8dcb15e2",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/sealed-v1/dev.json": "bad3c6435c8a242b200e7606c5c41ce43fe0cec78630625729d28612744266c8",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/sealed-v1/sealed.inputs.json": "773758bd5830c892d10410d82c7afeb4b491d9de18177302b1b137d6f64ae041",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/sealed-v1/sealed.labels.json": "96945bb3aa19317197239e5b9fda896262c5552eb64da924bfdcedb6a28056b0",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/sealed-v1/training-exclusions.json": "33cf364c305da7b3074f16a164b49cc6a56406ea14ad2f1cad4bca8fe693c52a",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/natural-reviews.json": "adb6c633a8950af9c8498a773ff64913382a3bea4fda11a18536bfe76969f692",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/overlap-natural.json": "313f69d85f90520e1219f977bec1c0c37c50eca92e7f49c8fb3dc2d5271f2468",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/overlap-reviewed.json": "81e34f53b8804db6b624933f2b24e409b19bc0ccd24dcfa30d9dd6177572b88d",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/experiment/manifest.json": "4da749a80259746496b4ae201f3015f284521f378dc8cd58c31e0d20ca87b58f",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/experiment/selection.json": "79e697f4ff1c45f359c88325d63f47051f01b81405564a3f5eefd6b8ca7dd423",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/experiment/dev.rows.jsonl": "552c4118c23fde43683f127e10eece8d74868561346475405589dd5253fede9c",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/experiment/sealed.rows.jsonl": "1494817c233d9ac96954b4cbe714bf8f5e9a478a4b4c74def73a259d7f479dd6",
+    "/home/_WD_/.cache/wime-japanese/evaluation-20261028/experiment/report.json": "4124954275588df88ac2a3129047b2484c21fe4f43ab0d6290d55ae3f5687f0c",
+    "/home/_WD_/.cache/wime-japanese/evaluation-audit-v2-20261028/manifest.json": "a4d1cde230a04c7c7860510fc27d9f61474ec33a016601664c8784f0e4a4124b",
+    "/home/_WD_/.cache/wime-japanese/evaluation-audit-v2-20261028/corrected-cases.json": "56aae5c6611f29d9b5ccb1e2d2409cf9640900baadb49267abc4e9934d56fffb",
+    "/home/_WD_/.cache/wime-japanese/evaluation-audit-full-20261028/audit.json": "c206e01139baf1b96d5332680d93e5d41c892c464e71f48ac027f43c2ee836aa",
+    "/home/_WD_/.cache/wime-japanese/evaluation-audit-v2-20261028/correction-retest/report.json": "8ef2f05616e332b911ede912afa8b605e891727580a4c81695c931843aec068a",
+    "/home/_WD_/.cache/wime-japanese/pending-six-evidence-20261028/manifest.json": "30cba0a0e2fc2defc7755ca61816e2b17b07fc3d027b5acbeddf8d529bd24dd2"
+  }
+}
