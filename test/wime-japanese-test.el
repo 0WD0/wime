@@ -67,7 +67,10 @@
         (wime-japanese-table-file "/ja.json"))
     (should (equal (wime-neural--command "/m.safetensors")
                    '("/bin/true" "--rescorer" "/lm" "--rescorer-weight" "1.5"
-                     "--japanese-model" "/ja.safetensors" "--japanese-table" "/ja.json" "/m.safetensors")))))
+                     "--japanese-model" "/ja.safetensors" "--japanese-table" "/ja.json" "/m.safetensors")))
+    (let ((wime-japanese-zenz-directory "/zenz"))
+      (should (equal (last (wime-neural--command "/m.safetensors") 3)
+                     '("--japanese-zenz" "/zenz" "/m.safetensors"))))))
 
 (defun wime-japanese-test--shift (kana)
   (mapconcat (lambda (i) (if (get-text-property i 'wime-japanese-shift kana) "1" "0"))

@@ -14,6 +14,12 @@ front end constrain a provisional last kana to the kana they can start.
 With explicit spans (the user held Shift), every kana is constrained: 'c'
 kana must be written in something other than hiragana (kanji, katakana),
 'k' kana stay the hiragana typed. A unit's text must match its kana's runs.
+
+With zenz (azooKey's GPT-2 kana-kanji converter), a composition without
+pending keys is finally reranked: zenz's own beam search joins the decoded
+beam, but only what the table can spell from the typed kana (free
+generation may drop typed material), and all are ranked by
+zenz's log P(text </s> | context, kana) + RERANK * the LM's log P(text).
 """
 import collections
 import functools
@@ -22,6 +28,7 @@ import json
 import math
 import re
 import sqlite3
+import unicodedata
 from pathlib import Path
 
 import torch
@@ -29,6 +36,7 @@ import torch
 BEAM, PER_HYPOTHESIS, RESCORED = 16, 24, 64
 MEMO = 4096  # memoized LM rows, ~0.5 MB each
 MAXREAD = 14
+RERANK = 0.7  # the LM's weight beside zenz in the final ranking, chosen on dev
 FORMAT = "wime-ja-kana-v1"
 INPUT, OUTPUT, EOS = "", "", ""
 # Without Japanese before point the LM drifts into Chinese; this line stands
@@ -214,6 +222,73 @@ class Table:
     def literal(self, c):
         return [(c, tuple(self.tokenizer(c)["input_ids"]))]
 
+    def spells(self, kana, text, constraints=None):
+        """Whether decoding could write KANA as TEXT (NFKC-equal), under CONSTRAINTS."""
+        text = unicodedata.normalize("NFKC", text)
+
+        @functools.lru_cache(maxsize=None)
+        def reach(i, j):
+            if i == len(kana):
+                return j == len(text)
+            for end in range(i + 1, min(len(kana), i + MAXREAD) + 1):
+                units = [u for u, _ in self.get(kana[i:end])]
+                if end == i + 1 and not is_kana(kana[i]):
+                    units.append(kana[i])
+                for u in units:
+                    if constraints and not span_pattern(kana[i:end], constraints[i:end]).fullmatch(u):
+                        continue
+                    n = unicodedata.normalize("NFKC", u)
+                    if n and text.startswith(n, j) and reach(end, j + len(n)):
+                        return True
+            return False
+        return reach(0, 0)
+
+
+# --- zenz --------------------------------------------------------------------
+
+class Zenz:
+    """zenz converted by convert-zenz.py; prompt [EE02 context] EE00 katakana EE01 text."""
+
+    def __init__(self, path, device="cuda", beams=8):
+        from tokenizers import Tokenizer
+        from transformers import GPT2LMHeadModel
+        self.model = GPT2LMHeadModel.from_pretrained(path).to(device).eval()
+        self.tokenizer = Tokenizer.from_file(str(Path(path) / "tokenizer.json"))
+        self.eos, self.device, self.beams = self.model.config.eos_token_id, device, beams
+
+    def encode(self, text):
+        return self.tokenizer.encode(text, add_special_tokens=False).ids
+
+    def prompt(self, context, kana):
+        katakana = "".join(chr(ord(c) + 0x60) if "ぁ" <= c <= "ゖ" else c for c in kana)
+        context = context[-40:]
+        return self.encode(("\uee02" + context if context else "") + "\uee00" + katakana + "\uee01")
+
+    @torch.inference_mode()
+    def generate(self, context, kana):
+        prompt = self.prompt(context, kana)
+        out = self.model.generate(torch.tensor([prompt], device=self.device), max_new_tokens=len(kana) + 8,
+                                  num_beams=self.beams, num_return_sequences=self.beams, do_sample=False,
+                                  eos_token_id=self.eos, pad_token_id=self.eos)
+        return [self.tokenizer.decode([i for i in o[len(prompt):].tolist() if i != self.eos]).split("\n")[0]
+                for o in out]
+
+    @torch.inference_mode()
+    def score(self, context, kana, texts):
+        """Sum log p(text </s> | prompt) for each text."""
+        prompt = self.prompt(context, kana)
+        encoded = [self.encode(t) + [self.eos] for t in texts]
+        x = torch.full((len(texts), len(prompt) + max(map(len, encoded))), self.eos)
+        rows, cols, targets = [], [], []
+        for i, e in enumerate(encoded):
+            x[i, :len(prompt) + len(e)] = torch.tensor(prompt + e)
+            rows += [i] * len(e); cols += range(len(prompt) - 1, len(prompt) - 1 + len(e)); targets += e
+        logits = self.model(x.to(self.device)).logits
+        rows = torch.tensor(rows, device=self.device)
+        lp = logits[rows, torch.tensor(cols, device=self.device)].float().log_softmax(-1)
+        picked = lp[torch.arange(len(targets), device=self.device), torch.tensor(targets, device=self.device)]
+        return torch.zeros(len(texts), device=self.device).index_add_(0, rows, picked).tolist()
+
 
 # --- kana model --------------------------------------------------------------
 
@@ -273,8 +348,8 @@ Hypothesis = collections.namedtuple("Hypothesis", "text ids q m")
 class Decoder:
     """Model-facing methods are separate so tests can replace the models."""
 
-    def __init__(self, table, rescorer, kana_model, weight=0.6, beam=BEAM, per_hypothesis=PER_HYPOTHESIS):
-        self.table, self.rescorer, self.kana_model = table, rescorer, kana_model
+    def __init__(self, table, rescorer, kana_model, weight=0.6, beam=BEAM, per_hypothesis=PER_HYPOTHESIS, zenz=None):
+        self.table, self.rescorer, self.kana_model, self.zenz = table, rescorer, kana_model, zenz
         self.weight, self.beam, self.per_hypothesis = weight, beam, per_hypothesis
         self.device = rescorer.device if rescorer else "cpu"
         self.session = None
@@ -324,10 +399,21 @@ class Decoder:
         constraints = (tuple("c" if f == "1" else "k" for f in (shift or "0" * len(kana)))
                        + ("c" if pending_shift else "k",) if explicit else None)
         try:
-            return self.session.decode(kana, tuple(sorted(set(pending))), constraints)
+            ranked = self.session.decode(kana, tuple(sorted(set(pending))), constraints)
         except ValueError:
             self.session = None
             return []
+        if self.zenz is None or pending or not ranked:
+            return ranked
+        return self.rerank(context, kana, [t for t, _ in ranked], constraints and constraints[:len(kana)])
+
+    def rerank(self, context, kana, texts, constraints):
+        texts = list(dict.fromkeys(texts + [t for t in self.zenz.generate(context, kana)
+                                            if t and self.table.spells(kana, t, constraints)]))
+        z = self.zenz.score(context, kana, texts)
+        q = self.lm_tails(self.session.lm, [()] * len(texts),
+                          [self.table.tokenizer(t)["input_ids"] for t in texts])
+        return sorted(zip(texts, (a + RERANK * b for a, b in zip(z, q))), key=lambda pair: -pair[1])
 
 
 class Session:

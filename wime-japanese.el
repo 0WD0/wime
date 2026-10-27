@@ -34,6 +34,10 @@
   "Reading table of `wime-neural-rescorer''s tokens, from build-japanese-table.py."
   :type '(choice (const nil) file) :group 'wime)
 
+(defcustom wime-japanese-zenz-directory nil
+  "zenz model from convert-zenz.py; the worker then reranks finished readings with it."
+  :type '(choice (const nil) directory) :group 'wime)
+
 (defcustom wime-japanese-shifted-keys
   '((?: . ?\;) (?\" . ?') (?< . ?,) (?> . ?.) (?_ . ?-) (?{ . ?\[) (?} . ?\]))
   "What Shift turns AZIK's punctuation keys into, mapped back to the key.

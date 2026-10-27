@@ -235,8 +235,10 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                (list "--database" (expand-file-name wime-database-file)))
           (and wime-neural-rescorer (bound-and-true-p wime-japanese-model-file)
                (bound-and-true-p wime-japanese-table-file)
-               (list "--japanese-model" (expand-file-name wime-japanese-model-file)
-                     "--japanese-table" (expand-file-name wime-japanese-table-file)))
+               (append (list "--japanese-model" (expand-file-name wime-japanese-model-file)
+                             "--japanese-table" (expand-file-name wime-japanese-table-file))
+                       (and (bound-and-true-p wime-japanese-zenz-directory)
+                            (list "--japanese-zenz" (expand-file-name wime-japanese-zenz-directory)))))
           (list (expand-file-name model))))
 
 (defun wime-neural--start ()

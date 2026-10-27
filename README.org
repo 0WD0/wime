@@ -128,6 +128,9 @@ AZIK 双键出两个假名时，第一个假名跟第一个键，其余跟最后
 停键后 worker 解码假名：Qwen 的 token 在读音表约束下拼出假名，
 每个假名位置与 23M 假名条件模型融合（ =neural/japanese.py= ）。
 还在等待的键只允许它们能开头的假名作为暂定的最后一个字。
+没有待定键时，azooKey 的 zenz 模型自己生成的候选也加入，
+但只留读音表能从所敲假名拼出的（自由生成可能漏字），
+全部按 zenz 与 Qwen 的整句概率重排。
 平假名和片假名始终在候选里。尚无纠错学习。
 
 wdoom 在 =$XDG_DATA_HOME/wime/japanese/= 下找到两个文件时启用：
@@ -150,6 +153,13 @@ python neural/build-japanese-table.py \
 =prepare-japanese.py= 用 MeCab + UniDic 3.1 注音，
 排除 2025–26 年加入 Tatoeba 的测试句，
 =evaluate-japanese.py= 和 =test/record-japanese.el= 在这些句子上评测。
+
+可选的 =zenz/= 目录启用重排，由 zenz-v3.2-small（Apache-2.0）的 gguf 转换：
+
+#+begin_src sh
+PYTHONPATH=llama.cpp/gguf-py python neural/convert-zenz.py \
+    ggml-model-Q5_K_M.gguf ~/.local/share/wime/japanese/zenz
+#+end_src
 
 * 词库
 

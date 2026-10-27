@@ -1,7 +1,7 @@
 ;;; record-japanese.el --- Type Japanese test sentences in AZIK through the real worker -*- lexical-binding: t; -*-
 ;; Environment: WIME_NEURAL_PROGRAM, WIME_NEURAL_INTERPRETER, WIME_NEURAL_MODEL,
 ;; WIME_RESCORER, WIME_JAPANESE_MODEL, WIME_JAPANESE_TABLE, WIME_CASES
-;; (prepare-japanese.py's test.json), WIME_RECORDING, optional
+;; (prepare-japanese.py's test.json), WIME_RECORDING, optional WIME_JAPANESE_ZENZ,
 ;; WIME_TYPING_INTERVAL (seconds between keys), WIME_LIMIT and WIME_EXPLICIT
 ;; (hold Shift over the kana the cases' shift field marks).
 (require 'wime-japanese)
@@ -14,6 +14,7 @@
       wime-neural-rescorer (getenv "WIME_RESCORER")
       wime-japanese-model-file (getenv "WIME_JAPANESE_MODEL")
       wime-japanese-table-file (getenv "WIME_JAPANESE_TABLE")
+      wime-japanese-zenz-directory (getenv "WIME_JAPANESE_ZENZ")
       wime-neural-search-method 'verify wime-neural-delay 0 wime-neural-startup-timeout 120)
 
 (defun record-japanese--shift (key)

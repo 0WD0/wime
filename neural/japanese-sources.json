@@ -26,6 +26,11 @@
      "url": "http://ftp.edrdg.org/pub/Nihongo/JMnedict.xml.gz",
      "sha256": "40b59e5426caea0ab3a66eb6d0011cdfa389f3ffd44dd611c14ece50ceeb023e"}
   ],
+  "models": [
+    {"file": "ggml-model-Q5_K_M.gguf", "license": "Apache-2.0, zenz-v3.2-small (Keita Miwa, azooKey)",
+     "url": "https://huggingface.co/Miwa-Keita/zenz-v3.2-small-gguf/resolve/main/ggml-model-Q5_K_M.gguf",
+     "sha256": "29c223d4c23327b80fd13ebb5ab2555057a46317997d5da391584ffbef0db673"}
+  ],
   "dictionaries": [
     {"file": "/usr/share/tagainijisho/jmdict.db", "license": "EDRDG (CC BY-SA 4.0), JMdict 2022-11-26",
      "sha256": "de88ab2c69d21e1aedaff756453531a3f31931329175d434745f8a7949468209"},

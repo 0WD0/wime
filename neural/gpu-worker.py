@@ -10,7 +10,7 @@ candidate, including the seed pool, and interleaves its token proposals with
 the model's per-character proposals. With --database as well, the decode
 operation replaces the dictionary lattice: see decoder.py. With
 --japanese-model and --japanese-table as well, the japanese operation
-decodes typed kana: see japanese.py.
+decodes typed kana, and --japanese-zenz reranks it: see japanese.py.
 """
 import argparse
 import json
@@ -170,6 +170,7 @@ def main():
     parser.add_argument("--database", help="wime word database, whose readings enable decode")
     parser.add_argument("--japanese-model", help="kana-conditioned model (train-japanese.py)")
     parser.add_argument("--japanese-table", help="reading table for the rescorer (build-japanese-table.py)")
+    parser.add_argument("--japanese-zenz", help="zenz directory (convert-zenz.py) for the final Japanese ranking")
     args = parser.parse_args()
     evaluator = ConditionalEvaluator(args.model, device="cuda")
     rescorer = Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
@@ -185,7 +186,8 @@ def main():
     if rescorer and args.japanese_model and args.japanese_table:
         import japanese as ja
         japanese = ja.Decoder(ja.Table(args.japanese_table, rescorer.tokenizer), rescorer,
-                              ja.KanaModel(args.japanese_model))
+                              ja.KanaModel(args.japanese_model),
+                              zenz=ja.Zenz(args.japanese_zenz) if args.japanese_zenz else None)
         japanese.decode("", "にほんご")
     if decoder:
         decoder.decode("", "nihk")

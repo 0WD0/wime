@@ -88,6 +88,41 @@ class Decoding(unittest.TestCase):
         self.assertTrue(any(t.endswith("、") for t, _ in Toy().decode("", "にほん、")))
 
 
+class FakeZenz:
+    """Generates one spellable reading, one that drops ご and one the table cannot write."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def generate(self, context, kana):
+        self.calls += 1
+        return ["日本後", "日本", "ニホンゴ"]
+
+    def score(self, context, kana, texts):
+        return [0.0 if t == "日本後" else -10.0 for t in texts]
+
+
+class Reranking(unittest.TestCase):
+    def test_table_spells_only_what_reads_as_the_kana(self):
+        table = Toy().table
+        self.assertTrue(table.spells("にほんご", "日本語"))
+        self.assertTrue(table.spells("にほんご、", "日本ご、"))
+        self.assertFalse(table.spells("にほんご", "日本"))
+        self.assertTrue(table.spells("にほんご", "日本ご", ("c", "c", "c", "k")))
+        self.assertFalse(table.spells("にほんご", "日本語", ("c", "c", "c", "k")))
+
+    def test_zenz_joins_and_ranks_only_spellable_readings_after_pending_keys(self):
+        decoder = Toy()
+        decoder.zenz = FakeZenz()
+        decoder.decode("", "にほん", pending=["ご"])
+        self.assertEqual(decoder.zenz.calls, 0)
+        ranked = [t for t, _ in decoder.decode("", "にほんご")]
+        self.assertEqual(ranked[0], "日本後")
+        self.assertIn("日本語", ranked)
+        self.assertNotIn("日本", ranked)
+        self.assertNotIn("ニホンゴ", ranked)
+
+
 class Lexicon(unittest.TestCase):
     def test_each_reading_keeps_its_most_frequent_writings(self):
         lexicon = {"加奈": {"かな": 3}, "仮名": {"かな": 90, "かめい": 5}, "哉": {"かな": 1}}

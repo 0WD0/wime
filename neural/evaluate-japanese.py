@@ -6,7 +6,7 @@ import json
 import time
 from pathlib import Path
 
-from japanese import Decoder, KanaModel, Table
+from japanese import Decoder, KanaModel, Table, Zenz
 from rescorer import Rescorer
 
 
@@ -27,12 +27,14 @@ def main():
     ap.add_argument("--table", required=True)
     ap.add_argument("--kana-model", required=True)
     ap.add_argument("--weight", type=float, default=0.6)
+    ap.add_argument("--zenz", help="convert-zenz.py directory: rerank finished readings")
     ap.add_argument("--limit", type=int, default=100000)
     ap.add_argument("--explicit", action="store_true", help="hold Shift as the cases' shift field says")
     args = ap.parse_args()
     cases = json.loads(args.cases.read_text())[:args.limit]
     rescorer = Rescorer(args.rescorer, args.weight)
-    decoder = Decoder(Table(args.table, rescorer.tokenizer), rescorer, KanaModel(args.kana_model), args.weight)
+    decoder = Decoder(Table(args.table, rescorer.tokenizer), rescorer, KanaModel(args.kana_model), args.weight,
+                      zenz=Zenz(args.zenz) if args.zenz else None)
     stats, rows, times = collections.Counter(), [], []
     for case in cases:
         start = time.perf_counter()
@@ -44,7 +46,7 @@ def main():
                      chars=len(case["gold"]), char_errors=errors(best[0] if best else "", case["gold"]))
         rows.append(dict(case, best=best[:5]))
     times.sort()
-    summary = dict(stats, weight=args.weight, explicit=args.explicit,
+    summary = dict(stats, weight=args.weight, explicit=args.explicit, zenz=bool(args.zenz),
                    ms_p50=times[len(times) // 2], ms_p95=times[int(.95 * len(times))])
     print(json.dumps(summary))
     args.out.write_text(json.dumps(dict(summary=summary, rows=rows), ensure_ascii=False, indent=1))
