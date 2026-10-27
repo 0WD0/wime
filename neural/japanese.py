@@ -258,14 +258,16 @@ def missing_readings(index, writings):
             if not spells(index.get, r, w)]
 
 
-def build_table(tokenizer, jmdict_path, kanjidic_path, lexicon=None, top=4):
+def build_table(tokenizer, jmdict_path, kanjidic_path, lexicon=None, top=4, validation_units=None):
     """{reading: [[text, [token ids]], ...]} for TOKENIZER's vocabulary.
     LEXICON ({writing: {reading: corpus count}}) adds the TOP most frequent
     writings of each reading; the LM splits most of them. More crowd the
     beam with names and slow decoding down. Every KANJIDIC kanji the LM has
     a token for reads alone; multi-character tokens compose readings from
     graded kanji only: rarer readings let Chinese tokens spell Japanese kana.
-    Dictionary words also supply readings that cannot cross token boundaries."""
+    Dictionary words also supply readings that cannot cross token boundaries.
+    If VALIDATION_UNITS is a dict, put additional character/inflection paths
+    there so zenz can use them without expanding them at every beam frontier."""
     writings, common = jmdict(jmdict_path)
     for w, r in frequent(lexicon or {}, top):
         writings[w].add(r)
@@ -306,10 +308,19 @@ def build_table(tokenizer, jmdict_path, kanjidic_path, lexicon=None, top=4):
     for letter, r in LETTERS.items():
         for text in (letter, letter.lower()):
             index[r].append([text, tokenizer(text)["input_ids"]])
+    core = {w: set(rs) for w, rs in writings.items()}
+    for c in KANA:
+        core.setdefault(c, set()).add(hira(c))
+    complete_dictionary(index, tokenizer, core)
+    search = {r: list(units) for r, units in index.items()} if validation_units is not None else None
     required = required_readings(writings, every)
     complete_dictionary(index, tokenizer, required)
     if missing := missing_readings(index, required):
         raise ValueError(f"incomplete reading table: {missing[:5]}")
+    if search is not None:
+        validation_units.update({r: units[len(search.get(r, ())):] for r, units in index.items()
+                                 if len(units) > len(search.get(r, ()))})
+        return search
     return dict(index)
 
 
@@ -317,11 +328,19 @@ class Table:
     def __init__(self, path, tokenizer):
         data = json.loads(Path(path).read_text())
         self.index = {r: [(t, tuple(ids)) for t, ids in units] for r, units in data["units"].items()}
+        self.search_index = self.index
+        if extra := data.get("validation_units"):
+            self.index = {r: list(units) for r, units in self.index.items()}
+            for r, units in extra.items():
+                self.index.setdefault(r, []).extend((t, tuple(ids)) for t, ids in units)
         self.max_read = max(map(len, self.index), default=MAXREAD)
         self.tokenizer = tokenizer
 
     def get(self, reading):
         return self.index.get(reading, ())
+
+    def search(self, reading):
+        return self.search_index.get(reading, ())
 
     def literal(self, c):
         return [(c, tuple(self.tokenizer(c)["input_ids"]))]
@@ -536,7 +555,7 @@ class Session:
         for start in range(max(0, end - table.max_read), end):
             if not self.kept[start]:
                 continue
-            units = list(table.get(kana[start:end]))
+            units = list((table.search if decoder.zenz else table.get)(kana[start:end]))
             if end - start == 1 and not is_kana(kana[start]) and not any(u[0] == kana[start] for u in units):
                 units += table.literal(kana[start])
             if self.constraints:

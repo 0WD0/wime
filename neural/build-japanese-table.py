@@ -18,11 +18,14 @@ def main():
     args = ap.parse_args()
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(args.rescorer)
+    validation = {}
     units = build_table(tokenizer, args.jmdict, args.kanjidic,
-                        json.loads(args.lexicon.read_text()) if args.lexicon else None, args.top)
+                        json.loads(args.lexicon.read_text()) if args.lexicon else None, args.top, validation)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(dict(rescorer=Path(args.rescorer).name, units=units), ensure_ascii=False))
-    print(len(units), "readings,", sum(map(len, units.values())), "units")
+    args.out.write_text(json.dumps(dict(rescorer=Path(args.rescorer).name, units=units,
+                                        validation_units=validation), ensure_ascii=False))
+    print(len(units), "search readings,", sum(map(len, units.values())), "search units,",
+          sum(map(len, validation.values())), "additional validation units")
 
 
 if __name__ == "__main__":

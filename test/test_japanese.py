@@ -31,9 +31,9 @@ class Tokenizer:
 class Toy(ja.Decoder):
     """The LM likes 日本 then 語; the kana model is indifferent."""
 
-    def __init__(self, units=UNITS):
+    def __init__(self, units=UNITS, validation=None):
         path = Path(tempfile.mkdtemp()) / "table.json"
-        path.write_text(json.dumps(dict(units=units), ensure_ascii=False))
+        path.write_text(json.dumps(dict(units=units, validation_units=validation), ensure_ascii=False))
         super().__init__(ja.Table(path, Tokenizer()), None, None, weight=1.0)
         self.forwards = 0
 
@@ -133,6 +133,17 @@ class Reranking(unittest.TestCase):
         self.assertNotIn("日本", ranked)
         self.assertNotIn("ニホンゴ", ranked)
 
+    def test_extended_coverage_does_not_require_expanding_the_zenz_search_beam(self):
+        base = dict(UNITS, ご=[["語", [3]], ["ご", [9]]])
+        extra = {"ご": [["後", [4]]]}
+        decoder = Toy(base, extra)
+        self.assertNotIn(("後", (4,)), decoder.table.search("ご"))
+        self.assertTrue(decoder.table.spells("にほんご", "日本後"))
+        decoder.zenz = FakeZenz()
+        self.assertEqual(decoder.decode("", "にほんご")[0][0], "日本後")
+        # Without zenz, the full table remains available to the ordinary beam.
+        self.assertIn("日本後", [t for t, _ in Toy(base, extra).decode("", "にほんご")])
+
 
 class Lexicon(unittest.TestCase):
     def test_each_reading_keeps_its_most_frequent_writings(self):
@@ -187,7 +198,13 @@ class Lexicon(unittest.TestCase):
         rare = {"髭": {("ひげ", "")}, "叩": {("たた", "く")}}
         with patch.object(ja, "jmdict", return_value=(writings, set())), \
                 patch.object(ja, "kanjidic", side_effect=lambda _path, graded=True: {} if graded else rare):
-            units = ja.build_table(ByteTokenizer(), "unused", "unused")
+            extra = {}
+            search = ja.build_table(ByteTokenizer(), "unused", "unused", validation_units=extra)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "table.json"
+            path.write_text(json.dumps(dict(units=search, validation_units=extra)))
+            table = ja.Table(path, ByteTokenizer())
+        units = table.index
         required = ja.required_readings(writings, rare)
         self.assertEqual(ja.missing_readings(units, required), [])
         for text, kana in [("罠", "わな"), ("髭", "ひげ"), ("叩いて", "たたいて"),

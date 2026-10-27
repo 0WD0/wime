@@ -39,8 +39,9 @@ def main():
     for case in cases:
         start = time.perf_counter()
         decoder.session = None  # every case is a fresh composition
-        best = [t for t, _ in (decoder.decode("", case["input"], shift=case["shift"], explicit=True)
-                               if args.explicit else decoder.decode("", case["input"]))]
+        context = case.get("context", "")
+        best = [t for t, _ in (decoder.decode(context, case["input"], shift=case["shift"], explicit=True)
+                               if args.explicit else decoder.decode(context, case["input"]))]
         times.append(1000 * (time.perf_counter() - start))
         stats.update(total=1, correct=best[:1] == [case["gold"]], top5=case["gold"] in best[:5],
                      chars=len(case["gold"]), char_errors=errors(best[0] if best else "", case["gold"]))
