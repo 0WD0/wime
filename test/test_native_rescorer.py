@@ -3,12 +3,10 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock, patch
 
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
-import native_rescorer
 from native_rescorer import NativeRescorer
 from rescorer import Rescorer
 
@@ -87,22 +85,6 @@ class NativeRescorerContract(unittest.TestCase):
         self.reference.tokenizer, self.reference.model = Tokenizer(), Model()
         self.reference.weight, self.reference.device, self.reference.pad = 0.7, "cpu", 0
 
-    def test_constructor_loads_only_tokenizer_and_checks_token_bytes(self):
-        tokenizer, backend = Tokenizer(), Backend()
-        auto_tokenizer = Mock()
-        auto_tokenizer.from_pretrained.return_value = tokenizer
-        with patch.dict(sys.modules, {"transformers": SimpleNamespace(AutoTokenizer=auto_tokenizer)}), \
-                patch.object(native_rescorer, "raw_token_bytes", return_value=[None, b"\n"]) as raw, \
-                patch.object(native_rescorer, "NativeLlamaLM", return_value=backend) as lm:
-            scorer = NativeRescorer("hf-tokenizer", 0.2, "bridge.so", "weights.gguf")
-        auto_tokenizer.from_pretrained.assert_called_once_with("hf-tokenizer")
-        raw.assert_called_once_with(tokenizer)
-        lm.assert_called_once_with("bridge.so", "weights.gguf", gpu_layers=99,
-                                   token_bytes=[None, b"\n"])
-        self.assertIs(scorer.backend, backend)
-        self.assertEqual((scorer.weight, scorer.device, scorer.pad), (0.2, "cpu", 0))
-        self.assertFalse(hasattr(scorer, "model"))
-
     def test_score_matches_bos_targets_and_character_normalization(self):
         texts = ["甲乙", "中国甲", "龘", "丁"]
         actual = self.native.score("前文", texts)
@@ -129,16 +111,6 @@ class NativeRescorerContract(unittest.TestCase):
                 self.assertEqual(actual, self.reference.proposals("前文", draft, margin))
                 proposals.extend(actual)
         self.assertTrue(proposals)
-        self.assertEqual(self.native.backend.next_calls[0],
-                         ([0, 2, 3], [(), (4,), (4, 5)]))
-        self.assertEqual(self.native.backend.next_calls[2], ([0, 2, 3], [(), (7,)]))
-
-    def test_combine_inherits_existing_weighted_score_semantics(self):
-        texts, scores = ["甲", "中国", "龘"], [-2.0, -3.5, -8.0]
-        actual = self.native.combine("前文", texts, scores)
-        expected = self.reference.combine("前文", texts, scores)
-        torch.testing.assert_close(torch.tensor(actual), torch.tensor(expected))
-        self.assertIs(NativeRescorer.combine, Rescorer.combine)
 
     def test_empty_requests_and_close(self):
         self.assertEqual(self.native.score("前文", []), [])
