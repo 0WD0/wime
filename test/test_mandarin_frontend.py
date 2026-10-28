@@ -87,12 +87,36 @@ class Frontend(unittest.TestCase):
             self.assertIn(f"phrase_correction:{phrase}", row["reading_rules"][0])
         self.assertEqual(originals[0][:2], ["zhong4", "huan4"])
 
-    def test_reviewed_boundary_does_not_consume_partial_tokens(self):
+    def test_reviewed_phrase_can_start_inside_an_original_jieba_token(self):
+        import jieba_fast.posseg
+        sentence = "冬至为太阳之阳乾"
+        original_segments = [(word, pos) for word, pos in jieba_fast.posseg.lcut(sentence)]
+        self.assertIn(("之阳", "ns"), original_segments)
+        original = ["dong1", "zhi4", "wei2", "tai4", "yang2", "zhi1", "yang2", "gan1"]
+        stem_readings = ["yang2", "gan4", "jia3", "bing3", "wu4", "geng1", "ren2"]
+        frontend = MandarinFrontend(converter=lambda sentences: [original, stem_readings])
+        segments = frontend._reviewed_segments(sentence)
+        self.assertIn(("阳乾", "n"), segments)
+        self.assertEqual("".join(word for word, _ in segments), sentence)
+        row, stems = frontend.readings([sentence, "阳干甲丙戊庚壬"])
+        self.assertEqual(row["reading_evidence"]["frontend_before_sandhi"][-2:], ["yang2", "qian2"])
+        self.assertEqual(row["reading_evidence"]["final"][-2:], ["yang2", "qian2"])
+        self.assertEqual(row["reading_rules"][-2:], [["phrase_correction:阳乾"], ["phrase_correction:阳乾"]])
+        self.assertEqual(stems["reading_evidence"]["final"][:2], ["yang2", "gan1"])
+        self.assertEqual(stems["reading_rules"][:2], [["phrase_correction:阳干"], ["phrase_correction:阳干"]])
+        self.assertFalse(any("phrase_correction:阳乾" in rules for rules in stems["reading_rules"]))
+
+    def test_unreviewed_text_keeps_existing_segmentation(self):
         frontend = MandarinFrontend(converter=lambda sentences: [], tone_modifier=IdentityTone())
-        self.assertEqual(frontend._reviewed_segments([("重", "a"), ("焕", "vg"), ("课堂", "n")]),
-                         [("重焕", "v"), ("课堂", "n")])
-        segments = [("重", "a"), ("焕然", "a")]
-        self.assertEqual(frontend._reviewed_segments(segments), segments)
+        for text in ("太阳之阳坤", "重建课堂活力", "藏传佛教", "普通分词保持不变"):
+            with self.subTest(text=text):
+                self.assertEqual(frontend._reviewed_segments(text),
+                                 [(word, pos) for word, pos in frontend.segmenter(text)])
+        without_corrections = MandarinFrontend(converter=lambda sentences: [],
+                                               tone_modifier=IdentityTone(), corrections={})
+        text = "太阳之阳乾重焕活力"
+        self.assertEqual(without_corrections._reviewed_segments(text),
+                         [(word, pos) for word, pos in without_corrections.segmenter(text)])
 
     def test_adverbial_de_corrects_syllable_but_preserves_lexical_di_and_de(self):
         import jieba_fast.posseg

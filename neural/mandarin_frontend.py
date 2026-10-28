@@ -18,9 +18,8 @@ import types
 HAN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
 TEXT_ROOT = Path(__file__).resolve().parents[3] / "third_party/gpt-sovits/GPT_SoVITS/text"
 NAMESPACE = "_wime_gpt_sovits_text"
-# Reviewed dictionary phrases that jieba splits internally. Merge only whole
-# adjacent tokens, locally, so their correction can run before tone grouping.
-REVIEWED_PHRASE_BOUNDARIES = {"重焕": "v"}
+# Only these reviewed dictionary phrases override local segmentation boundaries.
+REVIEWED_PHRASE_BOUNDARIES = {"重焕": "v", "阳乾": "n", "阳干": "n"}
 
 
 def numbered_reading(value):
@@ -123,6 +122,11 @@ class MandarinFrontend:
         self.segmenter = segmenter
         self.tone_modifier = tone_modifier
         self.corrections = load_corrections() if corrections is None else corrections
+        self.reviewed_phrases = {phrase: pos for phrase, pos in REVIEWED_PHRASE_BOUNDARIES.items()
+                                 if phrase in self.corrections}
+        self.reviewed_pattern = (re.compile("|".join(re.escape(phrase) for phrase in
+                                  sorted(self.reviewed_phrases, key=len, reverse=True)))
+                                 if self.reviewed_phrases else None)
 
     @property
     def session_g2pw(self):
@@ -132,24 +136,18 @@ class MandarinFrontend:
     def providers(self):
         return self.session_g2pw.get_providers()
 
-    def _reviewed_segments(self, segments):
-        result = []
-        index = 0
-        while index < len(segments):
-            word, pos = segments[index]
-            stop = index + 1
-            for phrase, phrase_pos in REVIEWED_PHRASE_BOUNDARIES.items():
-                if phrase not in self.corrections or not phrase.startswith(word):
-                    continue
-                candidate, candidate_stop = word, stop
-                while len(candidate) < len(phrase) and candidate_stop < len(segments):
-                    candidate += segments[candidate_stop][0]
-                    candidate_stop += 1
-                if candidate == phrase:
-                    word, pos, stop = phrase, phrase_pos, candidate_stop
-                    break
-            result.append((word, pos))
-            index = stop
+    def _reviewed_segments(self, text):
+        """Locate reviewed phrases in original text; segment everything else."""
+        result, start = [], 0
+        matches = self.reviewed_pattern.finditer(text) if self.reviewed_pattern else ()
+        for match in matches:
+            if start < match.start():
+                result.extend((word, pos) for word, pos in self.segmenter(text[start:match.start()]))
+            phrase = match.group()
+            result.append((phrase, self.reviewed_phrases[phrase]))
+            start = match.end()
+        if start < len(text):
+            result.extend((word, pos) for word, pos in self.segmenter(text[start:]))
         return result
 
     def _correct(self, word, readings, pos=None):
@@ -194,10 +192,9 @@ class MandarinFrontend:
                 while end < len(sentence) and raw[end] is not None:
                     end += 1
                 text = sentence[i:end]
-                segments = [(word, pos) for word, pos in self.segmenter(text)]
+                segments = self._reviewed_segments(text)
                 if "".join(word for word, _ in segments) != text:
                     raise ValueError("Mandarin segmentation changed original text")
-                segments = self._reviewed_segments(segments)
                 # Correct original jieba words before tone-driven grouping:
                 # otherwise an erroneous model tone can merge away a known
                 # phrase and prevent its pronunciation correction entirely.
