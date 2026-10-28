@@ -1,0 +1,513 @@
+{
+  "status": "Experimental native MiniCPM backend is implemented and available for opt-in trials; production defaults unchanged.",
+  "scope": "Fixed 12 selected development cases and 6 editing trajectories with 40 requests. No full-corpus or heldout evaluation, no tuning on these results.",
+  "workspace": "/home/disk/Projects/dev-monorepo-wime-minicpm",
+  "imports": {
+    "method": "jjosh project import: complete branch and tag histories, upstream mappings retained; imported main histories merged, not shallow/squashed.",
+    "merge_commit": "990a84194d80ca479fe9214ba31369609c403da3",
+    "projected_monorepo_heads": {
+      "third_party/llama.cpp": "6606ac0ada1a0512a35360fdfe20284dc68c883f",
+      "third_party/flash-linear-attention": "f57fbcb60833aeb821c0fa816dd26078021c7052",
+      "third_party/causal-conv1d": "41562f2db3ca48ddb63a958544d2c825d3dd6f3e"
+    },
+    "upstream_source_edits": false
+  },
+  "implementation": {
+    "search": "Native shared sequence KV cells and batched continuations with explicit positions; bounded path LRU.",
+    "final_ranking": "Separate native context for canonical teacher-forced scoring; full-vocabulary FP32 log_softmax before any FSA selection.",
+    "tokenizer": "HF tokenizer remains authoritative, including actual BOS post-processing and special-token exclusion.",
+    "supported_architecture": "Standard Llama only; native adapter rejects recurrent/hybrid and other GGUF architectures.",
+    "worker_flags": [
+      "--decoder-kind text",
+      "--text-native-library",
+      "--text-native-model"
+    ],
+    "preserved": "Existing HF/legacy worker defaults, shared Python environment, model values and search settings."
+  },
+  "build": {
+    "cuda_compiler": "13.4.92",
+    "torch": "2.11.0+cu130",
+    "transformers": "5.17.0",
+    "target_sm": 89,
+    "gguf": "Local MiniCPM5-2B BF16 checkpoint converted to BF16 GGUF, no weight quantization or new weight downloads.",
+    "gguf_sha256": "3c80632dcb1dc35c9f754688e94345380bdafb87485d633c4619388c0816dfa9",
+    "kv_dtype": "BF16",
+    "flash_attention": "llama.cpp AUTO, confirmed enabled on this GPU",
+    "source_build_entry": "emacs-packages/wime/neural/native/CMakeLists.txt",
+    "qwen_environment": "Isolated experiment venv; FLA and causal-conv1d built/installed from imported sources."
+  },
+  "tokenizer_audit": {
+    "status": "native_bytes_passed",
+    "model_output_ids": 130560,
+    "counts": {
+      "special": 30,
+      "ordinary": 130530,
+      "ordinary_complete_utf8": 129522,
+      "ordinary_partial_or_invalid_utf8": 1008
+    },
+    "ordinary_bytes_sha256": "9867e3926badd77bbbbc145018725c445751217b4b66177f467a08472f8f42f1",
+    "native_byte_differences": [],
+    "note": "All 130560 output IDs checked. HF tokenization and HF search-special mask stay authoritative. Invalid singleton UTF-8 is retained as exact bytes, never Unicode replacement. Config add_bos_token=false conflicts with actual TemplateProcessing BOS0; encoding probes record actual behavior."
+  },
+  "minicpm": {
+    "suites": {
+      "cases": {
+        "hf": {
+          "requests": 12,
+          "total_ms": 8953.946633002488,
+          "p50_ms": 600.3356594956131,
+          "p95_ms": 2306.3935109967133,
+          "max_ms": 2306.3935109967133
+        },
+        "native": {
+          "requests": 12,
+          "total_ms": 7561.012935999315,
+          "p50_ms": 509.0199055048288,
+          "p95_ms": 1801.2889429955976,
+          "max_ms": 1801.2889429955976
+        },
+        "latency_change_percent": -15.556645064971608,
+        "quality": {
+          "hf": {
+            "labeled": 12,
+            "top1": 10,
+            "oracle": 10,
+            "constraints_passed": 12,
+            "exact_request_hits": 0
+          },
+          "native": {
+            "labeled": 12,
+            "top1": 10,
+            "oracle": 10,
+            "constraints_passed": 12,
+            "exact_request_hits": 0
+          }
+        }
+      },
+      "trajectories": {
+        "hf": {
+          "requests": 40,
+          "total_ms": 8437.693196057808,
+          "p50_ms": 87.9937885038089,
+          "p95_ms": 760.9799339988967,
+          "max_ms": 2298.4586020029383
+        },
+        "native": {
+          "requests": 40,
+          "total_ms": 6475.281848979648,
+          "p50_ms": 59.904241003096104,
+          "p95_ms": 572.5260570034152,
+          "max_ms": 1682.7546179993078
+        },
+        "latency_change_percent": -23.257676019732763,
+        "quality": {
+          "hf": {
+            "labeled": 27,
+            "top1": 18,
+            "oracle": 20,
+            "constraints_passed": 40,
+            "exact_request_hits": 11
+          },
+          "native": {
+            "labeled": 27,
+            "top1": 18,
+            "oracle": 20,
+            "constraints_passed": 40,
+            "exact_request_hits": 11
+          }
+        }
+      }
+    },
+    "candidate_changes": {
+      "order": 34,
+      "candidate_set": 16,
+      "first_text": 1,
+      "top1_correctness": 0,
+      "oracle": 0
+    },
+    "first_text_changes": [
+      {
+        "id": "long-prefix-growth/1",
+        "input": "bi",
+        "gold": [
+          "必"
+        ],
+        "hf": [
+          [
+            "比",
+            -10.22363567352295
+          ],
+          [
+            "逼",
+            -10.246153831481934
+          ],
+          [
+            "必",
+            -13.02051067352295
+          ]
+        ],
+        "native": [
+          [
+            "逼",
+            -10.190896987915039
+          ],
+          [
+            "比",
+            -10.222593307495117
+          ],
+          [
+            "必",
+            -12.979787826538086
+          ]
+        ]
+      }
+    ],
+    "precision": {
+      "bf16": {
+        "direct_logprob_max_abs": [
+          0.2840862274169922,
+          0.1898040771484375,
+          0.6393470764160156
+        ],
+        "same_pool": [
+          {
+            "id": "018862b29bf3f3062ee840d6/single",
+            "pool_size": 16,
+            "rank_order_equal": true
+          },
+          {
+            "id": "018862b29bf3f3062ee840d6/whole",
+            "pool_size": 18,
+            "rank_order_equal": false
+          }
+        ]
+      },
+      "fp32": {
+        "direct_logprob_max_abs": [
+          0.08160781860351562,
+          0.04593086242675781,
+          0.378875732421875
+        ],
+        "same_pool": [
+          {
+            "id": "018862b29bf3f3062ee840d6/single",
+            "pool_size": 16,
+            "rank_order_equal": true
+          },
+          {
+            "id": "018862b29bf3f3062ee840d6/whole",
+            "pool_size": 18,
+            "rank_order_equal": true
+          }
+        ]
+      }
+    },
+    "state_layout": "Native BF16 rows are not bitwise invariant across batching/KV layouts. FP32 KV plus non-flash attention reduces root/parent differences to about 1e-5, but child differences remain up to 0.102; forcing cuBLAS FP32 did not change that small-batch diagnostic. This does not establish the remaining arithmetic cause.",
+    "precision_interpretation": "The largest original drift is already present in direct newline prefill without seq_copy. HF FP32 with the same BF16 weight values is closer to native, and the 18-candidate long-sentence union has identical canonical rank order in that control. Neither observation proves general numerical equivalence.",
+    "timing_limit": "One measurement per request, fresh static decoder/shared trajectory decoder, CUDA synchronization and exclusive GPU flock; model load excluded. Runtime precision differences can change search work."
+  },
+  "qwen": {
+    "two_long_case_median_sum_ms": {
+      "fallback": 5023.082050000085,
+      "fla": 4571.5470409923,
+      "conv": 5275.192099012202,
+      "both": 4532.820216976688
+    },
+    "full_warmup": "Each arm replays all 52 requests before measuring another replay in the same process with fresh decoder caches.",
+    "complete_warmed_arms": {
+      "fallback": {
+        "case_total_ms": 10584.023845018237,
+        "trajectory_total_ms": 8428.091617970495,
+        "changes_vs_fallback": {
+          "order": 0,
+          "candidate_set": 0,
+          "first_text": 0,
+          "top1_correctness": 0,
+          "oracle": 0
+        },
+        "candidate_count": 758
+      },
+      "fla": {
+        "case_total_ms": 11408.624723000685,
+        "trajectory_total_ms": 9092.885893987841,
+        "changes_vs_fallback": {
+          "order": 27,
+          "candidate_set": 9,
+          "first_text": 0,
+          "top1_correctness": 0,
+          "oracle": 0
+        },
+        "candidate_count": 758
+      },
+      "conv": {
+        "case_total_ms": 13298.658543993952,
+        "trajectory_total_ms": 10381.646640933468,
+        "changes_vs_fallback": {
+          "order": 24,
+          "candidate_set": 10,
+          "first_text": 2,
+          "top1_correctness": 0,
+          "oracle": 0
+        },
+        "candidate_count": 758
+      },
+      "both": {
+        "case_total_ms": 10880.206386005739,
+        "trajectory_total_ms": 8644.01536398509,
+        "changes_vs_fallback": {
+          "order": 28,
+          "candidate_set": 12,
+          "first_text": 0,
+          "top1_correctness": 0,
+          "oracle": 0
+        },
+        "candidate_count": 758
+      }
+    },
+    "dispatch_control": "Disabled functions use inspect.unwrap Torch reference bodies, enabled functions keep the HF native dispatcher. Reference math matches but wrapper overhead is not exactly symmetric with the production fallback; native dispatcher overhead is included.",
+    "interpretation": "Two long cases alone favor FLA and FLA+conv, but full fixed-fixture latency must guide selection; the shared production environment remains untouched.",
+    "limitation": "Four warmed arms execute sequentially. Small percentage differences may include system variation; these selected fixtures do not estimate heldout accuracy."
+  },
+  "validation": {
+    "cpu_unit_tests": {
+      "passed": 105,
+      "command": "python -m unittest test_byte_constraints test_token_bytes test_text_decoder test_prefix_cache test_conditional_prefix test_request_cache test_branch_cache test_gpu_worker test_native_llama test_native_rescorer"
+    },
+    "worker": {
+      "status": "passed",
+      "requests": 20,
+      "decode": 16,
+      "verify": 4,
+      "pure_protocol_stdout": true,
+      "repeated_candidates_and_scores_exact": [
+        [
+          1,
+          7
+        ],
+        [
+          1,
+          10
+        ],
+        [
+          1,
+          20
+        ],
+        [
+          3,
+          8
+        ],
+        [
+          4,
+          9
+        ],
+        [
+          2,
+          16
+        ],
+        [
+          5,
+          17
+        ]
+      ],
+      "constraint_checks": "passed",
+      "startup_and_first_response_s": 3.808099615998799,
+      "max_worker_elapsed_ms": 222.3851410089992,
+      "p50_worker_elapsed_ms": 16.991824501019437,
+      "p95_worker_elapsed_ms": 183.32845300028566,
+      "max_warm_response_wall_ms": 222.54961199359968,
+      "total_s": 5.158650059005595,
+      "returncode": 0
+    },
+    "quiet_library_comparison": {
+      "status": "passed",
+      "responses": 20,
+      "all_response_fields_except_elapsed_exact": true,
+      "comparisons": [
+        {
+          "id": 1,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 2,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 3,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 4,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 5,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 6,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 7,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 8,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 9,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 10,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 11,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 12,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 13,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 14,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 15,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 16,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 17,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 18,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 19,
+          "exact_except_elapsed": true
+        },
+        {
+          "id": 20,
+          "exact_except_elapsed": true
+        }
+      ],
+      "stderr": {
+        "worker20": {
+          "lines": 4736,
+          "bytes": 578091,
+          "sha256": "bd957ffd023c550dbd29a491adcd2589da04bc585ebf00f603c3dc889153b705"
+        },
+        "worker20-quiet": {
+          "lines": 178,
+          "bytes": 10760,
+          "sha256": "2f1c2124d90f0d409a4b61c15daa79ee28a32eec4157f98f74fd8753264844fe"
+        }
+      },
+      "stderr_line_reduction_percent": 96.24155405405406
+    },
+    "trial_ert_passed": 4,
+    "trial_activated": false,
+    "native_state_isolation": {
+      "status": "passed",
+      "snapshots": 28,
+      "comparisons": 22,
+      "metadata": {
+        "library": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libwime_llama.so",
+        "library_sha256": "4c7c266d769e1f2f94848205658be8dfb9b4ac4739db5cd677964f2714928fea",
+        "llama_library": "/home/disk/.cache/wime-minicpm-investigation/native-backend/build/bin/libllama.so.0.7.0",
+        "llama_library_sha256": "0d2226d00200ae13fe42eb7c0b596fcd653293840f3d5ba3b8d268e2ce85058f",
+        "gguf_sha256": "3c80632dcb1dc35c9f754688e94345380bdafb87485d633c4619388c0816dfa9",
+        "adapter_sha256": "075dfca4f4ba4a2abc4f75de986fc98d889ea72e9876516e89a4a3e184d4bb07",
+        "runner_sha256": "9a79b414d6eeb794ff231f15faf2efd11423e0e9bd788eb0ef4ed34b6ee2645a",
+        "gpu_layers": -1,
+        "torch_threads": 4,
+        "cudnn_compute_override": null,
+        "warning": "Serialization explicitly synchronizes native execution; timings are not benchmark results."
+      },
+      "limitation": "This confirms actual KV byte isolation for the selected two contexts and operations; it does not assert numerical equivalence across attention batches or KV layouts."
+    }
+  },
+  "trial": {
+    "file": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/try-native-decoder.el",
+    "enable": "wime-native-decoder-trial",
+    "restore": "wime-native-decoder-restore",
+    "library": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libwime_llama-quiet.so",
+    "runtime": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/runtime",
+    "note": "Quiet library differs only by filtering DEBUG logs; all 20 protocol responses match the original library exactly except elapsed time. Measured original library and logs are preserved."
+  },
+  "artifacts": {
+    "plan": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/baseline/plan.json",
+      "sha256": "2a8627b22b1b5ac89d2b546eac5f29ea1792c38c72f5b909740a7dc700ee6b12"
+    },
+    "manifest": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/baseline/manifest.json",
+      "sha256": "c729950bee500a80b5c8f634852bf9bdda4cbeac78d017eff13bdf9cbd744404"
+    },
+    "hf": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/hf52/summary.json",
+      "sha256": "96a39b547fecad7c90d13c7ec58f2b25da115196a6ad422c971567921f89134f"
+    },
+    "native": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/native52/summary.json",
+      "sha256": "30e6e4cb6157f44fc4d97a56c495f64f71c250878fcec98da068c3bacad8c8c7"
+    },
+    "qwen": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/qwen-kernels/summary.json",
+      "sha256": "61d6f09aa74b5d9054a4090da7ec1c39b7823d7e272be8c42a2ca030c87ab828"
+    },
+    "numerics": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/native-numerics/numerics.json",
+      "sha256": "fbb0a9fde46e89c3571cd3c06770bfd08f76408b79996c232ab022adc4977a8b"
+    },
+    "bf16_control": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/numerics-v2-bf16/summary.json",
+      "sha256": "ac34ffe7ef8c1af5f340fabfa31cc977384687f1173f9f14355ab9c83f1f88a1"
+    },
+    "fp32_control": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/numerics-v2-fp32/summary.json",
+      "sha256": "2b667d05ae222ee9d8a7647cff9b5f374214fa80c3e528a8508a924e355bae5c"
+    },
+    "matched_schedule": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/numerics-v3-schedule/summary.json",
+      "sha256": "88a93276c390ffc1c4afd9ad87c1be69f77881ef17d8e1163230acb3614796c0"
+    },
+    "fp32_kv_nonflash": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/numerics-v3-f32kv/summary.json",
+      "sha256": "b1f6dbe1ea2f3e29a3534c0dc06dbf0d927479f9a22f280f2b2174a5cd2d92f1"
+    },
+    "fp32_kv_nonflash_cublas": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/numerics-v3-f32kv-cublas-fp32/summary.json",
+      "sha256": "b1f6dbe1ea2f3e29a3534c0dc06dbf0d927479f9a22f280f2b2174a5cd2d92f1"
+    },
+    "worker": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/worker20-quiet/summary.json",
+      "sha256": "87220727f64bd0a8fecbda63305bb54dfeacf2b03fefe6b85dd588bb31b8b624"
+    },
+    "runtime": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/runtime-manifest.json",
+      "sha256": "887bb0f217e94c56d837536ae9361f298a02eadbc3def6930ce42f8a4450923c"
+    },
+    "tokenizer": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/baseline/native-tokenizer-audit/summary.json",
+      "sha256": "771dc51d9039d301a011f3af953dce87ca6d15215c72bacea8410987febcb286"
+    },
+    "native_state_isolation": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/state-isolation-checked/summary.json",
+      "sha256": "cfa4e05f816b8ba1e26a95582cff06edc63eeb8e46f51e6388cd86806b0938bc"
+    }
+  }
+}
