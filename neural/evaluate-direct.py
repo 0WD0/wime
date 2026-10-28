@@ -12,6 +12,7 @@ import torch
 from conditional import load_model
 from conditional_decode import ConditionalDecoder
 from replay import fingerprint
+from dataset_registry import Registry, CATALOG
 
 
 def summarize(rows):
@@ -36,12 +37,18 @@ def summarize(rows):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, required=True)
-    parser.add_argument("--cases", type=Path, required=True)
+    cases = parser.add_mutually_exclusive_group(required=True)
+    cases.add_argument("--cases", type=Path, help="unregistered JSON case array")
+    cases.add_argument("--dataset", help="versioned evaluation-suite ID")
+    parser.add_argument("--registry", type=Path, default=CATALOG)
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--beam", type=int, default=16)
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
+    dataset = None
+    if args.dataset:
+        args.cases, dataset = Registry(args.registry).evaluation(args.dataset)
     torch.set_num_threads(4)
     torch.backends.cuda.matmul.allow_tf32 = False
     model, vocab, metadata = load_model(args.model)
@@ -74,6 +81,7 @@ def main():
             if len(results) % 100 == 0:
                 print(json.dumps(dict(completed=len(results), total=len(cases))), flush=True)
     report = dict(model=str(args.model), model_sha256=fingerprint(args.model),
+                  dataset=dataset,
                   cases_sha256=fingerprint(args.cases), database_sha256=fingerprint(args.database),
                   code_sha256={name: fingerprint(Path(__file__).with_name(name))
                                for name in ("evaluate-direct.py", "conditional_decode.py", "conditional.py")},

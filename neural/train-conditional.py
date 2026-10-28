@@ -19,6 +19,7 @@ from conditional import grow_depth, load_model, FORMAT
 from ranking import encode_candidate, candidate_scores, preference_loss
 from replay import Protection
 from training_data import pack_examples, supervised_logits, training_characters
+from dataset_registry import Registry, CATALOG
 
 
 def reference_kl(logits, reference_logits, labels):
@@ -31,7 +32,10 @@ def reference_kl(logits, reference_logits, labels):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--base", required=True)
-    p.add_argument("--data", type=Path, required=True)
+    primary = p.add_mutually_exclusive_group(required=True)
+    primary.add_argument("--data", type=Path, help="unregistered corpus directory")
+    primary.add_argument("--dataset", help="versioned ID in the dataset registry")
+    p.add_argument("--registry", type=Path, default=CATALOG)
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--encoded-cache", type=Path,
                    default=Path.home() / ".cache/wime-conditional/encoded",
@@ -41,7 +45,9 @@ def main():
     p.add_argument("--steps", type=int, default=3000)
     p.add_argument("--batch", type=int, default=128)
     p.add_argument("--limit", type=int, default=0)
-    p.add_argument("--extra-data", type=Path)
+    extra = p.add_mutually_exclusive_group()
+    extra.add_argument("--extra-data", type=Path)
+    extra.add_argument("--extra-dataset", help="versioned extra-corpus ID")
     p.add_argument("--extra-share", type=float, default=0.25)
     p.add_argument("--seed", type=int, default=20261025)
     p.add_argument("--span-share", type=float, default=0.0,
@@ -66,6 +72,18 @@ def main():
     p.add_argument("--save-every", type=int, default=0,
                    help="retain intermediate checkpoints for development top-1 selection")
     args = p.parse_args()
+    registry, registered = Registry(args.registry), {}
+    for domain, dataset in (("primary", args.dataset), ("extra", args.extra_dataset)):
+        if dataset:
+            directory, excluded, registered[domain] = registry.training(dataset)
+            if domain == "primary":
+                args.data = directory
+            else:
+                args.extra_data = directory
+            args.exclude_cases.extend(excluded)
+    if len({record["annotation"] for record in registered.values()}) > 1:
+        p.error("registered corpora use different annotation policies; reannotate before mixing them")
+    args.exclude_cases = list(dict.fromkeys(args.exclude_cases))
     if (args.steps < 1 or args.batch < 1 or not 0 <= args.extra_share <= 1
             or not 0 <= args.span_share <= 1 or not 0 <= args.single_share <= 1
             or args.span_share + args.single_share > 1
@@ -158,6 +176,7 @@ def main():
                                  fused=True)
     manifest = json.loads((args.data / "manifest.json").read_text())
     settings = {**vars(args), "data": str(args.data), "out": str(args.out),
+                "registry": str(args.registry), "datasets": registered,
                 "encoded_cache": str(args.encoded_cache),
                 "ranking_data": str(args.ranking_data) if args.ranking_data else None,
                 "ranking_pairs": len(ranked) if ranked is not None else 0,
