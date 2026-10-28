@@ -17,7 +17,7 @@ from safetensors.torch import save_file
 
 from conditional import grow_depth, load_model, FORMAT
 from ranking import encode_candidate, candidate_scores, preference_loss
-from replay import Protection
+from replay import Protection, split_path
 from training_data import pack_examples, supervised_logits, training_characters
 from dataset_registry import Registry, CATALOG
 
@@ -116,7 +116,7 @@ def main():
     compositions = Counter()
     protection = Protection(args.exclude_cases)
     def pack(split, directory=args.data):
-        data = pack_examples(directory / (split + ".jsonl"), args.encoded_cache, vocab, window,
+        data = pack_examples(split_path(directory, split), args.encoded_cache, vocab, window,
                              protection, seed=args.seed, span_share=args.span_share,
                              single_share=args.single_share, whitespace_share=args.whitespace_share,
                              limit=args.limit)

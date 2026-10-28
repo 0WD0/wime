@@ -6,11 +6,38 @@ import re
 
 
 def fingerprint(path):
+    if path.is_dir():
+        files = [(file.name, fingerprint(file)) for file in sorted(path.glob("*.parquet"))]
+        if not files:
+            raise ValueError(f"empty Parquet split: {path}")
+        return hashlib.sha256(json.dumps(files).encode()).hexdigest()
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def split_path(directory, split):
+    """Locate a sharded Parquet split or an archived JSONL split."""
+    parquet = directory / split
+    return parquet if parquet.is_dir() else directory / (split + ".jsonl")
+
+
+def parquet_row(row):
+    """Remove browse ordinals and restore optional sparse-evidence fields."""
+    row.pop("_row", None)
+    notes = row.pop("reading_notes", None)
+    if notes:
+        row["reading_notes"] = [{key: value for key, value in note.items() if value is not None}
+                                for note in notes]
+    return row
+
+
 def rows(path):
+    if path.is_dir() or path.suffix == ".parquet":
+        import pyarrow.parquet as pq
+        for file in sorted(path.glob("*.parquet")) if path.is_dir() else [path]:
+            for batch in pq.ParquetFile(file).iter_batches(batch_size=4096):
+                yield from (parquet_row(row) for row in batch.to_pylist())
+        return
     with path.open() as stream:
         for line in stream:
             yield json.loads(line)

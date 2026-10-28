@@ -9,9 +9,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import subprocess
 
 
 CATALOG = Path(__file__).with_name("datasets.json")
+DATASET_PYTHON = Path(os.environ.get("WIME_DATASET_PYTHON", str(
+    Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "wime/environments/datasets/bin/python")))
 
 
 def fingerprint(path):
@@ -54,6 +57,9 @@ class Registry:
     def verify(self, dataset, artifacts=None):
         entry = self.entry(dataset)
         files = artifacts if artifacts is not None else entry["files"]
+        if "storage" in entry:
+            self._verify_dvc(entry)
+            return len(files)
         checked = 0
         for key in files:
             path, expected = self.path(dataset, key), entry["files"][key]["sha256"]
@@ -73,11 +79,26 @@ class Registry:
                     checked += 1
         return checked
 
+    def _verify_dvc(self, entry):
+        storage = entry["storage"]
+        if storage["type"] != "dvc":
+            raise ValueError(f"unsupported dataset storage: {storage['type']}")
+        metadata = self.roots["repo"] / storage["metadata"]
+        if fingerprint(metadata) != storage["sha256"]:
+            raise ValueError(f"changed DVC dataset pointer: {metadata}")
+        result = subprocess.run([str(DATASET_PYTHON), "-m", "dvc", "status", "--json", metadata.name],
+                                cwd=metadata.parent, text=True, capture_output=True, check=True)
+        if json.loads(result.stdout):
+            raise ValueError(f"DVC dataset needs checkout or repair: {result.stdout.strip()}")
+
     def snapshot(self, dataset, artifacts):
         entry = self.entry(dataset)
-        return dict(id=dataset, entry_sha256=hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest(),
+        snapshot = dict(id=dataset, entry_sha256=hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest(),
                     kind=entry["kind"], status=entry["status"], annotation=entry["annotation"],
                     parents=entry.get("parents", []), files={key: entry["files"][key] for key in artifacts})
+        if "storage" in entry:
+            snapshot["storage"] = entry["storage"]
+        return snapshot
 
     def training(self, dataset):
         entry = self.entry(dataset)
@@ -85,7 +106,8 @@ class Registry:
             raise ValueError(f"{dataset}: {entry['kind']} is not a training corpus")
         required = ("manifest", "train", "dev")
         for key in required:
-            filename = "manifest.json" if key == "manifest" else key + ".jsonl"
+            filename = ("manifest.json" if key == "manifest" else
+                        key if entry["files"][key].get("format") == "parquet" else key + ".jsonl")
             if self.path(dataset, key) != self.directory(dataset) / filename:
                 raise ValueError(f"{dataset}: training layout requires {filename}")
         self.verify(dataset, required)
@@ -114,14 +136,21 @@ class Registry:
         entry = {key: value for key, value in specification.items() if key != "id"}
         for parent in entry.get("parents", []):
             self.entry(parent)
+        if "storage" in entry:
+            entry["storage"]["sha256"] = fingerprint(self.roots["repo"] / entry["storage"]["metadata"])
+            self._verify_dvc(entry)
         for key, file in entry["files"].items():
             path = self._path(entry, key)
-            file["sha256"] = fingerprint(path)
+            if "storage" not in entry:
+                file["sha256"] = fingerprint(path)
             if file.get("format") == "jsonl":
                 with path.open("rb") as stream:
                     file["rows"] = sum(1 for line in stream if line.strip())
             elif file.get("format") == "json-array":
                 file["rows"] = len(json.loads(path.read_text()))
+            elif file.get("format") == "parquet":
+                import pyarrow.parquet as pq
+                file["rows"] = sum(pq.ParquetFile(part).metadata.num_rows for part in path.glob("*.parquet"))
         updated = dict(self.datasets, **{dataset: entry})
         temporary = self.catalog.with_suffix(".tmp")
         temporary.write_text(json.dumps(dict(version=1, datasets=updated), ensure_ascii=False, indent=2) + "\n")

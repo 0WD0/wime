@@ -1,0 +1,6 @@
+outs:
+- md5: d4d9cac2869122335dc7264932dbbf48.dir
+  size: 273357937
+  nfiles: 23
+  hash: md5
+  path: mandarin-context-v2-r3-parquet

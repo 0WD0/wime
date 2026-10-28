@@ -3,3 +3,4 @@
 numpy>=1.26
 pypinyin==0.55.0
 opencc==1.4.1
+pyarrow==26.0.0

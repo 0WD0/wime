@@ -10,14 +10,14 @@ import numpy as np
 import torch
 
 from conditional import augment_composition, encode_example
-from replay import fingerprint, rows
+from replay import fingerprint, rows, split_path
 
 
 def training_characters(directories):
     """Extend target coverage from training text only, never dev/test labels."""
     characters = set()
     for directory in directories:
-        for row in rows(directory / "train.jsonl"):
+        for row in rows(split_path(directory, "train")):
             characters.update(row["gold"][0])
     return sorted(characters)
 

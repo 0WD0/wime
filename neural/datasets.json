@@ -1086,6 +1086,138 @@
       },
       "supersedes": "mandarin-context-v2-r2",
       "reading_schema": "wime-reading-notes-v1"
+    },
+    "mandarin-context-v2-r3-parquet": {
+      "kind": "corpus",
+      "status": "active",
+      "annotation": "gpt-sovits-mandarin-v1",
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/mandarin-context-v2-r3-parquet"
+      },
+      "description": "DVC-managed Parquet release of the contextual Mandarin corpus; all rows roundtrip exactly. Sentence and commit-boundary suitability is not yet human-reviewed.",
+      "parents": [
+        "mandarin-context-v2-r3"
+      ],
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "source_audit": {
+          "path": "source-audit.json"
+        },
+        "train": {
+          "path": "train",
+          "format": "parquet",
+          "rows": 2478723
+        },
+        "dev": {
+          "path": "dev",
+          "format": "parquet",
+          "rows": 27261
+        },
+        "test": {
+          "path": "test",
+          "format": "parquet",
+          "rows": 27082
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "reading_accuracy": "not estimated",
+        "human_verified_gold": false
+      },
+      "exclude": [
+        {
+          "dataset": "programming-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "programming-test-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "stress-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "stress-failures-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "diverse-v1",
+          "files": [
+            "dev",
+            "test",
+            "evaluation"
+          ]
+        },
+        {
+          "dataset": "replay-v1",
+          "files": [
+            "dev"
+          ]
+        },
+        {
+          "dataset": "wdoom-cuda-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "committed-anchor-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "protected-debug-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "accuracy-expansion-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "residual-heldout-v1",
+          "files": [
+            "cases"
+          ]
+        }
+      ],
+      "known_issues": [
+        "Word-boundary sampling is unrepresentative of partial commits.",
+        "Only 36 Wikipedia dev documents and 31 test documents.",
+        "Pilot dev/test subsets have been inspected; the whole test split must not be described as untouched.",
+        "Random span/single-character augmentation is a robustness probe, not a validated user-typing distribution. Whole-sentence and meaningful-prefix evaluation is required."
+      ],
+      "source_rows": {
+        "wildchat": 254505,
+        "zhwiki": 623873,
+        "fineweb": 560155,
+        "zhihu": 575776,
+        "forum": 518757
+      },
+      "supersedes": "mandarin-context-v2-r3",
+      "reading_schema": "wime-reading-notes-v1",
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/mandarin-context-v2-r3-parquet.dvc",
+        "sha256": "ffeb61fe20e2537b7c2b15c425d6ebdf8f8744c1f75d3f8bb19c5514e9538444"
+      }
     }
   }
 }
