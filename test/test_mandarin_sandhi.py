@@ -64,9 +64,33 @@ class MandarinSandhi(unittest.TestCase):
             ("取得", "v", ["v3", "e2"], ["v3", "e2"]),
             ("得", "ud", ["e2"], ["e5"]),
             ("地", "uv", ["e4"], ["e5"]),
+            ("总额", "n", ["ong3", "e2"], ["ong3", "e2"]),
+            ("额", "e", ["e2"], ["e5"]),
+            ("滴", "v", ["i1"], ["i1"]),
         ]:
             with self.subTest(word=word):
                 self.assertEqual(self.sandhi.modified_tone(word, pos, finals), expected)
+
+    def test_particle_endings_do_not_neutralize_lexical_words(self):
+        cases = [
+            ("销售总额", ["xiao1", "shou4", "zong3", "e2"]),
+            ("总额", ["zong3", "e2"]),
+            ("配额", ["pei4", "e2"]),
+            ("额头", ["e2", "tou2"]),
+            ("水滴", ["shui3", "di1"]),
+            ("酒吧", ["jiu3", "ba1"]),
+            ("网吧", ["wang3", "ba1"]),
+            ("多哈", ["duo1", "ha1"]),
+            ("哈哈", ["ha1", "ha1"]),
+            ("娃哈哈", ["wa2", "ha1", "ha1"]),
+            ("嘻哈", ["xi1", "ha1"]),
+        ]
+        for text, readings in cases:
+            with self.subTest(text=text):
+                self.assertEqual(self.surface(text, readings), readings)
+        # Real jieba POS still recognizes the particle uses (including 啊/zg).
+        self.assertEqual(self.surface("你好啊", ["ni3", "hao3", "a1"]), ["ni2", "hao3", "a5"])
+        self.assertEqual(self.surface("好吧", ["hao3", "ba1"]), ["hao3", "ba5"])
 
     def test_supplied_readings_control_both_three_tone_merges(self):
         with patch.object(sandhi_module, "lazy_pinyin", side_effect=AssertionError("must not re-read")):

@@ -116,6 +116,19 @@ class Frontend(unittest.TestCase):
             self.assertEqual(row["reading_evidence"]["final"][:2], ["hao3", "chu4"])
             self.assertIn("phrase_correction:好处", row["reading_rules"][1])
 
+    def test_framework_correction_overrides_observed_model_reading_in_context(self):
+        originals = [["kuang1", "jia4"],
+                     ["kuang1", "jia4", "wan2", "zheng3", "de5", "shi2", "xian4", "le5",
+                      "yi2", "ge4", "xian4", "shang4", "shang1", "cheng2", "xi4", "tong3"]]
+        frontend = MandarinFrontend(converter=lambda sentences: originals)
+        rows = frontend.readings(["框架", "框架完整地实现了一个线上商城系统"])
+        for row in rows:
+            self.assertEqual(row["reading_evidence"]["frontend_before_sandhi"][:2], ["kuang4", "jia4"])
+            self.assertEqual(row["reading_evidence"]["final"][:2], ["kuang4", "jia4"])
+            self.assertEqual(row["reading_rules"][:2], [["phrase_correction:框架"], ["phrase_correction:框架"]])
+        self.assertEqual(rows[1]["reading_evidence"]["final"][4], "de5")
+        self.assertEqual(originals[1][0], "kuang1")
+
     def test_literal_config_validation_rejects_code(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.py"
