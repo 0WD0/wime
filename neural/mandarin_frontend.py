@@ -18,6 +18,9 @@ import types
 HAN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
 TEXT_ROOT = Path(__file__).resolve().parents[3] / "third_party/gpt-sovits/GPT_SoVITS/text"
 NAMESPACE = "_wime_gpt_sovits_text"
+# Reviewed dictionary phrases that jieba splits internally. Merge only whole
+# adjacent tokens, locally, so their correction can run before tone grouping.
+REVIEWED_PHRASE_BOUNDARIES = {"重焕": "v"}
 
 
 def numbered_reading(value):
@@ -129,7 +132,31 @@ class MandarinFrontend:
     def providers(self):
         return self.session_g2pw.get_providers()
 
-    def _correct(self, word, readings):
+    def _reviewed_segments(self, segments):
+        result = []
+        index = 0
+        while index < len(segments):
+            word, pos = segments[index]
+            stop = index + 1
+            for phrase, phrase_pos in REVIEWED_PHRASE_BOUNDARIES.items():
+                if phrase not in self.corrections or not phrase.startswith(word):
+                    continue
+                candidate, candidate_stop = word, stop
+                while len(candidate) < len(phrase) and candidate_stop < len(segments):
+                    candidate += segments[candidate_stop][0]
+                    candidate_stop += 1
+                if candidate == phrase:
+                    word, pos, stop = phrase, phrase_pos, candidate_stop
+                    break
+            result.append((word, pos))
+            index = stop
+        return result
+
+    def _correct(self, word, readings, pos=None):
+        # An adverbial particle is de5 even when the model chose di4. This
+        # changes the syllable before sandhi; lexical 地 in 大地 stays di4.
+        if word == "地" and pos == "uv":
+            return ["de5"], [["pos_correction:地:uv"]]
         exact = self.corrections.get(word)
         if exact is not None:
             return list(exact), [[f"phrase_correction:{word}"] for _ in word]
@@ -170,13 +197,14 @@ class MandarinFrontend:
                 segments = [(word, pos) for word, pos in self.segmenter(text)]
                 if "".join(word for word, _ in segments) != text:
                     raise ValueError("Mandarin segmentation changed original text")
+                segments = self._reviewed_segments(segments)
                 # Correct original jieba words before tone-driven grouping:
                 # otherwise an erroneous model tone can merge away a known
                 # phrase and prevent its pronunciation correction entirely.
                 corrected_run, initial_rules = [], []
                 offset = i
-                for word, _ in segments:
-                    corrected, word_rules = self._correct(word, raw[offset:offset + len(word)])
+                for word, pos in segments:
+                    corrected, word_rules = self._correct(word, raw[offset:offset + len(word)], pos)
                     corrected_run.extend(corrected)
                     initial_rules.extend(word_rules)
                     offset += len(word)
@@ -186,7 +214,7 @@ class MandarinFrontend:
                 offset = i
                 for word, pos in segments:
                     stop = offset + len(word)
-                    corrected, word_rules = self._correct(word, corrected_run[offset - i:stop - i])
+                    corrected, word_rules = self._correct(word, corrected_run[offset - i:stop - i], pos)
                     if len(corrected) != len(word) or any(numbered_reading(value) is None for value in corrected):
                         raise ValueError("phrase correction must preserve numbered character readings")
                     modified = self.tone_modifier.modified_tone(word, pos, list(corrected))

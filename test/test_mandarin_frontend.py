@@ -70,6 +70,43 @@ class Frontend(unittest.TestCase):
         self.assertEqual(corrections["和面"], ("huo2", "mian4"))
         self.assertEqual(corrections["咋舌"], ("ze2", "she2"))
         self.assertEqual(corrections["好处"], ("hao3", "chu4"))
+        self.assertEqual(corrections["重焕"], ("chong2", "huan4"))
+        self.assertEqual(corrections["藏传佛教"], ("zang4", "chuan2", "fo2", "jiao4"))
+
+    def test_reviewed_phrase_matches_real_jieba_boundaries(self):
+        import jieba_fast.posseg
+        originals = [["zhong4", "huan4", "ke4", "tang2", "huo2", "li4"],
+                     ["cang2", "chuan2", "fo2", "jiao4"]]
+        self.assertEqual([(word, pos) for word, pos in jieba_fast.posseg.lcut("重焕")],
+                         [("重", "a"), ("焕", "vg")])
+        frontend = MandarinFrontend(converter=lambda sentences: originals)
+        rows = frontend.readings(["重焕课堂活力", "藏传佛教"])
+        for row, phrase, expected in zip(rows, ["重焕", "藏传佛教"],
+                                        [["chong2", "huan4"], ["zang4", "chuan2", "fo2", "jiao4"]]):
+            self.assertEqual(row["reading_evidence"]["final"][:len(phrase)], expected)
+            self.assertIn(f"phrase_correction:{phrase}", row["reading_rules"][0])
+        self.assertEqual(originals[0][:2], ["zhong4", "huan4"])
+
+    def test_reviewed_boundary_does_not_consume_partial_tokens(self):
+        frontend = MandarinFrontend(converter=lambda sentences: [], tone_modifier=IdentityTone())
+        self.assertEqual(frontend._reviewed_segments([("重", "a"), ("焕", "vg"), ("课堂", "n")]),
+                         [("重焕", "v"), ("课堂", "n")])
+        segments = [("重", "a"), ("焕然", "a")]
+        self.assertEqual(frontend._reviewed_segments(segments), segments)
+
+    def test_adverbial_de_corrects_syllable_but_preserves_lexical_di_and_de(self):
+        import jieba_fast.posseg
+        self.assertIn(("地", "uv"), [(word, pos) for word, pos in jieba_fast.posseg.lcut("不经意地从你身边走过")])
+        originals = [["bu4", "jing1", "yi4", "di4", "cong2", "ni3", "shen1", "bian1", "zou3", "guo4"],
+                     ["da4", "di4"], ["mu4", "di4"], ["qu3", "de2"]]
+        frontend = MandarinFrontend(converter=lambda sentences: originals)
+        rows = frontend.readings(["不经意地从你身边走过", "大地", "目的", "取得"])
+        self.assertEqual(rows[0]["reading_evidence"]["frontend_before_sandhi"][3], "de5")
+        self.assertEqual(rows[0]["reading_evidence"]["final"][3], "de5")
+        self.assertIn("pos_correction:地:uv", rows[0]["reading_rules"][3])
+        self.assertEqual([row["reading_evidence"]["final"] for row in rows[1:]], originals[1:])
+        self.assertEqual(originals[0][3], "di4")
+        self.assertEqual(frontend._correct("地", ["di4"], "n"), (["di4"], [[]]))
 
     def test_reviewed_phrase_survives_tone_driven_merging_in_context(self):
         frontend = MandarinFrontend(converter=lambda sentences: [

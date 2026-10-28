@@ -34,6 +34,7 @@ class MandarinOnnx(unittest.TestCase):
     def setUpClass(cls):
         try:
             cls.api, cls.dataset = load_frontend()
+            cls.utils = importlib.import_module(cls.api.__package__ + ".utils")
             import numpy as np
             cls.np = np
         except ImportError as exc:
@@ -51,6 +52,14 @@ class MandarinOnnx(unittest.TestCase):
         return self.dataset.prepare_onnx_input(
             CharacterTokenizer(), ["yin2", "hang2"], {"银": [0], "行": [1]}, ["银", "行"],
             texts, positions, use_mask=True)
+
+    def bert_tokenizer(self):
+        # Exercise real BERT normalization without network or model assets.
+        from transformers import BertTokenizer
+        jamo = "래눈하임ᅳᆯᅱᆼᄌ곡"
+        vocab = ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]", "银", "行", "n", "abc", "##def"]
+        vocab += sorted(set(jamo) | {"##" + char for char in jamo})
+        return BertTokenizer(vocab={token: index for index, token in enumerate(vocab)})
 
     def test_actual_pypinyin_preserves_latin_emoji_and_unknown_han_positions(self):
         converter = self.fallback_converter()
@@ -96,6 +105,62 @@ class MandarinOnnx(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "cannot tokenize"):
                 self.model_input(["银行"], [0])
 
+    def test_actual_bert_expansion_keeps_original_corpus_character_spans(self):
+        tokenizer = self.bert_tokenizer()
+        self.assertEqual(tokenizer.tokenize("래"), ["ᄅ", "##ᅢ"])
+        self.assertEqual(tokenizer.tokenize("눈"), ["ᄂ", "##ᅮ", "##ᆫ"])
+        # First failures in the forum and WildChat pilot, plus Han queries
+        # following the expanded characters (which must never shift).
+        for text in ("@赵恩来♂n래", "评价一下임을 위한 행진곡", "눈_눈银行"):
+            with self.subTest(text=text):
+                tokens, text2token, token2text = self.utils.tokenize_and_map(tokenizer, text)
+                self.assertEqual(len(text2token), len(text))
+                for index, char in enumerate(text):
+                    if char == " ":
+                        self.assertIsNone(text2token[index])
+                        continue
+                    source_span = (index, index + 1)
+                    expected = tokenizer.tokenize(char) or ["[UNK]"]
+                    self.assertEqual([token for token, span in zip(tokens, token2text) if span == source_span], expected)
+                    self.assertEqual(token2text[text2token[index]], source_span)
+                self.assertTrue(all(0 <= start < end <= len(text) for start, end in token2text))
+
+    def test_ascii_wordpiece_alignment_is_unchanged_and_malformed_offsets_raise(self):
+        tokens, text2token, token2text = self.utils.tokenize_and_map(self.bert_tokenizer(), "abcdef银行")
+        self.assertEqual(tokens, ["abc", "##def", "银", "行"])
+        self.assertEqual(text2token, [0, 0, 0, 1, 1, 1, 2, 3])
+        self.assertEqual(token2text, [(0, 3), (3, 6), (6, 7), (7, 8)])
+        for tokens in (["ab"], ["abcd"]):
+            with self.subTest(tokens=tokens), self.assertRaisesRegex(ValueError, "ASCII wordpiece offsets"):
+                self.utils.tokenize_and_map(types.SimpleNamespace(tokenize=lambda word: tokens), "abc")
+
+    def test_han_model_queries_after_expansion_select_the_original_han_tokens(self):
+        tokenizer = self.bert_tokenizer()
+        sentence = "눈_눈银行"
+        positions = [sentence.index(char) for char in "银行"]
+        inputs = self.dataset.prepare_onnx_input(
+            tokenizer, ["yin2", "hang2"], {"银": [0], "行": [1]}, ["银", "行"],
+            [sentence] * 2, positions, use_mask=True)
+        self.assertEqual(inputs["char_ids"].tolist(), [0, 1])
+        self.assertEqual([row[pos] for row, pos in zip(inputs["input_ids"], inputs["position_ids"])],
+                         tokenizer.convert_tokens_to_ids(["银", "行"]))
+
+    def test_truncation_inside_expanded_character_retains_valid_source_mapping(self):
+        text = "한은행行"  # A three-token source character at the retained left edge.
+        tokenizer = self.bert_tokenizer()
+        tokens, text2token, token2text = self.utils.tokenize_and_map(tokenizer, text)
+        query = text.index("行")
+        cropped, position, pieces, forward, backward = self.dataset._truncate(
+            5, text, query, tokens, text2token, token2text)
+        self.assertEqual(pieces[:2], ["##ᅢ", "##ᆼ"])
+        self.assertEqual(cropped[position], "行")
+        self.assertEqual(pieces[forward[position]], "行")
+        self.assertTrue(all(value is None or 0 <= value < len(pieces) for value in forward))
+        for index, value in enumerate(forward):
+            if value is not None:
+                self.assertLessEqual(backward[value][0], index)
+                self.assertGreater(backward[value][1], index)
+
     def test_model_probability_shape_must_match_queries_and_labels(self):
         inputs = self.model_input(["银行", "银行"], [0, 1])
         for shape in ((1, 2), (2, 1), (2,), (2, 2, 1)):
@@ -127,6 +192,24 @@ class MandarinOnnx(unittest.TestCase):
         inputs = self.model_input(["银行", "银行"], [0, 1])
         with self.assertRaisesRegex(ValueError, "group's requested characters"):
             converter._predict_with_sentence_dedup(inputs, ["银行", "银行"])
+
+    def test_dedup_shares_only_identical_actual_query_windows(self):
+        converter = self.fallback_converter()
+        observed_rows = []
+
+        def predict(model_input):
+            observed_rows.append(len(model_input["input_ids"]))
+            return ["yin2"] * len(model_input["char_ids"]), [1.0] * len(model_input["char_ids"])
+
+        converter._predict = predict
+        for max_len, expected_rows in ((4, 2), (512, 1)):
+            with self.subTest(max_len=max_len):
+                text = "银行行银"
+                inputs = self.dataset.prepare_onnx_input(
+                    CharacterTokenizer(), ["yin2", "hang2"], {"银": [0], "行": [1]}, ["银", "行"],
+                    [text] * 2, [0, 3], use_mask=True, max_len=max_len)
+                converter._predict_with_sentence_dedup(inputs, [text] * 2)
+                self.assertEqual(observed_rows[-1], expected_rows)
 
 
 if __name__ == "__main__":
