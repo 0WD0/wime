@@ -30,7 +30,7 @@ from corpus_integrity import UniqueRows, checked_row, empty_output, file_metadat
 from corpus_tones import READING_SCHEMA, TONE_POLICY, reading_notes, validate_tones
 from corpus_cleaning import clean_document, decode_entities
 
-# Short commits dominate actual editor input; retain long spans for coverage.
+# Historical diagnostic mixture; these weights are not measured commit behavior.
 LENGTHS = ((0.50, 1, 1), (0.25, 2, 3), (0.15, 4, 8), (0.10, 9, 24))
 SENTENCE = re.compile(r"[^。！？!?\n]*[。！？!?\n]?")
 PARQUET_BATCH_SIZE = 256
