@@ -30,7 +30,7 @@ class MergeCorpus(unittest.TestCase):
                     source=source, split=split, context=context, input=SYLLABLES["ni"] + SYLLABLES["hao"], gold=["你好"],
                     category="web", reading="corpus-readings-v1")
 
-    def part(self, name, rows, tone_policy=None, annotation_window=None, **argument_overrides):
+    def part(self, name, rows, tone_policy=None, annotation_window=None, cleaned_corpus=None, **argument_overrides):
         directory = self.root / name
         directory.mkdir()
         outputs = {}
@@ -53,6 +53,8 @@ class MergeCorpus(unittest.TestCase):
             manifest["tone_policy"] = tone_policy
         if annotation_window is not None:
             manifest["annotation_window"] = annotation_window
+        if cleaned_corpus is not None:
+            manifest["provenance"]["cleaned_corpus"] = cleaned_corpus
         (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         return directory
 
@@ -167,6 +169,46 @@ class MergeCorpus(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not match the final frontend reading"):
             self.merge([part])
         self.assertFalse((self.root / "merged/manifest.json").exists())
+
+    def test_complete_tone_policy_validates_provenance_before_merge(self):
+        row = self.row("one", "doc", "content", "语境")
+        row.update(pinyin=["ni", "hao"], tones=[2, 3],
+                   tone_sources=["contextual_tone_sandhi", "mandarin_frontend"],
+                   reading_rules=[["contextual_tone_sandhi"], []],
+                   reading_evidence=dict(frontend_before_sandhi=["ni3", "hao3"], final=["ni2", "hao3"]))
+        policy = dict(name="gpt-sovits-mandarin-v1", require_complete=True)
+        valid = self.part("valid", [row], tone_policy=policy)
+        result = self.merge([valid])
+        self.assertEqual(result["tone_policy"], policy)
+        row["reading_evidence"]["frontend_before_sandhi"][0] = "ni2"
+        invalid = self.part("invalid", [row], tone_policy=policy)
+        with self.assertRaisesRegex(ValueError, "actual tone change"):
+            with contextlib.redirect_stdout(io.StringIO()):
+                merger.merge(self.root / "rejected", [invalid])
+        self.assertFalse((self.root / "rejected/manifest.json").exists())
+
+    def test_complete_tone_policy_rejects_unknown_labels(self):
+        row = self.row("one", "doc", "content", "语境")
+        row.update(pinyin=["ni", None], tones=[3, None],
+                   tone_sources=["mandarin_frontend", "unresolved"], reading_rules=[[], []],
+                   reading_evidence=dict(frontend_before_sandhi=["ni3", None], final=["ni3", None]))
+        part = self.part("incomplete", [row], tone_policy=dict(name="gpt-sovits-mandarin-v1", require_complete=True))
+        with self.assertRaisesRegex(ValueError, "complete supported"):
+            self.merge([part])
+
+    def test_parts_must_use_the_same_cleaned_manifest_content(self):
+        first_manifest = self.root / "cleaned-first.json"
+        second_manifest = self.root / "cleaned-second.json"
+        first_manifest.write_text('{"format":"wime-cleaned-corpus-v1"}')
+        second_manifest.write_text(first_manifest.read_text())
+        first = self.part("first", [], cleaned_corpus=file_metadata(first_manifest))
+        second = self.part("second", [], cleaned_corpus=file_metadata(second_manifest))
+        merged = self.merge([first, second])
+        self.assertEqual(merged["provenance"]["cleaned_corpus"], file_metadata(first_manifest))
+        second_manifest.write_text('{"format":"different-cleaned-content"}')
+        changed = self.part("changed", [], cleaned_corpus=file_metadata(second_manifest))
+        with self.assertRaisesRegex(ValueError, "incompatible.*cleaned_corpus"):
+            self.merge([first, changed])
 
     def test_annotation_window_is_preserved_in_merged_output(self):
         policy = dict(core=4, left_halo=2, right_halo=2, max_characters=8)

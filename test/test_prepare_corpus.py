@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -114,7 +115,7 @@ class Sources(unittest.TestCase):
 
     def test_wiki_streams_multiple_pages_and_skips_redirects_and_other_namespaces(self):
         pages = [
-            '<page><title>甲</title><ns>0</ns><revision><text>第一篇文章。</text></revision></page>',
+            '<page><title>甲</title><ns>0</ns><revision><text>第一篇文章。[[File:example.png|right|thumb|200px|图片说明]]</text></revision></page>',
             '<page><title>重定向</title><ns>0</ns><redirect title="甲"/><revision><text>#REDIRECT [[甲]]</text></revision></page>',
             '<page><title>讨论</title><ns>1</ns><revision><text>讨论文章。</text></revision></page>',
             '<page><title>乙</title><ns>0</ns><revision><text>第二篇[[文章]]。</text></revision></page>',
@@ -125,7 +126,33 @@ class Sources(unittest.TestCase):
             stream.write('<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/">' + "".join(pages) + "</mediawiki>")
         rows = list(corpus.zhwiki(self.root))
         self.assertEqual([r[3] for r in rows], ["第一篇文章。", "第二篇文章。"])
+        self.assertEqual([r[0] for r in rows], ["zhwiki:甲", "zhwiki:乙"])
         self.assertTrue(all(group == document for group, document, _, _ in rows))
+
+    def test_clean_stage_materializes_only_supported_text_without_annotation(self):
+        from corpus_cleaned import load_cleaned, iter_cleaned
+        relative = "mnbvc/forum/20230253/example/0.jsonl.gz"
+        self.gz(relative, [
+            {"ID": 1, "主题": "正常中文&amp;英语context", "回复": []},
+            {"ID": 2, "主题": "坏字\ufffd必须隔离", "回复": []},
+            {"ID": 3, "主题": "正常中文&amp;英语context", "回复": []},
+        ])
+        manifest_path = self.root / "sources.json"
+        manifest_path.write_text(json.dumps({"sources": {"forum": {"files": {
+            relative: corpus.file_metadata(self.root / relative)["sha256"]}}}}))
+        database = self.root / "dictionary.db"
+        database.write_bytes(b"dictionary fingerprint only; cleaning never loads a model")
+        args = SimpleNamespace(raw=self.root, out=self.root / "cleaned", source_manifest=manifest_path,
+                               database=database, exclude_cases=[], max_chars=0)
+        with patch.object(corpus, "Reader", side_effect=AssertionError("clean stage must not annotate")):
+            corpus.clean_corpus(args, ["forum"])
+        manifest = load_cleaned(args.out, ["forum"])
+        docs = list(iter_cleaned(args.out, "forum"))
+        self.assertEqual(len(docs), 1)
+        self.assertEqual(docs[0]["text"], "正常中文&英语context")
+        self.assertNotEqual(docs[0]["raw_content"], docs[0]["content"])
+        self.assertEqual(manifest["stats"]["forum/rejected/invalid_unicode:replacement_character"], 1)
+        self.assertEqual(manifest["stats"]["forum/rejected/duplicate_document"], 1)
 
 
 class WordSpans(unittest.TestCase):

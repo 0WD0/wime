@@ -8,7 +8,7 @@ from pathlib import Path
 import time
 
 from corpus_integrity import UniqueRows, empty_output, file_metadata, sample_key, validate_annotation_window
-from corpus_tones import tone_counts, validate_tones
+from corpus_tones import tone_counts, tone_policy_strict, validate_tones
 
 SPLITS = ("train", "dev", "test")
 
@@ -25,6 +25,7 @@ def compatibility(manifest):
     return dict(
         provenance={name: hashes(provenance[name]) for name in ("database", "reading_assets", "code")},
         source_manifest=provenance["manifest_sha256"],
+        cleaned_corpus=hashes(provenance["cleaned_corpus"]) if "cleaned_corpus" in provenance else None,
         protection=manifest["protection"], sampling=manifest["sampling"],
         arguments={key: value for key, value in manifest["arguments"].items()
                    if key not in ("sources", "out", "max_chars")},
@@ -41,8 +42,8 @@ def load_parts(parts):
         manifest = json.loads(path.read_text(encoding="utf-8"))
         if manifest.get("format") != "wime-corpus-v2":
             raise ValueError(f"not a completed corpus-v2 build: {directory}")
-        if "tone_policy" in manifest and not isinstance(manifest["tone_policy"], dict):
-            raise ValueError(f"tone_policy must be an object: {directory}")
+        if "tone_policy" in manifest:
+            tone_policy_strict(manifest["tone_policy"])
         if "annotation_window" in manifest:
             policy = manifest["annotation_window"]
             if (not isinstance(policy, dict) or type(policy.get("max_characters")) is not int
@@ -80,6 +81,7 @@ def merge(out, parts):
 
     stats, readings = Counter(), Counter()
     baseline = loaded[0][1]
+    strict_tones = tone_policy_strict(baseline["tone_policy"]) if "tone_policy" in baseline else False
     provenance = dict(baseline["provenance"], files={})
     protection = {}
     sources = []
@@ -102,7 +104,7 @@ def merge(out, parts):
                         for line in stream:
                             row = json.loads(line)
                             if "tone_policy" in baseline:
-                                validate_tones(row)
+                                validate_tones(row, strict=strict_tones)
                             if "annotation_window" in baseline:
                                 validate_annotation_window(row, baseline["annotation_window"])
                             if row["split"] != split:

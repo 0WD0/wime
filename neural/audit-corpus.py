@@ -7,7 +7,7 @@ readings. Identity checks use temporary SQLite storage rather than RAM sets.
 """
 import argparse
 from collections import Counter, defaultdict
-from contextlib import closing
+from contextlib import ExitStack, closing
 import hashlib
 import json
 from pathlib import Path
@@ -18,7 +18,7 @@ import sys
 import tempfile
 
 from corpus_integrity import file_metadata, sample_key, validate_annotation_window
-from corpus_tones import tone_counts, validate_tones
+from corpus_tones import tone_counts, tone_policy_strict, validate_tones
 from replay import Protection
 
 SPLITS = ("train", "dev", "test")
@@ -58,8 +58,12 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
     if manifest and manifest.get("format") != "wime-corpus-v2":
         error("manifest_format", str(manifest.get("format")))
     has_tones = "tone_policy" in manifest
-    if has_tones and not isinstance(manifest["tone_policy"], dict):
-        error("tone_policy", "tone_policy must be an object")
+    strict_tones = False
+    if has_tones:
+        try:
+            strict_tones = tone_policy_strict(manifest["tone_policy"])
+        except ValueError as exc:
+            error("tone_policy", str(exc))
     metadata = manifest.get("outputs", {})
     if not isinstance(metadata, dict):
         metadata = {}
@@ -68,6 +72,8 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
     keys = legal_keys(database)
     database_metadata = file_metadata(database)
     provenance = manifest.get("provenance", {})
+    has_cleaned = isinstance(provenance, dict) and "cleaned_corpus" in provenance
+    expected_cleaned = provenance.get("cleaned_corpus") if has_cleaned else None
     expected_database = provenance.get("database", {}) if isinstance(provenance, dict) else {}
     if not isinstance(expected_database, dict) or expected_database.get("sha256") != database_metadata["sha256"]:
         error("database_fingerprint", "database differs from the completed corpus manifest or lacks a fingerprint")
@@ -123,7 +129,24 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
     for syllable, code in sorted(syllables.items()):
         inverse[code].append(syllable)
 
-    with tempfile.TemporaryDirectory(prefix="wime-corpus-audit-") as temporary:
+    with ExitStack() as resources, tempfile.TemporaryDirectory(prefix="wime-corpus-audit-") as temporary:
+        cleaned = None
+        if has_cleaned:
+            try:
+                from corpus_cleaned import CleanedDocuments
+                if (not isinstance(expected_cleaned, dict)
+                        or not isinstance(expected_cleaned.get("path"), str) or not expected_cleaned["path"]
+                        or not isinstance(expected_cleaned.get("sha256"), str)
+                        or not re.fullmatch(r"[0-9a-f]{64}", expected_cleaned["sha256"])
+                        or type(expected_cleaned.get("bytes")) is not int or expected_cleaned["bytes"] < 0):
+                    raise ValueError("provenance.cleaned_corpus must pin the cleaned manifest path, hash and bytes")
+                clean_manifest = Path(expected_cleaned["path"])
+                actual = file_metadata(clean_manifest)
+                if any(actual[key] != expected_cleaned[key] for key in ("sha256", "bytes")):
+                    raise ValueError("cleaned corpus manifest differs from its recorded fingerprint")
+                cleaned = resources.enter_context(CleanedDocuments(clean_manifest.parent))
+            except (OSError, ValueError, sqlite3.Error) as exc:
+                error("cleaned_text", str(exc))
         with closing(sqlite3.connect(str(Path(temporary) / "identities.sqlite3"))) as seen:
             seen.execute("CREATE TABLE identity (kind TEXT, key TEXT, split TEXT, PRIMARY KEY(kind,key)) WITHOUT ROWID")
 
@@ -191,7 +214,7 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
                             error("illegal_reading_key", where)
                         if has_tones:
                             try:
-                                validate_tones(row)
+                                validate_tones(row, strict=strict_tones)
                             except ValueError as exc:
                                 error("tone_schema", dict(location=where, message=str(exc)))
                             else:
@@ -202,6 +225,11 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
                                 validate_annotation_window(row, manifest["annotation_window"])
                             except ValueError as exc:
                                 error("annotation_window", dict(location=where, message=str(exc)))
+                        if cleaned is not None:
+                            try:
+                                cleaned.validate_row(row)
+                            except ValueError as exc:
+                                error("cleaned_text", dict(location=where, message=str(exc)))
                         if protection.contains(row):
                             error("protected_overlap", where)
                         sampled[source] += 1
@@ -250,6 +278,8 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
                            for source, counts in sorted(tones.items())}
     if "annotation_window" in manifest:
         report["annotation_window"] = manifest["annotation_window"]
+    if has_cleaned:
+        report["cleaned_corpus"] = expected_cleaned
     if manifest_path.is_file():
         report["manifest"] = file_metadata(manifest_path)
     review = dict(seed=seed, sample_per_source=sample_per_source,

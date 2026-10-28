@@ -66,7 +66,8 @@ def checked_row(row, protection, unique, rng, blank_share):
     if protection.contains(row):
         return None, "protected"
     row = dict(row)
-    if rng.random() < blank_share:
+    row["context_dropped"] = rng.random() < blank_share
+    if row["context_dropped"]:
         row["context"] = ""
     if protection.contains(row):
         return None, "protected"

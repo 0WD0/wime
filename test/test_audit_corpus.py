@@ -1,6 +1,7 @@
 """Corpus audit invariants on tiny, completed synthetic datasets."""
 from collections import Counter
 import contextlib
+import hashlib
 import importlib.util
 import io
 import json
@@ -123,6 +124,67 @@ class AuditCorpus(unittest.TestCase):
         self.write([row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
         invalid, _ = corpus_audit.audit(self.corpus, self.database)
         self.assertEqual(invalid["errors"].get("tone_schema"), 1)
+
+    def test_complete_tone_policy_rejects_unknown_labels_and_invalid_policy(self):
+        policy = dict(name="gpt-sovits-mandarin-v1", require_complete=True)
+        row = self.toned_row()
+        self.write([row], tone_policy=policy)
+        invalid, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertEqual(invalid["errors"].get("tone_schema"), 1)
+        row["pinyin"][2], row["tones"][2], row["tone_sources"][2] = "hao", 3, "mandarin_frontend"
+        for values in row["reading_evidence"].values():
+            values[2] = "hao3"
+        self.write([row], tone_policy=policy)
+        valid, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertTrue(valid["ok"], valid["errors"])
+        self.write([row], tone_policy=dict(policy, require_complete="true"))
+        invalid_policy, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertEqual(invalid_policy["errors"].get("tone_policy"), 1)
+
+    def test_cleaned_document_is_the_exact_source_of_gold_and_context(self):
+        cleaned = self.root / "cleaned"
+        cleaned.mkdir()
+        document = dict(document="doc-0", group="group-0", source="synthetic", category="web", split="train",
+                        text="语境你好", raw_content="raw-digest")
+        document["content"] = hashlib.sha256(document["text"].encode()).hexdigest()
+        source_path = cleaned / "synthetic.jsonl"
+        source_path.write_text(json.dumps(document, ensure_ascii=False) + "\n")
+        document_db = cleaned / "documents.sqlite3"
+        with contextlib.closing(sqlite3.connect(document_db)) as db:
+            db.execute("CREATE TABLE documents (id TEXT PRIMARY KEY, group_id TEXT, source TEXT, category TEXT, "
+                       "split TEXT, content TEXT, raw_content TEXT, text TEXT)")
+            db.execute("INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                       tuple(document[key] for key in ("document", "group", "source", "category", "split", "content", "raw_content", "text")))
+            db.commit()
+        clean_manifest = cleaned / "manifest.json"
+        clean_manifest.write_text(json.dumps(dict(format="wime-cleaned-corpus-v1",
+                                                outputs={"synthetic": corpus_audit.file_metadata(source_path)},
+                                                documents=corpus_audit.file_metadata(document_db))))
+        pinned = corpus_audit.file_metadata(clean_manifest)
+        row = self.row(context="语境", category="web", content=document["content"],
+                       offset=2, reading_window=[0, 4], context_dropped=False)
+
+        def write_and_audit(value):
+            self.write([value])
+            path = self.corpus / "manifest.json"
+            manifest = json.loads(path.read_text())
+            manifest["provenance"]["cleaned_corpus"] = pinned
+            path.write_text(json.dumps(manifest))
+            return corpus_audit.audit(self.corpus, self.database)[0]
+
+        valid = write_and_audit(row)
+        self.assertTrue(valid["ok"], valid["error_examples"])
+        self.assertEqual(valid["cleaned_corpus"], pinned)
+        dropped = write_and_audit(dict(row, context="", context_dropped=True))
+        self.assertTrue(dropped["ok"], dropped["errors"])
+        for changes in (dict(context="别处"), dict(context=""),
+                        dict(gold=["好好"], input=self.syllables["hao"] * 2)):
+            with self.subTest(changes=changes):
+                invalid = write_and_audit(dict(row, **changes))
+                self.assertEqual(invalid["errors"].get("cleaned_text"), 1, invalid)
+        clean_manifest.write_text(clean_manifest.read_text() + " ")
+        changed = write_and_audit(row)
+        self.assertEqual(changed["errors"].get("cleaned_text"), 1, changed)
 
     def test_annotation_window_policy_and_offsets_are_audited(self):
         policy = dict(core=4, left_halo=2, right_halo=2, max_characters=8)

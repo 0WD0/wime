@@ -8,9 +8,21 @@ SYLLABLES = json.loads(Path(__file__).with_name("context-pinyin.json").read_text
 NUMBERED = re.compile(r"[a-z]+[1-5]")
 
 
-def validate_tones(row):
+def tone_policy_strict(policy):
+    """Old completed corpora stay readable; new builds require complete labels."""
+    if not isinstance(policy, dict):
+        raise ValueError("tone_policy must be an object")
+    strict = policy.get("require_complete", False)
+    if type(strict) is not bool:
+        raise ValueError("tone_policy.require_complete must be a boolean")
+    return strict
+
+
+def validate_tones(row, *, strict=False):
     """Validate one frontend's before/final stages and aligned rule provenance."""
     size = len(row["gold"][0])
+    if strict and (not isinstance(row.get("input"), str) or len(row["input"]) != 2 * size):
+        raise ValueError("input must contain exactly one key pair per gold character")
     for field in ("pinyin", "tones", "tone_sources", "reading_rules"):
         if not isinstance(row.get(field), list) or len(row[field]) != size:
             raise ValueError(f"{field} must have one entry per gold character")
@@ -48,6 +60,30 @@ def validate_tones(row):
                 raise ValueError(f"tones[{index}] may be unknown only when the frontend has no supported final reading")
             if source not in {"unresolved", "unsupported"}:
                 raise ValueError(f"tones[{index}] must identify an unsupported frontend reading")
+        if strict:
+            before, final = (evidence[stage][index] for stage in stages)
+            if pinyin is None or tone is None or before is None:
+                raise ValueError(f"tones[{index}] requires complete supported frontend readings")
+            if before[:-1] != pinyin:
+                raise ValueError(f"reading_evidence[{index}] changes syllables during tone sandhi")
+            sandhi = "contextual_tone_sandhi"
+            correction_prefixes = ("phrase_correction:", "character_correction:", "pos_correction:")
+            if any(rule != sandhi and not any(rule.startswith(prefix) and len(rule) > len(prefix)
+                                             for prefix in correction_prefixes) for rule in rules):
+                raise ValueError(f"reading_rules[{index}] contains an unsupported rule")
+            changed = before != final
+            if (source == sandhi) != changed or (sandhi in rules) != changed:
+                raise ValueError(f"tone_sources[{index}] and reading_rules must identify an actual tone change")
+            if not changed:
+                required = {"phrase_correction": correction_prefixes,
+                            "character_correction": ("character_correction:",),
+                            "pos_correction": ("pos_correction:",)}
+                if source == "mandarin_frontend":
+                    valid = not rules
+                else:
+                    valid = source in required and any(rule.startswith(required[source]) for rule in rules)
+                if not valid:
+                    raise ValueError(f"tone_sources[{index}] does not match its correction rules")
 
 
 def tone_counts(row):
