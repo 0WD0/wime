@@ -17,6 +17,7 @@ gpu_runtime(
         "rescorer.py",
         "backends.py",
         "decoding_model.py",
+        "decoder.py",
         "byte_constraints.py",
         "token_bytes.py",
         "text_decoder.py",

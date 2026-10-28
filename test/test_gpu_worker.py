@@ -35,7 +35,8 @@ class WorkerContract(unittest.TestCase):
 
     def test_invalid_backend_fails_before_loading_models(self):
         base = ["model", "--rescorer", "lm", "--database", "words"]
-        cases = [["--backend", "legacy"], ["--decoder-kind", "legacy"],
+        cases = [["--backend", "unknown"], ["--decoder-kind", "legacy"],
+                 ["--backend", "legacy", "--native-model", "model.gguf"],
                  ["--backend", "minicpm-native"], ["--native-model", "model.gguf"],
                  ["--backend", "minicpm-native", "--native-model", "model.gguf"],
                  ["--backend", "minicpm-native", "--native-model", "model.gguf",
@@ -45,6 +46,27 @@ class WorkerContract(unittest.TestCase):
                 with self.assertRaises(SystemExit) as raised:
                     worker.parse_args(base + flags)
                 self.assertEqual(raised.exception.code, 2)
+
+    def test_legacy_selects_original_decoder_and_hf_weights(self):
+        args = worker.parse_args(["model", "--backend", "legacy", "--rescorer", "qwen",
+                                  "--database", "words", "--rescorer-weight", "1.5",
+                                  "--japanese-model", "kana", "--japanese-table", "table"])
+        original = SimpleNamespace(Decoder=mock.Mock(), Units=mock.Mock())
+        table, evaluator = object(), object()
+        model = SimpleNamespace(readings=mock.Mock(return_value=table))
+        with mock.patch.dict(sys.modules, decoder=original, decoding_model=model), \
+                mock.patch("rescorer.Rescorer") as hf, \
+                mock.patch("text_decoder.TextDecoder") as text:
+            rescorer = worker.make_rescorer(args)
+            result = worker.make_decoder(args, evaluator, rescorer)
+        hf.assert_called_once_with("qwen", 1.5)
+        original.Units.assert_called_once_with(rescorer.tokenizer, table)
+        original.Decoder.assert_called_once_with(evaluator, rescorer, original.Units.return_value)
+        self.assertIs(result, original.Decoder.return_value)
+        text.assert_not_called()
+        for assets in ([], ["--rescorer", "qwen"], ["--database", "words"]):
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                worker.parse_args(["model", "--backend", "legacy"] + assets)
 
     def test_native_selection_loads_only_tokenizer_and_native_backend(self):
         args = worker.parse_args(["model", "--rescorer", "tokenizer", "--database", "words",

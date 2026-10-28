@@ -43,9 +43,10 @@ is added to the model score of every verified candidate.  Nil disables it."
   "Chinese language-model backend.
 `qwen-hf' and `minicpm-native' use byte-constrained text decoding, with
 the conditional model guiding search and the language model ranking results.
-Use
-`wime-neural-select-backend' to prewarm and persist a backend change."
-  :type '(choice (const qwen-hf) (const minicpm-native)) :group 'wime)
+`legacy' uses the original character-synchronous search and fused ranking
+with Qwen HF and the conditional model.  Use `wime-neural-select-backend'
+to prewarm and persist a backend change."
+  :type '(choice (const qwen-hf) (const minicpm-native) (const legacy)) :group 'wime)
 
 (defcustom wime-neural-native-library nil
   "Wime llama bridge shared library for `minicpm-native'."
@@ -275,7 +276,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                      "--rescorer-weight" (number-to-string wime-neural-rescorer-weight)))
           (and wime-neural-rescorer (eq wime-neural-search-method 'decode) wime-database-file
                (list "--database" (expand-file-name wime-database-file)))
-          (when (and wime-neural-rescorer (eq wime-neural-search-method 'decode))
+          (when (or (and wime-neural-rescorer (eq wime-neural-search-method 'decode))
+                    (memq wime-neural-backend '(legacy minicpm-native)))
             (unless (and wime-neural-rescorer (eq wime-neural-search-method 'decode)
                          wime-database-file)
               (error "Selected backend requires a rescorer, database and decode search"))

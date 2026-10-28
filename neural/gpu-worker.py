@@ -8,9 +8,9 @@ included in errors. The model stays on the GPU until the process is stopped.
 An optional --rescorer adds a weighted general-LM score to every verified
 candidate, including the seed pool, and interleaves its token proposals with
 the model's per-character proposals. With --database as well, the decode
-operation replaces the dictionary lattice: see decoder.py. With
---backend qwen-hf or minicpm-native, the byte-constrained text decoder handles
-Chinese decoding. Without a language model, conditional verification remains available. With
+operation replaces the dictionary lattice. The qwen-hf and minicpm-native
+backends use text_decoder.py; legacy uses the original fused decoder.py.
+Without a language model, conditional verification remains available. With
 --japanese-model and --japanese-table as well, the japanese operation
 decodes typed kana, and --japanese-zenz reranks it: see japanese.py.
 """
@@ -176,7 +176,7 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     validate_backend(args, parser)
     if args.backend == "minicpm-native" and (args.japanese_model or args.japanese_table or args.japanese_zenz):
-        parser.error("Japanese requires the qwen-hf backend")
+        parser.error("Japanese requires the qwen-hf or legacy HF backend")
     return args
 
 

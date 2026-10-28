@@ -48,6 +48,7 @@
   (pcase (plist-get profile :backend)
     ((or "qwen-hf" 'nil) 'qwen-hf)
     ("minicpm-native" 'minicpm-native)
+    ("legacy" 'legacy)
     (_ (error "Unknown Wime backend"))))
 
 (defun wime-checkpoint--apply (recipe)
@@ -189,8 +190,8 @@ value.  Return cancellation that leaves the existing worker and input intact."
 The current worker remains in use until the replacement is ready and all
 compositions have finished.  Assets live in `wime-checkpoint-directory'."
   (interactive (list (intern (completing-read "Chinese backend: "
-                                             '("qwen-hf" "minicpm-native") nil t))))
-  (unless (memq backend '(qwen-hf minicpm-native)) (user-error "Unknown Wime backend"))
+                                             '("qwen-hf" "minicpm-native" "legacy") nil t))))
+  (unless (memq backend '(qwen-hf minicpm-native legacy)) (user-error "Unknown Wime backend"))
   (when (and (eq backend 'minicpm-native)
              (cl-some (lambda (buffer)
                         (with-current-buffer buffer

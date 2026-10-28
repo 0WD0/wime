@@ -1,4 +1,4 @@
-"""Offline reference for retired fused decoding: the general LM spells the keys, fused with the 25M.
+"""Legacy fused decoding: the general LM spells the keys, fused with the 25M.
 
 No dictionary lattice. At character position p a unit (an LM token, or the
 byte tokens of a character the LM vocabulary lacks) may follow when its
