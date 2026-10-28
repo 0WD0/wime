@@ -87,11 +87,16 @@ def load_corrections():
 class MandarinFrontend:
     """Return final, aligned readings from the imported Mandarin frontend."""
 
-    def __init__(self, model_root=None, *, converter=None, segmenter=None, tone_modifier=None, corrections=None):
+    def __init__(self, model_root=None, *, model_dir=None, tokenizer_dir=None, converter=None,
+                 segmenter=None, tone_modifier=None, corrections=None):
         if converter is None:
-            root = Path(model_root)
-            model = root / "model/G2PWModel"
-            tokenizer = root / "chinese-roberta-wwm-ext-large"
+            if model_root is not None:
+                root = Path(model_root)
+                model_dir = root / "model/G2PWModel" if model_dir is None else model_dir
+                tokenizer_dir = root / "chinese-roberta-wwm-ext-large" if tokenizer_dir is None else tokenizer_dir
+            if model_dir is None or tokenizer_dir is None:
+                raise ValueError("model_dir and tokenizer_dir must identify the pinned local assets")
+            model, tokenizer = Path(model_dir), Path(tokenizer_dir)
             for path in (model / "config.py", model / "POLYPHONIC_CHARS.txt", model / "MONOPHONIC_CHARS.txt",
                          tokenizer / "config.json", tokenizer / "tokenizer_config.json", tokenizer / "vocab.txt"):
                 if not path.is_file():
@@ -119,6 +124,10 @@ class MandarinFrontend:
     @property
     def session_g2pw(self):
         return self.converter.session_g2pw
+
+    @property
+    def providers(self):
+        return self.session_g2pw.get_providers()
 
     def _correct(self, word, readings):
         exact = self.corrections.get(word)
@@ -161,13 +170,23 @@ class MandarinFrontend:
                 segments = [(word, pos) for word, pos in self.segmenter(text)]
                 if "".join(word for word, _ in segments) != text:
                     raise ValueError("Mandarin segmentation changed original text")
-                segments = self.tone_modifier.pre_merge_for_modify(segments, readings=raw[i:end])
+                # Correct original jieba words before tone-driven grouping:
+                # otherwise an erroneous model tone can merge away a known
+                # phrase and prevent its pronunciation correction entirely.
+                corrected_run, initial_rules = [], []
+                offset = i
+                for word, _ in segments:
+                    corrected, word_rules = self._correct(word, raw[offset:offset + len(word)])
+                    corrected_run.extend(corrected)
+                    initial_rules.extend(word_rules)
+                    offset += len(word)
+                segments = self.tone_modifier.pre_merge_for_modify(segments, readings=corrected_run)
                 if "".join(word for word, _ in segments) != text:
                     raise ValueError("Mandarin tone grouping changed original text")
                 offset = i
                 for word, pos in segments:
                     stop = offset + len(word)
-                    corrected, word_rules = self._correct(word, raw[offset:stop])
+                    corrected, word_rules = self._correct(word, corrected_run[offset - i:stop - i])
                     if len(corrected) != len(word) or any(numbered_reading(value) is None for value in corrected):
                         raise ValueError("phrase correction must preserve numbered character readings")
                     modified = self.tone_modifier.modified_tone(word, pos, list(corrected))
@@ -176,7 +195,7 @@ class MandarinFrontend:
                         raise ValueError("tone sandhi must preserve syllables and character alignment")
                     before[offset:stop], final[offset:stop] = corrected, modified
                     for k, (old, new) in enumerate(zip(corrected, modified), offset):
-                        applied = word_rules[k - offset]
+                        applied = list(dict.fromkeys(initial_rules[k - i] + word_rules[k - offset]))
                         if old != new:
                             applied.append("contextual_tone_sandhi")
                         rules[k] = applied

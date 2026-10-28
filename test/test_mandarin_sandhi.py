@@ -40,6 +40,10 @@ class MandarinSandhi(unittest.TestCase):
             ("目的", ["mu4", "di4"], ["mu4", "di4"]),
             ("得到", ["de2", "dao4"], ["de2", "dao4"]),
             ("取得", ["qu3", "de2"], ["qu3", "de2"]),
+            ("银行行长", ["yin2", "hang2", "hang2", "zhang3"], ["yin2", "hang2", "hang2", "zhang3"]),
+            ("妈妈", ["ma1", "ma1"], ["ma1", "ma5"]),
+            ("试试", ["shi4", "shi4"], ["shi4", "shi5"]),
+            ("看看书", ["kan4", "kan4", "shu1"], ["kan4", "kan5", "shu1"]),
             ("这件事做得很好", ["zhe4", "jian4", "shi4", "zuo4", "de2", "hen3", "hao3"],
              ["zhe4", "jian4", "shi4", "zuo4", "de5", "hen2", "hao3"]),
         ]

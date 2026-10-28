@@ -59,51 +59,68 @@ class AuditCorpus(unittest.TestCase):
 
     def toned_row(self):
         return self.row(gold=["我们好"], input="".join(self.syllables[p] for p in ("wo", "men", "hao")),
-                        pinyin=["wo", "men", "hao"], tones=[3, 5, None],
-                        tone_sources=["agreement", "agreement", "disagreement"],
-                        reading_evidence=dict(pypinyin=["wo3", "men5", "hao3"],
-                                              g2pw=["wo3", "men5", "hao4"]))
+                        pinyin=["wo", "men", None], tones=[3, 5, None],
+                        tone_sources=["mandarin_frontend", "mandarin_frontend", "unresolved"],
+                        reading_rules=[[], [], []],
+                        reading_evidence=dict(frontend_before_sandhi=["wo3", "men5", None],
+                                              final=["wo3", "men5", None]))
 
     def test_contextual_tones_report_neutral_and_unknown_separately(self):
-        policy = dict(name="contextual-agreement-v1", neutral=5, unknown=None, pypinyin_tone_sandhi=True)
+        policy = dict(name="gpt-sovits-mandarin-v1", neutral=5, unknown=None)
         self.write([self.toned_row()], tone_policy=policy)
         report, samples = corpus_audit.audit(self.corpus, self.database)
         self.assertTrue(report["ok"], report["errors"])
         self.assertEqual(report["tone_policy"], policy)
         self.assertEqual(report["tones"]["synthetic"], dict(total=3, known=2, unknown=1, neutral=1,
-                                                              sources=dict(agreement=2, disagreement=1)))
+                                                              sources=dict(mandarin_frontend=2, unresolved=1)))
         self.assertEqual(samples["sources"]["synthetic"][0]["tones"], [3, 5, None])
 
     def test_invalid_tone_alignment_keys_and_evidence_are_rejected(self):
         changes = [
-            {"pinyin": ["ni", "men", "hao"]},
-            {"tones": [3, 5, 2]},  # Neither source says hao2.
+            {"pinyin": ["ni", "men", None]},
+            {"tones": [2, 5, None]},  # The frontend's final first reading is wo3.
             {"tones": [True, 5, None]},
             {"tones": [3, 0, None]},  # Neutral is 5; 0 is not unknown.
-            {"pinyin": [None, "men", "hao"]},
-            {"tone_sources": ["agreement"]},
-            {"reading_evidence": {"pypinyin": ["wǒ3", "men5", "hao3"], "g2pw": ["wo3", "men5", "hao4"]}},
-            {"reading_evidence": {"pypinyin": ["wo3"], "g2pw": ["wo3", "men5", "hao4"]}},
+            {"pinyin": [None, "men", None]},
+            {"tone_sources": ["mandarin_frontend"]},
+            {"reading_rules": [[], []]},
+            {"reading_rules": ["contextual_tone_sandhi", [], []]},
+            {"reading_evidence": {"frontend_before_sandhi": ["wǒ3", "men5", None], "final": ["wo3", "men5", None]}},
+            {"reading_evidence": {"frontend_before_sandhi": ["wo3"], "final": ["wo3", "men5", None]}},
+            {"reading_evidence": {"frontend_before_sandhi": ["wo3", "men5", "hao3"], "final": ["wo3", "men5", "hao3"]}},
         ]
         for change in changes:
             with self.subTest(change=change):
                 row = self.toned_row()
                 row.update(change)
-                self.write([row], tone_policy={"name": "contextual-agreement-v1"})
+                self.write([row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
                 report, _ = corpus_audit.audit(self.corpus, self.database)
                 self.assertEqual(report["errors"].get("tone_schema"), 1, report)
 
     def test_tone_policy_requires_annotations_and_checks_manifest_tone_totals(self):
-        self.write([self.row()], tone_policy={"name": "contextual-agreement-v1"})
+        self.write([self.row()], tone_policy={"name": "gpt-sovits-mandarin-v1"})
         report, _ = corpus_audit.audit(self.corpus, self.database)
         self.assertEqual(report["errors"].get("tone_schema"), 1)
-        self.write([self.toned_row()], tone_policy={"name": "contextual-agreement-v1"})
+        self.write([self.toned_row()], tone_policy={"name": "gpt-sovits-mandarin-v1"})
         path = self.corpus / "manifest.json"
         manifest = json.loads(path.read_text())
         manifest["stats"].update({"tone/known": 3, "tone/unknown": 0, "tone/neutral": 1})
         path.write_text(json.dumps(manifest))
         report, _ = corpus_audit.audit(self.corpus, self.database)
         self.assertEqual(report["errors"].get("manifest_tone_count"), 2)
+
+    def test_selected_tone_matches_final_stage_not_before_sandhi(self):
+        row = self.row(pinyin=["ni", "hao"], tones=[2, 3],
+                       tone_sources=["contextual_tone_sandhi", "mandarin_frontend"],
+                       reading_rules=[["contextual_tone_sandhi"], []],
+                       reading_evidence=dict(frontend_before_sandhi=["ni3", "hao3"], final=["ni2", "hao3"]))
+        self.write([row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
+        valid, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertTrue(valid["ok"], valid["errors"])
+        row["tones"][0] = 3
+        self.write([row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
+        invalid, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertEqual(invalid["errors"].get("tone_schema"), 1)
 
     def test_valid_corpus_counts_and_bounded_reproducible_samples(self):
         # ASCII digits alone are stripped by the dedup normalizer; use distinct

@@ -122,14 +122,16 @@ class MergeCorpus(unittest.TestCase):
         self.assertFalse((self.root / "merged/manifest.json").exists())
 
     def test_tone_policy_is_preserved_and_counts_exclude_deduplicated_rows(self):
-        policy = dict(name="contextual-agreement-v1", neutral=5, unknown=None, pypinyin_tone_sandhi=True)
+        policy = dict(name="gpt-sovits-mandarin-v1", neutral=5, unknown=None)
         neutral = self.row("a", "a", "a", "左边的上下文")
         neutral.update(gold=["我们"], input=SYLLABLES["wo"] + SYLLABLES["men"],
-                       pinyin=["wo", "men"], tones=[3, 5], tone_sources=["agreement", "agreement"],
-                       reading_evidence=dict(pypinyin=["wo3", "men5"], g2pw=["wo3", "men5"]))
+                       pinyin=["wo", "men"], tones=[3, 5], tone_sources=["mandarin_frontend", "mandarin_frontend"],
+                       reading_rules=[[], []],
+                       reading_evidence=dict(frontend_before_sandhi=["wo3", "men5"], final=["wo3", "men5"]))
         unknown = self.row("b", "b", "b", "另一段上下文", source="second", split="test")
-        unknown.update(pinyin=["ni", "hao"], tones=[3, None], tone_sources=["agreement", "disagreement"],
-                       reading_evidence=dict(pypinyin=["ni3", "hao3"], g2pw=["ni3", "hao4"]))
+        unknown.update(pinyin=["ni", None], tones=[3, None], tone_sources=["mandarin_frontend", "unresolved"],
+                       reading_rules=[[], []],
+                       reading_evidence=dict(frontend_before_sandhi=["ni3", None], final=["ni3", None]))
         duplicate = dict(neutral, id="copy", document="copy", group="copy", content="copy", source="second")
         first = self.part("first", [neutral], tone_policy=policy)
         second = self.part("second", [duplicate, unknown], tone_policy=policy)
@@ -144,7 +146,7 @@ class MergeCorpus(unittest.TestCase):
 
     def test_tone_policy_mismatch_is_rejected(self):
         first = self.part("first", [])
-        second = self.part("second", [], tone_policy={"name": "contextual-agreement-v1"})
+        second = self.part("second", [], tone_policy={"name": "gpt-sovits-mandarin-v1"})
         with self.assertRaisesRegex(ValueError, "incompatible.*tone_policy"):
             self.merge([first, second])
         path = first / "manifest.json"
@@ -156,10 +158,11 @@ class MergeCorpus(unittest.TestCase):
 
     def test_tone_policy_requires_valid_aligned_annotations(self):
         row = self.row("a", "a", "a", "上下文")
-        row.update(pinyin=["ni", "hao"], tones=[3, 2], tone_sources=["agreement", "agreement"],
-                   reading_evidence=dict(pypinyin=["ni3", "hao3"], g2pw=["ni3", "hao4"]))
-        part = self.part("first", [row], tone_policy={"name": "contextual-agreement-v1"})
-        with self.assertRaisesRegex(ValueError, "no matching reading evidence"):
+        row.update(pinyin=["ni", "hao"], tones=[3, 3], tone_sources=["contextual_tone_sandhi", "mandarin_frontend"],
+                   reading_rules=[["contextual_tone_sandhi"], []],
+                   reading_evidence=dict(frontend_before_sandhi=["ni3", "hao3"], final=["ni2", "hao3"]))
+        part = self.part("first", [row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
+        with self.assertRaisesRegex(ValueError, "does not match the final frontend reading"):
             self.merge([part])
         self.assertFalse((self.root / "merged/manifest.json").exists())
 

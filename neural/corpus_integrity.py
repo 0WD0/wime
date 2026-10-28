@@ -92,12 +92,15 @@ def file_metadata(path):
     return dict(path=str(path.resolve()), sha256=fingerprint(path), bytes=path.stat().st_size)
 
 
-def reading_assets(root):
+def reading_assets(root, tokenizer=None):
     """Hash model/tokenizer inputs, ignoring caches only below the asset root."""
-    assets = {str(p.relative_to(root)): file_metadata(p)
-              for directory in ("model/G2PWModel", "bert-base-chinese")
-              for p in sorted((root / directory).rglob("*"))
-              if p.is_file() and not {".cache", "__pycache__"}.intersection(p.relative_to(root).parts)}
-    if not assets:
-        raise ValueError(f"no reading assets found below {root}")
+    assets = {}
+    for directory in (root / "model/G2PWModel", tokenizer or root / "bert-base-chinese"):
+        files = [p for p in sorted(directory.rglob("*"))
+                 if p.is_file() and not {".cache", "__pycache__"}.intersection(p.relative_to(directory).parts)]
+        if not files:
+            raise ValueError(f"no reading assets found below {directory}")
+        for path in files:
+            relative = path.relative_to(root) if path.is_relative_to(root) else Path("tokenizer") / path.relative_to(directory)
+            assets[str(relative)] = file_metadata(path)
     return assets

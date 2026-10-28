@@ -203,7 +203,8 @@ def main():
     parser.add_argument("--raw", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--database", type=Path, required=True)
-    parser.add_argument("--g2pw", type=Path, required=True, help="directory with model/G2PWModel and bert-base-chinese")
+    parser.add_argument("--g2pw", type=Path, required=True, help="directory with model/G2PWModel and the pinned Mandarin tokenizer")
+    parser.add_argument("--tokenizer", type=Path, help="default: G2PW root/chinese-roberta-wwm-ext-large")
     parser.add_argument("--source-manifest", type=Path, default=Path(__file__).with_name("corpus-v2-sources.json"))
     parser.add_argument("--sources", default=",".join(SOURCES))
     parser.add_argument("--max-chars", type=int, default=0, help="per-source Han character budget; 0 is unlimited")
@@ -223,22 +224,22 @@ def main():
     provenance = verify_sources(args.raw, args.source_manifest, names)
 
     provenance["database"] = file_metadata(args.database)
-    provenance["reading_assets"] = reading_assets(args.g2pw)
+    tokenizer = args.tokenizer or args.g2pw / "chinese-roberta-wwm-ext-large"
+    provenance["reading_assets"] = reading_assets(args.g2pw, tokenizer)
     provenance["code"] = {name: file_metadata(Path(__file__).with_name(name)) for name in
-                          ("prepare-corpus.py", "corpus_readings.py", "corpus_integrity.py", "corpus_g2pw.py", "corpus_tones.py", "replay.py", "context-pinyin.json", "requirements-corpus.txt")}
+                          ("prepare-corpus.py", "corpus_readings.py", "corpus_integrity.py", "mandarin_frontend.py", "corpus_tones.py", "replay.py", "context-pinyin.json", "requirements-corpus.txt")}
 
     import importlib.metadata
     import onnxruntime
     import opencc
-    from corpus_g2pw import CorpusG2PWConverter
+    from mandarin_frontend import MandarinFrontend
     onnxruntime.preload_dlls()
-    converter = CorpusG2PWConverter(model_dir=str(args.g2pw / "model/G2PWModel"), style="pinyin", num_workers=0,
-                              model_source=str(args.g2pw / "bert-base-chinese"),
-                              enable_non_tradional_chinese=True, use_cuda=True)
-    # g2pw 0.1.2 uses `num_workers if num_workers else config.num_workers`.
-    # Set this explicitly: forking two PyTorch workers on every batch costs seconds.
-    converter.num_workers = 0
-    providers = converter.session_g2pw.get_providers()
+    converter = MandarinFrontend(model_dir=args.g2pw / "model/G2PWModel", tokenizer_dir=tokenizer)
+    providers = converter.providers
+    upstream = Path(__file__).resolve().parents[3] / "third_party/gpt-sovits/GPT_SoVITS/text"
+    upstream_files = [upstream / "tone_sandhi.py", upstream / "zh_normalization/char_convert.py"]
+    upstream_files += sorted((upstream / "g2pw").glob("*.py")) + sorted((upstream / "g2pw").glob("*.rep"))
+    provenance["code"].update({"gpt-sovits/" + str(p.relative_to(upstream)): file_metadata(p) for p in upstream_files})
     if "CUDAExecutionProvider" not in providers:
         raise RuntimeError(f"CUDA provider unavailable: {providers}")
     lexicon = Lexicon(args.database)
@@ -266,9 +267,10 @@ def main():
                         row = dict(id=digest(f"{doc_id}:{offset + start}:{gold}")[:24], document=doc_id,
                                    group=digest(group), content=content_id, source=name, category=category, split=split_of(group),
                                    context=context, input="".join(keys[start:end]), gold=[gold],
-                                   reading="corpus-readings-v3",
+                                   reading="gpt-sovits-mandarin-v1",
                                    pinyin=reading["pinyin"][start:end], tones=reading["tones"][start:end],
                                    tone_sources=reading["tone_sources"][start:end],
+                                   reading_rules=reading["reading_rules"][start:end],
                                    reading_evidence={source: values[start:end]
                                                      for source, values in reading["reading_evidence"].items()})
                         row, rejection = checked_row(row, protection, unique, rng, args.blank_share)
@@ -328,16 +330,15 @@ def main():
         (args.out / f"{split}.jsonl.partial").rename(args.out / f"{split}.jsonl")
     manifest = dict(format="wime-corpus-v2", stats=dict(stats), readings=dict(reader.methods),
                     sampling=dict(lengths=LENGTHS, max_context=64, max_span=24),
-                    tone_policy=dict(name="contextual-agreement-v1", neutral=5, unknown=None,
-                                     pypinyin_tone_sandhi=True,
-                                     semantics="Pronunciation inferred from full sentence context before span sampling; "
-                                               "not citation-tone normalization or a complete surface-sandhi gold standard. "
-                                               "Conflicting or unsupported tones remain null; raw source evidence is retained."),
+                    tone_policy=dict(name="gpt-sovits-mandarin-v1", neutral=5, unknown=None,
+                                     semantics="Single Mandarin frontend: contextual pronunciation, reviewed phrase "
+                                               "corrections and deterministic tone sandhi before span sampling. "
+                                               "Input keys derive from this final pronunciation; unsupported spans are dropped."),
                     arguments={k: [str(p) for p in v] if isinstance(v, list) else str(v)
                                for k, v in vars(args).items()},
                     protection=protection.files, provenance=provenance, providers=providers,
                     packages={name: importlib.metadata.version(name) for name in
-                              ("onnxruntime-gpu", "g2pw", "pypinyin", "opencc", "pyarrow", "mwparserfromhell", "transformers", "torch")},
+                              ("onnxruntime-gpu", "pypinyin", "opencc", "pyarrow", "mwparserfromhell", "transformers", "jieba-fast")},
                     outputs={s: file_metadata(args.out / f"{s}.jsonl") for s in splits},
                     elapsed_s=time.time() - started)
     (args.out / "manifest.json.partial").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")

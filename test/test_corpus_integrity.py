@@ -89,6 +89,20 @@ class Integrity(unittest.TestCase):
         self.assertEqual(set(assets), {"model/G2PWModel/g2pw.onnx", "bert-base-chinese/vocab.txt"})
         self.assertEqual(assets["model/G2PWModel/g2pw.onnx"]["sha256"], fingerprint(model / "g2pw.onnx"))
 
+    def test_explicit_tokenizer_assets_are_required_and_fingerprinted(self):
+        root = self.root / "model-root"
+        model = root / "model/G2PWModel"
+        model.mkdir(parents=True)
+        (model / "g2pW.onnx").write_bytes(b"model")
+        tokenizer = self.root / "separate-tokenizer"
+        tokenizer.mkdir()
+        with self.assertRaisesRegex(ValueError, "no reading assets"):
+            reading_assets(root, tokenizer)
+        (tokenizer / "vocab.txt").write_text("vocabulary")
+        assets = reading_assets(root, tokenizer)
+        self.assertEqual(set(assets), {"model/G2PWModel/g2pW.onnx", "tokenizer/vocab.txt"})
+        self.assertEqual(assets["tokenizer/vocab.txt"]["sha256"], fingerprint(tokenizer / "vocab.txt"))
+
     def test_verify_sources_rejects_changed_or_missing_input(self):
         raw = self.root / "raw"
         source = raw / "wildchat/data/source.parquet"

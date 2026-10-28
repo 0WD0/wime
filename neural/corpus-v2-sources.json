@@ -1,11 +1,16 @@
 {
  "description": "Pinned raw sources for prepare-corpus.py (corpus v2). Paths are relative to the raw directory; every file is hashed.",
  "reading": {
-  "lexicon": "wanxiang database used by wime (entry table)",
-  "polyphones": "g2pW v2 ONNX, YC-Chen/g2pW@fb4784f7dce8466a53dd4f3552f5a4c5b657b90c (Apache-2.0)",
-  "tokenizer": "google-bert/bert-base-chinese@8f23c25b06e129b6c986331a13d8d025a92cf0ea (Apache-2.0)",
-  "pypinyin": "0.55.0",
-  "opencc": "1.4.2 t2s",
+  "pipeline": "gpt-sovits-mandarin-v1: one contextual Mandarin frontend, phrase correction, tone sandhi; no external annotator voting",
+  "frontend": "RVC-Boss/GPT-SoVITS@198919c8 (full upstream history imported in third_party/gpt-sovits; local changes recorded by per-file hashes)",
+  "lexicon": "wanxiang SQLite for segmentation and final double-pinyin reachability only",
+  "model": "XXXXRT/GPT-SoVITS-Pretrained@0c47645e02a7bc3688d7b263b0042c81e3cd82cd/G2PWModel.zip",
+  "model_sha256": "46292be0374a49308069233cd5c147ae4c41806558e4781a2467a31a4d8099da",
+  "tokenizer": "hfl/chinese-roberta-wwm-ext-large@a25cc9e05974bd9687e528edd516f2cfdb3f5db9",
+  "neutral_tone": 5,
+  "pypinyin": "0.55.0 (frontend internal fixed fallback responsibilities)",
+  "jieba_fast": "0.53",
+  "opencc": "1.4.2",
   "onnxruntime": "onnxruntime-gpu 1.28.0.dev20260722004 from ort-cuda-13-nightly (CUDAExecutionProvider)"
  },
  "sources": {
