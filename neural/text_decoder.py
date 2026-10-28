@@ -4,8 +4,8 @@ The general LM can propose every legal token path, including partial UTF-8
 and tokens crossing the committed boundary. The conditional model may guide
 the finite search budget; it never determines text legality. Final ranking
 uses canonical joint-text LM paths, optionally retaining legacy fusion as a
-transition control. No KV-state rollback is assumed: memoized next-token rows
-are recomputed from the retained context, also for hybrid-attention models.
+transition control. An optional backend owns LM state; text constraints and
+full-vocabulary-normalized scores retain the same interface.
 """
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
@@ -41,7 +41,7 @@ class TextDecoder(Decoder):
                  per_hypothesis=24, rewind_tokens=2, guide_weight=1.0,
                  final_mode="lm", memo_limit=1024, paths_per_surface=2,
                  cache_prefix=True, cache_guide=True, cache_paths=0,
-                 cache_requests=8):
+                 cache_requests=8, lm_backend=None):
         if (type(beam) is not int or beam < 1 or type(per_hypothesis) is not int
                 or per_hypothesis < 1 or type(memo_limit) is not int or memo_limit < 1
                 or not math.isfinite(guide_weight) or guide_weight < 0
@@ -66,6 +66,7 @@ class TextDecoder(Decoder):
         self.cache_guide, self._guide_scores = cache_guide, None
         self.cache_paths, self._branch_lm = cache_paths, None
         self.cache_requests, self._requests = cache_requests, None
+        self.lm_backend = lm_backend
         self._prefix = None
         self._memo = OrderedDict()
         self.last_audit = {}
@@ -77,6 +78,8 @@ class TextDecoder(Decoder):
         return self._prefix_lm
 
     def lm_next(self, context, sequences):
+        if self.lm_backend is not None:
+            return self.lm_backend.next(context, sequences)
         if self.cache_prefix:
             if self.cache_paths:
                 if self._branch_lm is None:
@@ -96,6 +99,8 @@ class TextDecoder(Decoder):
         return super().model_score(prompt, texts)
 
     def lm_tails(self, context, prefixes, tails):
+        if self.lm_backend is not None:
+            return self.lm_backend.tails(context, prefixes, tails)
         if self.cache_prefix:
             return self._cached_model().tails(context, prefixes, tails)
         return super().lm_tails(context, prefixes, tails)

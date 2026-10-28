@@ -91,6 +91,19 @@ class Toy(TextDecoder):
 
 
 class TextDecoding(unittest.TestCase):
+    def test_external_backend_keeps_healing_constraints_and_canonical_ranking(self):
+        reference = Toy(small=False, lm_scores={"车站": -0.1, "车展": -2,
+                                               "站": -6, "展": -0.2})
+        backend = SimpleNamespace(next=reference.lm_next, tails=reference.lm_tails)
+        # Metadata-only rescorer deliberately has no HF model or cache.
+        decoder = TextDecoder(None, reference.rescorer, READINGS, lm_backend=backend)
+        self.assertEqual(decoder.decode("车", "vj"), reference.decode("车", "vj"))
+        self.assertEqual(decoder.last_audit["final_scoring"], "joint_canonical")
+        self.assertEqual(decoder.decode("车", "vj", pins=[(0, "展")])[0][0], "展")
+        self.assertEqual(decoder.decode("车", "vj", aux=[(0, "lv")])[0][0], "站")
+        self.assertEqual(decoder.decode("车", "vj", pins=[(0, "韩")]), [])
+        self.assertIsNone(decoder._prefix_lm)
+
     def test_split_byte_character_survives_absent_or_very_negative_small_model(self):
         for small in (False, True):
             decoder = Toy(small=small, conditional_scores={"邯": -1_000_000},
