@@ -671,6 +671,7 @@
                            '((0 1 "哪") (0 1 "呐") (0 1 "拿") (2 3 "店") (2 3 "电"))))
             (cl-labels
                 ((assert-layout ()
+                   (redisplay t)
                    (should (= (length (wime-edit-test--correction-lines)) 1))
                    (let* ((text (wime-edit-test--correction-text))
                           (rows (split-string text "\n" t)))
@@ -699,12 +700,17 @@
                                 do (should (string-match (format "\\(%d[.]\\)" number) (car rows)))
                                 do (let* ((label (match-string 1 (car rows)))
                                           (candidate-x
-                                           (+ (* column (frame-char-width))
+                                           (+ (line-number-display-width t)
+                                              (* column (frame-char-width))
                                               (string-pixel-width label (current-buffer))))
-                                          (source-x (car (window-text-pixel-size
-                                                          (selected-window) 1 source t))))
+                                          (source-x (car (posn-x-y (posn-at-point source)))))
                                      (should (< (abs (- candidate-x source-x)) 1.0))))))))
               (assert-layout)
+              (let ((old (copy-sequence wime-edit--correction-decorations)))
+                (display-line-numbers-mode 1)
+                (wime-edit-test--command #'ignore)
+                (should (seq-every-p (lambda (overlay) (not (overlay-buffer overlay))) old))
+                (assert-layout))
               (let ((old (copy-sequence wime-edit--correction-decorations)))
                 (text-scale-set 2)
                 (wime-edit-test--command #'ignore)

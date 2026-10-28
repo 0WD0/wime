@@ -352,7 +352,9 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
   "Return the window geometry relevant to correction rows."
   (list (point-min) (point-max) (copy-tree face-remapping-alist)
         (mapcar (lambda (window)
-                  (list window (window-body-width window) (window-hscroll window)))
+                  (list window (window-body-width window) (window-hscroll window)
+                        display-line-numbers
+                        (with-selected-window window (line-number-display-width t))))
                 (get-buffer-window-list (current-buffer) nil t))))
 
 (defun wime-edit--correction-groups (text)
@@ -451,7 +453,10 @@ fonts use the same units as the source-text alignment."
         (vertical-motion 0 window)
         (setq column
               (if (display-graphic-p (window-frame window))
-                  (/ (float (car (window-text-pixel-size window (point) position t)))
+                  ;; Pixel measurement includes the number gutter, while
+                  ;; display-space alignment starts after it.
+                  (/ (float (- (car (window-text-pixel-size window (point) position t))
+                               (with-selected-window window (line-number-display-width t))))
                      (frame-char-width (window-frame window)))
                 (- column (current-column))))
         (goto-char position)
@@ -503,7 +508,10 @@ fonts use the same units as the source-text alignment."
                                                  (wime-edit--correction-label (car options) window)
                                                  window))))
                        (column (if window
-                                   (max 0 (min column (- (window-body-width window) width 1)))
+                                   (max 0 (min column (- (window-body-width window)
+                                                        (with-selected-window window
+                                                          (line-number-display-width 'columns))
+                                                        width 1)))
                                  column))
                        (line (assq anchor lines)))
             (unless line
