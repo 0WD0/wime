@@ -53,6 +53,9 @@ def main():
     p.add_argument("--ranking-data", type=Path, help="training-only mined same-key pairs")
     p.add_argument("--ranking-weight", type=float, default=0)
     p.add_argument("--ranking-batch", type=int, default=32)
+    p.add_argument("--ranking-prior-weight", type=float, default=.1,
+                   help="weight of each pair's fixed priors in the trained joint score, e.g. 1.5 for "
+                        "per-character general-LM scores fused by the text decoder")
     p.add_argument("--primary-technical-share", type=float,
                    help="preserve technical sampling share when expanding chat replay")
     p.add_argument("--save-every", type=int, default=0,
@@ -64,6 +67,7 @@ def main():
             or not 0 <= args.whitespace_share <= 1 or args.learning_rate <= 0
             or args.reference_weight < 0 or (args.reference_weight and not args.reference_model)
             or args.ranking_weight < 0 or args.ranking_batch < 1 or args.save_every < 0
+            or not math.isfinite(args.ranking_prior_weight) or args.ranking_prior_weight < 0
             or (args.primary_technical_share is not None and not 0 < args.primary_technical_share < 1)
             or (args.ranking_weight and not args.ranking_data)):
         p.error("positive steps/batch/rate required; shares in [0, 1], span + single <= 1")
@@ -196,7 +200,7 @@ def main():
         settings["extra_manifest"] = json.loads((args.extra_data / "manifest.json").read_text())
     if args.ranking_data:
         settings["ranking_sha256"] = hashlib.file_digest(args.ranking_data.open("rb"), "sha256").hexdigest()
-        settings["ranking_objective"] = dict(context_anchor=2, prior_weight=.1, margin=.2,
+        settings["ranking_objective"] = dict(context_anchor=2, prior_weight=args.ranking_prior_weight, margin=.2,
                                              temperature=.1, score="mean new-character log probability; no EOS")
     (args.out / "run.json").write_text(json.dumps(settings, ensure_ascii=False, indent=2) + "\n")
     start, best = time.monotonic(), float("inf")
@@ -262,7 +266,7 @@ def main():
                 with torch.autocast("cuda", dtype=torch.bfloat16):
                     logits, _ = model(pair_batch[:, 0, :length])
                     scores = candidate_scores(logits, pair_batch[:, 1, :length])
-                    rank_value = preference_loss(scores, ranked_priors[choices])
+                    rank_value = preference_loss(scores, ranked_priors[choices], args.ranking_prior_weight)
                 value = value + args.ranking_weight * rank_value
         value.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
