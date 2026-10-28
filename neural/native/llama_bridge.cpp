@@ -1,6 +1,7 @@
 // Thin C ABI for Wime's external beam search. No sampler or grammar is used.
 #include "llama.h"
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <exception>
 #include <mutex>
@@ -22,7 +23,12 @@ int32_t wime_llama_max_sequences() { return static_cast<int32_t>(llama_max_paral
 
 void * wime_llama_load(const char * path, int32_t gpu_layers) {
     try {
-        std::call_once(initialized, [] { llama_backend_init(); });
+        std::call_once(initialized, [] {
+            llama_log_set([](ggml_log_level level, const char * text, void *) {
+                if (level != GGML_LOG_LEVEL_DEBUG) std::fputs(text, stderr);
+            }, nullptr);
+            llama_backend_init();
+        });
         auto params = llama_model_default_params();
         params.n_gpu_layers = gpu_layers;
         auto * model = llama_model_load_from_file(path, params);
