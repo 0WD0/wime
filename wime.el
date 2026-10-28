@@ -33,6 +33,8 @@
   "Wime double-pinyin input method."
   :group 'leim)
 
+(autoload 'wime-select-backend "wime-backend" nil t)
+
 (defface wime-preedit-face
   '((t (:inherit font-lock-string-face)))
   "Face for the typed double-pinyin code."

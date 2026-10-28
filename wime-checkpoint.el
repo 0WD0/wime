@@ -33,9 +33,9 @@
         :single_character (if wime-neural-single-character t :false)
         :seed_draft (if wime-neural-seed-candidates "neural" "traditional")
         :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight
-        :backend (symbol-name wime-neural-backend)
-        :native_library (or wime-neural-native-library :null)
-        :native_model (or wime-neural-native-model :null)
+        :backend (symbol-name wime-backend)
+        :native_library (or wime-backend-native-library :null)
+        :native_model (or wime-backend-native-model :null)
         :pool_width (or wime-neural-pool-width :null)
         :search_method (symbol-name wime-neural-search-method)))
 
@@ -43,18 +43,10 @@
   "Normalize JSON null VALUE in both serialized and in-memory recipes."
   (unless (eq value :null) value))
 
-(defun wime-checkpoint--backend (profile)
-  "Read PROFILE's backend, migrating old HF recipes to the text decoder."
-  (pcase (plist-get profile :backend)
-    ((or "qwen-hf" 'nil) 'qwen-hf)
-    ("minicpm-native" 'minicpm-native)
-    ("legacy" 'legacy)
-    (_ (error "Unknown Wime backend"))))
-
 (defun wime-checkpoint--apply (recipe)
   "Install verified RECIPE variables; callers own the worker transition."
   (let* ((profile (plist-get recipe :profile))
-         (backend (wime-checkpoint--backend profile)))
+         (backend (wime-backend-from-profile profile)))
     (setq wime-neural-model-file (plist-get recipe :path)
           wime-neural-search-method (if (equal (plist-get profile :search_method) "decode") 'decode 'verify)
           wime-search-width (plist-get profile :width)
@@ -65,9 +57,9 @@
           wime-neural-single-character (eq (plist-get profile :single_character) t)
           wime-neural-seed-candidates (equal (plist-get profile :seed_draft) "neural")
           wime-neural-rescorer (wime-checkpoint--nullable (plist-get profile :rescorer))
-          wime-neural-backend backend
-          wime-neural-native-library (wime-checkpoint--nullable (plist-get profile :native_library))
-          wime-neural-native-model (wime-checkpoint--nullable (plist-get profile :native_model))
+          wime-backend backend
+          wime-backend-native-library (wime-checkpoint--nullable (plist-get profile :native_library))
+          wime-backend-native-model (wime-checkpoint--nullable (plist-get profile :native_model))
           wime-neural-rescorer-weight (or (plist-get profile :rescorer_weight) 1.5)
           wime-neural-pool-width (plist-get profile :pool_width))))
 
@@ -151,9 +143,9 @@ value.  Return cancellation that leaves the existing worker and input intact."
                    :coding 'utf-8-unix :stderr " *wime-checkpoint-errors*"
                    :command (let* ((profile (plist-get recipe :profile))
                                    (wime-neural-rescorer (wime-checkpoint--nullable (plist-get profile :rescorer)))
-                                   (wime-neural-backend (wime-checkpoint--backend profile))
-                                   (wime-neural-native-library (wime-checkpoint--nullable (plist-get profile :native_library)))
-                                   (wime-neural-native-model (wime-checkpoint--nullable (plist-get profile :native_model)))
+                                   (wime-backend (wime-backend-from-profile profile))
+                                   (wime-backend-native-library (wime-checkpoint--nullable (plist-get profile :native_library)))
+                                   (wime-backend-native-model (wime-checkpoint--nullable (plist-get profile :native_model)))
                                    (wime-neural-rescorer-weight
                                     (or (plist-get profile :rescorer_weight) 1.5))
                                    (wime-neural-search-method
@@ -182,56 +174,6 @@ value.  Return cancellation that leaves the existing worker and input intact."
                                             :input "nihk" :draft "你好" :candidates [])) "\n")))
         (error (fail (error-message-string err))))
       (lambda () (unless done (setq done t) (cleanup))))))
-
-(defvar wime-neural--cancel-switch nil)
-
-(defun wime-neural-select-backend (backend)
-  "Prewarm Chinese BACKEND and save it as the next-start configuration.
-The current worker remains in use until the replacement is ready and all
-compositions have finished.  Assets live in `wime-checkpoint-directory'."
-  (interactive (list (intern (completing-read "Chinese backend: "
-                                             '("qwen-hf" "minicpm-native" "legacy") nil t))))
-  (unless (memq backend '(qwen-hf minicpm-native legacy)) (user-error "Unknown Wime backend"))
-  (when (and (eq backend 'minicpm-native)
-             (cl-some (lambda (buffer)
-                        (with-current-buffer buffer
-                          (and current-input-method
-                               (string-prefix-p "wime-japanese" current-input-method))))
-                      (buffer-list)))
-    (user-error "Deactivate Japanese input before selecting the Chinese-only MiniCPM backend"))
-  (let* ((native (eq backend 'minicpm-native))
-         (rescorer (expand-file-name (if native "rescorers/MiniCPM5-2B" "rescorers/Qwen3.5-2B-Base")
-                                    wime-checkpoint-directory))
-         (library (and native (expand-file-name "native/current/lib/libwime_llama.so" wime-checkpoint-directory)))
-         (gguf (and native (expand-file-name "model.bf16.gguf" rescorer)))
-         (profile (wime-checkpoint-profile)))
-    (dolist (path (append (list wime-neural-model-file wime-database-file
-                                (expand-file-name "config.json" rescorer)
-                                (expand-file-name "tokenizer.json" rescorer))
-                         (and native (list library gguf))))
-      (unless (and path (file-readable-p path))
-        (user-error "Backend asset is missing: %s" path)))
-    (setq profile (plist-put profile :backend (symbol-name backend))
-          profile (plist-put profile :search_method "decode")
-          profile (plist-put profile :rescorer rescorer)
-          ;; Freeze the library version in saved recipes, not its current symlink.
-          profile (plist-put profile :native_library (if library (file-truename library) :null))
-          profile (plist-put profile :native_model (or gguf :null)))
-    (let* ((checkpoint (plist-get (wime-checkpoint-call (list :op "import-model" :path wime-neural-model-file))
-                                  :result))
-           (recipe (list :checkpoint (plist-get checkpoint :id) :path (plist-get checkpoint :path)
-                         :profile profile))
-           finished)
-      (when wime-neural--cancel-switch (funcall wime-neural--cancel-switch))
-      (setq wime-neural--cancel-switch
-            (wime-checkpoint-switch
-             recipe t
-             (lambda (_result) (setq finished t wime-neural--cancel-switch nil)
-               (message "Wime backend: %s (saved for startup)" backend))
-             (lambda (reason) (setq finished t wime-neural--cancel-switch nil)
-               (message "Wime kept the current backend: %s" reason))))
-      ;; Command construction can reject a recipe synchronously.
-      (when finished (setq wime-neural--cancel-switch nil)))))
 
 (provide 'wime-checkpoint)
 ;;; wime-checkpoint.el ends here
