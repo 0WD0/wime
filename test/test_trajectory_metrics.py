@@ -43,6 +43,8 @@ class TrajectoryMetrics(unittest.TestCase):
         failed["full"]["error"] = "unsupported_window"
         failed["prefixes"][0]["continuation"]["error"] = "decoder_error"
         no_prefix = row("short", "乙" * 6, "乙" * 6, [])
+        failed["test_partition"] = "natural-long"
+        no_prefix["test_partition"] = "authored-technical"
         result = summarize([failed, no_prefix])
         overall = result["overall"]
         self.assertEqual(overall["coverage"]["sentences"], 2)
@@ -55,6 +57,10 @@ class TrajectoryMetrics(unittest.TestCase):
         self.assertEqual(overall["continuation_pair"]["counts"]["both_wrong"], 1)
         self.assertEqual(result["by_length"]["25+"]["whole"]["exact_accuracy"], 0)
         self.assertEqual(result["by_length"]["6-12"]["whole"]["exact_accuracy"], 1)
+        authored = result["by_partition"]["authored-technical"]
+        self.assertEqual(authored["whole"]["exact_accuracy"], 1)
+        self.assertIsNone(authored["prefix"]["exact_accuracy"])
+        self.assertEqual(authored["coverage"]["requests"], 1)
 
     def test_top5_character_alignment_and_bootstrap_are_explicit_and_deterministic(self):
         a = row("a", "甲乙丙丁戊己", "甲乙丙丁戊错", [(3, "甲乙丙", "丁戊己")])

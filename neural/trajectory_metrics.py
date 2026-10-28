@@ -124,7 +124,7 @@ def summarize(results):
     ids = [row["id"] for row in rows]
     if len(set(ids)) != len(ids):
         raise ValueError("trajectory results must contain each sentence once")
-    sources, lengths = defaultdict(list), defaultdict(list)
+    sources, lengths, partitions = defaultdict(list), defaultdict(list), defaultdict(list)
     for row in rows:
         size = len(row["gold"][0])
         ends = [boundary["end"] for boundary in row["prefixes"]]
@@ -132,6 +132,8 @@ def summarize(results):
             raise ValueError("prefix boundaries must be distinct positions inside a nonempty sentence")
         sources[row["source"]].append(row)
         lengths["1-5" if size < 6 else "6-12" if size <= 12 else "13-24" if size <= 24 else "25+"].append(row)
+        if row.get("test_partition"):
+            partitions[row["test_partition"]].append(row)
     return dict(
         definitions=dict(
             weighting="Accuracy and paired rates: mean within each sentence, then equal mean across eligible sentences. Counts are unweighted.",
@@ -144,4 +146,5 @@ def summarize(results):
                                      samples=BOOTSTRAP_SAMPLES, level=.95)),
         overall=_aggregate(rows),
         by_source={name: _aggregate(group) for name, group in sorted(sources.items())},
+        by_partition={name: _aggregate(group) for name, group in sorted(partitions.items())},
         by_length={name: _aggregate(group) for name, group in lengths.items()})

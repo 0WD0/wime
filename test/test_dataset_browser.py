@@ -1,4 +1,5 @@
 """Pagination, version-scoped reviews and lossless training reads."""
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -87,6 +88,24 @@ class DatasetBrowser(unittest.TestCase):
         page=self.browser.page(self.request())
         self.assertEqual(page['total'],3)
         self.assertEqual(page['sources'],[('',3)])
+
+    def test_authored_source_detail_survives_without_the_cleaned_database(self):
+        text = "报错之后。请检查文件权限。"
+        target = "请检查文件权限"
+        row = dict(id="authored", source="authored-technical", document="scenario", context="报错之后。",
+                   gold=[target], input="ab"*len(target), offset=5, reading_window=[0,len(text)], boundaries=[])
+        (self.data / "dev.jsonl").write_text(json.dumps(row,ensure_ascii=False)+'\n')
+        (self.data / "documents.jsonl").write_text(json.dumps(dict(id="scenario",text=text,
+            content=hashlib.sha256(text.encode()).hexdigest(),origin="authored scenario",source_document="scenario-1")))
+        entry = self.registry.datasets['example']
+        entry['files']['dev']['sha256'] = fingerprint(self.data / 'dev.jsonl')
+        entry['files']['documents'] = dict(path='documents.jsonl',format='jsonl',
+                                         sha256=fingerprint(self.data/'documents.jsonl'))
+        detail = self.browser.detail(self.request(row=1))
+        self.assertEqual(detail['annotation_text'],text)
+        self.assertEqual(detail['sentence_text'],target+'。')
+        self.assertEqual(detail['source_document'],'scenario-1')
+        self.assertEqual(detail['row']['review']['status'],'pending')
 
 
 if __name__ == '__main__':
