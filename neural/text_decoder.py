@@ -1,4 +1,4 @@
-"""Experimental text-constrained search with an independent byte grammar.
+"""Text-constrained search with an independent byte grammar.
 
 The general LM can propose every legal token path, including partial UTF-8
 and tokens crossing the committed boundary. The conditional model may guide
@@ -15,7 +15,7 @@ import math
 import torch
 
 from byte_constraints import PinyinConstraint, ReadingIndex, TokenTrie
-from decoder import Decoder
+from decoding_model import DecodingModel
 from prefix_cache import PrefixCacheLM
 from token_bytes import heal_context, raw_token_bytes
 
@@ -28,8 +28,8 @@ class Path:
     q: float
 
 
-class TextDecoder(Decoder):
-    """Same request interface as Decoder; an opt-in research backend.
+class TextDecoder(DecodingModel):
+    """Shared Chinese search for Qwen HF and MiniCPM native.
 
     ``guide_weight`` affects search only. ``final_mode='lm'`` uses the general
     LM plus explicit learned-reading bonuses; ``'fused'`` is a control arm.
@@ -54,7 +54,7 @@ class TextDecoder(Decoder):
                 or type(cache_requests) is not int or cache_requests < 0
                 or type(rewind_tokens) is not int or rewind_tokens < 0):
             raise ValueError("invalid text decoder settings")
-        super().__init__(evaluator, rescorer, None, beam, per_hypothesis)
+        super().__init__(evaluator, rescorer, beam, per_hypothesis)
         self.device = getattr(rescorer, "device", self.device)
         self.reading_index = ReadingIndex(readings_map)
         self.token_bytes = raw_token_bytes(rescorer.tokenizer)

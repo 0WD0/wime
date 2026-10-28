@@ -18,7 +18,8 @@ import numpy as np
 
 from conditional import ROOT
 from inference import ConditionalEvaluator, effective_prior_weight
-from rescorer import Rescorer, interleave
+from rescorer import interleave
+from backends import add_backend_arguments, validate_backend, make_rescorer, make_decoder
 
 
 
@@ -62,13 +63,13 @@ def main():
     p.add_argument("--context-anchor", type=int, choices=range(0, 9), default=0,
                    help="keep up to this many committed characters as a fixed decoded prefix")
     p.add_argument("--proposal-order", choices=("position", "gain"), default="position")
-    p.add_argument("--rescorer", help="general causal LM added to verified candidate scores, as gpu-worker.py")
-    p.add_argument("--rescorer-weight", type=float, default=1.5)
+    add_backend_arguments(p)
     p.add_argument("--pool-width", type=int,
                    help="lattice width of the verify pool and prefix searches, as wime-neural-pool-width")
     p.add_argument("--search-method", choices=("verify", "decode"), default="verify",
-                   help="decode: the rescorer spells the keys, fused with the model (decoder.py)")
+                   help="decode: byte-constrained text search with the selected backend")
     args = p.parse_args()
+    validate_backend(args, p)
     if args.search_method == "decode" and not args.rescorer:
         p.error("decode requires --rescorer")
     if args.width < 1 or args.budget < 1 or not 0 < args.prior_confidence <= 1:
@@ -97,11 +98,8 @@ def main():
 
     evaluator = ConditionalEvaluator(args.model, context_anchor=args.context_anchor,
                                      proposal_order=args.proposal_order)
-    rescorer = Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
-    decoder = None
-    if args.search_method == "decode":
-        from decoder import Decoder, Units, readings
-        decoder = Decoder(evaluator, rescorer, Units(rescorer.tokenizer, readings(args.database)))
+    rescorer = make_rescorer(args)
+    decoder = make_decoder(args, evaluator, rescorer) if args.search_method == "decode" else None
     stats, results, latencies = Counter(), [], []
     started = time.monotonic()
     try:
@@ -221,6 +219,7 @@ def main():
                    proposal_order=args.proposal_order,
                    rescorer=args.rescorer, rescorer_weight=args.rescorer_weight if args.rescorer else None,
                    pool_width=args.pool_width, search_method=args.search_method,
+                   backend=args.backend, native_library=args.native_library, native_model=args.native_model,
                    prior_confidence=args.prior_confidence,
                    width=args.width, seed_draft=args.seed_draft,
                    device=evaluator.device,

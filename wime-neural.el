@@ -37,6 +37,22 @@ is added to the model score of every verified candidate.  Nil disables it."
   "Weight of `wime-neural-rescorer' relative to the conditional model score."
   :type 'number :group 'wime)
 
+(defcustom wime-neural-backend 'qwen-hf
+  "Chinese language-model backend.
+`qwen-hf' and `minicpm-native' use byte-constrained text decoding, with
+the conditional model guiding search and the language model ranking results.
+Use
+`wime-neural-select-backend' to prewarm and persist a backend change."
+  :type '(choice (const qwen-hf) (const minicpm-native)) :group 'wime)
+
+(defcustom wime-neural-native-library nil
+  "Wime llama bridge shared library for `minicpm-native'."
+  :type '(choice (const nil) file) :group 'wime)
+
+(defcustom wime-neural-native-model nil
+  "MiniCPM BF16 GGUF matching the tokenizer in `wime-neural-rescorer'."
+  :type '(choice (const nil) file) :group 'wime)
+
 (defcustom wime-neural-pool-width nil
   "Lattice width of the verify pool and prefix searches, or nil for the display.
 Typing keeps `wime-search-width'; this wider search runs once per pause, when
@@ -69,9 +85,9 @@ use `wime-neural-timeout'."
 `verify' requires a wime-ms-pinyin-v1 model and a Microsoft double-pinyin
 database.  Auxiliary codes continue to constrain the dictionary search.
 `decode' also needs `wime-neural-rescorer': the CUDA worker spells the keys
-with the rescorer's tokens, fused with the model, without the lattice, one
-syllable at a time and including a trailing half syllable; auxiliary codes
-restrict their syllable's character.  Without a rescorer it verifies instead."
+without the lattice using `wime-neural-backend', including a trailing half
+syllable.  Readings, auxiliary codes and fixed characters are hard constraints.
+Without a rescorer it verifies instead."
   :type '(choice (const rerank) (const verify) (const decode)) :group 'wime)
 
 (defcustom wime-neural-single-character nil
@@ -257,7 +273,18 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                      "--rescorer-weight" (number-to-string wime-neural-rescorer-weight)))
           (and wime-neural-rescorer (eq wime-neural-search-method 'decode) wime-database-file
                (list "--database" (expand-file-name wime-database-file)))
-          (and wime-neural-rescorer (bound-and-true-p wime-japanese-model-file)
+          (when (and wime-neural-rescorer (eq wime-neural-search-method 'decode))
+            (unless (and wime-neural-rescorer (eq wime-neural-search-method 'decode)
+                         wime-database-file)
+              (error "Selected backend requires a rescorer, database and decode search"))
+            (append (list "--backend" (symbol-name wime-neural-backend))
+                    (when (eq wime-neural-backend 'minicpm-native)
+                      (unless (and wime-neural-native-library wime-neural-native-model)
+                        (error "MiniCPM requires a native library and GGUF model"))
+                      (list "--native-library" (expand-file-name wime-neural-native-library)
+                            "--native-model" (expand-file-name wime-neural-native-model)))))
+          (and (not (eq wime-neural-backend 'minicpm-native))
+               wime-neural-rescorer (bound-and-true-p wime-japanese-model-file)
                (bound-and-true-p wime-japanese-table-file)
                (append (list "--japanese-model" (expand-file-name wime-japanese-model-file)
                              "--japanese-table" (expand-file-name wime-japanese-table-file))

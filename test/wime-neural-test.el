@@ -583,7 +583,7 @@
     (should (eq wime-neural-search-method 'decode))
     (should (equal (wime-neural--command wime-neural-model-file)
                    '("/bin/true" "--rescorer" "/lm" "--rescorer-weight" "1.5"
-                     "--database" "/w.db" "/m.safetensors")))
+                     "--database" "/w.db" "--backend" "qwen-hf" "/m.safetensors")))
     (should (equal (plist-get (wime-checkpoint-profile) :search_method) "decode"))
     (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:width 16 :budget 4 :rescorer "/lm")))
     (should (eq wime-neural-search-method 'verify))

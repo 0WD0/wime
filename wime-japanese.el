@@ -277,6 +277,7 @@ Shift used, first the shifted kana in katakana and the rest in hiragana."
   "Ask the worker for readings after a pause, as wime does for Chinese."
   (wime-neural--reset)
   (when (and wime-neural-mode (not wime-neural--failed) wime-neural-rescorer
+             (not (eq wime-neural-backend 'minicpm-native))
              wime-japanese-model-file wime-japanese-table-file (wime-japanese--active-p)
              (not (string-empty-p (car (wime-japanese--convert wime-japanese--keys)))))
     (let ((job (wime-neural--make-job
@@ -383,6 +384,8 @@ Shift used, first the shifted kana in katakana and the rest in hiragana."
 
 (defun wime-japanese-activate (name)
   "Activate the Japanese input scheme registered as NAME."
+  (when (eq wime-neural-backend 'minicpm-native)
+    (user-error "Japanese needs Qwen HF; use M-x wime-neural-select-backend"))
   ;; Re-enabling the input method picks up regenerated rules and key positions.
   (setq wime-japanese--table nil wime-japanese--keymap nil)
   (setq wime-japanese--scheme

@@ -9,8 +9,8 @@ An optional --rescorer adds a weighted general-LM score to every verified
 candidate, including the seed pool, and interleaves its token proposals with
 the model's per-character proposals. With --database as well, the decode
 operation replaces the dictionary lattice: see decoder.py. With
---decoder-kind text, the experimental byte-constrained text decoder handles
-Chinese decoding instead; legacy decoding remains the default. With
+--backend qwen-hf or minicpm-native, the byte-constrained text decoder handles
+Chinese decoding. Without a language model, conditional verification remains available. With
 --japanese-model and --japanese-table as well, the japanese operation
 decodes typed kana, and --japanese-zenz reranks it: see japanese.py.
 """
@@ -21,7 +21,8 @@ import sys
 import time
 
 from inference import ConditionalEvaluator, effective_prior_weight
-from rescorer import Rescorer, interleave
+from rescorer import interleave
+from backends import add_backend_arguments, validate_backend, make_rescorer, make_decoder
 
 LETTERS = set("abcdefghijklmnopqrstuvwxyz")
 KEYS = LETTERS | {";"}
@@ -167,75 +168,16 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("model")
-    parser.add_argument("--rescorer", help="directory of a transformers causal LM")
-    parser.add_argument("--rescorer-weight", type=float, default=1.5)
+    add_backend_arguments(parser)
     parser.add_argument("--database", help="wime word database, whose readings enable decode")
-    parser.add_argument("--decoder-kind", choices=("legacy", "text"), default="legacy",
-                        help="Chinese decoder backend; text is experimental")
-    parser.add_argument("--text-rewind-tokens", type=int, default=2,
-                        help="experimental text decoder: committed tail tokens to heal")
-    parser.add_argument("--text-guide-weight", type=float, default=1.0,
-                        help="experimental text decoder: small-model search guidance weight")
-    parser.add_argument("--text-final-mode", choices=("lm", "fused"), default="lm",
-                        help="experimental text decoder: LM-only or transitional fused final ranking")
-    parser.add_argument("--text-cache-guide", action=argparse.BooleanOptionalAction, default=True,
-                        help="experimental text decoder: reuse conditional prefix distributions")
-    parser.add_argument("--text-cache-requests", type=int, default=8,
-                        help="experimental text decoder: exact request-result cache entries (0 disables)")
-    parser.add_argument("--text-cache-paths", type=int, default=0,
-                        help="experimental text decoder: parent-state cache limit (0 disables)")
-    parser.add_argument("--text-native-library", help="experimental text decoder: Wime llama bridge shared library")
-    parser.add_argument("--text-native-model", help="experimental text decoder: floating-point Llama GGUF; --rescorer supplies its matching HF tokenizer")
     parser.add_argument("--japanese-model", help="kana-conditioned model (train-japanese.py)")
     parser.add_argument("--japanese-table", help="reading table for the rescorer (build-japanese-table.py)")
     parser.add_argument("--japanese-zenz", help="zenz directory (convert-zenz.py) for the final Japanese ranking")
     args = parser.parse_args(argv)
-    if args.decoder_kind == "text" and not (args.rescorer and args.database):
-        parser.error("--decoder-kind text requires --rescorer and --database")
-    if args.text_rewind_tokens < 0:
-        parser.error("--text-rewind-tokens must be nonnegative")
-    if not math.isfinite(args.text_guide_weight) or args.text_guide_weight < 0:
-        parser.error("--text-guide-weight must be finite and nonnegative")
-    if args.text_cache_requests < 0 or args.text_cache_paths < 0:
-        parser.error("text cache entry limits must be nonnegative")
-    if bool(args.text_native_library) != bool(args.text_native_model):
-        parser.error("--text-native-library and --text-native-model must be supplied together")
-    if args.text_native_model:
-        if args.decoder_kind != "text":
-            parser.error("the native LM requires --decoder-kind text")
-        if args.text_cache_paths:
-            parser.error("the native LM manages its own path cache; --text-cache-paths must be 0")
-        if args.japanese_model or args.japanese_table or args.japanese_zenz:
-            parser.error("the native LM is currently supported for Chinese text decoding only")
+    validate_backend(args, parser)
+    if args.backend == "minicpm-native" and (args.japanese_model or args.japanese_table or args.japanese_zenz):
+        parser.error("Japanese requires the qwen-hf backend")
     return args
-
-
-def make_rescorer(args):
-    if args.text_native_model:
-        from native_rescorer import NativeRescorer
-        return NativeRescorer(args.rescorer, args.rescorer_weight,
-                              args.text_native_library, args.text_native_model)
-    return Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
-
-
-def make_decoder(args, evaluator, rescorer):
-    """Load only the selected Chinese backend, keeping the wire protocol shared."""
-    if rescorer is None or not args.database:
-        return None
-    from decoder import readings
-    table = readings(args.database)
-    if args.decoder_kind == "text":
-        from text_decoder import TextDecoder
-        backend = dict(lm_backend=rescorer.backend) if args.text_native_model else {}
-        return TextDecoder(evaluator, rescorer, table,
-                           rewind_tokens=args.text_rewind_tokens,
-                           guide_weight=args.text_guide_weight,
-                           final_mode=args.text_final_mode,
-                           cache_guide=args.text_cache_guide,
-                           cache_requests=args.text_cache_requests,
-                           cache_paths=args.text_cache_paths, **backend)
-    from decoder import Decoder, Units
-    return Decoder(evaluator, rescorer, Units(rescorer.tokenizer, table))
 
 
 def main():
