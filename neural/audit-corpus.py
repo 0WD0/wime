@@ -66,6 +66,27 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
     expected_database = provenance.get("database", {}) if isinstance(provenance, dict) else {}
     if not isinstance(expected_database, dict) or expected_database.get("sha256") != database_metadata["sha256"]:
         error("database_fingerprint", "database differs from the completed corpus manifest or lacks a fingerprint")
+    expected_assets = provenance.get("reading_assets", {}) if isinstance(provenance, dict) else {}
+    reading_assets = {}
+    if not isinstance(expected_assets, dict) or not expected_assets:
+        error("reading_assets_unpinned", "provenance.reading_assets must be a nonempty mapping")
+        expected_assets = {}
+    for name, expected in expected_assets.items():
+        if (not isinstance(expected, dict)
+                or not isinstance(expected.get("path"), str) or not expected["path"]
+                or not isinstance(expected.get("sha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", expected["sha256"])
+                or type(expected.get("bytes")) is not int or expected["bytes"] < 0):
+            error("reading_asset_unpinned", name)
+            continue
+        try:
+            actual = file_metadata(Path(expected["path"]))
+        except (OSError, ValueError) as exc:
+            error("reading_asset_missing", dict(asset=name, path=expected["path"], message=str(exc)))
+            continue
+        reading_assets[name] = actual
+        if actual["sha256"] != expected["sha256"] or actual["bytes"] != expected["bytes"]:
+            error("reading_asset_changed", dict(asset=name, expected=expected, actual=actual))
     expected_protection = manifest.get("protection", {})
     if not isinstance(expected_protection, dict):
         error("manifest_protection", "protection must map paths to fingerprints")
@@ -197,7 +218,7 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
                   counts=dict(sorted(counts.items())), lengths=dict(sorted(lengths.items(), key=lambda item: int(item[0]))),
                   blank_context=dict(sorted(blanks.items())), outputs=outputs,
                   errors=dict(sorted(errors.items())), error_examples=dict(examples),
-                  database=database_metadata, protection=protection.files,
+                  database=database_metadata, reading_assets=reading_assets, protection=protection.files,
                   reading_accuracy="Not measured; dictionary key legality does not establish contextual reading correctness.")
     if manifest_path.is_file():
         report["manifest"] = file_metadata(manifest_path)

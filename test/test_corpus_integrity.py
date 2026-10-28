@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
-from corpus_integrity import UniqueRows, checked_row, empty_output, sample_key, verify_sources
+from corpus_integrity import UniqueRows, checked_row, empty_output, reading_assets, sample_key, verify_sources
 from replay import Protection, fingerprint
 
 
@@ -73,6 +73,21 @@ class Integrity(unittest.TestCase):
         self.addCleanup(reopened.close)
         self.assertFalse(reopened.add("id", "one"))
         self.assertTrue(reopened.add("id", "two"))
+
+    def test_reading_assets_inside_cache_keep_model_files_but_skip_nested_caches(self):
+        root = self.root / ".cache" / "g2pw"
+        model = root / "model/G2PWModel"
+        tokenizer = root / "bert-base-chinese"
+        model.mkdir(parents=True)
+        tokenizer.mkdir(parents=True)
+        (model / "g2pw.onnx").write_bytes(b"model")
+        (tokenizer / "vocab.txt").write_text("vocabulary")
+        for parent, cache in ((model, "__pycache__"), (tokenizer, ".cache")):
+            (parent / cache).mkdir()
+            (parent / cache / "ignored").write_text("cache")
+        assets = reading_assets(root)
+        self.assertEqual(set(assets), {"model/G2PWModel/g2pw.onnx", "bert-base-chinese/vocab.txt"})
+        self.assertEqual(assets["model/G2PWModel/g2pw.onnx"]["sha256"], fingerprint(model / "g2pw.onnx"))
 
     def test_verify_sources_rejects_changed_or_missing_input(self):
         raw = self.root / "raw"

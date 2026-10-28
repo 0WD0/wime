@@ -24,6 +24,8 @@ class AuditCorpus(unittest.TestCase):
         self.root = Path(temporary.name)
         self.corpus = self.root / "corpus"
         self.corpus.mkdir()
+        self.model_asset = self.root / "model.onnx"
+        self.model_asset.write_bytes(b"synthetic model asset")
         self.database = self.root / "dictionary.sqlite3"
         self.syllables = json.loads((NEURAL / "context-pinyin.json").read_text())["syllables"]
         with contextlib.closing(sqlite3.connect(self.database)) as db:
@@ -47,7 +49,8 @@ class AuditCorpus(unittest.TestCase):
             (self.corpus / f"{split}.jsonl").write_text(
                 "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows if r["split"] == split))
         manifest = dict(format="wime-corpus-v2", stats=dict(counts), protection={},
-                        provenance=dict(database=corpus_audit.file_metadata(self.database)),
+                        provenance=dict(database=corpus_audit.file_metadata(self.database),
+                                        reading_assets={"model.onnx": corpus_audit.file_metadata(self.model_asset)}),
                         outputs={s: corpus_audit.file_metadata(self.corpus / f"{s}.jsonl") for s in corpus_audit.SPLITS})
         (self.corpus / "manifest.json").write_text(json.dumps(manifest))
 
@@ -166,6 +169,28 @@ class AuditCorpus(unittest.TestCase):
         self.assertEqual(report["errors"]["content_schema"], 1)
         self.assertNotIn("document_cross_split", report["errors"])
         self.assertNotIn("group_cross_split", report["errors"])
+
+    def test_reading_assets_must_be_pinned_present_and_unchanged(self):
+        self.write([self.row()])
+        manifest_path = self.corpus / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        asset = manifest["provenance"]["reading_assets"]["model.onnx"]
+        manifest["provenance"]["reading_assets"] = {}
+        manifest_path.write_text(json.dumps(manifest))
+        empty, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertEqual(empty["errors"]["reading_assets_unpinned"], 1)
+        manifest["provenance"]["reading_assets"] = {"model.onnx": {"path": str(self.model_asset)}}
+        manifest_path.write_text(json.dumps(manifest))
+        unpinned, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertEqual(unpinned["errors"]["reading_asset_unpinned"], 1)
+        manifest["provenance"]["reading_assets"] = {"model.onnx": asset}
+        manifest_path.write_text(json.dumps(manifest))
+        self.model_asset.write_bytes(b"tampered model")
+        changed, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertEqual(changed["errors"]["reading_asset_changed"], 1)
+        self.model_asset.unlink()
+        missing, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertEqual(missing["errors"]["reading_asset_missing"], 1)
 
 
 if __name__ == "__main__":

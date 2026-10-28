@@ -24,7 +24,7 @@ import zipfile
 
 from corpus_readings import HAN, Lexicon, Reader
 from replay import Protection
-from corpus_integrity import UniqueRows, checked_row, empty_output, file_metadata, verify_sources
+from corpus_integrity import UniqueRows, checked_row, empty_output, file_metadata, reading_assets, verify_sources
 
 # Short commits dominate actual editor input; retain long spans for coverage.
 LENGTHS = ((0.50, 1, 1), (0.25, 2, 3), (0.15, 4, 8), (0.10, 9, 24))
@@ -220,10 +220,7 @@ def main():
     provenance = verify_sources(args.raw, args.source_manifest, names)
 
     provenance["database"] = file_metadata(args.database)
-    provenance["reading_assets"] = {str(p.relative_to(args.g2pw)): file_metadata(p)
-                                     for directory in ("model/G2PWModel", "bert-base-chinese")
-                                     for p in sorted((args.g2pw / directory).rglob("*"))
-                                     if p.is_file() and ".cache" not in p.parts}
+    provenance["reading_assets"] = reading_assets(args.g2pw)
     provenance["code"] = {name: file_metadata(Path(__file__).with_name(name)) for name in
                           ("prepare-corpus.py", "corpus_readings.py", "corpus_integrity.py", "corpus_g2pw.py", "replay.py", "context-pinyin.json", "requirements-corpus.txt")}
 
