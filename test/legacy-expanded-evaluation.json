@@ -1,0 +1,796 @@
+{
+  "scope": "360 previously inspected frozen inputs from 120 documents; 8 balanced categories. No tuning or filtering.",
+  "models": {
+    "legacy-qwen-hf": {
+      "all": {
+        "rows": 360,
+        "documents": 120,
+        "top1": 331,
+        "top5": 354,
+        "recall16": 357,
+        "empty": 0,
+        "invariants_passed": 360
+      },
+      "variants": {
+        "whole": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 108,
+          "top5": 116,
+          "recall16": 118,
+          "empty": 0,
+          "invariants_passed": 120
+        },
+        "suffix": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 110,
+          "top5": 119,
+          "recall16": 119,
+          "empty": 0,
+          "invariants_passed": 120
+        },
+        "single": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 113,
+          "top5": 119,
+          "recall16": 120,
+          "empty": 0,
+          "invariants_passed": 120
+        }
+      },
+      "categories": {
+        "chat": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 36,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "chid_prose": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 41,
+          "top5": 43,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "encyclopedia": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 42,
+          "top5": 43,
+          "recall16": 43,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "entity": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 38,
+          "top5": 44,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "idiom": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 42,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "kubernetes": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 45,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "news": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 42,
+          "top5": 44,
+          "recall16": 44,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "python": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 45,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        }
+      }
+    },
+    "legacy-minicpm-hf": {
+      "all": {
+        "rows": 360,
+        "documents": 120,
+        "top1": 326,
+        "top5": 355,
+        "recall16": 355,
+        "empty": 0,
+        "invariants_passed": 360
+      },
+      "variants": {
+        "whole": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 105,
+          "top5": 116,
+          "recall16": 116,
+          "empty": 0,
+          "invariants_passed": 120
+        },
+        "suffix": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 107,
+          "top5": 119,
+          "recall16": 119,
+          "empty": 0,
+          "invariants_passed": 120
+        },
+        "single": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 114,
+          "top5": 120,
+          "recall16": 120,
+          "empty": 0,
+          "invariants_passed": 120
+        }
+      },
+      "categories": {
+        "chat": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 37,
+          "top5": 44,
+          "recall16": 44,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "chid_prose": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 41,
+          "top5": 44,
+          "recall16": 44,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "encyclopedia": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 37,
+          "top5": 43,
+          "recall16": 43,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "entity": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 36,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "idiom": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 42,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "kubernetes": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 45,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "news": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 44,
+          "top5": 44,
+          "recall16": 44,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "python": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 44,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        }
+      }
+    },
+    "new-qwen-hf": {
+      "all": {
+        "rows": 360,
+        "documents": 120,
+        "top1": 333,
+        "top5": 353,
+        "recall16": 356,
+        "empty": 0,
+        "invariants_passed": 360
+      },
+      "variants": {
+        "whole": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 105,
+          "top5": 115,
+          "recall16": 117,
+          "empty": 0,
+          "invariants_passed": 120
+        },
+        "suffix": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 110,
+          "top5": 118,
+          "recall16": 119,
+          "empty": 0,
+          "invariants_passed": 120
+        },
+        "single": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 118,
+          "top5": 120,
+          "recall16": 120,
+          "empty": 0,
+          "invariants_passed": 120
+        }
+      },
+      "categories": {
+        "chat": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 36,
+          "top5": 43,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "chid_prose": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 43,
+          "top5": 44,
+          "recall16": 44,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "encyclopedia": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 42,
+          "top5": 43,
+          "recall16": 43,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "entity": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 36,
+          "top5": 44,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "idiom": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 42,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "kubernetes": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 45,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "news": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 44,
+          "top5": 44,
+          "recall16": 44,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "python": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 45,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        }
+      }
+    },
+    "new-minicpm-hf": {
+      "all": {
+        "rows": 360,
+        "documents": 120,
+        "top1": 327,
+        "top5": 352,
+        "recall16": 354,
+        "empty": 0,
+        "invariants_passed": 360
+      },
+      "variants": {
+        "whole": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 103,
+          "top5": 114,
+          "recall16": 115,
+          "empty": 0,
+          "invariants_passed": 120
+        },
+        "suffix": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 109,
+          "top5": 118,
+          "recall16": 119,
+          "empty": 0,
+          "invariants_passed": 120
+        },
+        "single": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 115,
+          "top5": 120,
+          "recall16": 120,
+          "empty": 0,
+          "invariants_passed": 120
+        }
+      },
+      "categories": {
+        "chat": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 37,
+          "top5": 41,
+          "recall16": 43,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "chid_prose": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 43,
+          "top5": 44,
+          "recall16": 44,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "encyclopedia": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 38,
+          "top5": 43,
+          "recall16": 43,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "entity": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 34,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "idiom": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 42,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "kubernetes": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 45,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "news": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 44,
+          "top5": 44,
+          "recall16": 44,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "python": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 44,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        }
+      }
+    },
+    "new-minicpm-native": {
+      "all": {
+        "rows": 360,
+        "documents": 120,
+        "top1": 327,
+        "top5": 352,
+        "recall16": 354,
+        "empty": 0,
+        "invariants_passed": 360
+      },
+      "variants": {
+        "whole": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 103,
+          "top5": 114,
+          "recall16": 115,
+          "empty": 0,
+          "invariants_passed": 120
+        },
+        "suffix": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 109,
+          "top5": 118,
+          "recall16": 119,
+          "empty": 0,
+          "invariants_passed": 120
+        },
+        "single": {
+          "rows": 120,
+          "documents": 120,
+          "top1": 115,
+          "top5": 120,
+          "recall16": 120,
+          "empty": 0,
+          "invariants_passed": 120
+        }
+      },
+      "categories": {
+        "chat": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 37,
+          "top5": 41,
+          "recall16": 43,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "chid_prose": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 43,
+          "top5": 44,
+          "recall16": 44,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "encyclopedia": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 38,
+          "top5": 43,
+          "recall16": 43,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "entity": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 34,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "idiom": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 42,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "kubernetes": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 45,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "news": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 44,
+          "top5": 44,
+          "recall16": 44,
+          "empty": 0,
+          "invariants_passed": 45
+        },
+        "python": {
+          "rows": 45,
+          "documents": 15,
+          "top1": 44,
+          "top5": 45,
+          "recall16": 45,
+          "empty": 0,
+          "invariants_passed": 45
+        }
+      }
+    }
+  },
+  "comparisons": {
+    "new-qwen-hf vs legacy-qwen-hf": {
+      "whole": {
+        "rows": 120,
+        "documents": 120,
+        "left_correct": 108,
+        "right_correct": 105,
+        "fixed": 2,
+        "regressed": 5,
+        "both_wrong": 10,
+        "difference_pp": -2.5,
+        "stratified_document_bootstrap95_pp": [
+          -6.666666666666667,
+          1.6666666666666667
+        ],
+        "mcnemar_p_unadjusted": 0.453125
+      },
+      "suffix": {
+        "rows": 120,
+        "documents": 120,
+        "left_correct": 110,
+        "right_correct": 110,
+        "fixed": 4,
+        "regressed": 4,
+        "both_wrong": 6,
+        "difference_pp": 0.0,
+        "stratified_document_bootstrap95_pp": [
+          -5.0,
+          5.0
+        ],
+        "mcnemar_p_unadjusted": 1
+      },
+      "single": {
+        "rows": 120,
+        "documents": 120,
+        "left_correct": 113,
+        "right_correct": 118,
+        "fixed": 6,
+        "regressed": 1,
+        "both_wrong": 1,
+        "difference_pp": 4.166666666666667,
+        "stratified_document_bootstrap95_pp": [
+          0.0,
+          8.333333333333334
+        ],
+        "mcnemar_p_unadjusted": 0.125
+      },
+      "all": {
+        "rows": 360,
+        "documents": 120,
+        "left_correct": 331,
+        "right_correct": 333,
+        "fixed": 12,
+        "regressed": 10,
+        "both_wrong": 17,
+        "difference_pp": 0.5555555555555556,
+        "stratified_document_bootstrap95_pp": [
+          -2.7777777777777777,
+          3.611111111111111
+        ],
+        "mcnemar_p_unadjusted": null
+      }
+    },
+    "new-minicpm-native vs legacy-qwen-hf": {
+      "whole": {
+        "rows": 120,
+        "documents": 120,
+        "left_correct": 108,
+        "right_correct": 103,
+        "fixed": 3,
+        "regressed": 8,
+        "both_wrong": 9,
+        "difference_pp": -4.166666666666667,
+        "stratified_document_bootstrap95_pp": [
+          -9.166666666666666,
+          0.8333333333333334
+        ],
+        "mcnemar_p_unadjusted": 0.2265625
+      },
+      "suffix": {
+        "rows": 120,
+        "documents": 120,
+        "left_correct": 110,
+        "right_correct": 109,
+        "fixed": 4,
+        "regressed": 5,
+        "both_wrong": 6,
+        "difference_pp": -0.8333333333333334,
+        "stratified_document_bootstrap95_pp": [
+          -5.833333333333333,
+          4.166666666666667
+        ],
+        "mcnemar_p_unadjusted": 1
+      },
+      "single": {
+        "rows": 120,
+        "documents": 120,
+        "left_correct": 113,
+        "right_correct": 115,
+        "fixed": 6,
+        "regressed": 4,
+        "both_wrong": 1,
+        "difference_pp": 1.6666666666666667,
+        "stratified_document_bootstrap95_pp": [
+          -3.3333333333333335,
+          6.666666666666667
+        ],
+        "mcnemar_p_unadjusted": 0.75390625
+      },
+      "all": {
+        "rows": 360,
+        "documents": 120,
+        "left_correct": 331,
+        "right_correct": 327,
+        "fixed": 13,
+        "regressed": 17,
+        "both_wrong": 16,
+        "difference_pp": -1.1111111111111112,
+        "stratified_document_bootstrap95_pp": [
+          -4.722222222222222,
+          2.5
+        ],
+        "mcnemar_p_unadjusted": null
+      }
+    },
+    "new-minicpm-hf vs legacy-minicpm-hf": {
+      "whole": {
+        "rows": 120,
+        "documents": 120,
+        "left_correct": 105,
+        "right_correct": 103,
+        "fixed": 3,
+        "regressed": 5,
+        "both_wrong": 12,
+        "difference_pp": -1.6666666666666667,
+        "stratified_document_bootstrap95_pp": [
+          -5.833333333333333,
+          2.5
+        ],
+        "mcnemar_p_unadjusted": 0.7265625
+      },
+      "suffix": {
+        "rows": 120,
+        "documents": 120,
+        "left_correct": 107,
+        "right_correct": 109,
+        "fixed": 6,
+        "regressed": 4,
+        "both_wrong": 7,
+        "difference_pp": 1.6666666666666667,
+        "stratified_document_bootstrap95_pp": [
+          -3.3333333333333335,
+          6.666666666666667
+        ],
+        "mcnemar_p_unadjusted": 0.75390625
+      },
+      "single": {
+        "rows": 120,
+        "documents": 120,
+        "left_correct": 114,
+        "right_correct": 115,
+        "fixed": 3,
+        "regressed": 2,
+        "both_wrong": 3,
+        "difference_pp": 0.8333333333333334,
+        "stratified_document_bootstrap95_pp": [
+          -2.5,
+          4.166666666666667
+        ],
+        "mcnemar_p_unadjusted": 1
+      },
+      "all": {
+        "rows": 360,
+        "documents": 120,
+        "left_correct": 326,
+        "right_correct": 327,
+        "fixed": 12,
+        "regressed": 11,
+        "both_wrong": 22,
+        "difference_pp": 0.2777777777777778,
+        "stratified_document_bootstrap95_pp": [
+          -3.0555555555555554,
+          3.611111111111111
+        ],
+        "mcnemar_p_unadjusted": null
+      }
+    }
+  },
+  "artifacts": {
+    "/home/disk/.cache/wime-minicpm-investigation/legacy-expanded-comparison/plan.json": "d61806f66edb7b94b55b6783001207344455cc42360be0133a7ccf04212b752f",
+    "/home/disk/.cache/wime-minicpm-investigation/legacy-expanded-comparison/run-legacy.py": "4969553eda7ccde6801541514fee45a5de3fc7107e3b18082ec79c370230eb87",
+    "/home/_WD_/.cache/wime-minicpm-investigation/legacy-expanded-comparison/summarize.py": "286adc5b7fcb37a2126b5d733178463407f8144dd7d4efe5271b315e84b1a95d",
+    "/home/disk/.cache/wime-minicpm-investigation/legacy-expanded-comparison/qwen-hf/results.jsonl": "a930f0d8421dec5f9e4606480c6fa714574e566693b30a2333d9d3b9c91eb152",
+    "/home/disk/.cache/wime-minicpm-investigation/legacy-expanded-comparison/minicpm-hf/results.jsonl": "c2fc345d9cef79b8ea7bbff72639f7e53676024e0af6988e53248a71838b2cd1",
+    "/home/disk/.cache/wime-minicpm-investigation/accuracy-expansion/qwen-hf/results.jsonl": "f76a4a656668ab3cff9ca02689074c6bb33c95532f73231264765811b4e63b2e",
+    "/home/disk/.cache/wime-minicpm-investigation/accuracy-expansion/minicpm-native/results.jsonl": "a541ddfb91f039748959d1bf7212adffc5eef99f4bf3347319dc1d0a984d51b2",
+    "/home/_WD_/.cache/wime-minicpm-investigation/legacy-expanded-comparison/deployed-qwen-equivalence.json": "0e37c5c5d070830aa39054e99d5aa16a22f3d8fc3ec894ee39474332e4065dce",
+    "/home/_WD_/.cache/wime-minicpm-investigation/legacy-expanded-comparison/summary.json": "78c4be3042e8175550ae064428dfc92694429e48559efb6f6b1c33f295532a7d"
+  },
+  "limitations": [
+    "The new decoder was selected after inspecting smaller development and diagnostic data; this is a post-deployment paired audit, not a preregistered release gate.",
+    "Three variants per source are correlated; combined intervals resample complete document clusters within category.",
+    "Exact reference matching can penalize acceptable alternative phrases.",
+    "Balanced domains do not estimate this user's natural workload mix.",
+    "Legacy and new timing runs were not interleaved; no causal latency claim from this comparison.",
+    "MiniCPM legacy is the investigation baseline with the continuation-BOS fix; it was never the production default."
+  ],
+  "status": "Complete: both legacy HF models ran all 360 frozen cases without tuning, exclusions or failed requests.",
+  "interpretation": [
+    "Against legacy with the same model, Qwen improves by 2/360 and MiniCPM by 1/360. Both document-clustered confidence intervals include zero.",
+    "Whole-input accuracy falls from 108 to 105 for Qwen and 105 to 103 for MiniCPM; gains concentrate in suffix/single-character inputs.",
+    "The deployed MiniCPM native option scores 327/360 versus the retired Qwen legacy production baseline at 331/360. This changes both model and decoder.",
+    "No demonstrated overall accuracy advantage; architecture correctness and native speed are separate claims."
+  ],
+  "deployed_qwen_equivalence": {
+    "scope": "Only difference between retired deployed Decoder and frozen baseline is add_special_tokens=False in fallback character tokenization. Qwen gives identical IDs for every dictionary character.",
+    "characters": 43329,
+    "different_ids": 0,
+    "rescorer_methods": "score/proposals changed too but legacy Decoder does not call these methods; it uses model weights, tokenizer and weight directly."
+  },
+  "minicpm_native_vs_hf": "The prior expansion found identical first candidates and correctness for all 360 inputs, so the same-model architecture comparison uses HF on both sides."
+}
