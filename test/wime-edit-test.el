@@ -455,17 +455,25 @@
         (should (equal (mapcar #'wime-edit-test--keys '(1 2 3)) '("aa" "bb" "cc")))
         (delete-overlay overlay)))))
 
-(ert-deftest wime-edit-return-confirms-and-invokes-normal-buffer-command ()
-  (wime-edit-test--buffer
-    (let ((map (make-sparse-keymap)))
-      (define-key map (kbd "RET") #'newline)
-      (use-local-map map))
-    (wime-edit-test--type "aa")
-    (should (eq (key-binding (kbd "RET")) #'wime-edit-return))
-    (wime-edit-test--command #'wime-edit-return)
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲\n"))
-    (should-not (wime-edit--unit-at 1))
-    (should-not (wime-edit--active-p))))
+(ert-deftest wime-edit-return-commits-raw-before-normal-buffer-command ()
+  (dolist (keys '("a" "aabbA" "zz"))
+    (wime-edit-test--buffer
+      (let ((map (make-sparse-keymap)))
+        (define-key map (kbd "RET") #'newline)
+        (use-local-map map))
+      (wime-edit-test--type "bb")
+      (wime-edit-test--command #'wime-edit-pause)
+      (insert " ")
+      (wime-edit-test--type keys)
+      (wime-edit-test--command (key-binding (kbd "RET")))
+      (should (equal (buffer-substring-no-properties 1 (point-max)) (concat "丙 " keys)))
+      (should (equal (wime-edit-test--keys 1) "bb"))
+      (should-not (text-property-not-all 3 (point-max) 'wime-edit-unit nil))
+      (should-not (wime-edit--active-p))
+      (wime-edit-test--command (key-binding (kbd "RET")))
+      (should (equal (buffer-substring-no-properties 1 (point-max)) (concat "丙 " keys "
+")))
+      (should-not (text-property-not-all 1 (point-max) 'wime-edit-unit nil)))))
 
 (ert-deftest wime-edit-confirmation-respects-read-only-prompt ()
   (wime-edit-test--buffer

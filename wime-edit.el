@@ -687,12 +687,22 @@ fonts use the same units as the source-text alignment."
   (wime-edit--refresh-pending-decorations))
 
 (defun wime-edit-return ()
-  "Confirm converted text, then run the buffer's normal Return command."
+  "Commit the active run as raw keys, or confirm and run normal Return."
   (interactive)
-  (wime-edit-finish)
-  (let* ((wime-edit-mode nil) (command (key-binding (kbd "RET"))))
-    (when (and (commandp command) (not (eq command #'wime-edit-return)))
-      (call-interactively command))))
+  (if (wime-edit--active-p)
+      (when (wime-edit--writable-p)
+        (let ((start (marker-position wime-edit--start))
+              (end (marker-position wime-edit--end))
+              (raw wime--input))
+          (wime-edit-pause)
+          (atomic-change-group
+            (delete-region start end)
+            (goto-char start)
+            (insert raw))))
+    (wime-edit-finish)
+    (let* ((wime-edit-mode nil) (command (key-binding (kbd "RET"))))
+      (when (and (commandp command) (not (eq command #'wime-edit-return)))
+        (call-interactively command)))))
 
 (defvar wime-edit--keymap
   (let ((map (make-sparse-keymap)))
