@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
-from corpus_cleaning import clean_document
+from corpus_cleaning import clean_document, make_simplifier
 
 
 class Simplifier:
@@ -108,6 +108,27 @@ class Cleaning(unittest.TestCase):
                 self.assertEqual(cleaned, text)
                 self.assertEqual(operations, [])
                 self.assertIsNone(reason)
+
+
+class ReviewedSimplification(unittest.TestCase):
+    def test_reviewed_opencc_preserves_qian_without_changing_dry_or_existing_phrases(self):
+        try:
+            converter, assets = make_simplifier()
+        except ImportError as exc:
+            self.skipTest(str(exc))
+        for original, expected in (("冬至為太陽之陽乾", "冬至为太阳之阳乾"),
+                                   ("冬至为太阳之阳乾", "冬至为太阳之阳乾"),
+                                   ("乾燥、乾淨、乾卦、乾坤", "干燥、干净、乾卦、乾坤")):
+            with self.subTest(original=original):
+                cleaned, _, rejection = clean_document("zhwiki", original, converter)
+                self.assertEqual(cleaned, expected)
+                self.assertIsNone(rejection)
+                self.assertEqual(clean_document("zhwiki", cleaned, converter), (expected, [], None))
+        self.assertEqual(set(assets), {"opencc-t2s-reviewed.json", "opencc-t2s-reviewed.txt",
+                                      "CJK_Compatibility_Ideographs.ocd2", "TSPhrases.ocd2",
+                                      "TSCharactersExt.ocd2", "TSCharacters.ocd2"})
+        self.assertTrue(all(path.is_file() for path in assets.values()))
+        self.assertEqual(assets["opencc-t2s-reviewed.txt"].read_text().splitlines(), ["陽乾\t阳乾", "阳乾\t阳乾"])
 
 
 if __name__ == "__main__":

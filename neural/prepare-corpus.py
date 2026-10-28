@@ -349,14 +349,15 @@ def annotated_spans(document, window, reading, lexicon, rng, density):
 def clean_corpus(args, names):
     """Materialize reviewed text before any model is loaded or labels created."""
     import importlib.metadata
-    import opencc
+    from corpus_cleaning import make_simplifier
     empty_output(args.out)
     started = time.time()
     provenance = verify_sources(args.raw, args.source_manifest, names)
     provenance["database"] = file_metadata(args.database)
     provenance["code"] = {name: file_metadata(Path(__file__).with_name(name)) for name in
                           ("prepare-corpus.py", "corpus_cleaning.py", "corpus_integrity.py", "replay.py")}
-    t2s = opencc.OpenCC("t2s")
+    t2s, conversion_assets = make_simplifier()
+    provenance["opencc_assets"] = {name: file_metadata(path) for name, path in conversion_assets.items()}
     protection = Protection(args.exclude_cases)
     unique = UniqueRows(args.out / "identities.sqlite3")
     index = sqlite3.connect(args.out / "documents.sqlite3")

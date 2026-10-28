@@ -3,7 +3,10 @@
 from html import unescape
 from html.entities import html5
 from html.parser import HTMLParser
+import json
+from pathlib import Path
 import re
+import tempfile
 import unicodedata
 
 
@@ -17,6 +20,36 @@ BREAK = re.compile(r"<br\s*/?\s*>", re.I)
 HAN_REPEAT = re.compile(r"([" + HAN_RANGE + r"])\1{31,}")
 PHRASE_REPEAT = re.compile(r"([^\s]{2,16}?)\1{7,}")
 CHINESE_PHRASE = re.compile(r"[" + HAN_RANGE + r"]+[，。！？、；：,.!?;:]*")
+
+
+def make_simplifier():
+    """Load reviewed phrases ahead of installed OpenCC data, returning assets.
+
+    Only configuration paths are resolved; upstream dictionaries stay in their
+    installed location. The returned asset paths pin every conversion input.
+    """
+    import opencc
+
+    profile = Path(__file__).with_name("opencc-t2s-reviewed.json")
+    config = json.loads(profile.read_text(encoding="utf-8"))
+    installed = Path(opencc.OpenCC("t2s").config).resolve().parent
+    assets = {profile.name: profile}
+
+    dictionaries = [config["normalization"][0]["dict"],
+                    *config["conversion_chain"][0]["dict"]["dicts"]]
+    for dictionary in dictionaries:
+        filename = dictionary["file"]
+        directory = profile.parent if dictionary["type"] == "text" else installed
+        path = (directory / filename).resolve(strict=True)
+        dictionary["file"] = str(path)
+        assets[filename] = path
+    # OpenCC reads standard JSON files. Its wheel's compiled search directory
+    # can differ from the runtime install path, hence these absolute paths.
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", encoding="utf-8") as temporary:
+        json.dump(config, temporary, ensure_ascii=False)
+        temporary.flush()
+        converter = opencc.OpenCC(temporary.name)
+    return converter, assets
 
 
 def decode_entities(text):
