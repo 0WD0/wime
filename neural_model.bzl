@@ -1,7 +1,6 @@
 """Pinned local conditional checkpoint and the CUDA worker's Python data."""
 
-# Selected on development data and checked by test/ranking-measurements.json.
-# Small suite regressions are recorded; never follow a mutable training output.
+# Evaluated conditional checkpoint; never follow a mutable training output.
 _SHA256 = "1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e"
 
 def _model_impl(ctx):
