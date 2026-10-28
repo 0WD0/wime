@@ -8,6 +8,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from dataset_registry import Registry
+from replay import Protection
 
 
 class DatasetRegistry(unittest.TestCase):
@@ -82,6 +83,19 @@ class DatasetRegistry(unittest.TestCase):
             self.registry.register(self.corpus())
         self.assertEqual(self.catalog.read_bytes(), before)
         self.assertEqual(self.registry.datasets, {})
+
+    def test_new_heldout_group_protects_existing_training_recipes(self):
+        self.registry.register(self.corpus())
+        heldout = dict(self.rows[0], document="first-turn", group="conversation")
+        (self.data / "cases.json").write_text(json.dumps([heldout]))
+        self.registry.register(dict(self.evaluation(), exclude_from_training=True))
+        _, excluded, snapshot = self.registry.training("text-v1")
+        self.assertEqual(snapshot["exclude"][0]["id"], "eval-v1")
+        guard = Protection(excluded)
+        other_turn = dict(context="全新的左文", input="abcd", gold=["另句"],
+                          document="second-turn", group="conversation")
+        self.assertTrue(guard.contains(other_turn))
+        self.assertFalse(guard.contains(dict(other_turn, group="unrelated")))
 
 
 if __name__ == "__main__":

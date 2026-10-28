@@ -1,3 +1,4 @@
 dvc==3.67.1
 duckdb==2.0.0
 pyarrow==26.0.0
+pyahocorasick==2.2.0

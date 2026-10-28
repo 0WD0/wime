@@ -86,9 +86,10 @@ def coverage_additions(path, selected, limit, min_support=3):
 
 
 class Protection:
-    """Exclude held-out documents, context/target pairs and long overlaps."""
+    """Exclude held-out source groups, documents, pairs and long overlaps."""
     def __init__(self, paths):
         self.documents, self.exact, self.fragments = set(), set(), set()
+        self.groups = set()
         self.files = {}
         for path in paths:
             self.files[str(path)] = fingerprint(path)
@@ -97,6 +98,8 @@ class Protection:
             for row in examples:
                 if row.get("document"):
                     self.documents.add(row["document"])
+                if row.get("group"):
+                    self.groups.add(row["group"])
                 context = self.normalize(row.get("context", ""))
                 for gold in row["gold"]:
                     gold = self.normalize(gold)
@@ -110,7 +113,7 @@ class Protection:
         return re.sub(r"[^\u4e00-\u9fff]", "", text)
 
     def contains(self, row):
-        if row.get("document") in self.documents:
+        if row.get("document") in self.documents or row.get("group") in self.groups:
             return True
         context = self.normalize(row.get("context", ""))
         for gold in row["gold"]:

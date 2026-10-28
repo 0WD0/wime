@@ -113,7 +113,14 @@ class Registry:
         self.verify(dataset, required)
         excluded = []
         protection = []
-        for reference in entry.get("exclude", []):
+        references = list(entry.get("exclude", []))
+        # A newly sealed test protects every registered training recipe,
+        # including older corpora whose manifests predate that test.
+        for name, heldout in self.datasets.items():
+            reference = dict(dataset=name, files=["cases"])
+            if heldout.get("exclude_from_training") and reference not in references:
+                references.append(reference)
+        for reference in references:
             self.verify(reference["dataset"], reference["files"])
             excluded.extend(self.path(reference["dataset"], key) for key in reference["files"])
             protection.append(self.snapshot(reference["dataset"], reference["files"]))

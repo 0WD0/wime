@@ -8,7 +8,7 @@ SYLLABLES = json.loads(Path(__file__).with_name("context-pinyin.json").read_text
 NUMBERED = re.compile(r"[a-z]+[1-5]")
 TONE_POLICY = dict(name="gpt-sovits-mandarin-v1", neutral=5)
 SANDHI = "contextual_tone_sandhi"
-CORRECTIONS = ("phrase_correction:", "character_correction:", "pos_correction:")
+CORRECTIONS = ("phrase_correction:", "character_correction:", "pos_correction:", "review_correction:")
 READING_SCHEMA = "wime-reading-notes-v1"
 LEGACY_FIELDS = ("tone_sources", "reading_rules", "reading_evidence")
 
