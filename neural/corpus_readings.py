@@ -15,13 +15,18 @@ import sqlite3
 
 from pypinyin import Style, lazy_pinyin
 
-HAN = re.compile(r"[㐀-鿿]+")
+# U+4DC0..U+4DFF are Yijing symbols, between Extension A and unified Han.
+HAN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
 SYLLABLES = json.loads(Path(__file__).with_name("context-pinyin.json").read_text())["syllables"]
 TRUSTED_WEIGHT = 500
 
 
 def key(pinyin):
     return SYLLABLES.get(pinyin)
+
+
+def model_key(pinyin):
+    return key(re.sub(r"\d", "", pinyin).replace("u:", "v").replace("ü", "v")) if pinyin else None
 
 
 class Lexicon:
@@ -75,6 +80,28 @@ class Reader:
     def __init__(self, lexicon, g2pw=None):
         self.lexicon, self.g2pw = lexicon, g2pw
         self.methods = Counter()
+        self.model_keys = None
+        if g2pw is not None and hasattr(g2pw, "polyphonic_chars"):
+            # Mirror G2PWConverter._prepare_data's source precedence. In
+            # particular, its trained label inventory can omit a common
+            # Mandarin reading even when its fallback dictionary knows it.
+            self.model_keys = {}
+            convert = g2pw.style_convert_func
+            for char, readings in getattr(g2pw, "char_bopomofo_dict", {}).items():
+                self.model_keys[char] = {model_key(convert(readings[0]))} if readings else set()
+            for char, reading in getattr(g2pw, "monophonic_chars", []):
+                self.model_keys[char] = {model_key(convert(reading))}
+            polyphonic = defaultdict(set)
+            for char, reading in g2pw.polyphonic_chars:
+                polyphonic[char].add(model_key(convert(reading)))
+            self.model_keys.update(polyphonic)
+
+    def supported_model_keys(self, char):
+        if self.model_keys is None:
+            return None
+        if getattr(self.g2pw, "enable_non_tradional_chinese", False):
+            char = self.g2pw.s2t_dict.get(char, char)
+        return self.model_keys.get(char, set())
 
     def keys(self, sentences):
         """Per sentence, a list aligned with characters: key pair or None for non-Han/unusable."""
@@ -84,8 +111,12 @@ class Reader:
             row = [None] * len(sentence)
             pending = []
             for match in HAN.finditer(sentence):
-                # Pure Han runs keep pypinyin aligned one reading per character.
-                py[match.start():match.end()] = lazy_pinyin(match.group(), style=Style.NORMAL)
+                # Unknown characters must remain separate, never shrink the
+                # aligned list and shift readings onto following characters.
+                readings = lazy_pinyin(match.group(), style=Style.NORMAL, errors=lambda chars: list(chars))
+                if len(readings) != len(match.group()):
+                    raise ValueError(f"pypinyin returned {len(readings)} readings for {len(match.group())} characters")
+                py[match.start():match.end()] = readings
                 for i, j, word in self.lexicon.segment(match.group()):
                     i, j = i + match.start(), j + match.start()
                     trusted = None
@@ -108,21 +139,37 @@ class Reader:
             drafts.append(row)
             if pending:
                 disputed.append((index, pending))
-        predictions = (self.g2pw([sentences[i] for i, _ in disputed]) if disputed and self.g2pw is not None
-                       else [None] * len(disputed))
+        predictions = [None] * len(disputed)
+        if disputed and self.g2pw is not None:
+            texts = [sentences[i] for i, _ in disputed]
+            if hasattr(self.g2pw, "read_positions"):
+                predictions = self.g2pw.read_positions(texts, [pending for _, pending in disputed])
+            else:
+                predictions = self.g2pw(texts)
+        if not isinstance(predictions, (list, tuple)) or len(predictions) != len(disputed):
+            raise ValueError("g2pW must return one prediction row per disputed sentence")
         for (index, pending), predicted in zip(disputed, predictions):
             sentence, row = sentences[index], drafts[index]
+            if self.g2pw is not None and (not isinstance(predicted, (list, tuple)) or len(predicted) != len(sentence)):
+                raise ValueError(f"g2pW prediction must align with all {len(sentence)} sentence characters")
             for k in pending:
                 word_key, guess = row[k]
                 legal = self.lexicon.legal.get(sentence[k], set())
                 g = predicted[k] if predicted and predicted[k] else None
-                g = key(re.sub(r"\d", "", g).replace("u:", "v").replace("ü", "v")) if g else None
+                g = model_key(g)
                 votes = Counter(v for v in (word_key, guess, g) if v in legal)
                 if not votes:
                     row[k] = (None, "unreachable")
                     continue
                 (first, count), *rest = votes.most_common()
                 if rest and rest[0][1] == count:
+                    supported = self.supported_model_keys(sentence[k])
+                    if g in votes and guess in votes and g != guess and supported is not None and guess not in supported:
+                        # The model cannot adjudicate a reading it was never
+                        # trained to emit. Drop this span instead of silently
+                        # replacing, for example, colloquial 咋 (za) with ze.
+                        row[k] = (None, "coverage_conflict")
+                        continue
                     # A tie means disagreeing sources; g2pW reads the sentence context.
                     first = g if g in votes else first
                 row[k] = (first, "vote" if count > 1 else "g2pw" if first == g else "single")
