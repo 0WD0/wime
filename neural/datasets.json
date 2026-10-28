@@ -1272,6 +1272,83 @@
         "Complete 6–48 Han sentences without internal punctuation; terminal punctuation not typed. 25+ is decoder capacity diagnosis beyond the current 24-syllable editor window.",
         "Post-evaluation label audit: 系统中将两者结合 incorrectly applies 中将 jiang4; 全文的大意 incorrectly neutralizes 意 to yi5. Both leave the untoned input keys unchanged; see trajectory-comparison-v1/error-review.json."
       ]
+    },
+    "sentence-trajectories-test-v1": {
+      "kind": "evaluation",
+      "status": "heldout",
+      "annotation": "gpt-sovits-mandarin-v1+agent-review-v1",
+      "parents": [
+        "cleaned-multisource-v4"
+      ],
+      "exclude_from_training": true,
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-test-v1"
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-test-v1.dvc",
+        "sha256": "66fb7f641ad251b8f3579180163d1819b7a548a8e4cd24e8491752d81378a844"
+      },
+      "description": "Fresh frozen sentence/commit test: 165 natural core, 40 authored technical and 14 long diagnostic sentences; 162 meaningful boundaries, 57 whole-only cases; no IME outputs consulted.",
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "cases": {
+          "path": "cases.json",
+          "format": "json-array",
+          "rows": 219
+        },
+        "documents": {
+          "path": "source-documents.jsonl",
+          "format": "jsonl",
+          "rows": 219
+        },
+        "reading_review": {
+          "path": "reading-review.json"
+        },
+        "boundary_review": {
+          "path": "boundary-review.json",
+          "format": "json-array",
+          "rows": 227
+        },
+        "candidates": {
+          "path": "candidates.json",
+          "format": "json-array",
+          "rows": 425
+        },
+        "selection_ledger": {
+          "path": "selection-ledger.json",
+          "format": "json-array",
+          "rows": 425
+        },
+        "training_overlap": {
+          "path": "overlap-training.json"
+        },
+        "previous_evaluation_overlap": {
+          "path": "overlap-prior-evaluations.json"
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "human_verified_gold": false,
+        "content_review": "Every retained sentence and any commit boundary reviewed by agent before IME inference.",
+        "reading_review": "Every retained reading reviewed; 23 sparse corrections, including 3 changes to untoned syllables.",
+        "reading_accuracy": "not statistically estimated",
+        "tone_scope": "One canonical contextual realization; no recorded audio or exhaustive acceptable variants.",
+        "local_training_overlap": "No retained source/document or 12-character target overlap in any of 13 registered training releases; shorter targets checked in full."
+      },
+      "known_issues": [
+        "Agent-reviewed references remain pending user review.",
+        "Natural core, authored technical scenarios and long capacity diagnostics must be reported separately.",
+        "Sample composition and commit boundaries are not measured user-traffic frequencies.",
+        "Only two unused encyclopedia groups available in the source pool.",
+        "Pure-Han targets only; mixed-script left context is preserved. Internal target punctuation, auxiliary keys and partial syllables are outside this suite.",
+        "Upstream pretrained model overlap is unknown.",
+        "Keep frozen for final evaluation; do not use for checkpoint selection or error-directed training."
+      ]
     }
   }
 }
