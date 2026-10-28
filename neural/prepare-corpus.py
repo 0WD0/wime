@@ -19,6 +19,7 @@ import random
 import re
 import sys
 import time
+from typing import NamedTuple
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -31,6 +32,26 @@ LENGTHS = ((0.50, 1, 1), (0.25, 2, 3), (0.15, 4, 8), (0.10, 9, 24))
 SENTENCE = re.compile(r"[^。！？!?\n]*[。！？!?\n]?")
 URL = re.compile(r"https?://\S+|www\.\S+")
 PARQUET_BATCH_SIZE = 256
+ANNOTATION_CORE = 128
+ANNOTATION_HALO = 64
+
+
+class AnnotationWindow(NamedTuple):
+    text: str
+    offset: int
+    core_start: int
+    core_end: int
+
+
+def annotation_windows(document):
+    """Give each character one core while retaining neighbouring context."""
+    for match in SENTENCE.finditer(document):
+        sentence = match.group()
+        for core in range(0, len(sentence), ANNOTATION_CORE):
+            core_end = min(len(sentence), core + ANNOTATION_CORE)
+            left = max(0, core - ANNOTATION_HALO)
+            right = min(len(sentence), core_end + ANNOTATION_HALO)
+            yield AnnotationWindow(sentence[left:right], match.start() + left, core - left, core_end - left)
 
 
 def digest(text):
@@ -198,6 +219,22 @@ def spans(text, keys, lexicon, rng, density):
             i = max(i + 1, j + rng.randint(0, 3))
 
 
+def annotated_spans(document, window, reading, lexicon, rng, density):
+    """Sample only the core, slicing every annotation from the same window."""
+    core_start, core_end = window.core_start, window.core_end
+    keys = reading["keys"]
+    for start, end in spans(window.text[core_start:core_end], keys[core_start:core_end], lexicon, rng, density):
+        start, end = start + core_start, end + core_start
+        offset = window.offset + start
+        yield dict(offset=offset, reading_window=[window.offset, window.offset + len(window.text)],
+                   context=document[max(0, offset - 64):offset], gold=[window.text[start:end]],
+                   input="".join(keys[start:end]), pinyin=reading["pinyin"][start:end],
+                   tones=reading["tones"][start:end], tone_sources=reading["tone_sources"][start:end],
+                   reading_rules=reading["reading_rules"][start:end],
+                   reading_evidence={source: values[start:end]
+                                     for source, values in reading["reading_evidence"].items()})
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw", type=Path, required=True)
@@ -258,28 +295,20 @@ def main():
             batch = []
 
             def flush():
-                sentences = [s for _, _, _, _, _, s, _ in batch]
-                for (group, doc_id, content_id, category, document, sentence, offset), reading in zip(batch, reader.readings(sentences)):
-                    keys = reading["keys"]
-                    for start, end in spans(sentence, keys, lexicon, rng, args.density):
-                        context = document[max(0, offset + start - 64):offset + start]
-                        gold = sentence[start:end]
-                        row = dict(id=digest(f"{doc_id}:{offset + start}:{gold}")[:24], document=doc_id,
+                sentences = [window.text for _, _, _, _, _, window in batch]
+                for (group, doc_id, content_id, category, document, window), reading in zip(batch, reader.readings(sentences)):
+                    for sample in annotated_spans(document, window, reading, lexicon, rng, args.density):
+                        gold = sample["gold"][0]
+                        row = dict(id=digest(f"{doc_id}:{sample['offset']}:{gold}")[:24], document=doc_id,
                                    group=digest(group), content=content_id, source=name, category=category, split=split_of(group),
-                                   context=context, input="".join(keys[start:end]), gold=[gold],
-                                   reading="gpt-sovits-mandarin-v1",
-                                   pinyin=reading["pinyin"][start:end], tones=reading["tones"][start:end],
-                                   tone_sources=reading["tone_sources"][start:end],
-                                   reading_rules=reading["reading_rules"][start:end],
-                                   reading_evidence={source: values[start:end]
-                                                     for source, values in reading["reading_evidence"].items()})
+                                   reading="gpt-sovits-mandarin-v1", **sample)
                         row, rejection = checked_row(row, protection, unique, rng, args.blank_share)
                         if rejection:
                             stats[f"{name}/{rejection}"] += 1
                             continue
                         outputs[row["split"]].write(json.dumps(row, ensure_ascii=False) + "\n")
                         stats[f"{name}/{row['split']}"] += 1
-                        stats[f"length/{min(end - start, 13) if end - start < 13 else '13+'}"] += 1
+                        stats[f"length/{len(gold) if len(gold) < 13 else '13+'}"] += 1
                         stats["blank_context"] += not bool(row["context"])
                         stats["tone/known"] += sum(t is not None for t in row["tones"])
                         stats["tone/unknown"] += sum(t is None for t in row["tones"])
@@ -304,14 +333,11 @@ def main():
                     continue
                 stats[name + "/documents"] += 1
                 stats[name + "/han_chars"] += han
-                offset = 0
-                for sentence in SENTENCE.findall(text):
-                    for piece in (sentence[i:i + 128] for i in range(0, len(sentence), 128)):
-                        if HAN.search(piece):
-                            batch.append((group, doc_id, content_id, category, text, piece, offset))
-                        offset += len(piece)
-                        if len(batch) >= 512:
-                            flush()
+                for window in annotation_windows(text):
+                    if HAN.search(window.text[window.core_start:window.core_end]):
+                        batch.append((group, doc_id, content_id, category, text, window))
+                    if len(batch) >= 512:
+                        flush()
                 if args.max_chars and stats[name + "/han_chars"] >= args.max_chars:
                     break
                 if time.time() - last_report >= 30:
@@ -330,6 +356,9 @@ def main():
         (args.out / f"{split}.jsonl.partial").rename(args.out / f"{split}.jsonl")
     manifest = dict(format="wime-corpus-v2", stats=dict(stats), readings=dict(reader.methods),
                     sampling=dict(lengths=LENGTHS, max_context=64, max_span=24),
+                    annotation_window=dict(core=ANNOTATION_CORE, left_halo=ANNOTATION_HALO, right_halo=ANNOTATION_HALO,
+                                           max_characters=ANNOTATION_CORE + 2 * ANNOTATION_HALO,
+                                           boundary="sentence", offsets="zero-based characters in cleaned document; end exclusive"),
                     tone_policy=dict(name="gpt-sovits-mandarin-v1", neutral=5, unknown=None,
                                      semantics="Single Mandarin frontend: contextual pronunciation, reviewed phrase "
                                                "corrections and deterministic tone sandhi before span sampling. "
@@ -338,7 +367,7 @@ def main():
                                for k, v in vars(args).items()},
                     protection=protection.files, provenance=provenance, providers=providers,
                     packages={name: importlib.metadata.version(name) for name in
-                              ("onnxruntime-gpu", "pypinyin", "opencc", "pyarrow", "mwparserfromhell", "transformers", "jieba-fast")},
+                              ("onnxruntime-gpu", "pypinyin", "opencc", "pyarrow", "mwparserfromhell", "transformers", "jieba-fast", "requests", "setuptools")},
                     outputs={s: file_metadata(args.out / f"{s}.jsonl") for s in splits},
                     elapsed_s=time.time() - started)
     (args.out / "manifest.json.partial").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")

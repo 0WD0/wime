@@ -25,6 +25,26 @@ def sample_key(row):
                               Protection.normalize(row["gold"][0])], ensure_ascii=False))
 
 
+def validate_annotation_window(row, policy):
+    """Check cleaned-document character offsets for a declared reading window."""
+    maximum = policy.get("max_characters") if isinstance(policy, dict) else None
+    if type(maximum) is not int or maximum < 1:
+        raise ValueError("annotation_window.max_characters must be a positive integer")
+    offset, window = row.get("offset"), row.get("reading_window")
+    if type(offset) is not int or offset < 0:
+        raise ValueError("offset must be a nonnegative character index")
+    if (not isinstance(window, list) or len(window) != 2
+            or any(type(value) is not int for value in window)):
+        raise ValueError("reading_window must contain two integer character offsets")
+    start, end = window
+    if not 0 <= start < end:
+        raise ValueError("reading_window must be a nonempty nonnegative interval")
+    if not start <= offset or offset + len(row["gold"][0]) > end:
+        raise ValueError("sample interval must be contained in reading_window")
+    if end - start > maximum:
+        raise ValueError("reading_window exceeds annotation_window.max_characters")
+
+
 class UniqueRows:
     """Bound memory even for tens of millions of corpus rows."""
     def __init__(self, path):

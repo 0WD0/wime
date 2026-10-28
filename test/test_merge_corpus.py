@@ -30,7 +30,7 @@ class MergeCorpus(unittest.TestCase):
                     source=source, split=split, context=context, input=SYLLABLES["ni"] + SYLLABLES["hao"], gold=["你好"],
                     category="web", reading="corpus-readings-v1")
 
-    def part(self, name, rows, tone_policy=None, **argument_overrides):
+    def part(self, name, rows, tone_policy=None, annotation_window=None, **argument_overrides):
         directory = self.root / name
         directory.mkdir()
         outputs = {}
@@ -51,6 +51,8 @@ class MergeCorpus(unittest.TestCase):
         manifest["arguments"].update(argument_overrides)
         if tone_policy is not None:
             manifest["tone_policy"] = tone_policy
+        if annotation_window is not None:
+            manifest["annotation_window"] = annotation_window
         (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         return directory
 
@@ -163,6 +165,30 @@ class MergeCorpus(unittest.TestCase):
                    reading_evidence=dict(frontend_before_sandhi=["ni3", "hao3"], final=["ni2", "hao3"]))
         part = self.part("first", [row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
         with self.assertRaisesRegex(ValueError, "does not match the final frontend reading"):
+            self.merge([part])
+        self.assertFalse((self.root / "merged/manifest.json").exists())
+
+    def test_annotation_window_is_preserved_in_merged_output(self):
+        policy = dict(core=4, left_halo=2, right_halo=2, max_characters=8)
+        row = dict(self.row("a", "a", "a", "上下文"), offset=10, reading_window=[8, 14])
+        first = self.part("first", [row], annotation_window=policy)
+        second = self.part("second", [], annotation_window=policy)
+        result = self.merge([first, second])
+        self.assertEqual(result["annotation_window"], policy)
+        retained = json.loads((self.root / "merged/train.jsonl").read_text())
+        self.assertEqual((retained["offset"], retained["reading_window"]), (10, [8, 14]))
+
+    def test_different_annotation_windows_cannot_be_merged(self):
+        first = self.part("first", [], annotation_window={"max_characters": 8})
+        second = self.part("second", [], annotation_window={"max_characters": 16})
+        with self.assertRaisesRegex(ValueError, "incompatible.*annotation_window"):
+            self.merge([first, second])
+        self.assertFalse((self.root / "merged").exists())
+
+    def test_sample_outside_reading_window_is_rejected(self):
+        row = dict(self.row("a", "a", "a", "上下文"), offset=6, reading_window=[0, 7])
+        part = self.part("first", [row], annotation_window={"max_characters": 8})
+        with self.assertRaisesRegex(ValueError, "sample interval must be contained"):
             self.merge([part])
         self.assertFalse((self.root / "merged/manifest.json").exists())
 

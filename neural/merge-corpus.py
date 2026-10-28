@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import time
 
-from corpus_integrity import UniqueRows, empty_output, file_metadata, sample_key
+from corpus_integrity import UniqueRows, empty_output, file_metadata, sample_key, validate_annotation_window
 from corpus_tones import tone_counts, validate_tones
 
 SPLITS = ("train", "dev", "test")
@@ -30,6 +30,7 @@ def compatibility(manifest):
                    if key not in ("sources", "out", "max_chars")},
         providers=manifest["providers"], packages=manifest["packages"],
         tone_policy=manifest.get("tone_policy"),
+        annotation_window=manifest.get("annotation_window"),
     )
 
 
@@ -42,6 +43,11 @@ def load_parts(parts):
             raise ValueError(f"not a completed corpus-v2 build: {directory}")
         if "tone_policy" in manifest and not isinstance(manifest["tone_policy"], dict):
             raise ValueError(f"tone_policy must be an object: {directory}")
+        if "annotation_window" in manifest:
+            policy = manifest["annotation_window"]
+            if (not isinstance(policy, dict) or type(policy.get("max_characters")) is not int
+                    or policy["max_characters"] < 1):
+                raise ValueError(f"annotation_window must declare positive max_characters: {directory}")
         actual = compatibility(manifest)
         if expected is not None and actual != expected:
             differences = [key for key in expected if actual[key] != expected[key]]
@@ -97,6 +103,8 @@ def merge(out, parts):
                             row = json.loads(line)
                             if "tone_policy" in baseline:
                                 validate_tones(row)
+                            if "annotation_window" in baseline:
+                                validate_annotation_window(row, baseline["annotation_window"])
                             if row["split"] != split:
                                 raise ValueError(f"row in wrong split file: {row['id']}")
                             if not unique.add("id", row["id"]):
@@ -148,6 +156,8 @@ def merge(out, parts):
                   elapsed_s=time.time() - started)
     if "tone_policy" in baseline:
         result["tone_policy"] = baseline["tone_policy"]
+    if "annotation_window" in baseline:
+        result["annotation_window"] = baseline["annotation_window"]
     temporary = out / "manifest.json.partial"
     temporary.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.rename(out / "manifest.json")

@@ -17,7 +17,7 @@ import sqlite3
 import sys
 import tempfile
 
-from corpus_integrity import file_metadata, sample_key
+from corpus_integrity import file_metadata, sample_key, validate_annotation_window
 from corpus_tones import tone_counts, validate_tones
 from replay import Protection
 
@@ -197,6 +197,11 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
                             else:
                                 tones[source].update(tone_counts(row))
                                 tone_sources[source].update(row["tone_sources"])
+                        if "annotation_window" in manifest:
+                            try:
+                                validate_annotation_window(row, manifest["annotation_window"])
+                            except ValueError as exc:
+                                error("annotation_window", dict(location=where, message=str(exc)))
                         if protection.contains(row):
                             error("protected_overlap", where)
                         sampled[source] += 1
@@ -243,6 +248,8 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
         report["tone_policy"] = manifest["tone_policy"]
         report["tones"] = {source: dict(counts, sources=dict(sorted(tone_sources[source].items())))
                            for source, counts in sorted(tones.items())}
+    if "annotation_window" in manifest:
+        report["annotation_window"] = manifest["annotation_window"]
     if manifest_path.is_file():
         report["manifest"] = file_metadata(manifest_path)
     review = dict(seed=seed, sample_per_source=sample_per_source,

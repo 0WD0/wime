@@ -43,7 +43,7 @@ class AuditCorpus(unittest.TestCase):
         row.update(updates)
         return row
 
-    def write(self, rows, tone_policy=None):
+    def write(self, rows, tone_policy=None, annotation_window=None):
         counts = Counter(f"{r['source']}/{r['split']}" for r in rows)
         counts["blank_context"] = sum(not r["context"] for r in rows)
         for split in corpus_audit.SPLITS:
@@ -55,6 +55,8 @@ class AuditCorpus(unittest.TestCase):
                         outputs={s: corpus_audit.file_metadata(self.corpus / f"{s}.jsonl") for s in corpus_audit.SPLITS})
         if tone_policy is not None:
             manifest["tone_policy"] = tone_policy
+        if annotation_window is not None:
+            manifest["annotation_window"] = annotation_window
         (self.corpus / "manifest.json").write_text(json.dumps(manifest))
 
     def toned_row(self):
@@ -121,6 +123,21 @@ class AuditCorpus(unittest.TestCase):
         self.write([row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
         invalid, _ = corpus_audit.audit(self.corpus, self.database)
         self.assertEqual(invalid["errors"].get("tone_schema"), 1)
+
+    def test_annotation_window_policy_and_offsets_are_audited(self):
+        policy = dict(core=4, left_halo=2, right_halo=2, max_characters=8)
+        self.write([self.row(offset=10, reading_window=[8, 14])], annotation_window=policy)
+        valid, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertTrue(valid["ok"], valid["errors"])
+        self.assertEqual(valid["annotation_window"], policy)
+        for changes in (dict(offset=0, reading_window=[0, 9]),
+                        dict(offset=6, reading_window=[0, 7]),
+                        dict(offset=True, reading_window=[0, 8]),
+                        dict(offset=1, reading_window=[0, "8"])):
+            with self.subTest(changes=changes):
+                self.write([self.row(**changes)], annotation_window=policy)
+                invalid, _ = corpus_audit.audit(self.corpus, self.database)
+                self.assertEqual(invalid["errors"].get("annotation_window"), 1)
 
     def test_valid_corpus_counts_and_bounded_reproducible_samples(self):
         # ASCII digits alone are stripped by the dedup normalizer; use distinct

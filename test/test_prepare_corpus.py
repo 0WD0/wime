@@ -149,5 +149,80 @@ class WordSpans(unittest.TestCase):
         self.assertEqual(spans, [(0, 21), (21, 42), (42, 63), (63, 70)])
 
 
+class AnnotationWindows(unittest.TestCase):
+    class EveryCharacter:
+        def random(self):
+            return 0
+
+        def randint(self, low, high):
+            return low
+
+    def test_short_sentences_keep_original_input_and_document_offsets(self):
+        self.assertEqual(list(corpus.annotation_windows("你好。下一句！")), [
+            corpus.AnnotationWindow("你好。", 0, 0, 3),
+            corpus.AnnotationWindow("下一句！", 3, 0, 4)])
+
+    def test_halos_are_bounded_and_every_document_character_has_one_core(self):
+        document = "前句。\n" + "啊" * 127 + "你好" + "啊" * 140 + "。\n尾句！"
+        owners = []
+        for window in corpus.annotation_windows(document):
+            self.assertLessEqual(len(window.text), 256)
+            self.assertLessEqual(window.core_end - window.core_start, 128)
+            self.assertLessEqual(window.core_start, 64)
+            self.assertLessEqual(len(window.text) - window.core_end, 64)
+            self.assertEqual(window.text, document[window.offset:window.offset + len(window.text)])
+            owners.extend(range(window.offset + window.core_start, window.offset + window.core_end))
+        self.assertEqual(owners, list(range(len(document))))
+
+    def annotated_rows(self, document):
+        from corpus_readings import Reader, key
+        from mandarin_frontend import MandarinFrontend
+        readings = {"啊": "a1", "你": "ni3", "好": "hao3", "一": "yi1", "个": "ge4",
+                    "不": "bu4", "是": "shi4", "㐂": None}
+
+        class CharacterLexicon:
+            legal = {char: {key(reading[:-1])} for char, reading in readings.items() if reading}
+
+            def segment(self, text):
+                return [(i, i + 1, None) for i in range(len(text))]
+
+        lexicon = CharacterLexicon()
+        frontend = MandarinFrontend(
+            converter=lambda sentences: [[readings.get(char, char) for char in sentence] for sentence in sentences],
+            corrections={})
+        windows = list(corpus.annotation_windows(document))
+        annotation = Reader(lexicon, frontend).readings([window.text for window in windows])
+        return [row for window, reading in zip(windows, annotation)
+                for row in corpus.annotated_spans(document, window, reading, lexicon, self.EveryCharacter(), 1)]
+
+    def test_contextual_tones_survive_core_boundary_and_single_character_sampling(self):
+        from corpus_tones import validate_tones
+        for phrase, final, before in (("你好", "ni2", "ni3"), ("一个", "yi2", "yi1"), ("不是", "bu2", "bu4")):
+            with self.subTest(phrase=phrase):
+                document = "啊" * 127 + phrase + "啊" * 140
+                rows = self.annotated_rows(document)
+                self.assertEqual([row["offset"] for row in rows], list(range(len(document))))
+                first, second = rows[127], rows[128]
+                self.assertEqual(first["gold"], [phrase[0]])
+                self.assertEqual(first["reading_evidence"]["frontend_before_sandhi"], [before])
+                self.assertEqual(first["reading_evidence"]["final"], [final])
+                self.assertEqual(first["tones"], [int(final[-1])])
+                self.assertEqual(first["pinyin"], [final[:-1]])
+                self.assertIn("contextual_tone_sandhi", first["reading_rules"][0])
+                self.assertEqual(first["reading_window"], [0, 192])
+                self.assertEqual(second["reading_window"], [64, 269])
+                self.assertEqual(second["context"], document[64:128])
+                for row in rows:
+                    validate_tones(row)
+                    self.assertEqual(row["gold"][0], document[row["offset"]:row["offset"] + 1])
+                    self.assertLessEqual(row["reading_window"][0], row["offset"])
+                    self.assertLess(row["offset"], row["reading_window"][1])
+
+    def test_unknown_characters_never_become_emitted_spans(self):
+        rows = self.annotated_rows("你㐂好")
+        self.assertEqual([row["offset"] for row in rows], [0, 2])
+        self.assertTrue(all(all(tone is not None for tone in row["tones"]) for row in rows))
+
+
 if __name__ == "__main__":
     unittest.main()

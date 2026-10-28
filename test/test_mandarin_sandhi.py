@@ -44,6 +44,12 @@ class MandarinSandhi(unittest.TestCase):
             ("妈妈", ["ma1", "ma1"], ["ma1", "ma5"]),
             ("试试", ["shi4", "shi4"], ["shi4", "shi5"]),
             ("看看书", ["kan4", "kan4", "shu1"], ["kan4", "kan5", "shu1"]),
+            ("不可解", ["bu4", "ke3", "jie3"], ["bu4", "ke2", "jie3"]),
+            ("不可以", ["bu4", "ke3", "yi3"], ["bu4", "ke2", "yi3"]),
+            ("不可能", ["bu4", "ke3", "neng2"], ["bu4", "ke3", "neng2"]),
+            ("不可见", ["bu4", "ke3", "jian4"], ["bu4", "ke3", "jian4"]),
+            ("不理解", ["bu4", "li3", "jie3"], ["bu4", "li2", "jie3"]),
+            ("自己与身边", ["zi4", "ji3", "yu3", "shen1", "bian1"], ["zi4", "ji2", "yu3", "shen1", "bian1"]),
             ("这件事做得很好", ["zhe4", "jian4", "shi4", "zuo4", "de2", "hen3", "hao3"],
              ["zhe4", "jian4", "shi4", "zuo4", "de5", "hen2", "hao3"]),
         ]
