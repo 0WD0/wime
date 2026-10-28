@@ -49,6 +49,17 @@ class Conditioning(unittest.TestCase):
         pre = anchored_prompt("已确认的中文前缀" * 12, "aa" * 60, 128, 8)
         self.assertLessEqual(1 + len(pre) + 60, 128)
 
+    def test_ordinary_training_matches_committed_inference_without_scoring_prefix(self):
+        row = dict(context="允许", input="bmyix;ui", gold=["便宜行事"])
+        suffix = composition_span(row, 2, 4)
+        expected = anchored_prompt(suffix["context"], suffix["input"], 128, 2,
+                                   dict(text="便宜", input="bmyi"))
+        index = {c:i+3 for i,c in enumerate(sorted(set(expected + "行事" + EOS)))}
+        x, y = encode_example(suffix, index, 128, context_anchor=2)
+        self.assertEqual(x[:1+len(expected)], [2] + [index[c] for c in expected])
+        self.assertEqual([value for value in y if value], [index[c] for c in "行事"+EOS])
+        self.assertNotIn("行事", expected)
+
     def test_single_spans_keep_polyphonic_reading_and_short_rows_are_valid(self):
         row = dict(context="允许", input="bmyix;ui", gold=["便宜行事"],
                    pinyin="bian yi xing shi")

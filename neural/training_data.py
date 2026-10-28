@@ -13,11 +13,13 @@ from conditional import augment_composition, encode_example
 from replay import fingerprint, rows, split_path
 
 
-def training_characters(directories):
+def training_characters(directories, protection=None):
     """Extend target coverage from training text only, never dev/test labels."""
     characters = set()
     for directory in directories:
         for row in rows(split_path(directory, "train")):
+            if protection is not None and protection.contains(row):
+                continue
             characters.update(row["gold"][0])
     return sorted(characters)
 
@@ -41,11 +43,12 @@ class PackedExamples:
 
 
 def pack_examples(path, cache, vocab, window, protection, *, seed=0, span_share=0,
-                  single_share=0, whitespace_share=0, limit=0):
+                  single_share=0, whitespace_share=0, limit=0, context_anchor=0):
     split = path.stem
     recipe = dict(source_sha256=fingerprint(path), vocab=vocab, window=window,
                   protection=protection.files, seed=seed, span_share=span_share,
                   single_share=single_share, whitespace_share=whitespace_share, limit=limit,
+                  context_anchor=context_anchor,
                   split=split, code={name: fingerprint(Path(__file__).with_name(name))
                                     for name in ("training_data.py", "conditional.py", "replay.py")})
     key = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()
@@ -71,7 +74,7 @@ def pack_examples(path, cache, vocab, window, protection, *, seed=0, span_share=
                     excluded["protected_pair"] += 1
                     continue
             try:
-                x, y = encode_example(row, index, window)
+                x, y = encode_example(row, index, window, context_anchor)
             except ValueError:
                 excluded["window"] += 1
                 continue

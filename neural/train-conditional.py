@@ -54,6 +54,8 @@ def main():
                    help="fraction of training rows replaced by 2-5 character composition spans")
     p.add_argument("--single-share", type=float, default=0.0)
     p.add_argument("--whitespace-share", type=float, default=0.0)
+    p.add_argument("--context-anchor", type=int, default=0,
+                   help="encode ordinary training with the deployed committed-prefix representation")
     p.add_argument("--learning-rate", type=float, default=2e-4)
     p.add_argument("--reference-model", help="fixed older checkpoint for primary-domain retention")
     p.add_argument("--reference-weight", type=float, default=0.0,
@@ -87,7 +89,7 @@ def main():
     if (args.steps < 1 or args.batch < 1 or not 0 <= args.extra_share <= 1
             or not 0 <= args.span_share <= 1 or not 0 <= args.single_share <= 1
             or args.span_share + args.single_share > 1
-            or not 0 <= args.whitespace_share <= 1 or args.learning_rate <= 0
+            or not 0 <= args.whitespace_share <= 1 or args.learning_rate <= 0 or args.context_anchor < 0
             or args.reference_weight < 0 or (args.reference_weight and not args.reference_model)
             or args.ranking_weight < 0 or args.ranking_batch < 1 or args.save_every < 0
             or not math.isfinite(args.ranking_prior_weight) or args.ranking_prior_weight < 0
@@ -98,7 +100,8 @@ def main():
     np.random.seed(args.seed)
     torch.set_num_threads(8)
     torch.backends.cuda.matmul.allow_tf32 = True
-    additions = training_characters([d for d in (args.data, args.extra_data) if d]) if args.extend_vocabulary else []
+    protection = Protection(args.exclude_cases)
+    additions = training_characters([d for d in (args.data, args.extra_data) if d], protection) if args.extend_vocabulary else []
     model, vocab, metadata = load_model(args.base, extend=True, extra_tokens=additions)
     model.cfg.dropout = 0.0
     for module in model.modules():
@@ -114,12 +117,11 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     exclusions = Counter()
     compositions = Counter()
-    protection = Protection(args.exclude_cases)
     def pack(split, directory=args.data):
         data = pack_examples(split_path(directory, split), args.encoded_cache, vocab, window,
                              protection, seed=args.seed, span_share=args.span_share,
                              single_share=args.single_share, whitespace_share=args.whitespace_share,
-                             limit=args.limit)
+                             limit=args.limit, context_anchor=args.context_anchor)
         exclusions.update({f"{directory}/{split}/{key}": value
                            for key, value in data.info["exclusions"].items()})
         if split == "train":

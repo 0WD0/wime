@@ -57,6 +57,10 @@ class TrainingData(unittest.TestCase):
             self.assertEqual(again.data.filename, data.data.filename)
             heldout = root / "heldout.json"
             heldout.write_text(json.dumps([rows[0]]))
+            self.assertEqual(training_characters([root], Protection([heldout])), ["乙", "甲"])
+            only_heldout = root / "all-heldout.json"
+            only_heldout.write_text(json.dumps(rows))
+            self.assertEqual(training_characters([root], Protection([only_heldout])), [])
             protected = pack_examples(source, root / "cache", vocab, 32, Protection([heldout]))
             self.assertEqual(len(protected), 1)
             self.assertEqual(protected.info["exclusions"], {"protected_source": 1})

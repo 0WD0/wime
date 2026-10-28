@@ -1,12 +1,8 @@
 """Shared FP32 conditional inference for evaluation and the optional GPU worker."""
 import torch
-from functools import lru_cache
-import json
 import math
-from pathlib import Path
-import re
 
-from conditional import FORMAT, load_model, prompt
+from conditional import FORMAT, load_model, prompt, anchored_prompt, context_reading, reading_map
 
 
 def effective_prior_weight(scores, syllables, weight, confidence=1.0):
@@ -22,49 +18,6 @@ def effective_prior_weight(scores, syllables, weight, confidence=1.0):
     return weight
 
 
-@lru_cache(maxsize=4096)
-def context_reading(text):
-    """Infer only the visible committed suffix; never read candidate answers."""
-    from pypinyin import lazy_pinyin
-    mapping = reading_map()
-    codes = [mapping.get(py) for py in lazy_pinyin(text)]
-    return "".join(codes) if all(codes) else None
-
-
-@lru_cache(maxsize=1)
-def reading_map():
-    return json.loads(Path(__file__).with_name("context-pinyin.json").read_text())["syllables"]
-
-
-def anchored_prompt(context, code, window, limit=0, known_reading=None):
-    """Keep committed characters inside the decoder; return only a prompt.
-
-    Actual committed keystrokes take precedence over inferred pronunciation.
-    The current composition's keys are always appended verbatim. The caller
-    scores only NEW characters, and never proposes edits to this fixed prefix.
-    """
-    if not limit:
-        return prompt(context, code, window)
-    match = re.search(r"[\u4e00-\u9fff]{1,16}$", context)
-    if not match:
-        return prompt(context, code, window)
-    text = match[0]
-    size = min(limit, len(text), max(0, (window - 4) // 2 - len(code) // 2))
-    if not size:
-        return prompt(context, code, window)
-    anchor = text[-size:]
-    known_size = (min(size, len(known_reading["text"]))
-                  if known_reading and context.endswith(known_reading["text"]) else 0)
-    if known_size == size:
-        reading = known_reading["input"][-2 * size:]
-    else:
-        reading = context_reading(text)
-        if reading is None:
-            return prompt(context, code, window)
-        reading = reading[-2 * size:]
-        if known_size:
-            reading = reading[:-2 * known_size] + known_reading["input"][-2 * known_size:]
-    return prompt(context[:-size], reading + code, window) + anchor
 
 
 class ConditionalEvaluator:

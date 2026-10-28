@@ -6,6 +6,8 @@ preserves keyboard ambiguities; no gold pronunciation is used at inference.
 Auxiliary codes remain hard constraints in wime's dictionary search.
 """
 import dataclasses
+from functools import lru_cache
+import re
 import json
 import sys
 from pathlib import Path
@@ -43,6 +45,52 @@ def prompt(context, code, window=128):
     # PUA delimiters in arbitrary committed text must not become instructions.
     context = "".join(c for c in context if not 0xE000 <= ord(c) <= 0xF8FF)
     return (context[-room:] if room else "") + INPUT + syllables + OUTPUT
+
+
+@lru_cache(maxsize=4096)
+def context_reading(text):
+    """Infer only the visible committed suffix; never read candidate answers."""
+    from pypinyin import lazy_pinyin
+    mapping = reading_map()
+    codes = [mapping.get(py) for py in lazy_pinyin(text)]
+    return "".join(codes) if all(codes) else None
+
+
+@lru_cache(maxsize=1)
+def reading_map():
+    return json.loads(Path(__file__).with_name("context-pinyin.json").read_text())["syllables"]
+
+
+def anchored_prompt(context, code, window, limit=0, known_reading=None):
+    """Keep committed characters inside the decoder; return only a prompt.
+
+    Actual committed keystrokes take precedence over inferred pronunciation.
+    The current composition's keys are always appended verbatim. The caller
+    scores only NEW characters, and never proposes edits to this fixed prefix.
+    """
+    if not limit:
+        return prompt(context, code, window)
+    match = re.search(r"[\u4e00-\u9fff]{1,16}$", context)
+    if not match:
+        return prompt(context, code, window)
+    text = match[0]
+    size = min(limit, len(text), max(0, (window - 4) // 2 - len(code) // 2))
+    if not size:
+        return prompt(context, code, window)
+    anchor = text[-size:]
+    known_size = (min(size, len(known_reading["text"]))
+                  if known_reading and context.endswith(known_reading["text"]) else 0)
+    if known_size == size:
+        reading = known_reading["input"][-2 * size:]
+    else:
+        reading = context_reading(text)
+        if reading is None:
+            return prompt(context, code, window)
+        reading = reading[-2 * size:]
+        if known_size:
+            reading = reading[:-2 * known_size] + known_reading["input"][-2 * known_size:]
+    return prompt(context[:-size], reading + code, window) + anchor
+
 
 
 def load_model(path, extend=False, extra_tokens=()):
@@ -101,8 +149,9 @@ def grow_depth(model, layers):
     return grown
 
 
-def encode_example(row, index, window):
-    prefix = [2] + [index.get(c, 1) for c in prompt(row["context"], row["input"], window)]
+def encode_example(row, index, window, context_anchor=0):
+    text = anchored_prompt(row["context"], row["input"], window, context_anchor, row.get("known_reading"))
+    prefix = [2] + [index.get(c, 1) for c in text]
     target = [index.get(c, 1) for c in row["gold"][0] + EOS]
     tokens = prefix + target
     return tokens[:-1], [0] * (len(prefix) - 1) + target
@@ -119,6 +168,11 @@ def composition_span(row, start, end):
         raise ValueError("composition span must align with complete input syllables")
     result = dict(row, context=(row["context"] + target[:start])[-64:],
                   input=row["input"][2 * start:2 * end], gold=[target[start:end]])
+    if start:
+        result["known_reading"] = dict(text=target[:start][-16:], input=row["input"][:2*start][-32:])
+    # Derived states must not carry source-relative proposal locations.
+    result.pop("boundaries", None)
+    result.pop("legacy_span", None)
     if "pinyin" in row:
         reading = row["pinyin"]
         result["pinyin"] = (" ".join(reading.split()[start:end])
