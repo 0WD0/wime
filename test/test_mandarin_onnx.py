@@ -1,4 +1,6 @@
 """Character alignment and output cardinality in the imported Mandarin frontend."""
+from collections import Counter
+import gc
 import importlib
 import importlib.machinery
 from pathlib import Path
@@ -6,6 +8,7 @@ import sys
 import types
 import unittest
 from unittest.mock import patch
+import weakref
 
 
 def load_frontend():
@@ -133,6 +136,32 @@ class MandarinOnnx(unittest.TestCase):
         for tokens in (["ab"], ["abcd"]):
             with self.subTest(tokens=tokens), self.assertRaisesRegex(ValueError, "ASCII wordpiece offsets"):
                 self.utils.tokenize_and_map(types.SimpleNamespace(tokenize=lambda word: tokens), "abc")
+
+    def test_word_cache_reuses_results_but_isolates_and_releases_tokenizers(self):
+        class CountingTokenizer:
+            def __init__(self, pieces):
+                self.pieces, self.calls = pieces, Counter()
+
+            def tokenize(self, word):
+                self.calls[word] += 1
+                return self.pieces.get(word, ["[UNK]"])
+
+        first = CountingTokenizer({"银": ["银"], "行": ["行"], "abc": ["abc"]})
+        second = CountingTokenizer({"银": ["银"], "行": ["行"], "abc": ["a", "##bc"]})
+        text = "银行 abc missing 银行 abc"
+        expected = self.utils.tokenize_and_map(first, text)
+        self.assertEqual(expected[0], ["银", "行", "abc", "[UNK]", "银", "行", "abc"])
+        self.assertEqual(self.utils.tokenize_and_map(first, text), expected)
+        self.assertEqual(first.calls, Counter({"银": 1, "行": 1, "abc": 1, "missing": 1}))
+        self.assertEqual(first._g2pw_word_tokenize("abc"), ("abc",))
+        self.assertEqual(first._g2pw_word_tokenize.cache_info().maxsize, 65536)
+        self.assertEqual(self.utils.tokenize_and_map(second, text)[0],
+                         ["银", "行", "a", "##bc", "[UNK]", "银", "行", "a", "##bc"])
+        self.assertEqual(second.calls, first.calls)
+        reference = weakref.ref(first)
+        del first
+        gc.collect()
+        self.assertIsNone(reference())
 
     def test_han_model_queries_after_expansion_select_the_original_han_tokens(self):
         tokenizer = self.bert_tokenizer()
