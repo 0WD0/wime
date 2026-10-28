@@ -1,0 +1,38 @@
+{
+  "status": "Inputs and analysis frozen before model inference.",
+  "documents": 120,
+  "rows": 360,
+  "categories": 8,
+  "documents_per_category": 15,
+  "variants": [
+    "whole",
+    "suffix",
+    "single"
+  ],
+  "model_arms": [
+    "qwen-hf",
+    "minicpm-hf",
+    "minicpm-native"
+  ],
+  "prior_document_overlap": 0,
+  "prior_exact_context_target_overlap": 0,
+  "scope": "Fresh to recorded investigation; not a full corpus run or a pretraining-clean claim.",
+  "artifacts": {
+    "plan": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/accuracy-expansion/plan.json",
+      "sha256": "026f515cc464eef0b6000ca22d94707a43e7cb7e32d4ead3250975ddc53f0a16"
+    },
+    "fixtures": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/accuracy-expansion/fixtures.json",
+      "sha256": "0ec2cfdd242a9bb32338566d251cc3604ec3fb261153da298f2d824f54a02f73"
+    },
+    "exclusions": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/accuracy-expansion/exclusion-audit.json",
+      "sha256": "342c62e5a82f86e9cbbb77b7466a46a24a5e13ff01000c8191789ca68809864a"
+    },
+    "analysis": {
+      "path": "/home/_WD_/.cache/wime-minicpm-investigation/accuracy-expansion/analysis-plan.json",
+      "sha256": "45e793026f630d21a4f6ee8ff689ccbc77aacbeb64725ed700896bd803975ec5"
+    }
+  }
+}
