@@ -53,6 +53,14 @@ class Trajectories(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate(dict(row,boundaries=invalid))
 
+    def test_whole_sentence_does_not_require_an_artificial_commit(self):
+        row = dict(context="", input="abcd" * 4, gold=["请给我一个商业画布"], boundaries=[])
+        # Input must still align even when no meaningful internal commit exists.
+        row["input"] = "ab" * len(row["gold"][0])
+        full, pairs = states(row)
+        self.assertEqual(full["input"], row["input"])
+        self.assertEqual(pairs, [])
+
 
 if __name__ == "__main__":
     unittest.main()

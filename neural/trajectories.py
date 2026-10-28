@@ -6,7 +6,7 @@ def validate(row):
     if len(row["gold"]) != 1 or len(row["input"]) != 2 * len(text):
         raise ValueError("trajectory requires one sentence aligned with complete syllables")
     ends = [boundary["end"] for boundary in row["boundaries"]]
-    if not ends or ends != sorted(set(ends)):
+    if ends != sorted(set(ends)):
         raise ValueError("trajectory requires unique ordered commit boundaries")
     for boundary in row["boundaries"]:
         if not 2 <= boundary["end"] <= len(text) - 2 or not boundary["reason"]:
