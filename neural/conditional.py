@@ -45,7 +45,7 @@ def prompt(context, code, window=128):
     return (context[-room:] if room else "") + INPUT + syllables + OUTPUT
 
 
-def load_model(path, extend=False):
+def load_model(path, extend=False, extra_tokens=()):
     with safe_open(path, framework="pt") as f:
         metadata = f.metadata()
         vocab = json.loads(metadata["vocab"])
@@ -58,9 +58,11 @@ def load_model(path, extend=False):
             if key + ".scale" in f.keys():
                 value *= f.get_tensor(key + ".scale")[:, None]
             weights[key] = value
-    if extend:
+    if extend or extra_tokens:
         old = len(vocab)
-        vocab += [t for t in EXTRA if t not in vocab]
+        additions = dict.fromkeys((EXTRA if extend else []) + sorted(extra_tokens))
+        known = set(vocab)
+        vocab += [t for t in additions if t not in known]
         extra = torch.empty(len(vocab) - old, config.n_embd).normal_(std=0.02)
         weights["tok.weight"] = torch.cat([weights["tok.weight"], extra])
         config.vocab = len(vocab)
@@ -118,7 +120,17 @@ def composition_span(row, start, end):
     result = dict(row, context=(row["context"] + target[:start])[-64:],
                   input=row["input"][2 * start:2 * end], gold=[target[start:end]])
     if "pinyin" in row:
-        result["pinyin"] = " ".join(row["pinyin"].split()[start:end])
+        reading = row["pinyin"]
+        result["pinyin"] = (" ".join(reading.split()[start:end])
+                            if isinstance(reading, str) else reading[start:end])
+    for field in ("tones", "tone_sources", "reading_rules"):
+        if field in row:
+            result[field] = row[field][start:end]
+    if "reading_evidence" in row:
+        result["reading_evidence"] = {key: value[start:end]
+                                      for key, value in row["reading_evidence"].items()}
+    if "offset" in row:
+        result["offset"] += start
     return result
 
 

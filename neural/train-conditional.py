@@ -8,7 +8,6 @@ import json
 import math
 import os
 from pathlib import Path
-import random
 import time
 
 import numpy as np
@@ -16,9 +15,10 @@ import torch
 import torch.nn.functional as F
 from safetensors.torch import save_file
 
-from conditional import augment_composition, encode_example, grow_depth, load_model, FORMAT
+from conditional import grow_depth, load_model, FORMAT
 from ranking import encode_candidate, candidate_scores, preference_loss
 from replay import Protection
+from training_data import pack_examples, supervised_logits, training_characters
 
 
 def reference_kl(logits, reference_logits, labels):
@@ -33,6 +33,11 @@ def main():
     p.add_argument("--base", required=True)
     p.add_argument("--data", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--encoded-cache", type=Path,
+                   default=Path.home() / ".cache/wime-conditional/encoded",
+                   help="shared file-backed token cache; GPU memory is independent of corpus size")
+    p.add_argument("--extend-vocabulary", action="store_true",
+                   help="add characters found in training targets, without consulting held-out labels")
     p.add_argument("--steps", type=int, default=3000)
     p.add_argument("--batch", type=int, default=128)
     p.add_argument("--limit", type=int, default=0)
@@ -75,7 +80,8 @@ def main():
     np.random.seed(args.seed)
     torch.set_num_threads(8)
     torch.backends.cuda.matmul.allow_tf32 = True
-    model, vocab, metadata = load_model(args.base, extend=True)
+    additions = training_characters([d for d in (args.data, args.extra_data) if d]) if args.extend_vocabulary else []
+    model, vocab, metadata = load_model(args.base, extend=True, extra_tokens=additions)
     model.cfg.dropout = 0.0
     for module in model.modules():
         if isinstance(module, torch.nn.Dropout):
@@ -91,52 +97,27 @@ def main():
     exclusions = Counter()
     compositions = Counter()
     protection = Protection(args.exclude_cases)
-    primary_categories = []
-
     def pack(split, directory=args.data):
-        rows = []
-        span_rng = random.Random(args.seed)
-        with (directory / (split + ".jsonl")).open() as f:
-            for line in f:
-                row = json.loads(line)
-                # Documents retain their existing split. Common short words can
-                # occur in different splits; no held-out document is trained on.
-                # Full dev examples remain unchanged for checkpoint selection.
-                if split == "train":
-                    if protection.contains(row):
-                        exclusions[str(directory) + "/protected_source"] += 1
-                        continue
-                    row = augment_composition(row, span_rng, args.span_share,
-                                              args.single_share, args.whitespace_share)
-                    if protection.contains(row):
-                        exclusions[str(directory) + "/protected_pair"] += 1
-                        continue
-                    compositions[str(directory) + "/length_" + str(len(row["gold"][0]))] += 1
-                try:
-                    x, y = encode_example(row, index, window)
-                except ValueError:
-                    exclusions[str(directory) + "/" + split + "/window"] += 1
-                    continue
-                if 1 in y:  # record exclusions rather than silently train unknown targets
-                    exclusions[str(directory) + "/" + split + "/unknown_target"] += 1
-                    continue
-                rows.append((x + [0] * (window - len(x)), y + [0] * (window - len(y))))
-                if directory == args.data and split == "train":
-                    primary_categories.append(row.get("category", "chat"))
-                if args.limit and split == "train" and len(rows) >= args.limit:
-                    break
-        if not rows:
-            raise ValueError(f"{directory}/{split}: no encodable examples")
-        data = torch.tensor(np.array(rows, dtype=np.int64))
-        return data.to("cuda")
+        data = pack_examples(directory / (split + ".jsonl"), args.encoded_cache, vocab, window,
+                             protection, seed=args.seed, span_share=args.span_share,
+                             single_share=args.single_share, whitespace_share=args.whitespace_share,
+                             limit=args.limit)
+        exclusions.update({f"{directory}/{split}/{key}": value
+                           for key, value in data.info["exclusions"].items()})
+        if split == "train":
+            compositions.update({f"{directory}/length_{key}": value
+                                 for key, value in data.info["lengths"].items()})
+        print(json.dumps(dict(packed=str(directory / split), rows=len(data),
+                              exclusions=data.info["exclusions"])), flush=True)
+        return data
 
     train, dev = pack("train"), pack("dev")
     extra_train = pack("train", args.extra_data) if args.extra_data else None
     extra_dev = pack("dev", args.extra_data) if args.extra_data else None
     primary_groups = None
     if args.primary_technical_share is not None:
-        primary_groups = {name:torch.tensor([i for i, c in enumerate(primary_categories) if c == name],
-                                           device="cuda") for name in ("chat", "technical")}
+        primary_groups = {name: torch.tensor(np.flatnonzero(train.categories == category), device="cuda")
+                          for name, category in (("chat", 1), ("technical", 2))}
         if any(len(group) == 0 for group in primary_groups.values()) or sum(map(len, primary_groups.values())) != len(train):
             raise ValueError("explicit primary shares require chat and technical categories only")
     ranked, ranked_priors = None, None
@@ -177,6 +158,7 @@ def main():
                                  fused=True)
     manifest = json.loads((args.data / "manifest.json").read_text())
     settings = {**vars(args), "data": str(args.data), "out": str(args.out),
+                "encoded_cache": str(args.encoded_cache),
                 "ranking_data": str(args.ranking_data) if args.ranking_data else None,
                 "ranking_pairs": len(ranked) if ranked is not None else 0,
                 "exclude_cases": {str(p): hashlib.file_digest(p.open("rb"), "sha256").hexdigest()
@@ -218,19 +200,16 @@ def main():
             indices = torch.randint(len(data), (n,), device="cuda")
         if id(data) in seen:
             seen[id(data)][indices] = True
-        b = data[indices]
-        # Right padding is ignored; truncate to the longest example in this batch.
-        length = int((b[:, 0] != 0).sum(1).max())
-        return b[:, 0, :length], b[:, 1, :length]
+        return data.batch(indices.cpu().numpy(), "cuda")
 
     def loss(x, y, preserve=False):
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            logits, _ = model(x)
-            value = F.cross_entropy(logits.flatten(0, 1).float(), y.flatten(), ignore_index=0)
+            logits, labels = supervised_logits(model, x, y)
+            value = F.cross_entropy(logits.float(), labels)
             if preserve and reference is not None:
                 with torch.no_grad():
-                    reference_logits, _ = reference(x)
-                value = value + args.reference_weight * reference_kl(logits, reference_logits, y)
+                    reference_logits, _ = supervised_logits(reference, x, y)
+                value = value + args.reference_weight * reference_kl(logits, reference_logits, labels)
             return value
 
     def validate(step):
@@ -288,7 +267,8 @@ def main():
                             vocab=json.dumps(vocab, ensure_ascii=False), precision="f16", conditional=FORMAT,
                             validation_loss=str(validation), training_steps=str(step),
                             ranking_weight=str(args.ranking_weight),
-                            single_character_training=str(args.single_share > 0).lower(),
+                            single_character_training=str(any(key.endswith("/length_1") and count
+                                                              for key, count in compositions.items())).lower(),
                             reference_retention=str(args.reference_weight),
                             attribution=metadata.get("attribution", "") + " Continued training; corpus manifests in run.json."
                             + (" Additional corpus attribution and licenses: "

@@ -89,6 +89,20 @@ class Conditioning(unittest.TestCase):
         with self.assertRaises(ValueError):
             composition_span(dict(row, input="bu"), 2, 6)
 
+    def test_span_keeps_contextual_tones_and_evidence_aligned(self):
+        row = dict(context="觉得", input="hfhkba", gold=["很好吧"], offset=17,
+                   pinyin=["hen", "hao", "ba"], tones=[2, 3, 5],
+                   tone_sources=["sandhi", "frontend", "particle"], reading_rules=[["3-3"], [], ["neutral"]],
+                   reading_evidence={"frontend_before_sandhi": ["hen3", "hao3", "ba1"],
+                                     "final": ["hen2", "hao3", "ba5"]})
+        span = composition_span(row, 1, 3)
+        self.assertEqual(span["context"], "觉得很")
+        self.assertEqual(span["offset"], 18)
+        for field in ("pinyin", "tones", "tone_sources", "reading_rules"):
+            self.assertEqual(span[field], row[field][1:3])
+        self.assertEqual(span["reading_evidence"]["final"], ["hao3", "ba5"])
+        self.assertEqual(row["tones"], [2, 3, 5])
+
     def test_input_never_collapses_distinct_keystrokes(self):
         self.assertNotEqual(input_tokens("bmyi"), input_tokens("pmyi"))
         self.assertEqual(len(input_tokens("m;tm")), 2)
