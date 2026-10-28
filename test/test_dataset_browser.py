@@ -1,0 +1,93 @@
+"""Pagination, version-scoped reviews and lossless training reads."""
+import json
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
+from dataset_browser import Browser
+from dataset_registry import Registry, fingerprint
+from dataset_store import export
+from replay import rows, split_path
+
+
+class DatasetBrowser(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.data = self.root / "data"
+        self.data.mkdir()
+        self.samples = [dict(id=str(i), source=source, context="他说", gold=[text], input=code,
+                             pinyin=pinyin, tones=tones, **extra)
+                        for i, (source, text, code, pinyin, tones, extra) in enumerate([
+                            ("chat", "你好", "nihk", ["ni", "hao"], [2, 3],
+                             dict(reading_notes=[dict(index=0, before_tone=3, rules=["contextual_tone_sandhi"])])),
+                            ("web", "银行", "ybhh", ["yin", "hang"], [2, 2], {}),
+                            ("chat", "吗", "ma", ["ma"], [5], {})])]
+        for split in ("train", "dev", "test"):
+            (self.data / f"{split}.jsonl").write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in self.samples))
+        (self.data / "manifest.json").write_text('{}')
+        catalog = self.root / "catalog.json"
+        catalog.write_text('{"version":1,"datasets":{}}')
+        self.registry = Registry(catalog, roots={"corpus":self.root})
+        self.registry.register(dict(id="example",kind="corpus",status="active",annotation="contextual",parents=[],
+                                    location=dict(root="corpus",path="data"),
+                                    files=dict(manifest=dict(path="manifest.json"),
+                                               **{s:dict(path=s+'.jsonl',format="jsonl") for s in ("train","dev","test")})))
+        self.browser = Browser(self.registry, self.root / "cache", self.root / "reviews.sqlite3")
+        self.addCleanup(self.browser.db.close)
+        self.addCleanup(self.browser.reviews.close)
+
+    def request(self, **extra):
+        return dict(dataset="example",split="dev",**extra)
+
+    def test_cursor_filtering_and_literal_search(self):
+        first = self.browser.page(self.request(limit=2))
+        second = self.browser.page(self.request(limit=2,after=first['next']))
+        self.assertEqual([r['_row'] for r in first['rows']+second['rows']],[1,2,3])
+        self.assertTrue(first['has_next']); self.assertFalse(second['has_next'])
+        self.assertEqual(self.browser.page(self.request(source="web"))['total'],1)
+        self.assertEqual(self.browser.page(self.request(tone=5))['rows'][0]['gold'],['吗'])
+        self.assertEqual(self.browser.page(self.request(query="' OR true --"))['total'],0)
+        self.assertEqual(self.browser.page(self.request(query="银行"))['total'],1)
+
+    def test_reviews_are_separate_and_undo_rejects_intervening_edits(self):
+        before = fingerprint(self.data/'dev.jsonl')
+        snapshot = self.browser.snapshot('example')
+        request = self.request(row=1,snapshot=snapshot,status='problem',note='上屏边界不自然')
+        event = self.browser.review(request)['event']
+        self.assertEqual(self.browser.detail(self.request(row=1))['row']['review']['note'],request['note'])
+        self.registry.datasets['example']['description'] = 'Updated quality assessment'
+        self.assertEqual(self.browser.snapshot('example'), snapshot)
+        self.browser.undo(event)
+        self.assertEqual(self.browser.review_value('example',snapshot,'dev',1)['status'],'pending')
+        event = self.browser.review(request)['event']
+        self.browser.review(dict(request,note='另一次审查'))
+        with self.assertRaisesRegex(ValueError,'已被修改'):
+            self.browser.undo(event)
+        with self.assertRaisesRegex(ValueError,'版本已经变化'):
+            self.browser.review(dict(request,snapshot='wrong'))
+        self.assertEqual(fingerprint(self.data/'dev.jsonl'),before)
+
+    def test_parquet_shards_preserve_missing_notes_and_training_order(self):
+        out = self.root/'release'
+        result = export(self.registry,'example',out)
+        self.assertEqual(result['outputs']['train']['rows'],3)
+        self.assertEqual(list(rows(split_path(out,'train'))),self.samples)
+        self.assertNotIn('_row',next(rows(out/'train')))
+        self.assertNotIn('reading_notes',list(rows(out/'train'))[1])
+
+    def test_legacy_dataset_without_source_can_be_browsed(self):
+        for row in self.samples: row.pop('source')
+        path=self.data/'dev.jsonl'
+        path.write_text(''.join(json.dumps(row)+'\n' for row in self.samples))
+        self.registry.datasets['example']['files']['dev']['sha256']=fingerprint(path)
+        page=self.browser.page(self.request())
+        self.assertEqual(page['total'],3)
+        self.assertEqual(page['sources'],[('',3)])
+
+
+if __name__ == '__main__':
+    unittest.main()
