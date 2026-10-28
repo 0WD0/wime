@@ -1,0 +1,295 @@
+{
+  "status": "Frozen before ablation inference. No parameter tuning or output-driven row exclusions.",
+  "scope": "Diagnostic ablation on the previously inspected 120-document/360-input set; not a new held-out accuracy claim.",
+  "source_commit": "9ea27749f83ab7217917f9f490360686d741f86b",
+  "output": "/home/_WD_/.cache/wime-minicpm-investigation/conditional-guide-ablation",
+  "code": "/home/_WD_/.cache/wime-minicpm-investigation/conditional-guide-ablation/code",
+  "code_sha256": {
+    "ablate-conditional-guide.py": "d9007f4ad936e552350461dd9103456ca334aa8b8d8c48cb73d375d325e5c559",
+    "ablate-japanese.py": "feee383f1ad5d9318d5975e8b9e199460c8da34b71cac4c6c5bf911056900322",
+    "audit-japanese-evaluation.py": "09064b7134f7c376762c228e91ec0b24e1400e74334a19ebb9e65e06606e9225",
+    "audit-japanese-table.py": "62a1dc301b61c1fd84228ebd4faf305d94bc7ed6eea24b90d7e37b4d564fcc42",
+    "audit-regression-data.py": "177055b540bc567b8fc17ff350411caa1a4a350ef2fbf4270602d4e9c091b654",
+    "backends.py": "a178d1580091aa1bfa02b7ad90e84735430383259f441f232d477db31a8a46e8",
+    "benchmark-japanese.py": "ffc3521224d11a9d40515b3cf3ef9c5dd9d346c3a774013c1f88198bf91f182f",
+    "branch_cache.py": "c4b0ce279830dd28db1edf34a8c5e239132a9280a6117a6c4683a3e6e386e41d",
+    "build-japanese-lexicon.py": "c336d33c8ac80828592d420a047f2f0bb5e6bc79839e80d035d9bcbba2d776dc",
+    "build-japanese-table.py": "4c09482437054d79b8ae3733df791108ef4b5acb18f7cadc0ea0cf8c5a1207b6",
+    "bundle-gpu.py": "514abdce439dd03509cef2f7c0e6227f4ba3ee9e52aaea2c33c3081d15f59bc6",
+    "byte_constraints.py": "2672fe78f579581f6e08ccb3e02e7e46e26e64d5ac9a571f7bef502e56427900",
+    "calibrate-checkpoint.py": "d8dc7b5679dfcadcb2bd8c1e82bb73e149a57eb9fa779af5a586b4decce05eaa",
+    "calibrate-conditional.py": "2057050bf608556d9f78c8681e609a8dadbe33ff7b442b273ac85ae03f3c4c59",
+    "calibrate-context.py": "5392921da5e7b93f55943cc9bd477b91b979652779b12b00d7ab01d175db3da2",
+    "calibrate-pools.py": "80046c1876b34d453744624fcc8688abd5c9553439829e6bf9dd6c763f5c9717",
+    "character-proposals.py": "46c47148eeb8b94a383ec490e565ab880846d444ef4687465b7551395282b28a",
+    "compare-architectures.py": "545c993cddd80e88ba449f7c11146d6c9580a9b690f61bf6c3c494eb3f3d910b",
+    "compare-rescorers.py": "06237798f6b942876c94219f9f46203820eb9376acec386dad6cb158bab2b843",
+    "compare-text-decoder.py": "8bd2c902da86ced6cfbee3e9d0a6b562c009d09bf1b45e42666a67a7730fe08b",
+    "conditional.py": "56f2a5f5bbdd4969eb94638865de49a5553b82b7ed5e909bb125287ad40764cb",
+    "conditional_prefix.py": "5e8965cb036370463c46cfa3330e67bc7a4fab2a369ee2004a9676e39598e274",
+    "context-pinyin.json": "b92b1494c30d7f4de2f8872ea42e726abe6d020106fac0c0eb67b540eba00b8d",
+    "convert-zenz.py": "35c1068cf658f2f89cdafe3584125b99c3f5bebee42b6df510ccc8fc83c720dd",
+    "decoder.py": "f302c72a7abb82bfb4329559725d3c394e3f6779cbcd4b012502a46129857a11",
+    "decoding_model.py": "45d15f15507ea815d1bc731df7df821d8b97a13446b614309f5a17edb2dd0868",
+    "diagnose-regressions.py": "46102f5e025fdf7623166a4f41399ff4b9d40640b9e9dde67882cb5917b6ad0f",
+    "diagnose-rescorer-failures.py": "be1aac1dcb9297e7ff2d402b70ea17bd9ea5c4912fec9cbd5e707a5ea35b5e8f",
+    "evaluate-conditional.py": "472ff633899e2ac503bf9b9a362a140b596f2ca641b99fe69b84165c2e997069",
+    "evaluate-japanese-context.py": "7a44f4e0fcb5fc3e060cd7fbdbaef32e0824c85398423c9cccf301ad8e61d669",
+    "evaluate-japanese.py": "deeccb13d91dce3df85065b4a62b2cceb0a4d129f5362c968bd7201f74590928",
+    "experiment-japanese-right-ranking.py": "1f45a0e16f50a9cf121a080a84826f44e2416f27cac5f9a93c3b2f4d5bca3955",
+    "experiment-japanese.py": "728cace949c79a59fe907297092ab2eb474ecaea7b639c40c115fa45e4b17922",
+    "gpu-worker.py": "c8844c9d14de91e83dd36ae132869998e9b82b03738b7d21c8820aa388cb38a1",
+    "inference.py": "2cd50b38d0c3693feb24bc0b1d2752b831dbbb84938541a4b43ee91eb30e82c8",
+    "japanese.py": "f2f417962cafbbb0af785d6d0c57a698791576ad0fdf16875900fb824afd1a25",
+    "mine-ranking.py": "a652c1060c7ac989f93d10c4beebdc0c082f75d3055c88b3e073b0c021bbc9e1",
+    "model.py": "0b7fb41aa8a4356fa7757aa1b9e84d5022fa33a5436e695dcc1116b0d34c1f9b",
+    "native_llama.py": "075dfca4f4ba4a2abc4f75de986fc98d889ea72e9876516e89a4a3e184d4bb07",
+    "native_rescorer.py": "c598316c51f58d2e56f750a04f656aca7c12ba3ceaafb205fd2614ca020244b0",
+    "prefix_cache.py": "f5eab36ef9f87ce79095f54089fd1f15157a22824163692d567184b75a0ce052",
+    "prepare-conditional.py": "066b91d01daf5a7f77a4740fec4c50c276fe0379ab01895c0713e632b2dcdb1b",
+    "prepare-diverse.py": "c69a89c8d240a7598e9b588701f5ccdc00ee9253606521c1945273fdb0849dcc",
+    "prepare-domain.py": "743e6d11790b30a4b75347f68bdda2c87e5a49be1e8d135554f82128192f9685",
+    "prepare-japanese-context.py": "c35da398e2514700710f29f99f9e176c48452db618d05c1307edea42cfbe3282",
+    "prepare-japanese-evaluation.py": "7c1f716120a9635ba94d2ed63078fd43a9c4e5ff18750893182b7871cf6cd8f5",
+    "prepare-japanese.py": "4b7114485a2cafdc08410442a41ac4c06dc6f1fa8b5930e33dee7cd0a204ef6f",
+    "prepare-native.py": "f3921b755dd00eb86f6e6adc251e5722d4e7d4f27949d0184967a4298b7052f1",
+    "prepare-replay.py": "5abb9379245ed98bd35e59d0654245297a691fdfaf49afaff178aab6472cb1f3",
+    "prepare-technical.py": "d51f73c1603cc2864730003a76dc857587b8999278282b4f085ae7592a412e32",
+    "ranking.py": "32816980666d16fa46528b9994c3039833a352d4649c41e9321a6cf431d45aa3",
+    "replay.py": "843c400f263b66b6d71eed723c74c8038b3f370864468c69e36cdf34eaf1cd6c",
+    "request_cache.py": "8a5afd21f460a82f45ead28de643723cd4162a75ca5ec9cf9194afcf8b910fc6",
+    "rescorer.py": "9de77be5c41cc7b080a1a666b1c263cf942a699b8d6dc9cde0ae986e3844c69a",
+    "text_decoder.py": "7e48e015d3591092da072fce837949c434a2fe01c828bfd85b3d542e99b65613",
+    "token_bytes.py": "11b93a88da94f1825c01f90f1161487dd214bb6e2dd7cda317450e35ffe935e5",
+    "train-conditional.py": "d04d38472b2cc6f20db5fb59526b4cb923b4bebb38be1f736ac25a4c186ed344",
+    "train-japanese.py": "0c1e16e0849dee29659e9d0a7c38b13192a43e84f5eb70231fb5b8d238862bfc"
+  },
+  "runner_sha256": "d9007f4ad936e552350461dd9103456ca334aa8b8d8c48cb73d375d325e5c559",
+  "fixtures": {
+    "path": "/home/disk/Projects/dev-monorepo-wime-minicpm/emacs-packages/wime/test/text-decoder-expanded-cases.json",
+    "sha256": "0ec2cfdd242a9bb32338566d251cc3604ec3fb261153da298f2d824f54a02f73"
+  },
+  "documents": 120,
+  "rows": 360,
+  "models": [
+    {
+      "label": "qwen-hf",
+      "backend": "hf",
+      "path": "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base",
+      "weight": 1.5
+    },
+    {
+      "label": "minicpm-native",
+      "backend": "native",
+      "path": "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B",
+      "weight": 1.5,
+      "library": "/home/disk/.cache/wime-minicpm-investigation/native-backend/build/bin/libwime_llama-quiet.so",
+      "gguf": "/home/disk/.cache/wime-minicpm-investigation/native-backend/MiniCPM5-2B-BF16.gguf"
+    }
+  ],
+  "arms": [
+    {
+      "label": "qwen-hf-on",
+      "model": "qwen-hf",
+      "guide": true
+    },
+    {
+      "label": "qwen-hf-off",
+      "model": "qwen-hf",
+      "guide": false
+    },
+    {
+      "label": "minicpm-native-on",
+      "model": "minicpm-native",
+      "guide": true
+    },
+    {
+      "label": "minicpm-native-off",
+      "model": "minicpm-native",
+      "guide": false
+    }
+  ],
+  "asset_sha256": {
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/vocab.json": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/config.json": "ed1c1723241f23f7f4e23430759cbd7dcfb4103cbdfe052bfe7626b57c2615b4",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/video_preprocessor_config.json": "d039cd7d88b3502a99edd455496b75b44ecf7dd3b3669748bafac37e6cecc085",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/tokenizer_config.json": "e611fbccc7c29ef3b1cafb1cb7ea548d189968632901d678fd62be68c47885de",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/tokenizer.json": "fe000e3ed39ed12b8d2481d527d44f93c65d37e87645d2dcc80d1bf9d50d2927",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/preprocessor_config.json": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/model.safetensors.index.json": "74d2ddfe79f10f35b27b498632f02b97b60dd9ec39b35d7c5a890c399284e319",
+    "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/model.safetensors-00001-of-00001.safetensors": "928acbf11878c32185bbd863514d191769285065ab9ea14fbfe431303f5fdf2d",
+    "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/tokenizer_config.json": "e9b1064649e771d7a8e15637c68b2d2749724877ba3648bd74a4ece31c26303b",
+    "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/config.json": "59613157e5357d62bcb121e04cb90f2170b43d789b142380c12c3d4277d95180",
+    "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/special_tokens_map.json": "82d96d7a9e6ced037f12394b7ea6a5b02e6ca87e0d11edaa8d60d9be857ce7db",
+    "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/tokenizer.json": "3e065a558a034185fe299917b398685c1facd0169a9eea1e629eb30c171fed81",
+    "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/model.safetensors.index.json": "6d839cd76e8395de548a0e6cc310386f66d1ecbb2c75d198a8dfd3d70892b756",
+    "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/generation_config.json": "9ac4f32e5f32358697a9f438a3ea89ef80e6ba786c72c49e932f9f21c122fdb1",
+    "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/model-00000-of-00001.safetensors": "14fb8e7f0a18d53d1f239773758bf581cee7e456a4523a54622c3a245b64402c",
+    "/home/disk/.cache/wime-minicpm-investigation/native-backend/build/bin/libwime_llama-quiet.so": "b15482358be3ab17b38e5f06b3a4df884195e3b03d6b2a5aed5c78e5389eed4e",
+    "/home/disk/.cache/wime-minicpm-investigation/native-backend/MiniCPM5-2B-BF16.gguf": "3c80632dcb1dc35c9f754688e94345380bdafb87485d633c4619388c0816dfa9",
+    "/home/_WD_/.local/share/wime/models/1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e.safetensors": "1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e",
+    "/home/disk/.cache/wime-minicpm-investigation/full-comparison/inputs/wanxiang.db": "6cd642c6562de74701bba9f5df424c707de9c9362182e6e41c1c63943246ea66",
+    "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libllama.so.0": "0d2226d00200ae13fe42eb7c0b596fcd653293840f3d5ba3b8d268e2ce85058f",
+    "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libggml.so.0": "5cdc7f0d884e59d2b0642100de0b3f9be9ee2d0af3acbe2d20eed4c9b3e53979",
+    "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libggml-base.so.0": "fd05e486caf2693b20c105e7cd27d2c5922d38b67ab4eaf9c7f4b655d620ed2f",
+    "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libggml-cpu.so.0": "b834e75aec090f74ae1b2c0f56c93a41d341e2824fe31740ef463f33cc8837f5",
+    "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libggml-cuda.so.0": "18c0b5843104d72ce77c4a3b3c3fbae0be474f741a5d625c10de2e58aa4c3c88"
+  },
+  "model_assets": {
+    "qwen-hf": [
+      "/home/disk/.cache/wime-minicpm-investigation/full-comparison/inputs/wanxiang.db",
+      "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/vocab.json",
+      "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/config.json",
+      "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/video_preprocessor_config.json",
+      "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/tokenizer_config.json",
+      "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/tokenizer.json",
+      "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/preprocessor_config.json",
+      "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/model.safetensors.index.json",
+      "/home/_WD_/.local/share/wime/rescorers/Qwen3.5-2B-Base/model.safetensors-00001-of-00001.safetensors"
+    ],
+    "minicpm-native": [
+      "/home/disk/.cache/wime-minicpm-investigation/full-comparison/inputs/wanxiang.db",
+      "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/tokenizer_config.json",
+      "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/config.json",
+      "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/special_tokens_map.json",
+      "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/tokenizer.json",
+      "/home/disk/.cache/wime-minicpm-investigation/MiniCPM5-2B/generation_config.json",
+      "/home/disk/.cache/wime-minicpm-investigation/native-backend/MiniCPM5-2B-BF16.gguf",
+      "/home/disk/.cache/wime-minicpm-investigation/native-backend/build/bin/libwime_llama-quiet.so",
+      "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libllama.so.0",
+      "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libggml.so.0",
+      "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libggml-base.so.0",
+      "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libggml-cpu.so.0",
+      "/home/_WD_/.cache/wime-minicpm-investigation/native-backend/build/bin/libggml-cuda.so.0"
+    ]
+  },
+  "conditional": "/home/_WD_/.local/share/wime/models/1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e.safetensors",
+  "database": "/home/disk/.cache/wime-minicpm-investigation/full-comparison/inputs/wanxiang.db",
+  "python": "/home/_WD_/.local/share/wime/python/bin/python",
+  "python_dependencies": "/home/disk/.cache/wime-minicpm-investigation/python",
+  "gpu_lock": "/home/_WD_/.local/share/wime/gpu.lock",
+  "decoder_parameters": {
+    "beam": 16,
+    "per_hypothesis": 24,
+    "rewind_tokens": 2,
+    "guide_weight": 1.0,
+    "final_mode": "lm",
+    "memo_limit": 1024,
+    "paths_per_surface": 2,
+    "cache_prefix": true,
+    "cache_guide": true,
+    "cache_paths": 0,
+    "cache_requests": 8
+  },
+  "anchor": 2,
+  "warmup": [
+    {
+      "context": "",
+      "input": "nihk"
+    },
+    {
+      "context": "今天讨论输入法。",
+      "input": "jntmxwwuyiqitklpvegewfti"
+    },
+    {
+      "context": "测试期间我们会保持相同设置。",
+      "input": "mox;yij;vpbzhkle"
+    }
+  ],
+  "accuracy_order": [
+    "qwen-hf-on",
+    "qwen-hf-off",
+    "minicpm-native-off",
+    "minicpm-native-on"
+  ],
+  "timing_ids": [
+    "0ca505ca4fb456ed9474/whole",
+    "0ca505ca4fb456ed9474/suffix",
+    "0ca505ca4fb456ed9474/single",
+    "00c100b0531670509eb3d1fd/whole",
+    "00c100b0531670509eb3d1fd/suffix",
+    "00c100b0531670509eb3d1fd/single",
+    "018142743e0a4e6406991d40/whole",
+    "018142743e0a4e6406991d40/suffix",
+    "018142743e0a4e6406991d40/single",
+    "007c8511c9d7990b1754b43a/whole",
+    "007c8511c9d7990b1754b43a/suffix",
+    "007c8511c9d7990b1754b43a/single",
+    "1cc28d86775ee18687f4/whole",
+    "1cc28d86775ee18687f4/suffix",
+    "1cc28d86775ee18687f4/single",
+    "090bf2900678d9f5d15e/whole",
+    "090bf2900678d9f5d15e/suffix",
+    "090bf2900678d9f5d15e/single",
+    "1f701ff07cc37673ece9/whole",
+    "1f701ff07cc37673ece9/suffix",
+    "1f701ff07cc37673ece9/single",
+    "016fce2d88819fa7291b2ba8/whole",
+    "016fce2d88819fa7291b2ba8/suffix",
+    "016fce2d88819fa7291b2ba8/single",
+    "00a2ce9ad5f2738daff29d13/whole",
+    "00a2ce9ad5f2738daff29d13/suffix",
+    "00a2ce9ad5f2738daff29d13/single",
+    "009f8c7cba588ddd116ada24/whole",
+    "009f8c7cba588ddd116ada24/suffix",
+    "009f8c7cba588ddd116ada24/single",
+    "135565894e02a53632ff/whole",
+    "135565894e02a53632ff/suffix",
+    "135565894e02a53632ff/single",
+    "04402bbed6100ab2778129d4/whole",
+    "04402bbed6100ab2778129d4/suffix",
+    "04402bbed6100ab2778129d4/single",
+    "2b3cc7c2e9b8de10fcb3/whole",
+    "2b3cc7c2e9b8de10fcb3/suffix",
+    "2b3cc7c2e9b8de10fcb3/single",
+    "00403e7fcc02d5a49f310a5d/whole",
+    "00403e7fcc02d5a49f310a5d/suffix",
+    "00403e7fcc02d5a49f310a5d/single",
+    "028adae3c7753a835e2b5159/whole",
+    "028adae3c7753a835e2b5159/suffix",
+    "028adae3c7753a835e2b5159/single",
+    "034b5c45d149f278934a9048/whole",
+    "034b5c45d149f278934a9048/suffix",
+    "034b5c45d149f278934a9048/single"
+  ],
+  "timing_repeats": 2,
+  "timing_orders": [
+    [
+      "minicpm-native-on",
+      "minicpm-native-off",
+      "qwen-hf-off",
+      "qwen-hf-on"
+    ],
+    [
+      "qwen-hf-on",
+      "qwen-hf-off",
+      "minicpm-native-off",
+      "minicpm-native-on"
+    ]
+  ],
+  "intervention": "On: evaluator loaded and guide_weight=1. Off: evaluator=None, guide_weight=0, no conditional forward calls. Final mode remains lm.",
+  "timing_policy": "Fresh process and decoder per arm/repeat, same fixed row order, unrelated warmup; CUDA synchronized decode only, model loading and UI excluded. Repeat orders counterbalanced. Exclusive GPU flock for each run.",
+  "analysis": {
+    "primary": "Paired whole-input exact top1 and recall16; suffix/single reported separately.",
+    "secondary": [
+      "combined accuracy with document clustering",
+      "latency",
+      "search work",
+      "first-choice changes",
+      "candidate availability changes"
+    ],
+    "bootstrap": {
+      "seed": 2026102802,
+      "replicates": 10000,
+      "strata": "8 categories, 15 documents each",
+      "unit": "source document, all 3 variants together"
+    },
+    "labels": "Original exact labels unchanged. Diagnose disagreements only; no tuning."
+  },
+  "limitations": [
+    "Previously inspected balanced diagnostic data; not natural workload distribution.",
+    "Reference matching can penalize acceptable alternatives.",
+    "No measurement of different double-pinyin schemes in this ablation.",
+    "A fixed beam test measures guidance with current search budget, not retrained or retuned alternatives."
+  ]
+}
