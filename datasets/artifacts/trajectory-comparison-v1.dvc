@@ -1,0 +1,6 @@
+outs:
+- md5: b21803552f545a3f9e634d1090c8ce40.dir
+  size: 2006016
+  nfiles: 28
+  hash: md5
+  path: trajectory-comparison-v1

@@ -1261,14 +1261,16 @@
         "contextual_tones": true,
         "reading_accuracy": "not estimated",
         "human_verified_gold": false,
-        "boundary_review": "agent reviewed before inference"
+        "boundary_review": "agent reviewed before inference",
+        "tone_validation": "Known context-sensitive tone errors in two reviewed examples; this release is not ready for tone-constraint evaluation."
       },
       "known_issues": [
         "Development documents previously used for checkpoint selection; not an untouched test.",
         "Source/length sampling and boundary review are diagnostic, not measured user behavior.",
         "Mixed-script and internally punctuated sentences are excluded, not concatenated.",
         "Correct committed prefix is an oracle condition; prefix selection success is measured separately.",
-        "Complete 6–48 Han sentences without internal punctuation; terminal punctuation not typed. 25+ is decoder capacity diagnosis beyond the current 24-syllable editor window."
+        "Complete 6–48 Han sentences without internal punctuation; terminal punctuation not typed. 25+ is decoder capacity diagnosis beyond the current 24-syllable editor window.",
+        "Post-evaluation label audit: 系统中将两者结合 incorrectly applies 中将 jiang4; 全文的大意 incorrectly neutralizes 意 to yi5. Both leave the untoned input keys unchanged; see trajectory-comparison-v1/error-review.json."
       ]
     }
   }

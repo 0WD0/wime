@@ -12,6 +12,7 @@ import pyarrow.parquet as pq
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from dataset_registry import Registry
+from dataset_browser import Browser
 
 
 class DatasetStore(unittest.TestCase):
@@ -28,6 +29,7 @@ class DatasetStore(unittest.TestCase):
             release = root / "release"
             release.mkdir()
             (release / "manifest.json").write_text('{}\n')
+            (release / "cases.json").write_text(json.dumps([dict(context="",input="nihk",gold=["你好"])]))
             for split in ("train", "dev"):
                 (release / split).mkdir()
                 pq.write_table(pa.Table.from_pylist([dict(gold=["你好"])]), release / split / "part.parquet")
@@ -38,12 +40,19 @@ class DatasetStore(unittest.TestCase):
             registry.register(dict(id="release", kind="corpus", status="active", annotation="contextual",
                                    location=dict(root="repo", path="release"),
                                    storage=dict(type="dvc", metadata="release.dvc"),
-                                   files=dict(manifest=dict(path="manifest.json"),
+                                   files=dict(manifest=dict(path="manifest.json"), cases=dict(path="cases.json",format="json-array"),
                                               **{s: dict(path=s, format="parquet") for s in ("train", "dev")})))
             directory, _, snapshot = registry.training("release")
             self.assertEqual(directory, release)
             self.assertEqual(snapshot["files"]["train"]["rows"], 1)
             self.assertNotIn("sha256", snapshot["files"]["train"])
+            browser = Browser(registry, root / "query-cache", root / "reviews.sqlite3")
+            try:
+                page = browser.page(dict(dataset="release",split="cases"))
+                self.assertEqual(page["rows"][0]["gold"],["你好"])
+            finally:
+                browser.db.close()
+                browser.reviews.close()
             (release / "train/part.parquet").write_bytes(b"changed data")
             with self.assertRaisesRegex(ValueError, "checkout or repair"):
                 registry.training("release")

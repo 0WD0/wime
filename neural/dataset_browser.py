@@ -56,7 +56,9 @@ class Browser:
             files = [str(file) for file in sorted(path.glob("*.parquet"))]
         elif file.get("format") in ("jsonl", "json-array"):
             self.cache.mkdir(parents=True, exist_ok=True)
-            converted = self.cache / (file["sha256"] + ".parquet")
+            identity = file.get("sha256") or hashlib.sha256(
+                (self.snapshot(dataset) + "/" + split).encode()).hexdigest()
+            converted = self.cache / (identity + ".parquet")
             if not converted.exists():
                 self.registry.verify(dataset, [split])
                 temporary = converted.with_suffix(f".{os.getpid()}.partial")
