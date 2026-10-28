@@ -19,7 +19,9 @@ def summarize(rows):
     for row in rows:
         n = len(row["gold"][0])
         size = "1" if n == 1 else "2-3" if n <= 3 else "4-6" if n <= 6 else "7+"
-        for key in ("all", "source/" + row.get("source", row.get("category", "unknown")),
+        # Legacy technical rows use `source` for an individual filename.
+        # Categories remain comparable across documents in both corpus formats.
+        for key in ("all", "category/" + row.get("category", row.get("source", "unknown")),
                     "length/" + size, "context/" + ("present" if row["context"] else "blank")):
             groups[key].append(row)
     return {key: dict(cases=len(group), top1=sum(r["correct"] for r in group),
