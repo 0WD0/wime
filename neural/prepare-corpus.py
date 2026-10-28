@@ -155,9 +155,12 @@ def forum(root):
         thread_id = source_id(thread_id) if thread_id is not None else digest(thread["主题"])
         group = f"forum:{source}:{thread_id}"
         # Every post was typed into its own box; replies never share context.
-        yield group, group + ":topic", "forum", thread["主题"]
+        # Archives can repeat one thread ID with edited/reformatted contents.
+        # Keep those versions in the same split, but distinguish documents so
+        # one identity never refers to two different full texts.
+        yield group, f"{group}:topic:{digest(thread['主题'])}", "forum", thread["主题"]
         for index, reply in enumerate(thread.get("回复", [])):
-            yield group, f"{group}:reply:{index}", "forum", reply["回复"]
+            yield group, f"{group}:reply:{index}:{digest(reply['回复'])}", "forum", reply["回复"]
 
 
 SOURCES = dict(wildchat=wildchat, zhwiki=zhwiki, fineweb=fineweb, zhihu=zhihu, forum=forum)
@@ -222,7 +225,7 @@ def main():
     provenance["database"] = file_metadata(args.database)
     provenance["reading_assets"] = reading_assets(args.g2pw)
     provenance["code"] = {name: file_metadata(Path(__file__).with_name(name)) for name in
-                          ("prepare-corpus.py", "corpus_readings.py", "corpus_integrity.py", "corpus_g2pw.py", "replay.py", "context-pinyin.json", "requirements-corpus.txt")}
+                          ("prepare-corpus.py", "corpus_readings.py", "corpus_integrity.py", "corpus_g2pw.py", "corpus_tones.py", "replay.py", "context-pinyin.json", "requirements-corpus.txt")}
 
     import importlib.metadata
     import onnxruntime
@@ -255,14 +258,19 @@ def main():
 
             def flush():
                 sentences = [s for _, _, _, _, _, s, _ in batch]
-                for (group, doc_id, content_id, category, document, sentence, offset), keys in zip(batch, reader.keys(sentences)):
+                for (group, doc_id, content_id, category, document, sentence, offset), reading in zip(batch, reader.readings(sentences)):
+                    keys = reading["keys"]
                     for start, end in spans(sentence, keys, lexicon, rng, args.density):
                         context = document[max(0, offset + start - 64):offset + start]
                         gold = sentence[start:end]
                         row = dict(id=digest(f"{doc_id}:{offset + start}:{gold}")[:24], document=doc_id,
                                    group=digest(group), content=content_id, source=name, category=category, split=split_of(group),
                                    context=context, input="".join(keys[start:end]), gold=[gold],
-                                   reading="corpus-readings-v2")
+                                   reading="corpus-readings-v3",
+                                   pinyin=reading["pinyin"][start:end], tones=reading["tones"][start:end],
+                                   tone_sources=reading["tone_sources"][start:end],
+                                   reading_evidence={source: values[start:end]
+                                                     for source, values in reading["reading_evidence"].items()})
                         row, rejection = checked_row(row, protection, unique, rng, args.blank_share)
                         if rejection:
                             stats[f"{name}/{rejection}"] += 1
@@ -271,6 +279,9 @@ def main():
                         stats[f"{name}/{row['split']}"] += 1
                         stats[f"length/{min(end - start, 13) if end - start < 13 else '13+'}"] += 1
                         stats["blank_context"] += not bool(row["context"])
+                        stats["tone/known"] += sum(t is not None for t in row["tones"])
+                        stats["tone/unknown"] += sum(t is None for t in row["tones"])
+                        stats["tone/neutral"] += row["tones"].count(5)
                 batch.clear()
                 unique.commit()
 
@@ -317,6 +328,11 @@ def main():
         (args.out / f"{split}.jsonl.partial").rename(args.out / f"{split}.jsonl")
     manifest = dict(format="wime-corpus-v2", stats=dict(stats), readings=dict(reader.methods),
                     sampling=dict(lengths=LENGTHS, max_context=64, max_span=24),
+                    tone_policy=dict(name="contextual-agreement-v1", neutral=5, unknown=None,
+                                     pypinyin_tone_sandhi=True,
+                                     semantics="Pronunciation inferred from full sentence context before span sampling; "
+                                               "not citation-tone normalization or a complete surface-sandhi gold standard. "
+                                               "Conflicting or unsupported tones remain null; raw source evidence is retained."),
                     arguments={k: [str(p) for p in v] if isinstance(v, list) else str(v)
                                for k, v in vars(args).items()},
                     protection=protection.files, provenance=provenance, providers=providers,

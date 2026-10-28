@@ -32,6 +32,7 @@ class AuditCorpus(unittest.TestCase):
             db.execute("CREATE TABLE entry (word TEXT, code TEXT)")
             db.executemany("INSERT INTO entry VALUES (?, ?)", [
                 ("你", self.syllables["ni"]), ("好", self.syllables["hao"]),
+                ("我", self.syllables["wo"]), ("们", self.syllables["men"]),
                 ("行", self.syllables["xing"]), ("行", self.syllables["hang"])])
             db.commit()
 
@@ -42,7 +43,7 @@ class AuditCorpus(unittest.TestCase):
         row.update(updates)
         return row
 
-    def write(self, rows):
+    def write(self, rows, tone_policy=None):
         counts = Counter(f"{r['source']}/{r['split']}" for r in rows)
         counts["blank_context"] = sum(not r["context"] for r in rows)
         for split in corpus_audit.SPLITS:
@@ -52,7 +53,57 @@ class AuditCorpus(unittest.TestCase):
                         provenance=dict(database=corpus_audit.file_metadata(self.database),
                                         reading_assets={"model.onnx": corpus_audit.file_metadata(self.model_asset)}),
                         outputs={s: corpus_audit.file_metadata(self.corpus / f"{s}.jsonl") for s in corpus_audit.SPLITS})
+        if tone_policy is not None:
+            manifest["tone_policy"] = tone_policy
         (self.corpus / "manifest.json").write_text(json.dumps(manifest))
+
+    def toned_row(self):
+        return self.row(gold=["我们好"], input="".join(self.syllables[p] for p in ("wo", "men", "hao")),
+                        pinyin=["wo", "men", "hao"], tones=[3, 5, None],
+                        tone_sources=["agreement", "agreement", "disagreement"],
+                        reading_evidence=dict(pypinyin=["wo3", "men5", "hao3"],
+                                              g2pw=["wo3", "men5", "hao4"]))
+
+    def test_contextual_tones_report_neutral_and_unknown_separately(self):
+        policy = dict(name="contextual-agreement-v1", neutral=5, unknown=None, pypinyin_tone_sandhi=True)
+        self.write([self.toned_row()], tone_policy=policy)
+        report, samples = corpus_audit.audit(self.corpus, self.database)
+        self.assertTrue(report["ok"], report["errors"])
+        self.assertEqual(report["tone_policy"], policy)
+        self.assertEqual(report["tones"]["synthetic"], dict(total=3, known=2, unknown=1, neutral=1,
+                                                              sources=dict(agreement=2, disagreement=1)))
+        self.assertEqual(samples["sources"]["synthetic"][0]["tones"], [3, 5, None])
+
+    def test_invalid_tone_alignment_keys_and_evidence_are_rejected(self):
+        changes = [
+            {"pinyin": ["ni", "men", "hao"]},
+            {"tones": [3, 5, 2]},  # Neither source says hao2.
+            {"tones": [True, 5, None]},
+            {"tones": [3, 0, None]},  # Neutral is 5; 0 is not unknown.
+            {"pinyin": [None, "men", "hao"]},
+            {"tone_sources": ["agreement"]},
+            {"reading_evidence": {"pypinyin": ["wǒ3", "men5", "hao3"], "g2pw": ["wo3", "men5", "hao4"]}},
+            {"reading_evidence": {"pypinyin": ["wo3"], "g2pw": ["wo3", "men5", "hao4"]}},
+        ]
+        for change in changes:
+            with self.subTest(change=change):
+                row = self.toned_row()
+                row.update(change)
+                self.write([row], tone_policy={"name": "contextual-agreement-v1"})
+                report, _ = corpus_audit.audit(self.corpus, self.database)
+                self.assertEqual(report["errors"].get("tone_schema"), 1, report)
+
+    def test_tone_policy_requires_annotations_and_checks_manifest_tone_totals(self):
+        self.write([self.row()], tone_policy={"name": "contextual-agreement-v1"})
+        report, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertEqual(report["errors"].get("tone_schema"), 1)
+        self.write([self.toned_row()], tone_policy={"name": "contextual-agreement-v1"})
+        path = self.corpus / "manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["stats"].update({"tone/known": 3, "tone/unknown": 0, "tone/neutral": 1})
+        path.write_text(json.dumps(manifest))
+        report, _ = corpus_audit.audit(self.corpus, self.database)
+        self.assertEqual(report["errors"].get("manifest_tone_count"), 2)
 
     def test_valid_corpus_counts_and_bounded_reproducible_samples(self):
         # ASCII digits alone are stripped by the dedup normalizer; use distinct

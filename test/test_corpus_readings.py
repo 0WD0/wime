@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
-from corpus_readings import HAN, Lexicon, Reader, key
+from corpus_readings import HAN, Lexicon, Reader, key, numbered_reading
 
 
 class FakeG2PW:
@@ -177,6 +177,80 @@ class PositionalConverter(unittest.TestCase):
         with patch.object(self.upstream_class, "__call__", lower_and_query):
             self.assertEqual(converter.read_positions(sentences, positions), [["行", "行", "长"]])
         self.assertEqual(sentences, [original])  # model normalization never edits corpus input
+
+
+class ToneReadings(unittest.TestCase):
+    def test_same_key_tones_are_queried_and_keys_stay_unchanged(self):
+        lex = lexicon([(key(p), c, 9) for c, p in (("好", "hao"), ("处", "chu"), ("和", "he"), ("喜", "xi"))])
+        sentence = "好处和喜好"
+
+        class PositionalG2PW(FakeG2PW):
+            def read_positions(self, sentences, positions):
+                self.positions = positions
+                return self(sentences)
+
+        g2pw = PositionalG2PW({(sentence, 0): "hao3", (sentence, 4): "hao4"})
+        reader = Reader(lex, g2pw)
+        previous = reader.keys([sentence])
+        self.assertEqual(g2pw.calls, [])  # same-key tones were invisible to the old path
+        row = reader.readings([sentence])[0]
+        self.assertEqual(row["keys"], previous[0])
+        self.assertIn(0, g2pw.positions[0])
+        self.assertIn(4, g2pw.positions[0])
+        self.assertEqual([row["tones"][0], row["tones"][4]], [3, 4])
+        self.assertEqual([row["tone_sources"][0], row["tone_sources"][4]], ["agreement", "agreement"])
+
+    def test_tone_conflict_keeps_both_contextual_predictions(self):
+        lex = lexicon([(key("zhi"), "只", 9)])
+        row = Reader(lex, FakeG2PW({("只", 0): "zhi1"})).readings(["只"])[0]
+        self.assertEqual(row["keys"], [key("zhi")])
+        self.assertEqual(row["pinyin"], ["zhi"])
+        self.assertEqual(row["tones"], [None])
+        self.assertEqual(row["tone_sources"], ["tone_conflict"])
+        self.assertEqual(row["reading_evidence"], {"pypinyin": ["zhi3"], "g2pw": ["zhi1"]})
+
+    def test_single_source_ambiguous_tone_is_unknown(self):
+        lex = lexicon([(key("hao"), "好", 9)])
+        row = Reader(lex).readings(["好"])[0]
+        self.assertEqual(row["pinyin"], ["hao"])
+        self.assertEqual(row["tones"], [None])
+        self.assertEqual(row["tone_sources"], ["pypinyin_ambiguous"])
+        self.assertEqual(row["reading_evidence"]["pypinyin"], ["hao3"])
+
+    def test_neutral_tone_is_not_unknown_or_unusable(self):
+        lex = lexicon([(key("de"), "的", 9), (key("xi"), "㐂", 9)])
+        row = Reader(lex).readings(["的㐂。"])[0]
+        self.assertEqual(row["keys"], [key("de"), key("xi"), None])
+        self.assertEqual(row["pinyin"], ["de", None, None])
+        self.assertEqual(row["tones"], [5, None, None])
+        self.assertEqual(row["reading_evidence"]["pypinyin"], ["de5", None, None])
+        self.assertEqual(row["tone_sources"][2], "non_han")
+
+    def test_contextual_sandhi_is_not_replaced_with_citation_tone(self):
+        lex = lexicon([(key("ni"), "你", 9), (key("hao"), "好", 9)])
+        row = Reader(lex).readings(["你好"])[0]
+        self.assertEqual(row["reading_evidence"]["pypinyin"], ["ni2", "hao3"])
+        self.assertEqual(row["tones"], [2, None])
+        self.assertEqual(row["keys"], [key("ni"), key("hao")])
+
+    def test_merged_key_syllable_conflict_does_not_guess_an_inverse(self):
+        lex = lexicon([(key("en"), "恩", 9)])
+        self.assertEqual(key("en"), key("n"))
+        g2pw = FakeG2PW({("恩", 0): "n1"})
+        g2pw.polyphonic_chars = [("恩", "en1"), ("恩", "n1")]
+        g2pw.style_convert_func = lambda reading: reading
+        row = Reader(lex, g2pw).readings(["恩"])[0]
+        self.assertEqual(row["keys"], [key("en")])
+        self.assertEqual(row["pinyin"], [None])
+        self.assertEqual(row["tones"], [None])
+        self.assertEqual(row["tone_sources"], ["syllable_conflict"])
+        self.assertEqual(row["reading_evidence"], {"pypinyin": ["en1"], "g2pw": ["n1"]})
+
+    def test_numbered_evidence_requires_an_explicit_valid_tone(self):
+        self.assertEqual(numbered_reading("lü4"), "lv4")
+        self.assertEqual(numbered_reading("nu:e4"), "nve4")
+        for reading in (None, "", "de", "de0", "de6", "㐂", "ma55"):
+            self.assertIsNone(numbered_reading(reading))
 
 
 if __name__ == "__main__":

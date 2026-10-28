@@ -8,6 +8,7 @@ from pathlib import Path
 import time
 
 from corpus_integrity import UniqueRows, empty_output, file_metadata, sample_key
+from corpus_tones import tone_counts, validate_tones
 
 SPLITS = ("train", "dev", "test")
 
@@ -28,6 +29,7 @@ def compatibility(manifest):
         arguments={key: value for key, value in manifest["arguments"].items()
                    if key not in ("sources", "out", "max_chars")},
         providers=manifest["providers"], packages=manifest["packages"],
+        tone_policy=manifest.get("tone_policy"),
     )
 
 
@@ -38,6 +40,8 @@ def load_parts(parts):
         manifest = json.loads(path.read_text(encoding="utf-8"))
         if manifest.get("format") != "wime-corpus-v2":
             raise ValueError(f"not a completed corpus-v2 build: {directory}")
+        if "tone_policy" in manifest and not isinstance(manifest["tone_policy"], dict):
+            raise ValueError(f"tone_policy must be an object: {directory}")
         actual = compatibility(manifest)
         if expected is not None and actual != expected:
             differences = [key for key in expected if actual[key] != expected[key]]
@@ -91,6 +95,8 @@ def merge(out, parts):
                     with (directory / f"{split}.jsonl").open(encoding="utf-8") as stream:
                         for line in stream:
                             row = json.loads(line)
+                            if "tone_policy" in baseline:
+                                validate_tones(row)
                             if row["split"] != split:
                                 raise ValueError(f"row in wrong split file: {row['id']}")
                             if not unique.add("id", row["id"]):
@@ -110,6 +116,10 @@ def merge(out, parts):
                                 outputs[split].write(json.dumps(row, ensure_ascii=False) + "\n")
                                 stats[f"{source}/{split}"] += 1
                                 stats["blank_context"] += not bool(row["context"])
+                                if "tone_policy" in baseline:
+                                    for kind, count in tone_counts(row).items():
+                                        if kind != "total":
+                                            stats[f"tone/{kind}"] += count
                                 length = len(row["gold"][0])
                                 stats[f"length/{length if length < 13 else '13+'}"] += 1
                                 stats[f"{source}/documents"] += unique.add("retained_document", row["document"])
@@ -136,6 +146,8 @@ def merge(out, parts):
                          for _, manifest, metadata in loaded],
                   outputs={split: file_metadata(out / f"{split}.jsonl") for split in SPLITS},
                   elapsed_s=time.time() - started)
+    if "tone_policy" in baseline:
+        result["tone_policy"] = baseline["tone_policy"]
     temporary = out / "manifest.json.partial"
     temporary.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.rename(out / "manifest.json")

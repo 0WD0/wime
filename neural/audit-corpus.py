@@ -18,6 +18,7 @@ import sys
 import tempfile
 
 from corpus_integrity import file_metadata, sample_key
+from corpus_tones import tone_counts, validate_tones
 from replay import Protection
 
 SPLITS = ("train", "dev", "test")
@@ -36,6 +37,7 @@ def legal_keys(database):
 def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-corpus-v2-audit"):
     errors, examples = Counter(), defaultdict(list)
     counts, lengths, blanks = Counter(), Counter(), Counter()
+    tones, tone_sources = defaultdict(Counter), defaultdict(Counter)
     samples, sampled, randoms = defaultdict(list), Counter(), {}
     outputs, total = {}, 0
 
@@ -55,6 +57,9 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
         manifest = {}
     if manifest and manifest.get("format") != "wime-corpus-v2":
         error("manifest_format", str(manifest.get("format")))
+    has_tones = "tone_policy" in manifest
+    if has_tones and not isinstance(manifest["tone_policy"], dict):
+        error("tone_policy", "tone_policy must be an object")
     metadata = manifest.get("outputs", {})
     if not isinstance(metadata, dict):
         metadata = {}
@@ -184,6 +189,14 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
                             error("input_length", where)
                         elif any(row["input"][2*i:2*i+2] not in keys.get(char, ()) for i, char in enumerate(text)):
                             error("illegal_reading_key", where)
+                        if has_tones:
+                            try:
+                                validate_tones(row)
+                            except ValueError as exc:
+                                error("tone_schema", dict(location=where, message=str(exc)))
+                            else:
+                                tones[source].update(tone_counts(row))
+                                tone_sources[source].update(row["tone_sources"])
                         if protection.contains(row):
                             error("protected_overlap", where)
                         sampled[source] += 1
@@ -209,6 +222,12 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
                 error("manifest_count", dict(key=key, observed=counts[key], expected=expected_counts.get(key, 0)))
         if "blank_context" in stats and stats["blank_context"] != sum(blanks.values()):
             error("manifest_blank_count", dict(observed=sum(blanks.values()), expected=stats["blank_context"]))
+        if has_tones:
+            for kind in ("known", "unknown", "neutral"):
+                key = f"tone/{kind}"
+                observed = sum(source[kind] for source in tones.values())
+                if key in stats and stats[key] != observed:
+                    error("manifest_tone_count", dict(key=key, observed=observed, expected=stats[key]))
     else:
         error("manifest_stats", "stats must be an object")
     for source_rows in samples.values():
@@ -220,6 +239,10 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
                   errors=dict(sorted(errors.items())), error_examples=dict(examples),
                   database=database_metadata, reading_assets=reading_assets, protection=protection.files,
                   reading_accuracy="Not measured; dictionary key legality does not establish contextual reading correctness.")
+    if has_tones:
+        report["tone_policy"] = manifest["tone_policy"]
+        report["tones"] = {source: dict(counts, sources=dict(sorted(tone_sources[source].items())))
+                           for source, counts in sorted(tones.items())}
     if manifest_path.is_file():
         report["manifest"] = file_metadata(manifest_path)
     review = dict(seed=seed, sample_per_source=sample_per_source,

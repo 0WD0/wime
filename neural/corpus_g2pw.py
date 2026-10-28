@@ -1,6 +1,29 @@
 """Sparse reading queries over the pinned g2pW converter, without changing it."""
 
+from functools import lru_cache
+
 from g2pw import G2PWConverter
+
+
+class CachedTokenizer:
+    """Cache default tokenization for a converter's fixed tokenizer vocabulary.
+
+    g2pW tokenizes each word again for every queried character's context. Keep
+    bounded immutable results per converter and give callers fresh lists.
+    Calls that pass tokenizer options retain the tokenizer's original behavior.
+    """
+
+    def __init__(self, tokenizer, maxsize=32768):
+        self.tokenizer = tokenizer
+        self._tokens = lru_cache(maxsize=maxsize)(lambda text: tuple(tokenizer.tokenize(text)))
+
+    def tokenize(self, text, *args, **kwargs):
+        if args or kwargs or not isinstance(text, str):
+            return self.tokenizer.tokenize(text, *args, **kwargs)
+        return list(self._tokens(text))
+
+    def __getattr__(self, name):
+        return getattr(self.tokenizer, name)
 
 
 class CorpusG2PWConverter(G2PWConverter):
@@ -9,6 +32,10 @@ class CorpusG2PWConverter(G2PWConverter):
     ``__call__`` retains upstream behavior. Like the underlying converter,
     this adapter is intended for sequential use by the corpus builder.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tokenizer = CachedTokenizer(self.tokenizer)
 
     def read_positions(self, sentences, positions):
         sentences, positions = list(sentences), list(positions)

@@ -10,6 +10,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from corpus_integrity import file_metadata
+from corpus_tones import SYLLABLES
 
 spec = importlib.util.spec_from_file_location(
     "merge_corpus", Path(__file__).resolve().parents[1] / "neural/merge-corpus.py")
@@ -26,10 +27,10 @@ class MergeCorpus(unittest.TestCase):
     @staticmethod
     def row(identity, document, content, context, source="first", split="train", group=None):
         return dict(id=identity, document=document, group=group or document, content=content,
-                    source=source, split=split, context=context, input="niik", gold=["你好"],
+                    source=source, split=split, context=context, input=SYLLABLES["ni"] + SYLLABLES["hao"], gold=["你好"],
                     category="web", reading="corpus-readings-v1")
 
-    def part(self, name, rows, **argument_overrides):
+    def part(self, name, rows, tone_policy=None, **argument_overrides):
         directory = self.root / name
         directory.mkdir()
         outputs = {}
@@ -48,6 +49,8 @@ class MergeCorpus(unittest.TestCase):
                                         reading_assets={"g2pw.onnx": asset}, manifest_sha256="source-manifest",
                                         files={f"{name}/raw": f"{name}-raw-digest"}), outputs=outputs)
         manifest["arguments"].update(argument_overrides)
+        if tone_policy is not None:
+            manifest["tone_policy"] = tone_policy
         (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         return directory
 
@@ -116,6 +119,48 @@ class MergeCorpus(unittest.TestCase):
         second = self.part("second", [self.row("same-id", "b", "b", "上下文", source="second")])
         with self.assertRaisesRegex(ValueError, "duplicate row id"):
             self.merge([first, second])
+        self.assertFalse((self.root / "merged/manifest.json").exists())
+
+    def test_tone_policy_is_preserved_and_counts_exclude_deduplicated_rows(self):
+        policy = dict(name="contextual-agreement-v1", neutral=5, unknown=None, pypinyin_tone_sandhi=True)
+        neutral = self.row("a", "a", "a", "左边的上下文")
+        neutral.update(gold=["我们"], input=SYLLABLES["wo"] + SYLLABLES["men"],
+                       pinyin=["wo", "men"], tones=[3, 5], tone_sources=["agreement", "agreement"],
+                       reading_evidence=dict(pypinyin=["wo3", "men5"], g2pw=["wo3", "men5"]))
+        unknown = self.row("b", "b", "b", "另一段上下文", source="second", split="test")
+        unknown.update(pinyin=["ni", "hao"], tones=[3, None], tone_sources=["agreement", "disagreement"],
+                       reading_evidence=dict(pypinyin=["ni3", "hao3"], g2pw=["ni3", "hao4"]))
+        duplicate = dict(neutral, id="copy", document="copy", group="copy", content="copy", source="second")
+        first = self.part("first", [neutral], tone_policy=policy)
+        second = self.part("second", [duplicate, unknown], tone_policy=policy)
+        result = self.merge([first, second])
+        self.assertEqual(result["tone_policy"], policy)
+        self.assertEqual({key: value for key, value in result["stats"].items() if key.startswith("tone/")},
+                         {"tone/known": 3, "tone/unknown": 1, "tone/neutral": 1})
+        self.assertEqual(result["stats"]["second/duplicate_sample"], 1)
+        retained = json.loads((self.root / "merged/test.jsonl").read_text())
+        self.assertEqual(retained["tones"], [3, None])
+        self.assertEqual(retained["reading_evidence"], unknown["reading_evidence"])
+
+    def test_tone_policy_mismatch_is_rejected(self):
+        first = self.part("first", [])
+        second = self.part("second", [], tone_policy={"name": "contextual-agreement-v1"})
+        with self.assertRaisesRegex(ValueError, "incompatible.*tone_policy"):
+            self.merge([first, second])
+        path = first / "manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["tone_policy"] = {"name": "citation-v1"}
+        path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "incompatible.*tone_policy"):
+            self.merge([first, second])
+
+    def test_tone_policy_requires_valid_aligned_annotations(self):
+        row = self.row("a", "a", "a", "上下文")
+        row.update(pinyin=["ni", "hao"], tones=[3, 2], tone_sources=["agreement", "agreement"],
+                   reading_evidence=dict(pypinyin=["ni3", "hao3"], g2pw=["ni3", "hao4"]))
+        part = self.part("first", [row], tone_policy={"name": "contextual-agreement-v1"})
+        with self.assertRaisesRegex(ValueError, "no matching reading evidence"):
+            self.merge([part])
         self.assertFalse((self.root / "merged/manifest.json").exists())
 
 

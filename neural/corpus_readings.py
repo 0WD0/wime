@@ -7,13 +7,14 @@ rare entries are not trusted alone. Every character must end on a key pair the
 database accepts for it; otherwise its span is unusable.
 """
 from collections import Counter, defaultdict
+from functools import lru_cache
 import json
 import math
 from pathlib import Path
 import re
 import sqlite3
 
-from pypinyin import Style, lazy_pinyin
+from pypinyin import Style, lazy_pinyin, pinyin
 
 # U+4DC0..U+4DFF are Yijing symbols, between Extension A and unified Han.
 HAN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
@@ -27,6 +28,21 @@ def key(pinyin):
 
 def model_key(pinyin):
     return key(re.sub(r"\d", "", pinyin).replace("u:", "v").replace("ü", "v")) if pinyin else None
+
+
+def numbered_reading(value):
+    """Normalize explicit numbered readings; absent tones are unknown, not 5."""
+    if not value:
+        return None
+    value = value.lower().replace("u:", "v").replace("ü", "v")
+    return value if re.fullmatch(r"[a-z]+[1-5]", value) else None
+
+
+@lru_cache(maxsize=65536)
+def character_readings(char):
+    """Candidate inventory for detecting ambiguity, never the output tone."""
+    readings = pinyin(char, style=Style.TONE3, heteronym=True, neutral_tone_with_five=True)[0]
+    return frozenset(value for reading in readings if (value := numbered_reading(reading)))
 
 
 class Lexicon:
@@ -81,20 +97,30 @@ class Reader:
         self.lexicon, self.g2pw = lexicon, g2pw
         self.methods = Counter()
         self.model_keys = None
+        self.model_readings = None
         if g2pw is not None and hasattr(g2pw, "polyphonic_chars"):
             # Mirror G2PWConverter._prepare_data's source precedence. In
             # particular, its trained label inventory can omit a common
             # Mandarin reading even when its fallback dictionary knows it.
             self.model_keys = {}
+            self.model_readings = {}
             convert = g2pw.style_convert_func
             for char, readings in getattr(g2pw, "char_bopomofo_dict", {}).items():
-                self.model_keys[char] = {model_key(convert(readings[0]))} if readings else set()
+                converted = convert(readings[0]) if readings else None
+                self.model_keys[char] = {model_key(converted)} if readings else set()
+                self.model_readings[char] = {numbered_reading(converted)} if readings else set()
             for char, reading in getattr(g2pw, "monophonic_chars", []):
-                self.model_keys[char] = {model_key(convert(reading))}
+                converted = convert(reading)
+                self.model_keys[char] = {model_key(converted)}
+                self.model_readings[char] = {numbered_reading(converted)}
             polyphonic = defaultdict(set)
+            numbered = defaultdict(set)
             for char, reading in g2pw.polyphonic_chars:
-                polyphonic[char].add(model_key(convert(reading)))
+                converted = convert(reading)
+                polyphonic[char].add(model_key(converted))
+                numbered[char].add(numbered_reading(converted))
             self.model_keys.update(polyphonic)
+            self.model_readings.update(numbered)
 
     def supported_model_keys(self, char):
         if self.model_keys is None:
@@ -103,9 +129,30 @@ class Reader:
             char = self.g2pw.s2t_dict.get(char, char)
         return self.model_keys.get(char, set())
 
-    def keys(self, sentences):
-        """Per sentence, a list aligned with characters: key pair or None for non-Han/unusable."""
+    def supported_model_readings(self, char):
+        if self.model_readings is None:
+            return set()
+        if getattr(self.g2pw, "enable_non_tradional_chinese", False):
+            char = self.g2pw.s2t_dict.get(char, char)
+        return self.model_readings.get(char, set()) - {None}
+
+    def _predict(self, sentences, positions):
+        if hasattr(self.g2pw, "read_positions"):
+            predictions = self.g2pw.read_positions(sentences, positions)
+        else:
+            predictions = self.g2pw(sentences)
+        if not isinstance(predictions, (list, tuple)) or len(predictions) != len(sentences):
+            raise ValueError("g2pW must return one prediction row per disputed sentence")
+        for sentence, predicted in zip(sentences, predictions):
+            if not isinstance(predicted, (list, tuple)) or len(predicted) != len(sentence):
+                raise ValueError(f"g2pW prediction must align with all {len(sentence)} sentence characters")
+        return predictions
+
+    def _key_details(self, sentences):
+        """Retain the original toneless decisions and their requested evidence."""
         drafts, disputed = [], []
+        evidence = [[None] * len(sentence) for sentence in sentences]
+        queried = [set() for _ in sentences]
         for index, sentence in enumerate(sentences):
             py = [None] * len(sentence)
             row = [None] * len(sentence)
@@ -142,20 +189,16 @@ class Reader:
         predictions = [None] * len(disputed)
         if disputed and self.g2pw is not None:
             texts = [sentences[i] for i, _ in disputed]
-            if hasattr(self.g2pw, "read_positions"):
-                predictions = self.g2pw.read_positions(texts, [pending for _, pending in disputed])
-            else:
-                predictions = self.g2pw(texts)
-        if not isinstance(predictions, (list, tuple)) or len(predictions) != len(disputed):
-            raise ValueError("g2pW must return one prediction row per disputed sentence")
+            predictions = self._predict(texts, [pending for _, pending in disputed])
         for (index, pending), predicted in zip(disputed, predictions):
             sentence, row = sentences[index], drafts[index]
-            if self.g2pw is not None and (not isinstance(predicted, (list, tuple)) or len(predicted) != len(sentence)):
-                raise ValueError(f"g2pW prediction must align with all {len(sentence)} sentence characters")
             for k in pending:
                 word_key, guess = row[k]
                 legal = self.lexicon.legal.get(sentence[k], set())
                 g = predicted[k] if predicted and predicted[k] else None
+                if predicted is not None:
+                    evidence[index][k] = numbered_reading(g)
+                    queried[index].add(k)
                 g = model_key(g)
                 votes = Counter(v for v in (word_key, guess, g) if v in legal)
                 if not votes:
@@ -179,4 +222,80 @@ class Reader:
                 if item is not None:
                     self.methods[item[1]] += 1
             result.append([item[0] if item is not None else None for item in row])
-        return result
+        return result, evidence, queried
+
+    def keys(self, sentences):
+        """Per sentence, aligned key pairs or None; tone annotation never changes them."""
+        return self._key_details(sentences)[0]
+
+    def readings(self, sentences):
+        """Keys plus contextual tone evidence, aligned before corpus span clipping.
+
+        pypinyin applies its contextual sandhi rules; g2pW predicts contextual
+        readings but does not implement all surface sandhi. Conflicts remain
+        unknown. Character inventories only identify ambiguity; they never
+        replace contextual predictions with citation tones.
+        """
+        keys, model, queried = self._key_details(sentences)
+        phonetic = [[None] * len(sentence) for sentence in sentences]
+        extra = []
+        for index, sentence in enumerate(sentences):
+            for match in HAN.finditer(sentence):
+                values = lazy_pinyin(match.group(), style=Style.TONE3, neutral_tone_with_five=True,
+                                     tone_sandhi=True, errors=lambda chars: list(chars))
+                if len(values) != len(match.group()):
+                    raise ValueError(f"pypinyin returned {len(values)} readings for {len(match.group())} characters")
+                phonetic[index][match.start():match.end()] = [numbered_reading(value) for value in values]
+            pending = []
+            for k, code in enumerate(keys[index]):
+                if code is None or k in queried[index]:
+                    continue
+                candidates = character_readings(sentence[k]) | self.supported_model_readings(sentence[k])
+                compatible = {value for value in candidates if model_key(value) == code}
+                if len(compatible) > 1:
+                    pending.append(k)
+            if pending and self.g2pw is not None:
+                extra.append((index, pending))
+        if extra:
+            predicted = self._predict([sentences[i] for i, _ in extra], [pending for _, pending in extra])
+            for (index, pending), values in zip(extra, predicted):
+                for k in pending:
+                    model[index][k] = numbered_reading(values[k])
+
+        results = []
+        for index, sentence in enumerate(sentences):
+            syllables, tones, sources = [], [], []
+            for k, code in enumerate(keys[index]):
+                if code is None:
+                    syllables.append(None)
+                    tones.append(None)
+                    sources.append("unusable" if HAN.fullmatch(sentence[k]) else "non_han")
+                    continue
+                py, gp = phonetic[index][k], model[index][k]
+                compatible = [(name, value) for name, value in (("pypinyin", py), ("g2pw", gp))
+                              if value and model_key(value) == code]
+                syllable, tone, source = None, None, "unknown"
+                if len(compatible) == 2:
+                    if py == gp:
+                        syllable, tone, source = py[:-1], int(py[-1]), "agreement"
+                    elif py[:-1] == gp[:-1]:
+                        syllable, source = py[:-1], "tone_conflict"
+                    else:
+                        source = "syllable_conflict"
+                elif compatible:
+                    name, value = compatible[0]
+                    syllable = value[:-1]
+                    candidates = character_readings(sentence[k]) | self.supported_model_readings(sentence[k])
+                    candidate_tones = {int(candidate[-1]) for candidate in candidates if candidate[:-1] == syllable}
+                    if len(candidate_tones) == 1:
+                        # Keep the source's contextual tone, even when sandhi
+                        # differs from the inventory's single citation tone.
+                        tone, source = int(value[-1]), name + "_contextual_unique"
+                    else:
+                        source = name + "_ambiguous"
+                syllables.append(syllable)
+                tones.append(tone)
+                sources.append(source)
+            results.append(dict(keys=keys[index], pinyin=syllables, tones=tones, tone_sources=sources,
+                                reading_evidence=dict(pypinyin=phonetic[index], g2pw=model[index])))
+        return results

@@ -98,6 +98,20 @@ class Sources(unittest.TestCase):
             archive.writestr("data/0.jsonl", json.dumps({"ID": 1, "主题": "主题", "回复": []}) + "\n")
         self.assertEqual(len(list(corpus.forum(self.root))), 1)
 
+    def test_forum_snapshot_versions_share_group_without_document_collisions(self):
+        # The raw PKU archive contains adjacent rows with ID 15680 whose
+        # second topic adds a timestamp. Replies may also change in snapshots.
+        snapshots = [
+            {"ID": 15680, "主题": "同一个主题的内容", "回复": [{"回复": "原始回复"}]},
+            {"ID": 15680, "主题": "2014-10-25 23:38:24\n同一个主题的内容", "回复": [{"回复": "修改后的回复"}]},
+        ]
+        self.gz("mnbvc/forum/20230253/example/0.jsonl.gz", snapshots)
+        rows = list(corpus.forum(self.root))
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(len({row[0] for row in rows}), 1)
+        self.assertEqual(len({row[1] for row in rows}), 4)
+        self.assertEqual({corpus.split_of(row[0]) for row in rows}, {corpus.split_of(rows[0][0])})
+
     def test_wiki_streams_multiple_pages_and_skips_redirects_and_other_namespaces(self):
         pages = [
             '<page><title>甲</title><ns>0</ns><revision><text>第一篇文章。</text></revision></page>',
