@@ -184,6 +184,8 @@ def parse_args(argv=None):
                         help="experimental text decoder: exact request-result cache entries (0 disables)")
     parser.add_argument("--text-cache-paths", type=int, default=0,
                         help="experimental text decoder: parent-state cache limit (0 disables)")
+    parser.add_argument("--text-native-library", help="experimental text decoder: Wime llama bridge shared library")
+    parser.add_argument("--text-native-model", help="experimental text decoder: floating-point Llama GGUF; --rescorer supplies its matching HF tokenizer")
     parser.add_argument("--japanese-model", help="kana-conditioned model (train-japanese.py)")
     parser.add_argument("--japanese-table", help="reading table for the rescorer (build-japanese-table.py)")
     parser.add_argument("--japanese-zenz", help="zenz directory (convert-zenz.py) for the final Japanese ranking")
@@ -196,7 +198,24 @@ def parse_args(argv=None):
         parser.error("--text-guide-weight must be finite and nonnegative")
     if args.text_cache_requests < 0 or args.text_cache_paths < 0:
         parser.error("text cache entry limits must be nonnegative")
+    if bool(args.text_native_library) != bool(args.text_native_model):
+        parser.error("--text-native-library and --text-native-model must be supplied together")
+    if args.text_native_model:
+        if args.decoder_kind != "text":
+            parser.error("the native LM requires --decoder-kind text")
+        if args.text_cache_paths:
+            parser.error("the native LM manages its own path cache; --text-cache-paths must be 0")
+        if args.japanese_model or args.japanese_table or args.japanese_zenz:
+            parser.error("the native LM is currently supported for Chinese text decoding only")
     return args
+
+
+def make_rescorer(args):
+    if args.text_native_model:
+        from native_rescorer import NativeRescorer
+        return NativeRescorer(args.rescorer, args.rescorer_weight,
+                              args.text_native_library, args.text_native_model)
+    return Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
 
 
 def make_decoder(args, evaluator, rescorer):
@@ -207,13 +226,14 @@ def make_decoder(args, evaluator, rescorer):
     table = readings(args.database)
     if args.decoder_kind == "text":
         from text_decoder import TextDecoder
+        backend = dict(lm_backend=rescorer.backend) if args.text_native_model else {}
         return TextDecoder(evaluator, rescorer, table,
                            rewind_tokens=args.text_rewind_tokens,
                            guide_weight=args.text_guide_weight,
                            final_mode=args.text_final_mode,
                            cache_guide=args.text_cache_guide,
                            cache_requests=args.text_cache_requests,
-                           cache_paths=args.text_cache_paths)
+                           cache_paths=args.text_cache_paths, **backend)
     from decoder import Decoder, Units
     return Decoder(evaluator, rescorer, Units(rescorer.tokenizer, table))
 
@@ -221,7 +241,7 @@ def make_decoder(args, evaluator, rescorer):
 def main():
     args = parse_args()
     evaluator = ConditionalEvaluator(args.model, device="cuda")
-    rescorer = Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
+    rescorer = make_rescorer(args)
     decoder = make_decoder(args, evaluator, rescorer)
     # Pay CUDA/kernel initialization once, before the first interactive request.
     evaluator.evaluate("", "aaaa", ["中文"])

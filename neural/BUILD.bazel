@@ -25,6 +25,8 @@ gpu_runtime(
         "conditional_prefix.py",
         "request_cache.py",
         "branch_cache.py",
+        "native_llama.py",
+        "native_rescorer.py",
         "japanese.py",
         "conditional.py",
         "context-pinyin.json",

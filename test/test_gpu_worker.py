@@ -62,11 +62,33 @@ class WorkerContract(unittest.TestCase):
                  ["--text-guide-weight", "-1"],
                  ["--text-cache-requests", "-1"],
                  ["--text-cache-paths", "-1"]]
+        native = ["--text-native-library", "bridge.so", "--text-native-model", "model.gguf"]
+        valid = ["--decoder-kind", "text", "--rescorer", "lm", "--database", "words"]
+        cases += [["--text-native-library", "bridge.so"],
+                  ["--text-native-model", "model.gguf"], native,
+                  native + valid + ["--text-cache-paths", "128"],
+                  native + valid + ["--japanese-model", "kana"]]
         for flags in cases:
             with self.subTest(flags=flags), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as raised:
                     worker.parse_args(["model"] + flags)
                 self.assertEqual(raised.exception.code, 2)
+
+    def test_native_selection_loads_metadata_adapter_and_passes_its_backend(self):
+        args = worker.parse_args(["model", "--rescorer", "tokenizer", "--database", "words",
+                                  "--decoder-kind", "text", "--text-native-library", "bridge.so",
+                                  "--text-native-model", "model.gguf"])
+        native = SimpleNamespace(NativeRescorer=mock.Mock())
+        legacy = SimpleNamespace(readings=mock.Mock(return_value={}))
+        text = SimpleNamespace(TextDecoder=mock.Mock())
+        evaluator = object()
+        with mock.patch.dict(sys.modules, native_rescorer=native, decoder=legacy, text_decoder=text), \
+                mock.patch.object(worker, "Rescorer") as hf:
+            rescorer = worker.make_rescorer(args)
+            worker.make_decoder(args, evaluator, rescorer)
+        native.NativeRescorer.assert_called_once_with("tokenizer", 1.5, "bridge.so", "model.gguf")
+        hf.assert_not_called()
+        self.assertIs(text.TextDecoder.call_args.kwargs["lm_backend"], rescorer.backend)
 
     def test_text_cache_controls_can_disable_reuse_or_enable_path_experiment(self):
         args = worker.parse_args(["model", "--no-text-cache-guide", "--text-cache-requests", "0",
