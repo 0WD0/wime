@@ -33,7 +33,7 @@
         :single_character (if wime-neural-single-character t :false)
         :seed_draft (if wime-neural-seed-candidates "neural" "traditional")
         :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight
-        :backend (symbol-name wime-backend)
+        :backend (wime-backend--model-name)
         :native_library (or wime-backend-native-library :null)
         :native_model (or wime-backend-native-model :null)
         :pool_width (or wime-neural-pool-width :null)

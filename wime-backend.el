@@ -1,9 +1,10 @@
 ;;; wime-backend.el --- Wime backend configuration and selection -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Backend identity, capabilities and asset choices belong to Wime.  The
-;; neural worker consumes this configuration; checkpoints provide the warm
-;; transition and persistence when a backend is selected interactively.
+;; Wime selects a complete inference setup.  Worker profiles keep search
+;; strategy and model implementation separate: verify uses the existing
+;; conditional protocol without loading a general model.  Checkpoints own
+;; the warm transition and persistence.
 
 ;;; Code:
 
@@ -17,11 +18,12 @@
 
 (defcustom wime-backend 'qwen-hf
   "Wime inference backend.
+`verify' checks dictionary candidates with the conditional model alone.
 `qwen-hf' and `minicpm-native' use byte-constrained text decoding, with
 conditional guidance and language-model ranking.  `legacy' uses the
 original character-synchronous search and fused ranking with Qwen HF.
 Use `wime-select-backend' to prewarm and persist a backend change."
-  :type '(choice (const qwen-hf) (const minicpm-native) (const legacy))
+  :type '(choice (const verify) (const qwen-hf) (const minicpm-native) (const legacy))
   :group 'wime)
 
 (defcustom wime-backend-native-library nil
@@ -33,11 +35,12 @@ Use `wime-select-backend' to prewarm and persist a backend change."
   :type '(choice (const nil) file) :group 'wime)
 
 (defconst wime-backend--definitions
-  '((qwen-hf :capabilities (chinese japanese rerank verify decode)
+  '((verify :capabilities (chinese verify) :search-method verify)
+    (qwen-hf :capabilities (chinese japanese rerank verify decode) :search-method decode
              :rescorer "rescorers/Qwen3.5-2B-Base")
-    (minicpm-native :capabilities (chinese decode)
+    (minicpm-native :capabilities (chinese decode) :search-method decode
                     :rescorer "rescorers/MiniCPM5-2B" :native t)
-    (legacy :capabilities (chinese japanese decode)
+    (legacy :capabilities (chinese japanese decode) :search-method decode
             :rescorer "rescorers/Qwen3.5-2B-Base"))
   "Backend capabilities and default assets relative to the data directory.")
 
@@ -47,28 +50,43 @@ Use `wime-select-backend' to prewarm and persist a backend change."
                                          wime-backend--definitions)) :capabilities)))
 
 (defun wime-backend-from-profile (profile)
-  "Read and validate PROFILE's explicit backend."
-  (let ((name (plist-get profile :backend)))
-    (or (car (seq-find (lambda (entry) (equal name (symbol-name (car entry))))
-                       wime-backend--definitions))
-        (error "Unknown Wime backend: %s" name))))
+  "Identify the Wime setup from PROFILE's model and search settings."
+  (let* ((name (plist-get profile :backend))
+         (backend (car (seq-find (lambda (entry)
+                                  (and (not (eq (car entry) 'verify))
+                                       (equal name (symbol-name (car entry)))))
+                                wime-backend--definitions))))
+    (unless backend (error "Unknown model backend: %s" name))
+    (if (and (eq backend 'qwen-hf)
+             (equal (plist-get profile :search_method) "verify")
+             (memq (plist-get profile :rescorer) '(nil :null)))
+        'verify
+      backend)))
+
+(defun wime-backend--model-name (&optional backend)
+  "Return the worker model implementation for the selected Wime BACKEND.
+Verify leaves the worker's default implementation unused, with no rescorer."
+  (let ((backend (or backend wime-backend)))
+    (if (eq backend 'verify) "qwen-hf" (symbol-name backend))))
 
 (defun wime-backend--arguments (search-method rescorer database)
   "Return backend worker arguments for SEARCH-METHOD, RESCORER and DATABASE.
 Keep the default verification protocol usable without decoder assets."
   (unless (wime-backend-supports-p search-method)
     (error "Backend %s does not support %s search" wime-backend search-method))
-  (when (or (and rescorer (eq search-method 'decode))
-            (not (eq wime-backend 'qwen-hf)))
-    (unless (and rescorer (eq search-method 'decode) database)
-      (error "Selected backend requires a rescorer, database and decode search"))
-    (append (list "--database" (expand-file-name database)
-                  "--backend" (symbol-name wime-backend))
-            (when (plist-get (cdr (assq wime-backend wime-backend--definitions)) :native)
-              (unless (and wime-backend-native-library wime-backend-native-model)
-                (error "MiniCPM requires a native library and GGUF model"))
-              (list "--native-library" (expand-file-name wime-backend-native-library)
-                    "--native-model" (expand-file-name wime-backend-native-model))))))
+  (if (eq wime-backend 'verify)
+      (when rescorer (error "Verify backend uses only the conditional model"))
+    (when (or (and rescorer (eq search-method 'decode))
+              (not (eq wime-backend 'qwen-hf)))
+      (unless (and rescorer (eq search-method 'decode) database)
+        (error "Selected backend requires a rescorer, database and decode search"))
+      (append (list "--database" (expand-file-name database)
+                    "--backend" (symbol-name wime-backend))
+              (when (plist-get (cdr (assq wime-backend wime-backend--definitions)) :native)
+                (unless (and wime-backend-native-library wime-backend-native-model)
+                  (error "MiniCPM requires a native library and GGUF model"))
+                (list "--native-library" (expand-file-name wime-backend-native-library)
+                      "--native-model" (expand-file-name wime-backend-native-model)))))))
 
 (defvar wime-backend--cancel-switch nil)
 
@@ -87,23 +105,23 @@ compositions have finished.  Assets live in `wime-checkpoint-directory'."
                           (and current-input-method
                                (string-prefix-p "wime-japanese" current-input-method))))
                       (buffer-list)))
-    (user-error "Deactivate Japanese input before selecting the Chinese-only MiniCPM backend"))
+    (user-error "Backend %s does not support Japanese; deactivate Japanese input first" backend))
   (let* ((definition (cdr (assq backend wime-backend--definitions)))
          (native (plist-get definition :native))
-         (rescorer (expand-file-name (plist-get definition :rescorer)
-                                    wime-checkpoint-directory))
+         (rescorer (when-let* ((path (plist-get definition :rescorer)))
+                     (expand-file-name path wime-checkpoint-directory)))
          (library (and native (expand-file-name "native/current/lib/libwime_llama.so" wime-checkpoint-directory)))
          (gguf (and native (expand-file-name "model.bf16.gguf" rescorer)))
          (profile (wime-checkpoint-profile)))
-    (dolist (path (append (list wime-neural-model-file wime-database-file
-                                (expand-file-name "config.json" rescorer)
-                                (expand-file-name "tokenizer.json" rescorer))
+    (dolist (path (append (list wime-neural-model-file wime-database-file)
+                         (and rescorer (list (expand-file-name "config.json" rescorer)
+                                             (expand-file-name "tokenizer.json" rescorer)))
                          (and native (list library gguf))))
       (unless (and path (file-readable-p path))
         (user-error "Backend asset is missing: %s" path)))
-    (setq profile (plist-put profile :backend (symbol-name backend))
-          profile (plist-put profile :search_method "decode")
-          profile (plist-put profile :rescorer rescorer)
+    (setq profile (plist-put profile :backend (wime-backend--model-name backend))
+          profile (plist-put profile :search_method (symbol-name (plist-get definition :search-method)))
+          profile (plist-put profile :rescorer (or rescorer :null))
           ;; Freeze the library version in saved recipes, not its current symlink.
           profile (plist-put profile :native_library (if library (file-truename library) :null))
           profile (plist-put profile :native_model (or gguf :null)))

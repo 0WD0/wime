@@ -113,6 +113,7 @@ wime-lab 中也可按 =l/H= 打开。=/= 搜索，=RET= 查看详情，=e= 修�
 
 | 中文后端 | 模型目录 | 运行方式 |
 |----------+----------+----------|
+| =verify= | 条件模型 | 词格候选校验；不加载通用大模型 |
 | =qwen-hf=（默认） | =rescorers/Qwen3.5-2B-Base/= | Transformers BF16 |
 | =minicpm-native= | =rescorers/MiniCPM5-2B/= | llama.cpp BF16 GGUF；HF 只负责分词 |
 | =legacy= | =rescorers/Qwen3.5-2B-Base/= | 原字符同步搜索；25M 条件模型与 Qwen HF 融合排序 |
@@ -144,8 +145,9 @@ CUDA toolkit；=--nvcc= 可指定编译器。没有现成 GGUF 时省略 =--gguf
 运行时从 =native/current/lib/libwime_llama.so= 选择版本，检查点保存解析后的具体路径。
 
 =./wdoom/bin/wdoom-prepare --native= 打包 worker、Elisp 和 25M 模型，重启后生效。
-=M-x wime-select-backend= 选择 =qwen-hf=、=minicpm-native= 或 =legacy=：先预热，再等当前
-输入结束后切换，并保存下次启动配置；失败保留当前 worker。旧 HF 检查点自动使用新解码器。
+=M-x wime-select-backend= 选择 =verify=、=qwen-hf=、=minicpm-native= 或 =legacy=：先预热，再等当前
+输入结束后切换，并保存下次启动配置；失败保留当前 worker。
+=verify= 只用词格和条件小模型，不加载通用大模型，也不支持日文转换。
 缺少大模型时保留 25M 的 =verify=；worker 出错时词格候选仍可用。
 =M-x wime-lab= 的评测、试输、检查点保存也携带后端和原生模型路径。
 MiniCPM 原生目前只支持中文；日文输入使用 Qwen HF，切换界面会检查这一限制。
