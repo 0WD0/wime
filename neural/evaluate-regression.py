@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Paired full-backend regression gate for two conditional checkpoints."""
+import argparse
+import json
+from pathlib import Path
+import time
+
+from dataset_registry import Registry
+from regression import compare, requests, request_key
+from replay import fingerprint
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dataset", action="append", required=True)
+    parser.add_argument("--model", action="append", required=True, help="name=/path; exactly two checkpoints")
+    parser.add_argument("--database", type=Path, required=True)
+    parser.add_argument("--rescorer", type=Path, required=True)
+    parser.add_argument("--out", type=Path, required=True)
+    args = parser.parse_args()
+    models = dict(value.split("=",1) for value in args.model)
+    if len(models) != 2:
+        parser.error("exactly two distinct model names required")
+    registry, suites = Registry(), []
+    for dataset in args.dataset:
+        path, snapshot = registry.evaluation(dataset)
+        cases = json.loads(path.read_text())
+        suites.append((dataset,snapshot,cases,list(requests(cases))))
+    args.out.mkdir(parents=True,exist_ok=False)
+    started = time.monotonic()
+
+    import torch
+    from decoder import Decoder, Units
+    from decoding_model import readings
+    from inference import ConditionalEvaluator
+    from rescorer import Rescorer
+    rescorer = Rescorer(str(args.rescorer),1.5)
+    units = Units(rescorer.tokenizer,readings(args.database))
+    decoders = {name:Decoder(ConditionalEvaluator(path),rescorer,units) for name,path in models.items()}
+    for decoder in decoders.values():
+        decoder.decode("评测预热","nihk",2)
+    cache, results = {}, []
+    with (args.out / "results.jsonl").open("w") as stream:
+        for dataset,snapshot,cases,prepared in suites:
+            print(json.dumps(dict(dataset=dataset,cases=len(cases))),flush=True)
+            for row,request in zip(cases,prepared,strict=True):
+                identity = request_key(request)
+                if identity not in cache:
+                    predictions = {}
+                    for name,decoder in decoders.items():
+                        torch.cuda.synchronize()
+                        start = time.perf_counter()
+                        candidates = decoder.decode(request["context"],request["input"],request["anchor"],
+                                                    request["known"],aux=request["aux"])
+                        torch.cuda.synchronize()
+                        predictions[name] = dict(prediction=candidates[0][0] if candidates else "",
+                                                 candidates=[text for text,score in candidates],
+                                                 scores=[score for text,score in candidates],
+                                                 milliseconds=1000*(time.perf_counter()-start))
+                    cache[identity] = predictions
+                result = dict(dataset=dataset,id=row["id"],gold=row["gold"],typed_input=row["input"],
+                              request=request,models=cache[identity],
+                              **{key:row[key] for key in ("document","parent","category","variant") if key in row})
+                results.append(result)
+                stream.write(json.dumps(result,ensure_ascii=False)+"\n")
+                stream.flush()
+                if len(results)%50 == 0:
+                    print(json.dumps(dict(completed=len(results),unique_requests=len(cache),seconds=time.monotonic()-started)),flush=True)
+    report = dict(models={name:dict(path=path,sha256=fingerprint(Path(path))) for name,path in models.items()},
+                  datasets={name:snapshot for name,snapshot,_,_ in suites},
+                  database_sha256=fingerprint(args.database),
+                  rescorer_files_sha256={file.name:fingerprint(file) for file in sorted(args.rescorer.iterdir())
+                                        if file.suffix in (".json",".safetensors")},
+                  profile=dict(backend="legacy",anchor=2,beam=16,rescorer_weight=1.5,
+                               context_characters=64,personalization=False),
+                  code_sha256={name:fingerprint(Path(__file__).with_name(name)) for name in
+                               ("evaluate-regression.py","regression.py","decoder.py","decoding_model.py",
+                                "inference.py","conditional.py","rescorer.py")},
+                  unique_requests=len(cache),cases=len(results),seconds=time.monotonic()-started,
+                  metrics=compare(results,list(models)),
+                  interpretation="Archived regression counts, not estimated user traffic. "
+                                 "Auxiliary keys retained; explicit or reconstructible committed keystrokes supplied. "
+                                 "Predictions shared only for identical model-facing requests.")
+    (args.out / "summary.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")
+    print(json.dumps(report["metrics"]["datasets"],ensure_ascii=False),flush=True)
+
+
+if __name__ == "__main__":
+    main()
