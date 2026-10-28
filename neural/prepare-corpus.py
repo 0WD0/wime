@@ -27,12 +27,12 @@ import zipfile
 from corpus_readings import HAN, Lexicon, Reader
 from replay import Protection
 from corpus_integrity import UniqueRows, checked_row, empty_output, file_metadata, reading_assets, verify_sources
-from corpus_tones import validate_tones
+from corpus_tones import TONE_POLICY, validate_tones
+from corpus_cleaning import clean_document, decode_entities
 
 # Short commits dominate actual editor input; retain long spans for coverage.
 LENGTHS = ((0.50, 1, 1), (0.25, 2, 3), (0.15, 4, 8), (0.10, 9, 24))
 SENTENCE = re.compile(r"[^。！？!?\n]*[。！？!?\n]?")
-URL = re.compile(r"https?://\S+|www\.\S+")
 PARQUET_BATCH_SIZE = 256
 ANNOTATION_CORE = 128
 ANNOTATION_HALO = 64
@@ -59,13 +59,6 @@ def annotation_windows(document):
 
 def digest(text):
     return hashlib.sha256(text.encode()).hexdigest()
-
-
-def clean(text, t2s):
-    # Compatibility helper for source inspection; production records operations
-    # and quarantines through clean_document in the separate cleaning stage.
-    from corpus_cleaning import clean_document
-    return clean_document("wildchat", text, t2s)[0]
 
 
 def parquet_rows(path, columns):
@@ -96,9 +89,91 @@ def wildchat(root):
                     yield group, f"{group}:turn:{turn_index}", "prompt", text
 
 
-def zhwiki(root):
+def render_wiki(text):
+    """Render article prose while retaining explicitly marked code literally."""
     import mwparserfromhell
+
+    # Protect literal regions before interpreting Wiki links, variants or HTML.
+    # In real articles malformed italics can hide later HTML from the Wiki AST,
+    # so these source-level boundaries must precede mwparserfromhell.parse.
+    attributes = r'''(?:[^>"']|"[^"]*"|'[^']*')*'''
+    literal = re.compile(
+        rf"<(?P<tag>nowiki|code|pre|syntaxhighlight|source)(?=[\s/>]){attributes}>"
+        r"(?P<body>.*?)</(?P=tag)\s*>", re.IGNORECASE | re.DOTALL)
+    placeholders = {}
+    prefix = "WIMECORPUSLITERAL"
+    while prefix in text:
+        prefix += "X"
+
+    def protect(match):
+        body = match.group("body")
+        # MediaWiki commonly marks inline examples as <code><nowiki>...</nowiki>
+        # </code>. Remove that structural inner wrapper, not its literal HTML.
+        nested = re.fullmatch(r"<nowiki\s*>(.*?)</nowiki\s*>", body, re.IGNORECASE | re.DOTALL)
+        if nested:
+            body = nested.group(1)
+        # Decode explicit entities once, without interpreting the resulting tags
+        # or Wiki syntax. Restoring after strip_code avoids a second decoding.
+        body = decode_entities(body)
+        key = f"{prefix}{len(placeholders)}END"
+        placeholders[key] = body
+        SOURCE_TRANSFORMS["zhwiki/literal_regions_preserved"] += 1
+        return key
+
+    text = literal.sub(protect, text)
+    # References are ancillary text, not inline article prose. Handling their
+    # actual source tags also works when a citation contains broken Wiki quotes.
+    references = re.compile(
+        rf"<(ref|references)(?=[\s/>]){attributes}/\s*>|"
+        rf"<(?P<paired>ref|references)(?=[\s/>]){attributes}>.*?</(?P=paired)\s*>",
+        re.IGNORECASE | re.DOTALL)
+    text, count = references.subn("", text)
+    SOURCE_TRANSFORMS["zhwiki/references_removed"] += count
+    block = {"div", "p", "br", "hr", "table", "thead", "tbody", "tfoot", "tr", "td", "th",
+             "caption", "ul", "ol", "li", "dl", "dt", "dd", "blockquote", "center",
+             "h1", "h2", "h3", "h4", "h5", "h6"}
+    inline = {"span", "b", "i", "em", "strong", "u", "s", "small", "big", "sup", "sub", "font"}
+    layout = re.compile(rf"</?(?P<tag>{'|'.join(sorted(block | inline))})(?=[\s/>]){attributes}>", re.IGNORECASE)
+
+    def boundary(match):
+        SOURCE_TRANSFORMS["zhwiki/layout_tags_removed"] += 1
+        return "\n" if match.group("tag").lower() in block else ""
+
+    text = layout.sub(boundary, text)
+    # Bold/italic delimiters carry no prose. Removing them before parsing keeps
+    # an unmatched five-quote run from swallowing later link boundaries.
+    text, count = re.subn(r"'{2,}", "", text)
+    SOURCE_TRANSFORMS["zhwiki/style_markers_removed"] += count
+    # A source typo puts link brackets inside a language-variant delimiter.
+    # Recover only a list of explicit Chinese variant keys, never arbitrary
+    # bracketed prose (or literal code, which is still protected above).
+    entry = r"zh(?:-(?:hans|hant|cn|tw|hk|sg|mo|my))?\s*:[^{};\n]+"
+    misplaced_link = re.compile(rf"-\[\[\{{(?P<variants>{entry}(?:;\s*{entry})*;?)\}}\]\]-", re.IGNORECASE)
+    text, count = misplaced_link.subn(lambda match: "-{" + match.group("variants") + "}-", text)
+    SOURCE_TRANSFORMS["zhwiki/malformed_link_variants_recovered"] += count
     variant = re.compile(r"-\{(?:[^{}]*?:)?([^{};]*)[^{}]*\}-")
+    markup = mwparserfromhell.parse(variant.sub(r"\1", text))
+    # strip_code alone renders image options as prose (right|thumb|...).
+    for link in markup.filter_wikilinks(recursive=True):
+        link_title = str(link.title).strip().lstrip(":")
+        if re.match(r"(?i)^(?:file|image|文件|檔案|图像|圖像)\s*:", link_title):
+            try:
+                markup.remove(link, recursive=True)
+                SOURCE_TRANSFORMS["zhwiki/media_links_removed"] += 1
+            except ValueError:
+                pass  # A parent media link may already have been removed.
+    plain = markup.strip_code()
+    plain = "\n".join(line for line in plain.splitlines()
+                      # Layout boundaries can put years or foreign names on
+                      # their own line. Keep them as neighbouring context.
+                      if line.strip()
+                      and not line.lstrip().startswith(("|", "!", "{", "参考", "外部链接")))
+    for key, body in placeholders.items():
+        plain = plain.replace(key, body)
+    return plain
+
+
+def zhwiki(root):
     with bz2.open(f"{root}/zhwiki/zhwiki-20261001-pages-articles.xml.bz2") as stream:
         events = ET.iterparse(stream, events=("start", "end"))
         _, root_element = next(events)
@@ -115,20 +190,7 @@ def zhwiki(root):
             root_element.clear()
             if ns != "0" or redirect or text.lstrip().lower().startswith("#redirect"):
                 continue
-            markup = mwparserfromhell.parse(variant.sub(r"\1", text))
-            # strip_code alone renders image options as prose (right|thumb|...).
-            # Remove structured media links before rendering ordinary links.
-            for link in markup.filter_wikilinks(recursive=True):
-                link_title = str(link.title).strip().lstrip(":")
-                if re.match(r"(?i)^(?:file|image|文件|檔案|图像|圖像)\s*:", link_title):
-                    try:
-                        markup.remove(link, recursive=True)
-                        SOURCE_TRANSFORMS["zhwiki/media_links_removed"] += 1
-                    except ValueError:
-                        pass  # A parent media link may already have been removed.
-            plain = markup.strip_code()
-            plain = "\n".join(line for line in plain.splitlines()
-                              if len(HAN.findall(line)) and not line.lstrip().startswith(("|", "!", "{", "参考", "外部链接")))
+            plain = render_wiki(text)
             group = "zhwiki:" + title
             yield group, group, "wiki", plain
 
@@ -253,8 +315,6 @@ def clean_corpus(args, names):
     """Materialize reviewed text before any model is loaded or labels created."""
     import importlib.metadata
     import opencc
-    from corpus_cleaning import clean_document
-
     empty_output(args.out)
     started = time.time()
     provenance = verify_sources(args.raw, args.source_manifest, names)
@@ -435,7 +495,7 @@ def main():
                         row = dict(id=digest(f"{doc_id}:{sample['offset']}:{gold}")[:24], document=doc_id,
                                    group=doc["group"], content=doc["content"], source=name, category=doc["category"], split=doc["split"],
                                    reading="gpt-sovits-mandarin-v1", **sample)
-                        validate_tones(row, strict=True)
+                        validate_tones(row)
                         row, rejection = checked_row(row, protection, unique, rng, args.blank_share)
                         if rejection:
                             stats[f"{name}/{rejection}"] += 1
@@ -444,8 +504,7 @@ def main():
                         stats[f"{name}/{row['split']}"] += 1
                         stats[f"length/{len(gold) if len(gold) < 13 else '13+'}"] += 1
                         stats["blank_context"] += not bool(row["context"])
-                        stats["tone/known"] += sum(t is not None for t in row["tones"])
-                        stats["tone/unknown"] += sum(t is None for t in row["tones"])
+                        stats["tone/total"] += len(row["tones"])
                         stats["tone/neutral"] += row["tones"].count(5)
                 batch.clear()
                 unique.commit()
@@ -487,10 +546,7 @@ def main():
                     annotation_window=dict(core=ANNOTATION_CORE, left_halo=ANNOTATION_HALO, right_halo=ANNOTATION_HALO,
                                            max_characters=ANNOTATION_CORE + 2 * ANNOTATION_HALO,
                                            boundary="sentence", offsets="zero-based characters in cleaned document; end exclusive"),
-                    tone_policy=dict(name="gpt-sovits-mandarin-v1", neutral=5, unknown=None, require_complete=True,
-                                     semantics="Single Mandarin frontend: contextual pronunciation, reviewed phrase "
-                                               "corrections and deterministic tone sandhi before span sampling. "
-                                               "Input keys derive from this final pronunciation; unsupported spans are dropped."),
+                    tone_policy=TONE_POLICY,
                     arguments={k: [str(p) for p in v] if isinstance(v, list) else str(v)
                                for k, v in vars(args).items()},
                     protection=protection.files, provenance=provenance, providers=providers,

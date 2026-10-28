@@ -23,14 +23,21 @@ class MergeCorpus(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        clean_manifest = self.root / "cleaned-manifest.json"
+        clean_manifest.write_text('{"format":"wime-cleaned-corpus-v1"}')
+        self.cleaned_metadata = file_metadata(clean_manifest)
 
     @staticmethod
     def row(identity, document, content, context, source="first", split="train", group=None):
         return dict(id=identity, document=document, group=group or document, content=content,
                     source=source, split=split, context=context, input=SYLLABLES["ni"] + SYLLABLES["hao"], gold=["你好"],
-                    category="web", reading="corpus-readings-v1")
+                    category="web", reading="corpus-readings-v1", pinyin=["ni", "hao"], tones=[2, 3],
+                    offset=0, reading_window=[0, 24], context_dropped=False,
+                    tone_sources=["contextual_tone_sandhi", "mandarin_frontend"],
+                    reading_rules=[["contextual_tone_sandhi"], []],
+                    reading_evidence=dict(frontend_before_sandhi=["ni3", "hao3"], final=["ni2", "hao3"]))
 
-    def part(self, name, rows, tone_policy=None, annotation_window=None, cleaned_corpus=None, **argument_overrides):
+    def part(self, name, rows, annotation_window=None, cleaned_corpus=None, **argument_overrides):
         directory = self.root / name
         directory.mkdir()
         outputs = {}
@@ -40,21 +47,17 @@ class MergeCorpus(unittest.TestCase):
                                     for row in rows if row["split"] == split), encoding="utf-8")
             outputs[split] = file_metadata(path)
         asset = dict(path="/assets/common", sha256="asset-digest", bytes=10)
-        manifest = dict(format="wime-corpus-v2", stats=dict(rows=len(rows)), readings={},
+        manifest = dict(format="wime-corpus-v2", stats=dict(rows=len(rows)), readings={}, tone_policy=merger.TONE_POLICY,
+                        annotation_window=annotation_window or dict(max_characters=256),
                         arguments=dict(sources=name, out=str(directory), max_chars="100", seed="fixed",
                                        density="0.12", blank_share="0.15"),
                         sampling=dict(max_context=64, max_span=24), protection={"heldout.json": "heldout-digest"},
                         providers=["CUDAExecutionProvider"], packages={"g2pw": "0.1.1"},
                         provenance=dict(database=asset, code={"prepare-corpus.py": asset},
+                                        cleaned_corpus=cleaned_corpus or self.cleaned_metadata,
                                         reading_assets={"g2pw.onnx": asset}, manifest_sha256="source-manifest",
                                         files={f"{name}/raw": f"{name}-raw-digest"}), outputs=outputs)
         manifest["arguments"].update(argument_overrides)
-        if tone_policy is not None:
-            manifest["tone_policy"] = tone_policy
-        if annotation_window is not None:
-            manifest["annotation_window"] = annotation_window
-        if cleaned_corpus is not None:
-            manifest["provenance"]["cleaned_corpus"] = cleaned_corpus
         (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         return directory
 
@@ -126,75 +129,40 @@ class MergeCorpus(unittest.TestCase):
         self.assertFalse((self.root / "merged/manifest.json").exists())
 
     def test_tone_policy_is_preserved_and_counts_exclude_deduplicated_rows(self):
-        policy = dict(name="gpt-sovits-mandarin-v1", neutral=5, unknown=None)
         neutral = self.row("a", "a", "a", "左边的上下文")
         neutral.update(gold=["我们"], input=SYLLABLES["wo"] + SYLLABLES["men"],
                        pinyin=["wo", "men"], tones=[3, 5], tone_sources=["mandarin_frontend", "mandarin_frontend"],
                        reading_rules=[[], []],
                        reading_evidence=dict(frontend_before_sandhi=["wo3", "men5"], final=["wo3", "men5"]))
-        unknown = self.row("b", "b", "b", "另一段上下文", source="second", split="test")
-        unknown.update(pinyin=["ni", None], tones=[3, None], tone_sources=["mandarin_frontend", "unresolved"],
-                       reading_rules=[[], []],
-                       reading_evidence=dict(frontend_before_sandhi=["ni3", None], final=["ni3", None]))
+        greeting = self.row("b", "b", "b", "另一段上下文", source="second", split="test")
         duplicate = dict(neutral, id="copy", document="copy", group="copy", content="copy", source="second")
-        first = self.part("first", [neutral], tone_policy=policy)
-        second = self.part("second", [duplicate, unknown], tone_policy=policy)
+        first = self.part("first", [neutral])
+        second = self.part("second", [duplicate, greeting])
         result = self.merge([first, second])
-        self.assertEqual(result["tone_policy"], policy)
+        self.assertEqual(result["tone_policy"], merger.TONE_POLICY)
         self.assertEqual({key: value for key, value in result["stats"].items() if key.startswith("tone/")},
-                         {"tone/known": 3, "tone/unknown": 1, "tone/neutral": 1})
+                         {"tone/total": 4, "tone/neutral": 1})
         self.assertEqual(result["stats"]["second/duplicate_sample"], 1)
         retained = json.loads((self.root / "merged/test.jsonl").read_text())
-        self.assertEqual(retained["tones"], [3, None])
-        self.assertEqual(retained["reading_evidence"], unknown["reading_evidence"])
+        self.assertEqual(retained["tones"], [2, 3])
+        self.assertEqual(retained["reading_evidence"], greeting["reading_evidence"])
 
-    def test_tone_policy_mismatch_is_rejected(self):
+    def test_other_annotation_schemes_are_rejected(self):
         first = self.part("first", [])
-        second = self.part("second", [], tone_policy={"name": "gpt-sovits-mandarin-v1"})
-        with self.assertRaisesRegex(ValueError, "incompatible.*tone_policy"):
-            self.merge([first, second])
         path = first / "manifest.json"
         manifest = json.loads(path.read_text())
         manifest["tone_policy"] = {"name": "citation-v1"}
         path.write_text(json.dumps(manifest))
-        with self.assertRaisesRegex(ValueError, "incompatible.*tone_policy"):
-            self.merge([first, second])
+        with self.assertRaisesRegex(ValueError, "unsupported tone_policy"):
+            self.merge([first])
 
-    def test_tone_policy_requires_valid_aligned_annotations(self):
-        row = self.row("a", "a", "a", "上下文")
-        row.update(pinyin=["ni", "hao"], tones=[3, 3], tone_sources=["contextual_tone_sandhi", "mandarin_frontend"],
-                   reading_rules=[["contextual_tone_sandhi"], []],
-                   reading_evidence=dict(frontend_before_sandhi=["ni3", "hao3"], final=["ni2", "hao3"]))
-        part = self.part("first", [row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
-        with self.assertRaisesRegex(ValueError, "does not match the final frontend reading"):
-            self.merge([part])
-        self.assertFalse((self.root / "merged/manifest.json").exists())
-
-    def test_complete_tone_policy_validates_provenance_before_merge(self):
+    def test_fabricated_sandhi_is_rejected_before_merge(self):
         row = self.row("one", "doc", "content", "语境")
-        row.update(pinyin=["ni", "hao"], tones=[2, 3],
-                   tone_sources=["contextual_tone_sandhi", "mandarin_frontend"],
-                   reading_rules=[["contextual_tone_sandhi"], []],
-                   reading_evidence=dict(frontend_before_sandhi=["ni3", "hao3"], final=["ni2", "hao3"]))
-        policy = dict(name="gpt-sovits-mandarin-v1", require_complete=True)
-        valid = self.part("valid", [row], tone_policy=policy)
-        result = self.merge([valid])
-        self.assertEqual(result["tone_policy"], policy)
         row["reading_evidence"]["frontend_before_sandhi"][0] = "ni2"
-        invalid = self.part("invalid", [row], tone_policy=policy)
-        with self.assertRaisesRegex(ValueError, "actual tone change"):
-            with contextlib.redirect_stdout(io.StringIO()):
-                merger.merge(self.root / "rejected", [invalid])
-        self.assertFalse((self.root / "rejected/manifest.json").exists())
-
-    def test_complete_tone_policy_rejects_unknown_labels(self):
-        row = self.row("one", "doc", "content", "语境")
-        row.update(pinyin=["ni", None], tones=[3, None],
-                   tone_sources=["mandarin_frontend", "unresolved"], reading_rules=[[], []],
-                   reading_evidence=dict(frontend_before_sandhi=["ni3", None], final=["ni3", None]))
-        part = self.part("incomplete", [row], tone_policy=dict(name="gpt-sovits-mandarin-v1", require_complete=True))
-        with self.assertRaisesRegex(ValueError, "complete supported"):
-            self.merge([part])
+        invalid = self.part("invalid", [row])
+        with self.assertRaisesRegex(ValueError, "actual corrections and tone changes"):
+            self.merge([invalid])
+        self.assertFalse((self.root / "merged/manifest.json").exists())
 
     def test_parts_must_use_the_same_cleaned_manifest_content(self):
         first_manifest = self.root / "cleaned-first.json"
@@ -209,6 +177,18 @@ class MergeCorpus(unittest.TestCase):
         changed = self.part("changed", [], cleaned_corpus=file_metadata(second_manifest))
         with self.assertRaisesRegex(ValueError, "incompatible.*cleaned_corpus"):
             self.merge([first, changed])
+
+    def test_parts_require_cleaned_provenance_and_annotation_windows(self):
+        for field in ("cleaned_corpus", "annotation_window"):
+            with self.subTest(field=field):
+                part = self.part(field, [])
+                path = part / "manifest.json"
+                manifest = json.loads(path.read_text())
+                (manifest["provenance"] if field == "cleaned_corpus" else manifest).pop(field)
+                path.write_text(json.dumps(manifest))
+                with self.assertRaisesRegex(ValueError, field):
+                    self.merge([part])
+                self.assertFalse((self.root / "merged").exists())
 
     def test_annotation_window_is_preserved_in_merged_output(self):
         policy = dict(core=4, left_halo=2, right_halo=2, max_characters=8)

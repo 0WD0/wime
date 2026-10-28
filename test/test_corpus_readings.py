@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'neural'))
-from corpus_readings import HAN, Lexicon, Reader, key, numbered_reading
+from corpus_readings import HAN, Lexicon, Reader, key
 
 
 def lexicon(entries):
@@ -24,9 +24,10 @@ class FakeFrontend:
 
     def readings(self, sentences):
         self.calls.append(list(sentences))
-        return [dict(tone_sources=['mandarin_frontend'] * len(values), reading_rules=[[] for _ in values],
+        return [dict(tone_sources=['mandarin_frontend' if value else 'unresolved' if HAN.fullmatch(char) else 'non_han'
+                                  for char, value in zip(sentence, values)], reading_rules=[[] for _ in values],
                      reading_evidence={'frontend_before_sandhi': list(values), 'final': list(values)})
-                for values in self.rows]
+                for sentence, values in zip(sentences, self.rows)]
 
 
 class Readings(unittest.TestCase):
@@ -61,10 +62,13 @@ class Readings(unittest.TestCase):
 
     def test_neutral_unknown_and_non_han_are_distinct(self):
         lex = lexicon([(key('de'), '的', 9), (key('xi'), '㐂', 9)])
-        row = Reader(lex, FakeFrontend([['de5', None, None, None]])).readings(['的㐂䷀。'])[0]
+        reader = Reader(lex, FakeFrontend([['de5', None, None, None]]))
+        row = reader.readings(['的㐂䷀。'])[0]
+        self.assertEqual(row['keys'], [key('de'), None, None, None])
+        self.assertEqual(row['pinyin'], ['de', None, None, None])
         self.assertEqual(row['tones'], [5, None, None, None])
         self.assertEqual(row['tone_sources'], ['mandarin_frontend', 'unresolved', 'non_han', 'non_han'])
-        self.assertIsNone(HAN.search('䷀䷁'))
+        self.assertEqual(reader.methods, {'mandarin_frontend': 1, 'unresolved': 1, 'non_han': 2})
 
     def test_stage_evidence_and_rules_are_preserved(self):
         lex = lexicon([(key('ni'), '你', 9), (key('hao'), '好', 9)])
@@ -76,21 +80,6 @@ class Readings(unittest.TestCase):
         self.assertEqual(row['tones'], [2, 3])
         self.assertEqual(row['reading_rules'][0], ['contextual_tone_sandhi'])
         self.assertEqual(row['reading_evidence']['frontend_before_sandhi'][0], 'ni3')
-
-    def test_invalid_alignment_and_evidence_fail_loudly(self):
-        lex = lexicon([(key('ni'), '你', 9)])
-        for values in ([], [[None, None]], [['ni']], [['Ni3']], [['ni0']]):
-            with self.subTest(values=values), self.assertRaises(ValueError):
-                Reader(lex, FakeFrontend(values)).readings(['你'])
-        with self.assertRaises(ValueError):
-            Reader(lex, FakeFrontend([['ni3']])).readings(['A'])
-
-    def test_numbered_reading_parser_does_not_invent_neutral_tones(self):
-        self.assertEqual(numbered_reading('lü4'), 'lv4')
-        self.assertEqual(numbered_reading('nu:e4'), 'nve4')
-        for value in (None, '', 'de', 'de0', 'de6', '㐂', 'ma55'):
-            self.assertIsNone(numbered_reading(value))
-
 
 if __name__ == '__main__':
     unittest.main()

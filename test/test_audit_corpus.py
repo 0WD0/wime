@@ -10,6 +10,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 NEURAL = Path(__file__).resolve().parents[1] / "neural"
 sys.path.insert(0, str(NEURAL))
@@ -27,6 +28,14 @@ class AuditCorpus(unittest.TestCase):
         self.corpus.mkdir()
         self.model_asset = self.root / "model.onnx"
         self.model_asset.write_bytes(b"synthetic model asset")
+        clean_manifest = self.root / "cleaned-manifest.json"
+        clean_manifest.write_text("{}")
+        self.cleaned_metadata = corpus_audit.file_metadata(clean_manifest)
+        # Identity and count tests isolate document lookup. The same-source
+        # integration test below uses a real, fingerprinted SQLite artifact.
+        self.cleaned_patch = mock.patch.object(corpus_audit, "CleanedDocuments", autospec=True)
+        self.cleaned_patch.start()
+        self.addCleanup(self.cleaned_patch.stop)
         self.database = self.root / "dictionary.sqlite3"
         self.syllables = json.loads((NEURAL / "context-pinyin.json").read_text())["syllables"]
         with contextlib.closing(sqlite3.connect(self.database)) as db:
@@ -40,108 +49,59 @@ class AuditCorpus(unittest.TestCase):
     def row(self, index=0, split="train", **updates):
         row = dict(id=f"id-{index}", document=f"doc-{index}", group=f"group-{index}",
                    source="synthetic", split=split, context=f"语境{index}",
-                   input=self.syllables["ni"] + self.syllables["hao"], gold=["你好"])
+                   offset=0, reading_window=[0, 24], context_dropped=False,
+                   input=self.syllables["ni"] + self.syllables["hao"], gold=["你好"],
+                   pinyin=["ni", "hao"], tones=[2, 3],
+                   tone_sources=["contextual_tone_sandhi", "mandarin_frontend"],
+                   reading_rules=[["contextual_tone_sandhi"], []],
+                   reading_evidence=dict(frontend_before_sandhi=["ni3", "hao3"], final=["ni2", "hao3"]))
         row.update(updates)
         return row
 
-    def write(self, rows, tone_policy=None, annotation_window=None):
+    def write(self, rows, annotation_window=None):
         counts = Counter(f"{r['source']}/{r['split']}" for r in rows)
         counts["blank_context"] = sum(not r["context"] for r in rows)
         for split in corpus_audit.SPLITS:
             (self.corpus / f"{split}.jsonl").write_text(
                 "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows if r["split"] == split))
-        manifest = dict(format="wime-corpus-v2", stats=dict(counts), protection={},
+        manifest = dict(format="wime-corpus-v2", stats=dict(counts), protection={}, tone_policy=corpus_audit.TONE_POLICY,
+                        annotation_window=annotation_window or dict(max_characters=256),
                         provenance=dict(database=corpus_audit.file_metadata(self.database),
+                                        cleaned_corpus=self.cleaned_metadata,
                                         reading_assets={"model.onnx": corpus_audit.file_metadata(self.model_asset)}),
                         outputs={s: corpus_audit.file_metadata(self.corpus / f"{s}.jsonl") for s in corpus_audit.SPLITS})
-        if tone_policy is not None:
-            manifest["tone_policy"] = tone_policy
-        if annotation_window is not None:
-            manifest["annotation_window"] = annotation_window
         (self.corpus / "manifest.json").write_text(json.dumps(manifest))
 
-    def toned_row(self):
-        return self.row(gold=["我们好"], input="".join(self.syllables[p] for p in ("wo", "men", "hao")),
-                        pinyin=["wo", "men", None], tones=[3, 5, None],
-                        tone_sources=["mandarin_frontend", "mandarin_frontend", "unresolved"],
-                        reading_rules=[[], [], []],
-                        reading_evidence=dict(frontend_before_sandhi=["wo3", "men5", None],
-                                              final=["wo3", "men5", None]))
-
-    def test_contextual_tones_report_neutral_and_unknown_separately(self):
-        policy = dict(name="gpt-sovits-mandarin-v1", neutral=5, unknown=None)
-        self.write([self.toned_row()], tone_policy=policy)
+    def test_tone_totals_and_neutral_labels_are_audited(self):
+        row = self.row(gold=["我们"], input=self.syllables["wo"] + self.syllables["men"],
+                       pinyin=["wo", "men"], tones=[3, 5],
+                       tone_sources=["mandarin_frontend", "mandarin_frontend"], reading_rules=[[], []],
+                       reading_evidence=dict(frontend_before_sandhi=["wo3", "men5"], final=["wo3", "men5"]))
+        self.write([row])
         report, samples = corpus_audit.audit(self.corpus, self.database)
         self.assertTrue(report["ok"], report["errors"])
-        self.assertEqual(report["tone_policy"], policy)
-        self.assertEqual(report["tones"]["synthetic"], dict(total=3, known=2, unknown=1, neutral=1,
-                                                              sources=dict(mandarin_frontend=2, unresolved=1)))
-        self.assertEqual(samples["sources"]["synthetic"][0]["tones"], [3, 5, None])
-
-    def test_invalid_tone_alignment_keys_and_evidence_are_rejected(self):
-        changes = [
-            {"pinyin": ["ni", "men", None]},
-            {"tones": [2, 5, None]},  # The frontend's final first reading is wo3.
-            {"tones": [True, 5, None]},
-            {"tones": [3, 0, None]},  # Neutral is 5; 0 is not unknown.
-            {"pinyin": [None, "men", None]},
-            {"tone_sources": ["mandarin_frontend"]},
-            {"reading_rules": [[], []]},
-            {"reading_rules": ["contextual_tone_sandhi", [], []]},
-            {"reading_evidence": {"frontend_before_sandhi": ["wǒ3", "men5", None], "final": ["wo3", "men5", None]}},
-            {"reading_evidence": {"frontend_before_sandhi": ["wo3"], "final": ["wo3", "men5", None]}},
-            {"reading_evidence": {"frontend_before_sandhi": ["wo3", "men5", "hao3"], "final": ["wo3", "men5", "hao3"]}},
-        ]
-        for change in changes:
-            with self.subTest(change=change):
-                row = self.toned_row()
-                row.update(change)
-                self.write([row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
-                report, _ = corpus_audit.audit(self.corpus, self.database)
-                self.assertEqual(report["errors"].get("tone_schema"), 1, report)
-
-    def test_tone_policy_requires_annotations_and_checks_manifest_tone_totals(self):
-        self.write([self.row()], tone_policy={"name": "gpt-sovits-mandarin-v1"})
-        report, _ = corpus_audit.audit(self.corpus, self.database)
-        self.assertEqual(report["errors"].get("tone_schema"), 1)
-        self.write([self.toned_row()], tone_policy={"name": "gpt-sovits-mandarin-v1"})
+        self.assertEqual(report["tone_policy"], corpus_audit.TONE_POLICY)
+        self.assertEqual(report["tones"]["synthetic"], dict(total=2, neutral=1, sources=dict(mandarin_frontend=2)))
+        self.assertEqual(samples["sources"]["synthetic"][0]["tones"], [3, 5])
         path = self.corpus / "manifest.json"
         manifest = json.loads(path.read_text())
-        manifest["stats"].update({"tone/known": 3, "tone/unknown": 0, "tone/neutral": 1})
+        manifest["stats"].update({"tone/total": 3, "tone/neutral": 0})
         path.write_text(json.dumps(manifest))
         report, _ = corpus_audit.audit(self.corpus, self.database)
         self.assertEqual(report["errors"].get("manifest_tone_count"), 2)
 
     def test_selected_tone_matches_final_stage_not_before_sandhi(self):
-        row = self.row(pinyin=["ni", "hao"], tones=[2, 3],
-                       tone_sources=["contextual_tone_sandhi", "mandarin_frontend"],
-                       reading_rules=[["contextual_tone_sandhi"], []],
-                       reading_evidence=dict(frontend_before_sandhi=["ni3", "hao3"], final=["ni2", "hao3"]))
-        self.write([row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
+        row = self.row()
+        self.write([row])
         valid, _ = corpus_audit.audit(self.corpus, self.database)
         self.assertTrue(valid["ok"], valid["errors"])
         row["tones"][0] = 3
-        self.write([row], tone_policy={"name": "gpt-sovits-mandarin-v1"})
+        self.write([row])
         invalid, _ = corpus_audit.audit(self.corpus, self.database)
         self.assertEqual(invalid["errors"].get("tone_schema"), 1)
-
-    def test_complete_tone_policy_rejects_unknown_labels_and_invalid_policy(self):
-        policy = dict(name="gpt-sovits-mandarin-v1", require_complete=True)
-        row = self.toned_row()
-        self.write([row], tone_policy=policy)
-        invalid, _ = corpus_audit.audit(self.corpus, self.database)
-        self.assertEqual(invalid["errors"].get("tone_schema"), 1)
-        row["pinyin"][2], row["tones"][2], row["tone_sources"][2] = "hao", 3, "mandarin_frontend"
-        for values in row["reading_evidence"].values():
-            values[2] = "hao3"
-        self.write([row], tone_policy=policy)
-        valid, _ = corpus_audit.audit(self.corpus, self.database)
-        self.assertTrue(valid["ok"], valid["errors"])
-        self.write([row], tone_policy=dict(policy, require_complete="true"))
-        invalid_policy, _ = corpus_audit.audit(self.corpus, self.database)
-        self.assertEqual(invalid_policy["errors"].get("tone_policy"), 1)
 
     def test_cleaned_document_is_the_exact_source_of_gold_and_context(self):
+        self.cleaned_patch.stop()
         cleaned = self.root / "cleaned"
         cleaned.mkdir()
         document = dict(document="doc-0", group="group-0", source="synthetic", category="web", split="train",
@@ -157,7 +117,7 @@ class AuditCorpus(unittest.TestCase):
                        tuple(document[key] for key in ("document", "group", "source", "category", "split", "content", "raw_content", "text")))
             db.commit()
         clean_manifest = cleaned / "manifest.json"
-        clean_manifest.write_text(json.dumps(dict(format="wime-cleaned-corpus-v1",
+        clean_manifest.write_text(json.dumps(dict(format="wime-cleaned-corpus-v1", complete=True,
                                                 outputs={"synthetic": corpus_audit.file_metadata(source_path)},
                                                 documents=corpus_audit.file_metadata(document_db))))
         pinned = corpus_audit.file_metadata(clean_manifest)
@@ -185,6 +145,18 @@ class AuditCorpus(unittest.TestCase):
         clean_manifest.write_text(clean_manifest.read_text() + " ")
         changed = write_and_audit(row)
         self.assertEqual(changed["errors"].get("cleaned_text"), 1, changed)
+
+    def test_cleaned_provenance_and_annotation_window_are_required(self):
+        for field, error in (("cleaned_corpus", "cleaned_text"), ("annotation_window", "annotation_window")):
+            with self.subTest(field=field):
+                self.write([self.row()])
+                path = self.corpus / "manifest.json"
+                manifest = json.loads(path.read_text())
+                (manifest["provenance"] if field == "cleaned_corpus" else manifest).pop(field)
+                path.write_text(json.dumps(manifest))
+                report, _ = corpus_audit.audit(self.corpus, self.database)
+                self.assertFalse(report["ok"])
+                self.assertIn(error, report["errors"])
 
     def test_annotation_window_policy_and_offsets_are_audited(self):
         policy = dict(core=4, left_halo=2, right_halo=2, max_characters=8)

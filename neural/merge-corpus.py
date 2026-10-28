@@ -8,7 +8,7 @@ from pathlib import Path
 import time
 
 from corpus_integrity import UniqueRows, empty_output, file_metadata, sample_key, validate_annotation_window
-from corpus_tones import tone_counts, tone_policy_strict, validate_tones
+from corpus_tones import TONE_POLICY, tone_counts, validate_tones
 
 SPLITS = ("train", "dev", "test")
 
@@ -25,13 +25,13 @@ def compatibility(manifest):
     return dict(
         provenance={name: hashes(provenance[name]) for name in ("database", "reading_assets", "code")},
         source_manifest=provenance["manifest_sha256"],
-        cleaned_corpus=hashes(provenance["cleaned_corpus"]) if "cleaned_corpus" in provenance else None,
+        cleaned_corpus=hashes(provenance["cleaned_corpus"]),
         protection=manifest["protection"], sampling=manifest["sampling"],
         arguments={key: value for key, value in manifest["arguments"].items()
                    if key not in ("sources", "out", "max_chars")},
         providers=manifest["providers"], packages=manifest["packages"],
-        tone_policy=manifest.get("tone_policy"),
-        annotation_window=manifest.get("annotation_window"),
+        tone_policy=manifest["tone_policy"],
+        annotation_window=manifest["annotation_window"],
     )
 
 
@@ -42,13 +42,18 @@ def load_parts(parts):
         manifest = json.loads(path.read_text(encoding="utf-8"))
         if manifest.get("format") != "wime-corpus-v2":
             raise ValueError(f"not a completed corpus-v2 build: {directory}")
-        if "tone_policy" in manifest:
-            tone_policy_strict(manifest["tone_policy"])
-        if "annotation_window" in manifest:
-            policy = manifest["annotation_window"]
-            if (not isinstance(policy, dict) or type(policy.get("max_characters")) is not int
-                    or policy["max_characters"] < 1):
-                raise ValueError(f"annotation_window must declare positive max_characters: {directory}")
+        if manifest.get("tone_policy") != TONE_POLICY:
+            raise ValueError(f"unsupported tone_policy: {directory}")
+        policy = manifest.get("annotation_window")
+        if (not isinstance(policy, dict) or type(policy.get("max_characters")) is not int
+                or policy["max_characters"] < 1):
+            raise ValueError(f"annotation_window must declare positive max_characters: {directory}")
+        cleaned = manifest["provenance"].get("cleaned_corpus")
+        if not isinstance(cleaned, dict) or not {"path", "sha256", "bytes"} <= cleaned.keys():
+            raise ValueError(f"cleaned_corpus provenance is required: {directory}")
+        actual_cleaned = file_metadata(Path(cleaned["path"]))
+        if any(actual_cleaned[key] != cleaned[key] for key in ("sha256", "bytes")):
+            raise ValueError(f"changed cleaned corpus manifest: {cleaned['path']}")
         actual = compatibility(manifest)
         if expected is not None and actual != expected:
             differences = [key for key in expected if actual[key] != expected[key]]
@@ -81,7 +86,6 @@ def merge(out, parts):
 
     stats, readings = Counter(), Counter()
     baseline = loaded[0][1]
-    strict_tones = tone_policy_strict(baseline["tone_policy"]) if "tone_policy" in baseline else False
     provenance = dict(baseline["provenance"], files={})
     protection = {}
     sources = []
@@ -103,10 +107,8 @@ def merge(out, parts):
                     with (directory / f"{split}.jsonl").open(encoding="utf-8") as stream:
                         for line in stream:
                             row = json.loads(line)
-                            if "tone_policy" in baseline:
-                                validate_tones(row, strict=strict_tones)
-                            if "annotation_window" in baseline:
-                                validate_annotation_window(row, baseline["annotation_window"])
+                            validate_tones(row)
+                            validate_annotation_window(row, baseline["annotation_window"])
                             if row["split"] != split:
                                 raise ValueError(f"row in wrong split file: {row['id']}")
                             if not unique.add("id", row["id"]):
@@ -126,10 +128,8 @@ def merge(out, parts):
                                 outputs[split].write(json.dumps(row, ensure_ascii=False) + "\n")
                                 stats[f"{source}/{split}"] += 1
                                 stats["blank_context"] += not bool(row["context"])
-                                if "tone_policy" in baseline:
-                                    for kind, count in tone_counts(row).items():
-                                        if kind != "total":
-                                            stats[f"tone/{kind}"] += count
+                                for kind, count in tone_counts(row).items():
+                                    stats[f"tone/{kind}"] += count
                                 length = len(row["gold"][0])
                                 stats[f"length/{length if length < 13 else '13+'}"] += 1
                                 stats[f"{source}/documents"] += unique.add("retained_document", row["document"])
@@ -156,10 +156,8 @@ def merge(out, parts):
                          for _, manifest, metadata in loaded],
                   outputs={split: file_metadata(out / f"{split}.jsonl") for split in SPLITS},
                   elapsed_s=time.time() - started)
-    if "tone_policy" in baseline:
-        result["tone_policy"] = baseline["tone_policy"]
-    if "annotation_window" in baseline:
-        result["annotation_window"] = baseline["annotation_window"]
+    result["tone_policy"] = baseline["tone_policy"]
+    result["annotation_window"] = baseline["annotation_window"]
     temporary = out / "manifest.json.partial"
     temporary.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.rename(out / "manifest.json")

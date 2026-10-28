@@ -129,6 +129,70 @@ class Sources(unittest.TestCase):
         self.assertEqual([r[0] for r in rows], ["zhwiki:甲", "zhwiki:乙"])
         self.assertTrue(all(group == document for group, document, _, _ in rows))
 
+    def test_wiki_plant_layout_and_unmatched_styles_preserve_link_labels(self):
+        # The real 植物学 source closes a three-quote opener with five quotes.
+        source = """通过纸色谱法看到的不同种类。
+<div style="position:relative">
+<div style="top:245px">[[叶黄素类|<span style="color:#e2c000;">'''叶黄素'''</span>]]</div>
+<div style="top:272px">[[叶绿素|<span style="color:#00bb90;">'''叶绿素a'''''</span>]]</div>
+<div style="top:300px">[[叶绿素b|<span style="color:#00bb34;">'''叶绿素b'''''</span>]]</div>
+</div>
+植物细胞内有[[叶绿体]]。"""
+        rendered = corpus.render_wiki(source)
+        self.assertEqual(rendered.splitlines(), ["通过纸色谱法看到的不同种类。", "叶黄素", "叶绿素a",
+                                                 "叶绿素b", "植物细胞内有叶绿体。"])
+        self.assertNotIn("[[", rendered)
+        self.assertNotIn("style=", rendered)
+
+    def test_wiki_psychology_references_do_not_swallow_following_prose(self):
+        # A citation's unmatched italic delimiter used to expose later <ref>.
+        source = ("在中世纪，已经开始进行[[精神科]]治疗"
+                  "<ref>Ibrahim B. Syed, Journal of the Islamic Medical Association''.</ref>"
+                  "和[[实验心理学|实验]]研究<ref name=Khaleefa/>"
+                  "<ref>这段是引用资料，不是正文。</ref>。\n后续[[科学]]研究。")
+        before = corpus.SOURCE_TRANSFORMS["zhwiki/references_removed"]
+        self.assertEqual(corpus.render_wiki(source), "在中世纪，已经开始进行精神科治疗和实验研究。\n后续科学研究。")
+        self.assertEqual(corpus.SOURCE_TRANSFORMS["zhwiki/references_removed"] - before, 3)
+
+    def test_wiki_history_table_keeps_cell_and_paragraph_boundaries(self):
+        source = """<table><tr align="center">
+<td rowspan="3" style="background-color: rgb(153, 255, 153);">[[北魏]]<br>[[386年|386]] - [[534年|534]]</td>
+<td style="background-color:#eee">[[534年]] - 北魏分裂为[[西魏]]、[[东魏]]。</td>
+</tr><tr><td>[[梁 (南朝)|南朝梁]]</td><td>[[548年]] - 梁将军侯景叛乱。</td></tr></table>"""
+        rendered = corpus.render_wiki(source)
+        self.assertEqual(rendered.splitlines(), ["北魏", "386 - 534", "534年 - 北魏分裂为西魏、东魏。",
+                                                 "南朝梁", "548年 - 梁将军侯景叛乱。"])
+        self.assertNotRegex(rendered, r"</?(?:table|tr|td)\b")
+
+    def test_wiki_xml_nested_code_nowiki_keeps_visible_div_example(self):
+        example = '<div class="inner greeting-box">Welcome!</div>'
+        source = f'例如，<code><nowiki>{example}</nowiki></code>中，属性 "class" 表示两个 CSS 类名。'
+        self.assertEqual(corpus.render_wiki(source), f'例如，{example}中，属性 "class" 表示两个 CSS 类名。')
+
+    def test_wiki_literal_regions_bypass_media_layout_styles_and_variant_rendering(self):
+        literal = '<div>[[File:x.png|thumb]] \'\'code\'\' -{zh-hans:字面;}- &amp;amp; &copyfr=x &notit;</div>'
+        visible = literal.replace("&amp;amp;", "&amp;")
+        for tag in ("nowiki", "code", "pre", "syntaxhighlight", "source"):
+            with self.subTest(tag=tag):
+                source = f'正文。\n<{tag} lang="example">{literal}</{tag}>\n后文[[普通链接|显示文字]]。'
+                self.assertEqual(corpus.render_wiki(source), f"正文。\n{visible}\n后文显示文字。")
+
+    def test_wiki_quote_aware_tags_do_not_consume_ordinary_comparison_or_literal_angle_text(self):
+        source = '正文<div title="a > b">第一段</div><p>第二段，a < b 且 b > c。</p>'
+        self.assertEqual(corpus.render_wiki(source), "正文\n第一段\n第二段，a < b 且 b > c。")
+
+    def test_wiki_recovers_misplaced_chinese_variant_link_but_preserves_literal_cdata(self):
+        broken = ("-[[{zh-hans:安东尼·德·圣-埃克苏佩里;zh-hk:安東尼·德·聖-艾修伯里;"
+                  "zh-tw:安托萬·德·聖-埃克絮佩里;}]]-")
+        source = f"1943年由{broken}寫的《[[小王子]]》。"
+        before = corpus.SOURCE_TRANSFORMS["zhwiki/malformed_link_variants_recovered"]
+        self.assertEqual(corpus.render_wiki(source), "1943年由安东尼·德·圣-埃克苏佩里寫的《小王子》。")
+        self.assertEqual(corpus.SOURCE_TRANSFORMS["zhwiki/malformed_link_variants_recovered"] - before, 1)
+        literal = f"<![CDATA[{broken}]]>"
+        self.assertEqual(corpus.render_wiki(f"代码<nowiki>{literal}</nowiki>。"), f"代码{literal}。")
+        corpus.render_wiki("普通-[[{en:English;fr:Français;}]]-文本。")
+        self.assertEqual(corpus.SOURCE_TRANSFORMS["zhwiki/malformed_link_variants_recovered"] - before, 1)
+
     def test_clean_stage_materializes_only_supported_text_without_annotation(self):
         from corpus_cleaned import load_cleaned, iter_cleaned
         relative = "mnbvc/forum/20230253/example/0.jsonl.gz"

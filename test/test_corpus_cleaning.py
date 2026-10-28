@@ -42,6 +42,17 @@ class Cleaning(unittest.TestCase):
         self.assertEqual(self.clean(code, "wildchat"), (code, [], None))
         self.assertEqual(self.clean("&amp;quot;")[0], "&quot;")
 
+    def test_complete_entities_do_not_decode_url_parameter_prefixes(self):
+        text = ("首经贸分高一点，就业上两个学校在北京就业都还不错 这么多人能进农总不算太差吧"
+                "https://wk.baidu.com/view/d95c3367df80d4d8d15abe23482fb4daa58d1d20"
+                "?pcf=2&fromShare=1&fr=copy&copyfr=copylinkpop")
+        cleaned, operations, reason = self.clean(text, "zhihu")
+        self.assertEqual(cleaned, text.split("https://")[0])
+        self.assertNotIn("html_entities_decoded", operations)
+        self.assertIsNone(reason)
+        literal = "参数&copyfr=copylinkpop和&notit;不是实体，&copy;是实体，&#34;是引号"
+        self.assertEqual(self.clean(literal)[0], '参数&copyfr=copylinkpop和&notit;不是实体，©是实体，"是引号')
+
     def test_platform_links_preserve_visible_text_and_other_markup(self):
         text = "前<a href='' namecard='*' target='_blank'>@张梦倩</a><br>后"
         cleaned, operations, reason = self.clean(text)

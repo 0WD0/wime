@@ -28,9 +28,7 @@ def _manifest(root, names=None):
         raise ValueError(f"missing or invalid completed cleaned manifest: {root / 'manifest.json'}") from exc
     if not isinstance(manifest, dict) or manifest.get("format") != FORMAT:
         raise ValueError(f"cleaned manifest format must be {FORMAT}")
-    # The final manifest is written only after outputs are complete. Honour an
-    # explicit completion flag as well, without requiring another marker file.
-    if manifest.get("complete", True) is not True:
+    if manifest.get("complete") is not True:
         raise ValueError("cleaned manifest is not complete")
     outputs = manifest.get("outputs")
     if not isinstance(outputs, dict) or not outputs:
@@ -79,24 +77,10 @@ def load_cleaned(root, names=None):
 
 
 def iter_cleaned(root, name):
-    """Stream one source after load_cleaned has verified the artifact once.
-
-    Check its manifest membership here without rehashing every large source
-    for each iterator. Callers must call load_cleaned before using its rows.
-    """
-    root = Path(root)
-    _manifest(root, [name])
-    with (root / f"{name}.jsonl").open(encoding="utf-8") as stream:
-        for line_number, line in enumerate(stream, 1):
-            try:
-                row = json.loads(line)
-                if not isinstance(row, dict):
-                    raise ValueError("document must be an object")
-                if row.get("source") != name:
-                    raise ValueError("document source differs from its source file")
-            except ValueError as exc:
-                raise ValueError(f"invalid cleaned document at {name}:{line_number}: {exc}") from exc
-            yield row
+    """Stream the internal document format after load_cleaned accepts it."""
+    with (Path(root) / f"{name}.jsonl").open(encoding="utf-8") as stream:
+        for line in stream:
+            yield json.loads(line)
 
 
 class CleanedDocuments:

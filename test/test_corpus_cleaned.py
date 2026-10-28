@@ -40,7 +40,7 @@ class Cleaned(unittest.TestCase):
                                           "content", "raw_content", "text")) for row in self.documents])
         (self.root / "forum.jsonl").write_text("".join(json.dumps(row, ensure_ascii=False) + "\n"
                                                        for row in self.documents), encoding="utf-8")
-        self.manifest = dict(format="wime-cleaned-corpus-v1",
+        self.manifest = dict(format="wime-cleaned-corpus-v1", complete=True,
                              outputs={"forum": file_metadata(self.root / "forum.jsonl")},
                              documents=file_metadata(self.root / "documents.sqlite3"))
         self.write_manifest()
@@ -94,7 +94,7 @@ class Cleaned(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no source"):
             load_cleaned(self.root, ["wildchat"])
         with self.assertRaisesRegex(ValueError, "invalid cleaned corpus source name"):
-            list(iter_cleaned(self.root, "../outside"))
+            load_cleaned(self.root, ["../outside"])
         original = json.loads(json.dumps(self.manifest))
         for mutate, pattern in (
             (lambda m: m.update(format="another-format"), "format"),
@@ -188,17 +188,6 @@ class Cleaned(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "closed"):
             documents.validate_row(self.row())
         self.assertEqual(file_metadata(self.root / "documents.sqlite3"), before)
-
-    def test_iterator_is_lazy_and_reports_invalid_line(self):
-        self.build()
-        with (self.root / "forum.jsonl").open("a") as stream:
-            stream.write("not-json\n")
-        iterator = iter_cleaned(self.root, "forum")
-        self.assertEqual(next(iterator), self.documents[0])
-        self.assertEqual(next(iterator), self.documents[1])
-        with self.assertRaisesRegex(ValueError, "forum:3"):
-            next(iterator)
-
 
 if __name__ == "__main__":
     unittest.main()

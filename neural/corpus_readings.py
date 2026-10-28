@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 import sqlite3
 
-from mandarin_frontend import HAN, numbered_reading
+from mandarin_frontend import HAN
 
 SYLLABLES = json.loads(Path(__file__).with_name("context-pinyin.json").read_text())["syllables"]
 
@@ -71,39 +71,20 @@ class Reader:
         self.methods = Counter()
 
     def readings(self, sentences):
-        rows = self.frontend.readings(sentences)
-        if not isinstance(rows, (list, tuple)) or len(rows) != len(sentences):
-            raise ValueError("frontend must return one reading row per sentence")
         result = []
-        for sentence, row in zip(sentences, rows):
-            evidence = row.get("reading_evidence", {})
-            if set(evidence) != {"frontend_before_sandhi", "final"}:
-                raise ValueError("frontend must provide before-sandhi and final reading evidence")
-            aligned = [row.get("tone_sources"), row.get("reading_rules"), *evidence.values()]
-            if any(not isinstance(values, (list, tuple)) or len(values) != len(sentence) for values in aligned):
-                raise ValueError("frontend reading fields must align with original characters")
+        for sentence, row in zip(sentences, self.frontend.readings(sentences)):
             keys, syllables, tones = [], [], []
             sources = list(row["tone_sources"])
-            for i, (char, value) in enumerate(zip(sentence, evidence["final"])):
-                normalized = numbered_reading(value)
-                if value is not None and normalized != value:
-                    raise ValueError("frontend final evidence must be normalized numbered syllables")
-                code = key(normalized[:-1]) if normalized else None
-                if not HAN.fullmatch(char):
-                    if value is not None:
-                        raise ValueError("frontend may not annotate non-Han characters")
+            for i, (char, reading) in enumerate(zip(sentence, row["reading_evidence"]["final"])):
+                code = key(reading[:-1]) if reading else None
+                if reading and code not in self.lexicon.legal.get(char, ()):
                     code = None
-                    sources[i] = "non_han"
-                elif code not in self.lexicon.legal.get(char, set()):
-                    code = None
-                    sources[i] = "unreachable" if normalized else "unresolved"
+                    sources[i] = "unreachable"
                 keys.append(code)
-                syllables.append(normalized[:-1] if code else None)
-                tones.append(int(normalized[-1]) if code else None)
-                self.methods[sources[i]] += 1
-            result.append(dict(keys=keys, pinyin=syllables, tones=tones, tone_sources=sources,
-                               reading_rules=[list(rules) for rules in row["reading_rules"]],
-                               reading_evidence={name: list(values) for name, values in evidence.items()}))
+                syllables.append(reading[:-1] if code else None)
+                tones.append(int(reading[-1]) if code else None)
+            self.methods.update(sources)
+            result.append(dict(row, keys=keys, pinyin=syllables, tones=tones, tone_sources=sources))
         return result
 
     def keys(self, sentences):

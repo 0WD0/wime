@@ -1,6 +1,7 @@
 """Deterministic source-aware text cleaning before Mandarin annotation."""
 
 from html import unescape
+from html.entities import html5
 from html.parser import HTMLParser
 import re
 import unicodedata
@@ -10,11 +11,22 @@ RENDERED_SOURCES = frozenset(("forum", "zhihu", "fineweb"))
 HAN_RANGE = "\u3400-\u4dbf\u4e00-\u9fff"
 URL = re.compile(r"(?:https?://|www\.)[A-Za-z0-9][A-Za-z0-9._~:/?#\[\]@!$&()*+,;=%+\-]*", re.I)
 ASCII_CONTROLS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+ENTITY = re.compile(r"&(?:#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);")
 ANCHOR = re.compile(r"</?a(?=[\s/>])[^<>]*>", re.I)
 BREAK = re.compile(r"<br\s*/?\s*>", re.I)
 HAN_REPEAT = re.compile(r"([" + HAN_RANGE + r"])\1{31,}")
 PHRASE_REPEAT = re.compile(r"([^\s]{2,16}?)\1{7,}")
 CHINESE_PHRASE = re.compile(r"[" + HAN_RANGE + r"]+[，。！？、；：,.!?;:]*")
+
+
+def decode_entities(text):
+    # html.unescape alone accepts partial names without a semicolon, turning
+    # URL parameters such as &copyfr= into visible text such as ©fr=.
+    def replace(match):
+        entity = match.group()
+        return unescape(entity) if entity.startswith("&#") or entity[1:] in html5 else entity
+
+    return ENTITY.sub(replace, text)
 
 
 class _AnchorAttributes(HTMLParser):
@@ -94,7 +106,7 @@ def clean_document(source, text, t2s):
             text = value
 
     if source in RENDERED_SOURCES:
-        change(unescape(text), "html_entities_decoded")
+        change(decode_entities(text), "html_entities_decoded")
         change(_platform_links(text), "platform_link_wrappers_removed")
         change(BREAK.sub("\n", text), "html_breaks_to_newlines")
     if source == "fineweb":
