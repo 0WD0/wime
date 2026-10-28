@@ -162,6 +162,22 @@ class PositionalConverter(unittest.TestCase):
                 converter.read_positions(["长"], [[0]])
         self.assertIsNone(converter._requested_positions)
 
+    def test_expanding_lowercase_keeps_han_query_indices(self):
+        converter = self.converter_class.__new__(self.converter_class)
+        original = "EMİN GÜN SİRER的银行行长"
+        sentences = [original]
+        positions = [[i for i, char in enumerate(original) if char in "行长"]]
+
+        def lower_and_query(instance, model_sentences):
+            self.assertEqual(model_sentences, ["EM N GÜN S RER的银行行长"])
+            lowered = model_sentences[0].lower()
+            self.assertEqual(len(lowered), len(original))
+            return [[lowered[i] for i in sorted(instance._requested_positions[0])]]
+
+        with patch.object(self.upstream_class, "__call__", lower_and_query):
+            self.assertEqual(converter.read_positions(sentences, positions), [["行", "行", "长"]])
+        self.assertEqual(sentences, [original])  # model normalization never edits corpus input
+
 
 if __name__ == "__main__":
     unittest.main()

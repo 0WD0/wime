@@ -20,6 +20,13 @@ class CorpusG2PWConverter(G2PWConverter):
             if any(type(i) is not int or not 0 <= i < len(sentence) for i in indices):
                 raise ValueError("reading positions must be character indices within their sentence")
             requested.append(indices)
+        # Upstream TextDataset lowercases text without remapping query_id.
+        # Non-Han characters such as İ expand during lowercasing and would
+        # shift every later Han query. Replace them with one space only in
+        # the model input; stored corpus text and all character indices stay
+        # intact. This deliberately loses that non-Han context character.
+        sentences = ["".join(char if len(char.lower()) == 1 else " " for char in sentence)
+                     for sentence in sentences]
         if getattr(self, "_requested_positions", None) is not None:
             raise RuntimeError("g2pW positional reads cannot be nested")
         self._requested_positions = requested
