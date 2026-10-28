@@ -1,0 +1,12 @@
+load("@rules_rust//rust:defs.bzl", "rust_binary")
+load("@wime_neural_crates//:defs.bzl", "aliases", "all_crate_deps")
+
+rust_binary(
+    name = "wime-neural",
+    srcs = ["//emacs-packages/wime/neural:src/main.rs"],
+    aliases = aliases(),
+    edition = "2021",
+    rustc_flags = ["-Copt-level=3"],
+    visibility = ["//visibility:public"],
+    deps = all_crate_deps(normal = True),
+)

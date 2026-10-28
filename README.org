@@ -77,14 +77,12 @@ wdoom 的 =wdoom-input= 模块会配置好一切。单独使用时：
 worker 出错或超时，词格候选照常可用。
 =wime-neural-search-method= 选择做法：
 
-- =decode= :: 不经过词格。
-  Qwen3.5-2B 的 token 在读音约束下直接拼出按键，
-  每一步与 25M 拼音条件模型的分数融合（=neural/decoder.py=）。
-  完整音节变化后用全部当前音节重搜，复用通用模型缓存；半个音节也能出整句；
-  辅助码和分段视图里固定的字都是硬约束。
-  wdoom 在装了 Qwen 时默认用它。
-- =verify= :: 词格给出候选池，25M 模型（可再加 Qwen 重排）从中挑选，
-  并提出更可能的前缀交给词格重搜。没有 Qwen 时 wdoom 用它。
+- =decode= :: 不经过词格。Qwen HF 与 MiniCPM 原生共用 =neural/text_decoder.py=：
+  token 的原始字节必须满足读音、辅助码和固定字约束；25M 模型只引导有限宽度搜索，
+  最终按完整文本的通用模型概率和用户学习偏好排序。
+  支持半音节、跨上屏边界的 token 修复，以及重复请求缓存。
+- =verify= :: 词格给出候选池，25M 模型（可加通用模型重排）从中挑选，
+  并提出更可能的前缀交给词格重搜。缺少大模型时 wdoom 用它。
 - =rerank= :: 旧的 Rust CPU worker 的无条件重排，需要相应的模型。
 
 条件模型只支持微软双拼；其他方案只用词格。
@@ -110,27 +108,46 @@ wime-lab 中也可按 =l/H= 打开。=/= 搜索，=RET= 查看详情，=e= 修�
 
 * 安装神经模型
 
-wdoom 需要三样东西，都放在 =$XDG_DATA_HOME/wime/= （默认 =~/.local/share/wime/= ），
-不进快照：
+模型、Python 和本机编译的 CUDA 库放在 =$XDG_DATA_HOME/wime/=
+（默认 =~/.local/share/wime/=），不进 wdoom 快照。
 
-- 25M 条件模型 :: =models/<sha256>.safetensors=。
-  打包用的 SHA256 固定在 =neural_model.bzl=；
-  也可以用环境变量 =WIME_CONDITIONAL_MODEL= 指向同一个文件。
-- Qwen3.5-2B-Base :: =rescorers/Qwen3.5-2B-Base/=，从 Hugging Face 下载。
-- Python 环境 :: =python/=，与系统包隔离：
+| 中文后端 | 模型目录 | 运行方式 |
+|----------+----------+----------|
+| =qwen-hf=（默认） | =rescorers/Qwen3.5-2B-Base/= | Transformers BF16 |
+| =minicpm-native= | =rescorers/MiniCPM5-2B/= | llama.cpp BF16 GGUF；HF 只负责分词 |
+
+25M 条件模型仍为 =models/<sha256>.safetensors=；打包哈希固定在
+=neural_model.bzl=，也可用 =WIME_CONDITIONAL_MODEL= 指向同一文件。
+两个大模型后端使用相同的搜索配置。正式 worker 不提供旧融合解码器入口。
+历史对照脚本仍可读取旧实现，但它不进入运行时包。
 
 #+begin_src sh
 uv venv --python 3.12 ~/.local/share/wime/python
 uv pip install --python ~/.local/share/wime/python/bin/python \
-    torch==2.11.0 transformers==5.17.0 safetensors==0.8.0
+    -r emacs-packages/wime/neural/requirements-gpu.txt
 #+end_src
 
-缺少 Qwen 或 Python 环境时，wdoom 退回只用 25M 的 =verify=。
+Qwen 的完整 HF 模型下载到上表目录即可。MiniCPM 先准备本地 HF 模型下载，
+再从当前 workspace 构建已经导入的 llama.cpp，安装匹配的 tokenizer 和 BF16 GGUF：
 
-=./wdoom/bin/wdoom-prepare --native= 把 worker 代码和 25M 模型打包进新快照，
-重启 wdoom 后生效。
-=M-x wime-lab= 用来比较、切换模型和推理配置（=appkit-apps/wime-lab.el/=）；
-在那里选定的启动配置会覆盖 wdoom 的默认值。
+#+begin_src sh
+~/.local/share/wime/python/bin/python emacs-packages/wime/neural/prepare-native.py \
+    --model-dir /path/to/MiniCPM5-2B \
+    --gguf /path/to/MiniCPM5-2B-BF16.gguf --cuda-architectures 89
+#+end_src
+
+=89= 对应 RTX 4090，其他 GPU 使用其 CUDA 架构编号。构建需要 CMake、Ninja 和
+CUDA toolkit；=--nvcc= 可指定编译器。没有现成 GGUF 时省略 =--gguf=，并用
+=--convert-python= 指定装有 llama.cpp 转换依赖的独立 Python 环境；转换固定为 BF16。
+安装器校验模型结构和精度，拒绝覆盖不同的已安装模型，按源码及编译器标识保存独立库版本。
+运行时从 =native/current/lib/libwime_llama.so= 选择版本，检查点保存解析后的具体路径。
+
+=./wdoom/bin/wdoom-prepare --native= 打包 worker、Elisp 和 25M 模型，重启后生效。
+=M-x wime-neural-select-backend= 选择 Qwen HF 或 MiniCPM 原生：先预热，再等当前
+输入结束后切换，并保存下次启动配置；失败保留当前 worker。旧 HF 检查点自动使用新解码器。
+缺少大模型时保留 25M 的 =verify=；worker 出错时词格候选仍可用。
+=M-x wime-lab= 的评测、试输、检查点保存也携带后端和原生模型路径。
+MiniCPM 原生目前只支持中文；日文输入使用 Qwen HF，切换界面会检查这一限制。
 
 * 日本語
 

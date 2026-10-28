@@ -1,9 +1,7 @@
-load("@rules_rust//rust:defs.bzl", "rust_binary")
-load("@wime_neural_crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_python//python:defs.bzl", "py_binary")
 load(":gpu_runtime.bzl", "gpu_runtime")
 
-exports_files(["Cargo.toml", "Cargo.lock"], visibility = ["//visibility:public"])
+exports_files(["Cargo.toml", "Cargo.lock", "src/main.rs"], visibility = ["//visibility:public"])
 
 py_binary(
     name = "bundle-gpu",
@@ -38,12 +36,9 @@ gpu_runtime(
     visibility = ["//wdoom/bazel/native:__pkg__"],
 )
 
-rust_binary(
+# Keep the optional CPU worker's Cargo graph out of CUDA runtime packaging.
+alias(
     name = "wime-neural",
-    srcs = ["src/main.rs"],
-    aliases = aliases(),
-    edition = "2021",
-    rustc_flags = ["-Copt-level=3"],
+    actual = "//emacs-packages/wime/neural/rust:wime-neural",
     visibility = ["//visibility:public"],
-    deps = all_crate_deps(normal = True),
 )
