@@ -160,7 +160,7 @@ class Sources(unittest.TestCase):
 <td style="background-color:#eee">[[534年]] - 北魏分裂为[[西魏]]、[[东魏]]。</td>
 </tr><tr><td>[[梁 (南朝)|南朝梁]]</td><td>[[548年]] - 梁将军侯景叛乱。</td></tr></table>"""
         rendered = corpus.render_wiki(source)
-        self.assertEqual(rendered.splitlines(), ["北魏", "386 - 534", "534年 - 北魏分裂为西魏、东魏。",
+        self.assertEqual(rendered.splitlines(), ["北魏 386 - 534", "534年 - 北魏分裂为西魏、东魏。",
                                                  "南朝梁", "548年 - 梁将军侯景叛乱。"])
         self.assertNotRegex(rendered, r"</?(?:table|tr|td)\b")
 
@@ -180,6 +180,52 @@ class Sources(unittest.TestCase):
     def test_wiki_quote_aware_tags_do_not_consume_ordinary_comparison_or_literal_angle_text(self):
         source = '正文<div title="a > b">第一段</div><p>第二段，a < b 且 b > c。</p>'
         self.assertEqual(corpus.render_wiki(source), "正文\n第一段\n第二段，a < b 且 b > c。")
+
+    def test_wiki_self_closing_nowiki_cannot_protect_later_article_prose(self):
+        # HTML and 统一资源标识符 used <nowiki/> to stop adjacent link syntax;
+        # treating it as an opener swallowed thousands of characters of prose.
+        for empty in ("<nowiki/>", "<nowiki />", "<NOWIKI />"):
+            with self.subTest(empty=empty):
+                source = (f"[[HTML]]{empty}发布。\n历史[[版本]]"
+                          "<ref>这是历史引用</ref>仍在维护。"
+                          "[[File:HTML5-logo.svg|缩略图|右|200px|图片]]\n"
+                          "示例<nowiki><div>代码</div></nowiki>结束。")
+                self.assertEqual(corpus.render_wiki(source),
+                                 "HTML发布。\n历史版本仍在维护。\n示例<div>代码</div>结束。")
+        literal = "示例<nowiki/>[[File:x.svg|200px|文本]]<div>代码</div>"
+        self.assertEqual(corpus.render_wiki(f"<pre>{literal}</pre>"), literal)
+
+    def test_wiki_known_layout_tags_recover_bad_quotes_without_consuming_prose(self):
+        damaged = ['<div class="thumbcaption" sty-size: 88%;">',
+                   '<div class="collapsible-title" style="background-color: #D4ECF7;style="height: 12em;">']
+        for tag in damaged:
+            with self.subTest(tag=tag):
+                self.assertEqual(corpus.render_wiki(f"前文{tag}正文</div>后文。"), "前文\n正文\n后文。")
+                self.assertEqual(corpus.render_wiki(f"示例<code>{tag}正文</div></code>。"), f"示例{tag}正文</div>。")
+        self.assertEqual(corpus.render_wiki("前文</ref>正文。</ref>后文。"), "前文正文。后文。")
+
+    def test_wiki_break_inside_table_cell_preserves_later_column_syntax(self):
+        # Actual 巴黎 and 島嶼 tables place || after a cell's <br>/<small>.
+        source = ('{| class="wikitable"\n'
+                  '| 巴黎市區<br /><small>（75省）</small>|| align=right | 2,211,297 '
+                  '|| align=right | 20169人/平方公里\n'
+                  '|-\n| 本州岛<br>日本海 || 亞洲 || align=right|225,800\n|}')
+        rendered = corpus.render_wiki(source)
+        self.assertNotIn("align=", rendered)
+        self.assertNotIn("||", rendered)
+        for value in ("巴黎市區", "（75省）", "2,211,297", "20169人/平方公里", "本州岛", "日本海", "亞洲", "225,800"):
+            self.assertIn(value, rendered)
+
+    def test_wiki_comments_in_attributes_and_broken_reference_delimiters(self):
+        source = ('<div style="position:relative; <!--border:1px solid;--> width:100px;">'
+                  '植物色素</div>正文<ref group="cctld>{{cite web|title=参考文献}}</ref>后文。\n'
+                  '{{citation|title=参考书籍}}&lt;/ref>\n'
+                  '引用标记&lt;/ref&gt;应保留。')
+        self.assertEqual(corpus.render_wiki(source), "植物色素\n正文后文。\n引用标记</ref>应保留。")
+        self.assertEqual(corpus.render_wiki('正文<ref name="坏/>保留正文<ref>引用内容</ref>后文。'),
+                         "正文保留正文后文。")
+        literal = '<!--示例-->{{citation|title=书籍}}&lt;/ref>'
+        self.assertEqual(corpus.render_wiki(f"<nowiki>{literal}</nowiki>"), '<!--示例-->{{citation|title=书籍}}</ref>')
 
     def test_wiki_recovers_misplaced_chinese_variant_link_but_preserves_literal_cdata(self):
         broken = ("-[[{zh-hans:安东尼·德·圣-埃克苏佩里;zh-hk:安東尼·德·聖-艾修伯里;"

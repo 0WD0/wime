@@ -98,6 +98,7 @@ def render_wiki(text):
     # so these source-level boundaries must precede mwparserfromhell.parse.
     attributes = r'''(?:[^>"']|"[^"]*"|'[^']*')*'''
     literal = re.compile(
+        rf"<(?P<empty>nowiki|code|pre|syntaxhighlight|source)(?=[\s/>]){attributes}/\s*>|"
         rf"<(?P<tag>nowiki|code|pre|syntaxhighlight|source)(?=[\s/>]){attributes}>"
         r"(?P<body>.*?)</(?P=tag)\s*>", re.IGNORECASE | re.DOTALL)
     placeholders = {}
@@ -106,6 +107,9 @@ def render_wiki(text):
         prefix += "X"
 
     def protect(match):
+        if match.group("empty"):
+            SOURCE_TRANSFORMS["zhwiki/empty_literal_tags_removed"] += 1
+            return ""
         body = match.group("body")
         # MediaWiki commonly marks inline examples as <code><nowiki>...</nowiki>
         # </code>. Remove that structural inner wrapper, not its literal HTML.
@@ -121,6 +125,10 @@ def render_wiki(text):
         return key
 
     text = literal.sub(protect, text)
+    # Wiki comments are invisible even inside source layout attributes; remove
+    # them before quote-aware tag recovery, after protecting literal examples.
+    text, count = re.subn(r"<!--.*?-->", "", text, flags=re.DOTALL)
+    SOURCE_TRANSFORMS["zhwiki/comments_removed"] += count
     # References are ancillary text, not inline article prose. Handling their
     # actual source tags also works when a citation contains broken Wiki quotes.
     references = re.compile(
@@ -129,17 +137,44 @@ def render_wiki(text):
         re.IGNORECASE | re.DOTALL)
     text, count = references.subn("", text)
     SOURCE_TRANSFORMS["zhwiki/references_removed"] += count
+    damaged_reference = re.compile(
+        r"<(?:ref|references)(?=[\s/>])[^<>\n]*/\s*>|"
+        r"<(?P<tag>ref|references)(?=[\s/>])[^<>\n]*>.*?</(?P=tag)\s*>",
+        re.IGNORECASE | re.DOTALL)
+    text, count = damaged_reference.subn("", text)
+    SOURCE_TRANSFORMS["zhwiki/damaged_references_recovered"] += count
+    # Malformed nested citations can leave an unmatched closing tag behind.
+    # Remove only that explicit reference marker, retaining neighbouring prose.
+    text, count = re.subn(r"</(?:ref|references)\s*>", "", text, flags=re.IGNORECASE)
+    SOURCE_TRANSFORMS["zhwiki/orphan_reference_closers_removed"] += count
+    # A citation template can be followed by a mistyped, entity-escaped closing
+    # ref. Restrict recovery to the template tail; ordinary escaped tag examples
+    # elsewhere remain literal text.
+    text, count = re.subn(r"(?<=\}\})[ \t]*&lt;/ref(?:>|&gt;)", "", text, flags=re.IGNORECASE)
+    SOURCE_TRANSFORMS["zhwiki/escaped_reference_closers_removed"] += count
     block = {"div", "p", "br", "hr", "table", "thead", "tbody", "tfoot", "tr", "td", "th",
              "caption", "ul", "ol", "li", "dl", "dt", "dd", "blockquote", "center",
              "h1", "h2", "h3", "h4", "h5", "h6"}
     inline = {"span", "b", "i", "em", "strong", "u", "s", "small", "big", "sup", "sub", "font"}
-    layout = re.compile(rf"</?(?P<tag>{'|'.join(sorted(block | inline))})(?=[\s/>]){attributes}>", re.IGNORECASE)
+    # Do not let an unclosed attribute quote consume the next tag or text line.
+    layout_attributes = r'''(?:[^<>"']|"[^"<\n]*"|'[^'<\n]*')*'''
+    layout_start = rf"</?(?P<tag>{'|'.join(sorted(block | inline))})(?=[\s/>])"
+    layout = re.compile(layout_start + layout_attributes + ">", re.IGNORECASE)
 
     def boundary(match):
         SOURCE_TRANSFORMS["zhwiki/layout_tags_removed"] += 1
-        return "\n" if match.group("tag").lower() in block else ""
+        tag = match.group("tag").lower()
+        # A line break inside a Wiki table cell must not move the following
+        # || separators onto a new source line before the Wiki parser sees it.
+        return " " if tag == "br" else "\n" if tag in block else ""
 
     text = layout.sub(boundary, text)
+    # A few source layout tags have broken attribute quotes. Their explicit
+    # same-line <known-tag ...> boundary is still recoverable, without touching
+    # arbitrary angle-bracket text or any protected code region.
+    damaged_layout = re.compile(layout_start + r"[^<>\n]*>", re.IGNORECASE)
+    text, count = damaged_layout.subn(boundary, text)
+    SOURCE_TRANSFORMS["zhwiki/damaged_layout_tags_recovered"] += count
     # Bold/italic delimiters carry no prose. Removing them before parsing keeps
     # an unmatched five-quote run from swallowing later link boundaries.
     text, count = re.subn(r"'{2,}", "", text)
