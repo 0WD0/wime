@@ -70,8 +70,15 @@ def main():
             torch.cuda.synchronize()
         output = dict(prediction=candidates[0][0] if candidates else "",
                       candidates=[text for text, score in candidates[:5]],
+                      ranked_candidates=[dict(text=text, score=score) for text, score in candidates],
                       milliseconds=1000 * (time.perf_counter() - start),
                       error=error or ("no_candidates" if not candidates else None))
+        if args.backend == "legacy" and candidates:
+            # Preserve the actual search paths: retokenizing their surface text
+            # later can change the LM score and misattribute a ranking error.
+            output["score_components"] = [dict(text=h.text, token_ids=list(h.ids),
+                                               conditional=h.m, language_model=h.q)
+                                          for h in decoder.session.kept[-1]]
         if hasattr(decoder, "last_audit"):
             output["audit"] = decoder.last_audit.copy()
         return output
