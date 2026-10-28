@@ -947,6 +947,145 @@
           "rows": 128
         }
       }
+    },
+    "mandarin-context-v2-r3": {
+      "kind": "corpus",
+      "status": "active",
+      "annotation": "gpt-sovits-mandarin-v1",
+      "location": {
+        "root": "corpus",
+        "path": "corpus-v2-mandarin-pilot-cleaned-v4-r3"
+      },
+      "description": "Lossless sparse-provenance representation of mandarin-context-v2-r2; same 2,533,066 compositions, final readings and split identities. New builds use this reading schema.",
+      "parents": [
+        "mandarin-context-v2-r2"
+      ],
+      "files": {
+        "manifest": {
+          "path": "manifest.json",
+          "sha256": "9338e27ca97c2b029ba4e7f211ec72ff8ca4bb117b8b40f851111e1d0cd8b54e"
+        },
+        "audit": {
+          "path": "audit.json",
+          "sha256": "05db5b6b5cbdbdd5a5d23ec814c1764ccd2f9a9d6266ba5b2ed0b94554f61e2d"
+        },
+        "train": {
+          "path": "train.jsonl",
+          "format": "jsonl",
+          "sha256": "70ddf6b153fd822704c95ff639a11b09fb1a9899e49071fc288ea5670a89834e",
+          "rows": 2478723
+        },
+        "dev": {
+          "path": "dev.jsonl",
+          "format": "jsonl",
+          "sha256": "6d63d48df7b5db369a44a58c187952694235dae2ddb69368dc1a494f8c97c21b",
+          "rows": 27261
+        },
+        "test": {
+          "path": "test.jsonl",
+          "format": "jsonl",
+          "sha256": "e802d3481cc82c3fa5e9550455a682d3880e1f22a59221204130e3030061c537",
+          "rows": 27082
+        },
+        "encoding_equivalence": {
+          "path": "encoding-equivalence.json",
+          "sha256": "b1e6cd8582b4cce74576dee11df173f8d934e5b06cd4a602bf06a1c3e0075101"
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "reading_accuracy": "not estimated",
+        "human_verified_gold": false
+      },
+      "exclude": [
+        {
+          "dataset": "programming-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "programming-test-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "stress-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "stress-failures-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "diverse-v1",
+          "files": [
+            "dev",
+            "test",
+            "evaluation"
+          ]
+        },
+        {
+          "dataset": "replay-v1",
+          "files": [
+            "dev"
+          ]
+        },
+        {
+          "dataset": "wdoom-cuda-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "committed-anchor-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "protected-debug-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "accuracy-expansion-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "residual-heldout-v1",
+          "files": [
+            "cases"
+          ]
+        }
+      ],
+      "known_issues": [
+        "Word-boundary sampling is unrepresentative of partial commits.",
+        "Only 36 Wikipedia dev documents and 31 test documents.",
+        "Pilot dev/test subsets have been inspected; the whole test split must not be described as untouched."
+      ],
+      "recommended_augmentation": {
+        "single_share": 0.15,
+        "span_share": 0.3
+      },
+      "source_rows": {
+        "wildchat": 254505,
+        "zhwiki": 623873,
+        "fineweb": 560155,
+        "zhihu": 575776,
+        "forum": 518757
+      },
+      "supersedes": "mandarin-context-v2-r2",
+      "reading_schema": "wime-reading-notes-v1"
     }
   }
 }
