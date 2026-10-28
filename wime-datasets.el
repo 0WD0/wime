@@ -84,15 +84,40 @@
 (defun wime-datasets--text (value)
   (replace-regexp-in-string "[\n\r\t]+" " " (or value "")))
 
-(defun wime-datasets--reading (row)
-  (let ((pinyin (plist-get row :pinyin)) (tones (plist-get row :tones)))
-    (if (stringp pinyin) pinyin
-      (mapconcat (lambda (pair) (format "%s%s" (or (car pair) "?") (or (cdr pair) "")))
-                 (cl-mapcar #'cons pinyin (or tones (make-list (length pinyin) nil))) " "))))
-
 (defun wime-datasets--status (review)
   (or (cdr (assoc (plist-get review :status)
                   '(("approved" . "已确认") ("problem" . "有问题") ("skipped" . "跳过")))) "待审查"))
+
+(defun wime-datasets--status-cell (review)
+  "Display REVIEW with a symbol, theme color and its full meaning."
+  (let* ((status (plist-get review :status))
+         (symbol (pcase status ("approved" "✓") ("problem" "!") ("skipped" "–") (_ "·")))
+         (face (pcase status ("approved" 'success) ("problem" 'error) (_ 'shadow)))
+         (note (plist-get review :note)))
+    (propertize symbol 'face face
+                'help-echo (concat (wime-datasets--status review)
+                                   (if (string-empty-p (or note "")) "" (concat "：" note))))))
+
+(defun wime-datasets--context-cell (context width)
+  "Keep the end of CONTEXT adjacent to the target, within WIDTH columns."
+  (let* ((text (wime-datasets--text context)) (columns (string-width text)))
+    (if (string-empty-p text)
+        (propertize "∅" 'face 'shadow 'help-echo "没有已确认的左文")
+      (propertize (if (> columns width)
+                      (concat "…" (truncate-string-to-width text columns (+ 1 (- columns width))))
+                    text)
+                  'help-echo context))))
+
+(defun wime-datasets--sample-columns ()
+  "Allocate the visible page to context and target; return context width."
+  (let* ((available (max 52 (- (window-body-width (get-buffer-window (current-buffer) t)) 16)))
+         (context-width (/ (* available 3) 5)))
+    (setq tabulated-list-format
+          (vector (list "模型左文" context-width nil)
+                  (list "目标文本" (- available context-width) nil)
+                  '("审" 2 nil) '("行" 8 nil)))
+    (tabulated-list-init-header)
+    context-width))
 
 (defvar wime-datasets-mode-map
   (let ((map (make-sparse-keymap)))
@@ -150,21 +175,20 @@
     (wime-datasets-mode)
     (setq wime-datasets--dataset dataset
           wime-datasets--split (or split (and (member "dev" splits) "dev") (car splits)))
-    (setq tabulated-list-format [("行" 9 nil) ("来源" 12 nil) ("目标文本" 25 nil)
-                                 ("上下文读音" 35 nil) ("模型左文" 38 nil) ("审查" 10 nil)])
-    (tabulated-list-init-header)
     (wime-datasets-refresh)))
 
 (defun wime-datasets--show-page (page)
   (setq wime-datasets--page page wime-datasets--after (plist-get page :after)
         wime-datasets--snapshot (plist-get page :snapshot))
-  (setq tabulated-list-entries
-        (mapcar (lambda (row)
-                  (list (plist-get row :_row)
-                        (vector (number-to-string (plist-get row :_row)) (or (plist-get row :source) "")
-                                (wime-datasets--text (car (plist-get row :gold))) (wime-datasets--reading row)
-                                (wime-datasets--text (plist-get row :context))
-                                (wime-datasets--status (plist-get row :review))))) (plist-get page :rows)))
+  (let ((context-width (wime-datasets--sample-columns)))
+    (setq tabulated-list-entries
+          (mapcar (lambda (row)
+                    (list (plist-get row :_row)
+                          (vector (wime-datasets--context-cell (plist-get row :context) context-width)
+                                  (propertize (wime-datasets--text (car (plist-get row :gold)))
+                                              'help-echo (car (plist-get row :gold)))
+                                  (wime-datasets--status-cell (plist-get row :review))
+                                  (number-to-string (plist-get row :_row))))) (plist-get page :rows))))
   (setq header-line-format
         (format "%s / %s · 匹配 %s 条 · 来源 %s · 声调 %s · 查询 %s · [] 翻页 / 搜索 s 来源 t 声调 r 随机 RET 详情 a 确认 x 问题"
                 wime-datasets--dataset wime-datasets--split (plist-get page :total)
@@ -227,6 +251,7 @@
                      (plist-get entry :parents) (plist-get entry :annotation) (plist-get entry :quality)))
       (dolist (issue (plist-get entry :known_issues)) (princ (concat "• " issue "\n")))
       (when page
+        (princ "\n审查符号：· 待审查　✓ 已确认　! 有问题　– 跳过\n来源和逐字读音见 RET 详情；悬停可查看完整左文及审查说明。\n")
         (princ (format "\n当前划分文档数：%s\n来源与样本数：%S\n" (or (plist-get page :documents) "未记录")
                        (plist-get page :sources)))))))
 
@@ -256,7 +281,8 @@
                         (or (nth i tones) "（声调未标注）")
                         (if (plist-get note :before_tone) (format "变调前 %s；" (plist-get note :before_tone)) "")
                         (mapconcat #'identity (plist-get note :rules) "；")))))
-    (insert (format "\n原始记录定位：%s\n文档 ID：%s\n清洗操作：%S\n"
+    (insert (format "\n来源：%s\n原始记录定位：%s\n文档 ID：%s\n清洗操作：%S\n"
+                    (or (plist-get row :source) "未提供")
                     (or (plist-get detail :source_document) "未提供") (or (plist-get row :document) "未提供")
                     (plist-get detail :cleaning)))
     (when (plist-get detail :document_excerpt)
