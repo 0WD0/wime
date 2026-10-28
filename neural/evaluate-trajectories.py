@@ -45,10 +45,11 @@ def main():
         decoder = ConditionalDecoder.from_database(model.to(args.device), vocab, args.database, args.beam)
     else:
         from inference import ConditionalEvaluator
-        from backends import make_decoder, make_rescorer
+        from backends import make_decoder
+        from rescorer import Rescorer
         evaluator = ConditionalEvaluator(args.model, device=args.device, context_anchor=args.anchor)
         metadata, vocab = evaluator.metadata, evaluator.vocab
-        rescorer = make_rescorer(args)
+        rescorer = Rescorer(args.rescorer, args.rescorer_weight, device=args.device)
         decoder = make_decoder(args, evaluator, rescorer)
         decoder.beam = args.beam
     legal = readings(args.database)
@@ -76,8 +77,7 @@ def main():
         return output
 
     # Initialization latency is excluded; all measured calls still use real input.
-    warmup, _ = states(cases[0])
-    predict(warmup)
+    predict(dict(context="评测预热", input="nihk"))
     results = []
     started = time.monotonic()
     with (args.out / "results.jsonl").open("w") as stream:
@@ -93,7 +93,7 @@ def main():
             result = dict(id=row["id"], document=row["document"], group=row["group"], source=row["source"],
                           context=row["context"], input=code, gold=row["gold"], full=full_result, prefixes=prefixes,
                           gold_key_reachable=all(code[2*i:2*i+2] in legal.get(char, {}) for i,char in enumerate(text)),
-                          gold_in_vocabulary=all(char in vocab for char in text))
+                          gold_in_conditional_vocabulary=all(char in vocab for char in text))
             results.append(result)
             stream.write(json.dumps(result, ensure_ascii=False) + "\n")
             stream.flush()

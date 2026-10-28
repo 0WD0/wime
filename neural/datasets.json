@@ -1218,6 +1218,58 @@
         "metadata": "emacs-packages/wime/datasets/artifacts/mandarin-context-v2-r3-parquet.dvc",
         "sha256": "ffeb61fe20e2537b7c2b15c425d6ebdf8f8744c1f75d3f8bb19c5514e9538444"
       }
+    },
+    "sentence-trajectories-dev-v1": {
+      "kind": "diagnostic",
+      "status": "development",
+      "annotation": "gpt-sovits-mandarin-v1",
+      "parents": [
+        "cleaned-multisource-v4"
+      ],
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-dev-v1"
+      },
+      "description": "Paired whole-sentence, meaningful-prefix and correctly committed continuation diagnosis; 92 source groups, boundary proposals reviewed before inference.",
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-dev-v1.dvc",
+        "sha256": "63bb6e56a030d9de30090c87e4674488b027caf8c22e6e4e4fe3a29a45517db1"
+      },
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "cases": {
+          "path": "cases.json",
+          "format": "json-array",
+          "rows": 92
+        },
+        "boundary_review": {
+          "path": "boundary-review.json",
+          "format": "json-array",
+          "rows": 222
+        },
+        "candidates": {
+          "path": "candidates.json",
+          "format": "json-array",
+          "rows": 222
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "reading_accuracy": "not estimated",
+        "human_verified_gold": false,
+        "boundary_review": "agent reviewed before inference"
+      },
+      "known_issues": [
+        "Development documents previously used for checkpoint selection; not an untouched test.",
+        "Source/length sampling and boundary review are diagnostic, not measured user behavior.",
+        "Mixed-script and internally punctuated sentences are excluded, not concatenated.",
+        "Correct committed prefix is an oracle condition; prefix selection success is measured separately.",
+        "Complete 6–48 Han sentences without internal punctuation; terminal punctuation not typed. 25+ is decoder capacity diagnosis beyond the current 24-syllable editor window."
+      ]
     }
   }
 }

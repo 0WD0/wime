@@ -25,6 +25,7 @@ def candidates(root, out, per_bucket=16):
             raw = match.group()
             text = raw.rstrip("。！？!?\n").strip()
             start = match.start() + len(raw) - len(raw.lstrip())
+            terminal = raw[-1] if raw[-1] in "。！？!?" else ""
             counts["segments"] += 1
             if not re.fullmatch(r"[\u3400-\u4dbf\u4e00-\u9fff]+", text):
                 counts["excluded_mixed_or_internal_punctuation"] += 1
@@ -35,12 +36,15 @@ def candidates(root, out, per_bucket=16):
             if len(set(text)) < 4:
                 counts["excluded_repetition"] += 1
                 continue
+            if document["text"][start:start+len(text)+len(terminal)] != text + terminal:
+                counts["excluded_terminal_spacing"] += 1
+                continue
             bucket = "6-12" if len(text) <= 12 else "13-24" if len(text) <= 24 else "25-48"
             counts[document["source"] + "/" + bucket] += 1
             identity = hashlib.sha256(f"trajectory-v1:{document['id']}:{start}".encode()).hexdigest()
             pool[document["source"] + "/" + bucket].append(dict(
                 id=identity[:20], document=document["id"], group=document["group_id"], source=document["source"],
-                bucket=bucket, offset=start, text=text, terminal=raw[-1] if raw[-1] in "。！？!?" else "",
+                bucket=bucket, offset=start, text=text, terminal=terminal,
                 context=document["text"][max(0, start - 64):start]))
     db.close()
     selected, groups = [], set()
@@ -88,6 +92,8 @@ def build(args):
             start, end = row["offset"], row["offset"] + len(row["text"])
             if document["text"][start:end] != row["text"] or document["text"][max(0,start-64):start] != row["context"]:
                 raise ValueError("review text differs from cleaned document")
+            if document["text"][start:end+len(row["terminal"])] != row["text"] + row["terminal"]:
+                raise ValueError("annotation window must preserve spacing before terminal punctuation")
             decision = decisions[row["id"]]
             if not row["text"].startswith(decision["prefix"]):
                 raise ValueError("reviewed prefix is not a literal sentence prefix")
