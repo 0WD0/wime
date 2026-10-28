@@ -388,7 +388,7 @@
         wime-neural-single-character wime-neural-seed-candidates wime-neural-search-method
         wime-neural-pool-width)
     (wime-checkpoint--apply '(:path "/m.safetensors"
-                              :profile (:backend "qwen-hf" :width 16 :budget 4 :rescorer "/lm" :rescorer_weight 2
+                              :profile (:search_method "verify" :backend "qwen-hf" :width 16 :budget 4 :rescorer "/lm" :rescorer_weight 2
                                         :pool_width 32)))
     (should (equal (wime-neural--command wime-neural-model-file)
                    '("/usr/bin/python3" "/bin/true" "--rescorer" "/lm"
@@ -396,7 +396,7 @@
     (should (equal (plist-get (wime-checkpoint-profile) :rescorer) "/lm"))
     (should (= wime-neural-pool-width 32))
     ;; A conditional-only profile disables the general rescorer.
-    (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:backend "qwen-hf" :width 16 :budget 4)))
+    (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:search_method "verify" :backend "qwen-hf" :width 16 :budget 4)))
     (should-not wime-neural-rescorer)
     (should (= wime-neural-rescorer-weight 1.5))
     (should (eq (plist-get (wime-checkpoint-profile) :rescorer) :null))))
@@ -585,6 +585,6 @@
                    '("/bin/true" "--rescorer" "/lm" "--rescorer-weight" "1.5"
                      "--database" "/w.db" "--backend" "qwen-hf" "/m.safetensors")))
     (should (equal (plist-get (wime-checkpoint-profile) :search_method) "decode"))
-    (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:backend "qwen-hf" :width 16 :budget 4 :rescorer "/lm")))
+    (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:search_method "verify" :backend "qwen-hf" :width 16 :budget 4 :rescorer "/lm")))
     (should (eq wime-neural-search-method 'verify))
     (should-not (member "--database" (wime-neural--command wime-neural-model-file)))))

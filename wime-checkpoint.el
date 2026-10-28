@@ -33,7 +33,7 @@
         :single_character (if wime-neural-single-character t :false)
         :seed_draft (if wime-neural-seed-candidates "neural" "traditional")
         :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight
-        :backend (wime-backend--model-name)
+        :backend (symbol-name wime-backend-model)
         :native_library (or wime-backend-native-library :null)
         :native_model (or wime-backend-native-model :null)
         :pool_width (or wime-neural-pool-width :null)
@@ -43,25 +43,35 @@
   "Normalize JSON null VALUE in both serialized and in-memory recipes."
   (unless (eq value :null) value))
 
-(defun wime-checkpoint--apply (recipe)
-  "Install verified RECIPE variables; callers own the worker transition."
+(defun wime-checkpoint--settings (recipe)
+  "Read RECIPE into runtime variable bindings before changing live state."
   (let* ((profile (plist-get recipe :profile))
-         (backend (wime-backend-from-profile profile)))
-    (setq wime-neural-model-file (plist-get recipe :path)
-          wime-neural-search-method (if (equal (plist-get profile :search_method) "decode") 'decode 'verify)
-          wime-search-width (plist-get profile :width)
-          wime-neural-inference-budget (plist-get profile :budget)
-          wime-neural-prior-weight (plist-get profile :prior_weight)
-          wime-neural-prior-confidence (plist-get profile :prior_confidence)
-          wime-neural-context-anchor (plist-get profile :context_anchor)
-          wime-neural-single-character (eq (plist-get profile :single_character) t)
-          wime-neural-seed-candidates (equal (plist-get profile :seed_draft) "neural")
-          wime-neural-rescorer (wime-checkpoint--nullable (plist-get profile :rescorer))
-          wime-backend backend
-          wime-backend-native-library (wime-checkpoint--nullable (plist-get profile :native_library))
-          wime-backend-native-model (wime-checkpoint--nullable (plist-get profile :native_model))
-          wime-neural-rescorer-weight (or (plist-get profile :rescorer_weight) 1.5)
-          wime-neural-pool-width (plist-get profile :pool_width))))
+         (backend (plist-get profile :backend))
+         (method (plist-get profile :search_method)))
+    (unless (member backend '("qwen-hf" "minicpm-native" "legacy"))
+      (error "Unknown model backend: %s" backend))
+    (unless (member method '("rerank" "verify" "decode"))
+      (error "Unknown search method: %s" method))
+    `((wime-neural-model-file . ,(plist-get recipe :path))
+      (wime-backend-model . ,(intern backend))
+      (wime-neural-search-method . ,(intern method))
+      (wime-search-width . ,(plist-get profile :width))
+      (wime-neural-inference-budget . ,(plist-get profile :budget))
+      (wime-neural-prior-weight . ,(plist-get profile :prior_weight))
+      (wime-neural-prior-confidence . ,(plist-get profile :prior_confidence))
+      (wime-neural-context-anchor . ,(plist-get profile :context_anchor))
+      (wime-neural-single-character . ,(eq (plist-get profile :single_character) t))
+      (wime-neural-seed-candidates . ,(equal (plist-get profile :seed_draft) "neural"))
+      (wime-neural-rescorer . ,(wime-checkpoint--nullable (plist-get profile :rescorer)))
+      (wime-backend-native-library . ,(wime-checkpoint--nullable (plist-get profile :native_library)))
+      (wime-backend-native-model . ,(wime-checkpoint--nullable (plist-get profile :native_model)))
+      (wime-neural-rescorer-weight . ,(or (plist-get profile :rescorer_weight) 1.5))
+      (wime-neural-pool-width . ,(wime-checkpoint--nullable (plist-get profile :pool_width))))))
+
+(defun wime-checkpoint--apply (recipe)
+  "Install RECIPE variables; callers own the worker transition."
+  (dolist (binding (wime-checkpoint--settings recipe))
+    (set (car binding) (cdr binding))))
 
 (defun wime-checkpoint-restore ()
   "Restore the explicit startup recipe, retaining packaged defaults on error."
@@ -141,16 +151,9 @@ value.  Return cancellation that leaves the existing worker and input intact."
                   (make-process
                    :name "wime-checkpoint-prewarm" :buffer nil :noquery t :connection-type 'pipe
                    :coding 'utf-8-unix :stderr " *wime-checkpoint-errors*"
-                   :command (let* ((profile (plist-get recipe :profile))
-                                   (wime-neural-rescorer (wime-checkpoint--nullable (plist-get profile :rescorer)))
-                                   (wime-backend (wime-backend-from-profile profile))
-                                   (wime-backend-native-library (wime-checkpoint--nullable (plist-get profile :native_library)))
-                                   (wime-backend-native-model (wime-checkpoint--nullable (plist-get profile :native_model)))
-                                   (wime-neural-rescorer-weight
-                                    (or (plist-get profile :rescorer_weight) 1.5))
-                                   (wime-neural-search-method
-                                    (if (equal (plist-get profile :search_method) "decode") 'decode 'verify)))
-                              (wime-neural--command (plist-get recipe :path)))
+                   :command (let ((settings (wime-checkpoint--settings recipe)))
+                              (cl-progv (mapcar #'car settings) (mapcar #'cdr settings)
+                                (wime-neural--command wime-neural-model-file)))
                    :sentinel (lambda (p _event)
                                (unless (process-live-p p) (fail "New GPU worker could not load checkpoint")))
                    :filter

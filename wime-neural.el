@@ -71,7 +71,7 @@ use `wime-neural-timeout'."
 `verify' requires a wime-ms-pinyin-v1 model and a Microsoft double-pinyin
 database.  Auxiliary codes continue to constrain the dictionary search.
 `decode' also needs `wime-neural-rescorer': the CUDA worker spells the keys
-without the lattice using `wime-backend', including a trailing half
+without the lattice using `wime-backend-model', including a trailing half
 syllable.  Readings, auxiliary codes and fixed characters are hard constraints.
 Without a rescorer it verifies instead."
   :type '(choice (const rerank) (const verify) (const decode)) :group 'wime)
@@ -251,15 +251,27 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 
 (defun wime-neural--command (model)
   "Worker command line for MODEL; the model stays the last argument."
+  (unless (memq wime-backend-model '(qwen-hf minicpm-native legacy))
+    (error "Unknown model backend: %s" wime-backend-model))
   (append (and wime-neural-interpreter (list wime-neural-interpreter))
           (list (or (executable-find wime-neural-program)
                     (expand-file-name wime-neural-program)))
           (and wime-neural-rescorer
                (list "--rescorer" (expand-file-name wime-neural-rescorer)
                      "--rescorer-weight" (number-to-string wime-neural-rescorer-weight)))
-          (wime-backend--arguments wime-neural-search-method wime-neural-rescorer
-                                   wime-database-file)
-          (and (wime-backend-supports-p 'japanese)
+          (when (or (and wime-neural-rescorer (eq wime-neural-search-method 'decode))
+                    (memq wime-backend-model '(minicpm-native legacy)))
+            (unless (and wime-neural-rescorer (eq wime-neural-search-method 'decode)
+                         wime-database-file)
+              (error "Selected model backend requires a rescorer, database and decode search"))
+            (append (list "--database" (expand-file-name wime-database-file)
+                          "--backend" (symbol-name wime-backend-model))
+                    (when (eq wime-backend-model 'minicpm-native)
+                      (unless (and wime-backend-native-library wime-backend-native-model)
+                        (error "MiniCPM requires a native library and GGUF model"))
+                      (list "--native-library" (expand-file-name wime-backend-native-library)
+                            "--native-model" (expand-file-name wime-backend-native-model)))))
+          (and (not (eq wime-backend-model 'minicpm-native))
                wime-neural-rescorer (bound-and-true-p wime-japanese-model-file)
                (bound-and-true-p wime-japanese-table-file)
                (append (list "--japanese-model" (expand-file-name wime-japanese-model-file)
