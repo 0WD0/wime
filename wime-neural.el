@@ -14,6 +14,8 @@
 (require 'json)
 (require 'wime)
 
+(autoload 'wime-neural-select-backend "wime-checkpoint" nil t)
+
 (defcustom wime-neural-program "wime-neural"
   "Local reranking worker executable."
   :type 'string :group 'wime)

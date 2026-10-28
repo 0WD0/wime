@@ -216,17 +216,21 @@ compositions have finished.  Assets live in `wime-checkpoint-directory'."
           ;; Freeze the library version in saved recipes, not its current symlink.
           profile (plist-put profile :native_library (if library (file-truename library) :null))
           profile (plist-put profile :native_model (or gguf :null)))
-    (let* ((checkpoint (wime-checkpoint-call (list :op "import-model" :path wime-neural-model-file)))
+    (let* ((checkpoint (plist-get (wime-checkpoint-call (list :op "import-model" :path wime-neural-model-file))
+                                  :result))
            (recipe (list :checkpoint (plist-get checkpoint :id) :path (plist-get checkpoint :path)
-                         :profile profile)))
+                         :profile profile))
+           finished)
       (when wime-neural--cancel-switch (funcall wime-neural--cancel-switch))
       (setq wime-neural--cancel-switch
             (wime-checkpoint-switch
              recipe t
-             (lambda (_result) (setq wime-neural--cancel-switch nil)
+             (lambda (_result) (setq finished t wime-neural--cancel-switch nil)
                (message "Wime backend: %s (saved for startup)" backend))
-             (lambda (reason) (setq wime-neural--cancel-switch nil)
-               (message "Wime kept the current backend: %s" reason)))))))
+             (lambda (reason) (setq finished t wime-neural--cancel-switch nil)
+               (message "Wime kept the current backend: %s" reason))))
+      ;; Command construction can reject a recipe synchronously.
+      (when finished (setq wime-neural--cancel-switch nil)))))
 
 (provide 'wime-checkpoint)
 ;;; wime-checkpoint.el ends here
