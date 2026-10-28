@@ -27,7 +27,7 @@ import zipfile
 from corpus_readings import HAN, Lexicon, Reader
 from replay import Protection
 from corpus_integrity import UniqueRows, checked_row, empty_output, file_metadata, reading_assets, verify_sources
-from corpus_tones import TONE_POLICY, validate_tones
+from corpus_tones import READING_SCHEMA, TONE_POLICY, reading_notes, validate_tones
 from corpus_cleaning import clean_document, decode_entities
 
 # Short commits dominate actual editor input; retain long spans for coverage.
@@ -337,13 +337,14 @@ def annotated_spans(document, window, reading, lexicon, rng, density):
     for start, end in spans(window.text[core_start:core_end], keys[core_start:core_end], lexicon, rng, density):
         start, end = start + core_start, end + core_start
         offset = window.offset + start
-        yield dict(offset=offset, reading_window=[window.offset, window.offset + len(window.text)],
+        row = dict(offset=offset, reading_window=[window.offset, window.offset + len(window.text)],
                    context=document[max(0, offset - 64):offset], gold=[window.text[start:end]],
                    input="".join(keys[start:end]), pinyin=reading["pinyin"][start:end],
-                   tones=reading["tones"][start:end], tone_sources=reading["tone_sources"][start:end],
-                   reading_rules=reading["reading_rules"][start:end],
-                   reading_evidence={source: values[start:end]
-                                     for source, values in reading["reading_evidence"].items()})
+                   tones=reading["tones"][start:end])
+        notes = reading_notes(reading, start, end)
+        if notes:
+            row["reading_notes"] = notes
+        yield row
 
 
 def clean_corpus(args, names):
@@ -582,7 +583,7 @@ def main():
                     annotation_window=dict(core=ANNOTATION_CORE, left_halo=ANNOTATION_HALO, right_halo=ANNOTATION_HALO,
                                            max_characters=ANNOTATION_CORE + 2 * ANNOTATION_HALO,
                                            boundary="sentence", offsets="zero-based characters in cleaned document; end exclusive"),
-                    tone_policy=TONE_POLICY,
+                    tone_policy=TONE_POLICY, reading_schema=READING_SCHEMA,
                     arguments={k: [str(p) for p in v] if isinstance(v, list) else str(v)
                                for k, v in vars(args).items()},
                     protection=protection.files, provenance=provenance, providers=providers,

@@ -31,6 +31,7 @@ def compatibility(manifest):
                    if key not in ("sources", "out", "max_chars")},
         providers=manifest["providers"], packages=manifest["packages"],
         tone_policy=manifest["tone_policy"],
+        reading_schema=manifest.get("reading_schema"),
         annotation_window=manifest["annotation_window"],
     )
 
@@ -107,7 +108,7 @@ def merge(out, parts):
                     with (directory / f"{split}.jsonl").open(encoding="utf-8") as stream:
                         for line in stream:
                             row = json.loads(line)
-                            validate_tones(row)
+                            validate_tones(row, baseline.get("reading_schema"))
                             validate_annotation_window(row, baseline["annotation_window"])
                             if row["split"] != split:
                                 raise ValueError(f"row in wrong split file: {row['id']}")
@@ -157,6 +158,8 @@ def merge(out, parts):
                   outputs={split: file_metadata(out / f"{split}.jsonl") for split in SPLITS},
                   elapsed_s=time.time() - started)
     result["tone_policy"] = baseline["tone_policy"]
+    if "reading_schema" in baseline:
+        result["reading_schema"] = baseline["reading_schema"]
     result["annotation_window"] = baseline["annotation_window"]
     temporary = out / "manifest.json.partial"
     temporary.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

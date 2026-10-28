@@ -341,11 +341,12 @@ class AnnotationWindows(unittest.TestCase):
                 self.assertEqual([row["offset"] for row in rows], list(range(len(document))))
                 first, second = rows[127], rows[128]
                 self.assertEqual(first["gold"], [phrase[0]])
-                self.assertEqual(first["reading_evidence"]["frontend_before_sandhi"], [before])
-                self.assertEqual(first["reading_evidence"]["final"], [final])
+                self.assertEqual(first["reading_notes"], [dict(index=0, before_tone=int(before[-1]),
+                                                             rules=["contextual_tone_sandhi"])])
                 self.assertEqual(first["tones"], [int(final[-1])])
                 self.assertEqual(first["pinyin"], [final[:-1]])
-                self.assertIn("contextual_tone_sandhi", first["reading_rules"][0])
+                self.assertNotIn("reading_evidence", first)
+                self.assertNotIn("tone_sources", first)
                 self.assertEqual(first["reading_window"], [0, 192])
                 self.assertEqual(second["reading_window"], [64, 269])
                 self.assertEqual(second["context"], document[64:128])

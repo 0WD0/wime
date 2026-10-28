@@ -110,6 +110,19 @@ class Conditioning(unittest.TestCase):
             with self.assertRaises(ValueError):
                 input_tokens(code)
 
+    def test_sparse_reading_notes_follow_partial_commits(self):
+        row = dict(context="觉得", input="hfhkba", gold=["很好吧"], offset=17,
+                   pinyin=["hen", "hao", "ba"], tones=[2, 3, 5],
+                   reading_notes=[dict(index=0, before_tone=3, rules=["contextual_tone_sandhi"]),
+                                  dict(index=2, rules=["character_correction:吧"])])
+        span = composition_span(row, 1, 3)
+        self.assertEqual(span["reading_notes"], [dict(index=1, rules=["character_correction:吧"])])
+        self.assertEqual(span["pinyin"], ["hao", "ba"])
+        self.assertEqual(span["tones"], [3, 5])
+        self.assertEqual(span["offset"], 18)
+        self.assertNotIn("reading_notes", composition_span(row, 1, 2))
+        self.assertEqual(row["reading_notes"][1]["index"], 2)
+
     def test_loss_only_predicts_output_and_terminal(self):
         row = dict(context="上文", input="aabb", gold=["甲乙"])
         chars = set(prompt(row["context"], row["input"]) + "甲乙" + EOS)

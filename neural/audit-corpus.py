@@ -19,7 +19,7 @@ import tempfile
 
 from corpus_integrity import file_metadata, sample_key, validate_annotation_window
 from corpus_cleaned import CleanedDocuments
-from corpus_tones import TONE_POLICY, tone_counts, validate_tones
+from corpus_tones import TONE_POLICY, tone_counts, tone_source_counts, validate_tones
 from replay import Protection
 
 SPLITS = ("train", "dev", "test")
@@ -210,12 +210,12 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
                         elif any(row["input"][2*i:2*i+2] not in keys.get(char, ()) for i, char in enumerate(text)):
                             error("illegal_reading_key", where)
                         try:
-                            validate_tones(row)
+                            validate_tones(row, manifest.get("reading_schema"))
                         except ValueError as exc:
                             error("tone_schema", dict(location=where, message=str(exc)))
                         else:
                             tones[source].update(tone_counts(row))
-                            tone_sources[source].update(row["tone_sources"])
+                            tone_sources[source].update(tone_source_counts(row))
                         try:
                             validate_annotation_window(row, window_policy)
                         except ValueError as exc:
@@ -267,6 +267,7 @@ def audit(corpus, database, exclude_cases=(), sample_per_source=20, seed="wime-c
                   database=database_metadata, reading_assets=reading_assets, protection=protection.files,
                   reading_accuracy="Not measured; dictionary key legality does not establish contextual reading correctness.")
     report["tone_policy"] = manifest.get("tone_policy")
+    report["reading_schema"] = manifest.get("reading_schema")
     report["tones"] = {source: dict(counts, sources=dict(sorted(tone_sources[source].items())))
                        for source, counts in sorted(tones.items())}
     report["annotation_window"] = window_policy

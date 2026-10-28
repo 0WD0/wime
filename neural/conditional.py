@@ -129,6 +129,12 @@ def composition_span(row, start, end):
     if "reading_evidence" in row:
         result["reading_evidence"] = {key: value[start:end]
                                       for key, value in row["reading_evidence"].items()}
+    if "reading_notes" in row:
+        notes = [dict(note, index=note["index"] - start) for note in row["reading_notes"]
+                 if start <= note["index"] < end]
+        result.pop("reading_notes")
+        if notes:
+            result["reading_notes"] = notes
     if "offset" in row:
         result["offset"] += start
     return result

@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
-from corpus_tones import SYLLABLES, validate_tones
+from corpus_tones import SYLLABLES, compact_tones, tone_source_counts, validate_tones
 
 
 class CompleteTones(unittest.TestCase):
@@ -59,6 +59,38 @@ class CompleteTones(unittest.TestCase):
             wrong_source["tone_sources"][1] = "mandarin_frontend"
             with self.assertRaisesRegex(ValueError, "actual corrections"):
                 validate_tones(wrong_source)
+
+    def test_compaction_keeps_only_sparse_provenance(self):
+        row = self.row()
+        compact = compact_tones(row)
+        self.assertEqual(compact, dict(gold=["你好"], input=row["input"], pinyin=["ni", "hao"], tones=[2, 3],
+                                       reading_notes=[dict(index=0, before_tone=3,
+                                                           rules=["contextual_tone_sandhi"])]))
+        self.assertEqual(tone_source_counts(compact), tone_source_counts(row))
+        row["tone_sources"][1] = "phrase_correction"
+        row["reading_rules"][1] = ["phrase_correction:你好"]
+        self.assertEqual(compact_tones(row)["reading_notes"][1], dict(index=1, rules=["phrase_correction:你好"]))
+        row["tones"] = [3, 3]
+        row["reading_evidence"]["final"] = ["ni3", "hao3"]
+        row["tone_sources"] = ["mandarin_frontend"] * 2
+        row["reading_rules"] = [[], []]
+        self.assertNotIn("reading_notes", compact_tones(row))
+
+    def test_invalid_sparse_evidence_is_rejected(self):
+        compact = compact_tones(self.row())
+        for notes in ([dict(index=0, rules=["contextual_tone_sandhi"])],
+                      [dict(index=0, rules=["contextual_tone_sandhi"], before_tone=2)],
+                      [dict(index=0, rules=["contextual_tone_sandhi"], before_tone=0)],
+                      [dict(index=0, rules=["contextual_tone_sandhi"], before_tone=True)],
+                      [dict(index=2, rules=["character_correction:好"])],
+                      [dict(index=0, rules=[])],
+                      [dict(index=0, rules=["unknown-rule"])],
+                      compact["reading_notes"] * 2,
+                      [dict(index=1, rules=["character_correction:好"]), *compact["reading_notes"]]):
+            with self.subTest(notes=notes), self.assertRaises(ValueError):
+                validate_tones(dict(compact, reading_notes=notes))
+        with self.assertRaisesRegex(ValueError, "cannot be mixed"):
+            validate_tones(dict(self.row(), reading_notes=compact["reading_notes"]))
 
 
 if __name__ == "__main__":
