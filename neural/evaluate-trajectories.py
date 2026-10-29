@@ -101,8 +101,9 @@ def main():
                           context=row["context"], input=code, gold=row["gold"], full=full_result, prefixes=prefixes,
                           gold_key_reachable=all(code[2*i:2*i+2] in legal.get(char, {}) for i,char in enumerate(text)),
                           gold_in_conditional_vocabulary=all(char in vocab for char in text))
-            if "test_partition" in row:
-                result["test_partition"] = row["test_partition"]
+            for field in ("test_partition", "unit_kind"):
+                if field in row:
+                    result[field] = row[field]
             results.append(result)
             stream.write(json.dumps(result, ensure_ascii=False) + "\n")
             stream.flush()

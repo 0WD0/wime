@@ -1634,6 +1634,162 @@
         "Rule-supported internal prefixes exist for only part of the corpus; actual sampling shares are recorded.",
         "Natural source prose can still contain colloquial wording, typos or factual inaccuracies."
       ]
+    },
+    "sentence-trajectories-dev-v2": {
+      "kind": "diagnostic",
+      "status": "development",
+      "annotation": "gpt-sovits-mandarin-v1+agent-review-v2",
+      "parents": [
+        "cleaned-multisource-v4"
+      ],
+      "exclude_from_training": true,
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-dev-v2"
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-dev-v2.dvc",
+        "sha256": "6d525a1a321841b8b84418ff2409379ab4fde5dcbc759dd49bd9bb84d6f3e08f"
+      },
+      "description": "Reviewed natural input release: 851 independent source groups, 214 meaningful commit boundaries, 1279 input states. Original dev groups; no IME outputs used in construction.",
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "cases": {
+          "path": "cases.json",
+          "format": "json-array",
+          "rows": 851
+        },
+        "documents": {
+          "path": "source-documents.jsonl",
+          "format": "jsonl",
+          "rows": 851
+        },
+        "reading_review": {
+          "path": "reading-review.json"
+        },
+        "boundary_review": {
+          "path": "boundary-review.json",
+          "format": "json-array",
+          "rows": 217
+        },
+        "selection_ledger": {
+          "path": "selection-ledger.json",
+          "format": "json-array",
+          "rows": 954
+        },
+        "agent_review": {
+          "path": "agent-review.json",
+          "format": "json-array",
+          "rows": 954
+        },
+        "report": {
+          "path": "report.org"
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "reading_accuracy": "not independently estimated",
+        "human_verified_gold": false,
+        "content_review": "Every candidate read by agent; explicit accept/exclude reasons before IME inference.",
+        "boundary_review": "Second pass on every proposed boundary before IME inference.",
+        "training_releases_audited": 15,
+        "prior_evaluation_releases_audited": 15,
+        "remaining_source_or_text_matches": 0
+      },
+      "known_issues": [
+        "Agent-reviewed, not human-verified gold.",
+        "Mostly forum and dialogue; source proportions and commit frequency are not measured user traffic.",
+        "Pure Han targets of 8–40 characters, terminal punctuation not typed; mixed text and internal punctuation need other suites.",
+        "25–40 characters are capacity diagnostics beyond the current 24-syllable editor window.",
+        "Local registered training overlap is checked; upstream pretrained-model exposure is unknown.",
+        "Report utterance and title separately using by_unit_kind; whole-only cases have no prefix or continuation observations.",
+        "Ordinary historical context and same-composition committed keys still use the legacy runtime adapter; changing that requires matching training and inference changes."
+      ],
+      "build": {
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-evaluation-build-v2.dvc"
+      }
+    },
+    "sentence-trajectories-test-v2": {
+      "kind": "evaluation",
+      "status": "heldout",
+      "annotation": "gpt-sovits-mandarin-v1+agent-review-v2",
+      "parents": [
+        "cleaned-multisource-v4"
+      ],
+      "exclude_from_training": true,
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-test-v2"
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-test-v2.dvc",
+        "sha256": "21d821ddc80e0b42d44804effd1332c684be69f0ef67ab29eaaf2b27e0d8b18d"
+      },
+      "description": "Reviewed natural input release: 888 independent source groups, 216 meaningful commit boundaries, 1320 input states. Original test groups; no IME outputs used in construction.",
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "cases": {
+          "path": "cases.json",
+          "format": "json-array",
+          "rows": 888
+        },
+        "documents": {
+          "path": "source-documents.jsonl",
+          "format": "jsonl",
+          "rows": 888
+        },
+        "reading_review": {
+          "path": "reading-review.json"
+        },
+        "boundary_review": {
+          "path": "boundary-review.json",
+          "format": "json-array",
+          "rows": 238
+        },
+        "selection_ledger": {
+          "path": "selection-ledger.json",
+          "format": "json-array",
+          "rows": 1005
+        },
+        "agent_review": {
+          "path": "agent-review.json",
+          "format": "json-array",
+          "rows": 1005
+        },
+        "report": {
+          "path": "report.org"
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "reading_accuracy": "not independently estimated",
+        "human_verified_gold": false,
+        "content_review": "Every candidate read by agent; explicit accept/exclude reasons before IME inference.",
+        "boundary_review": "Second pass on every proposed boundary before IME inference.",
+        "training_releases_audited": 15,
+        "prior_evaluation_releases_audited": 15,
+        "remaining_source_or_text_matches": 0
+      },
+      "known_issues": [
+        "Agent-reviewed, not human-verified gold.",
+        "Mostly forum and dialogue; source proportions and commit frequency are not measured user traffic.",
+        "Pure Han targets of 8–40 characters, terminal punctuation not typed; mixed text and internal punctuation need other suites.",
+        "25–40 characters are capacity diagnostics beyond the current 24-syllable editor window.",
+        "Local registered training overlap is checked; upstream pretrained-model exposure is unknown.",
+        "Report utterance and title separately using by_unit_kind; whole-only cases have no prefix or continuation observations.",
+        "Ordinary historical context and same-composition committed keys still use the legacy runtime adapter; changing that requires matching training and inference changes."
+      ],
+      "build": {
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-evaluation-build-v2.dvc"
+      }
     }
   }
 }
