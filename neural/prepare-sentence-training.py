@@ -17,6 +17,25 @@ def dump(path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
 
 
+def derived_views(row):
+    text=row['gold'][0]
+    cuts=[(0,len(text)),tuple(row['legacy_span'])]
+    for point in row['boundaries']:cuts.extend(((0,point['end']),(point['end'],len(text))))
+    for a,b in cuts:
+        assert 0<=a<b<=len(text)
+        yield dict(row,context=(row['context']+text[:a])[-64:],input=row['input'][2*a:2*b],gold=[text[a:b]])
+
+
+def text_overlap(row, fragments):
+    combined=row['context']+row['gold'][0]
+    return any(any(combined[i:i+n] in keys for i in range(len(combined)-n+1)) for n,keys in fragments.items())
+
+
+def add_fragments(fragments, text):
+    n=min(12,len(text))
+    fragments[n].update(text[i:i+n] for i in range(len(text)-n+1))
+
+
 def protections(registry):
     references = registry.entry('mandarin-context-v2-r3-parquet')['exclude'] + [
         dict(dataset=name, files=['cases']) for name in ('sentence-trajectories-dev-v1', 'sentence-trajectories-test-v1')] + [dict(dataset='programming-v1',files=['dev','test'])]
@@ -181,30 +200,32 @@ def annotate(args):
                 notes=reading_notes(reading,start,end)
                 if notes:row['reading_notes']=notes
                 validate(row);validate_tones(row)
-                text=row['gold'][0]
-                cuts=[(0,len(text)),tuple(row['legacy_span'])]
-                for point in row['boundaries']:cuts.extend(((0,point['end']),(point['end'],len(text))))
-                if any(protection.contains(dict(row,context=(row['context']+text[:a])[-64:],
-                        input=row['input'][2*a:2*b],gold=[text[a:b]])) for a,b in cuts):
+                if any(protection.contains(view) for view in derived_views(row)):
                     output.append(dict(id=row['id'],reason='protected_derived_state'));continue
                 output.append(dict(row=row))
         dump(part.with_suffix('.partial'),output)
         part.with_suffix('.partial').replace(part)
         print(json.dumps(dict(annotated=min(part_start+512,len(proposals)),total=len(proposals),seconds=time.monotonic()-started)),flush=True)
-    counts=Counter();rejected=[]
-    streams={split:(args.out/(split+'.jsonl')).open('w') for split in ('train','dev')}
-    try:
-        for part_start in range(0,len(proposals),512):
-            for result in json.loads((cache/f'{part_start:08d}.json').read_text()):
-                if 'reason' in result:
-                    rejected.append(result);counts['excluded_'+result['reason']]+=1;continue
-                row=result['row'];streams[row['split']].write(json.dumps(row,ensure_ascii=False)+'\n')
-                counts[f'{row["split"]}/{row["source"]}']+=1
-                counts[f'{row["split"]}/length/'+('8-24' if len(row['gold'][0])<=24 else '25-60')]+=1
-                counts[f'{row["split"]}/unit/{row["unit_type"]}']+=1
-                counts[f'boundary/{row["boundaries"][0]["rule"] if row["boundaries"] else "whole-only"}']+=1
-    finally:
-        for stream in streams.values():stream.close()
+    counts=Counter();rejected=[];dev_fragments=defaultdict(set);dev_protection=None
+    for split in ('dev','train'):
+        with (args.out/(split+'.jsonl')).open('w') as stream:
+            for part_start in range(0,len(proposals),512):
+                for result in json.loads((cache/f'{part_start:08d}.json').read_text()):
+                    if 'reason' in result:
+                        if split=='dev':
+                            rejected.append(result);counts['excluded_'+result['reason']]+=1
+                        continue
+                    row=result['row']
+                    if row['split']!=split:continue
+                    if split=='train' and (text_overlap(row,dev_fragments) or any(dev_protection.contains(view) for view in derived_views(row))):
+                        rejected.append(dict(id=row['id'],reason='development_overlap'));counts['excluded_development_overlap']+=1;continue
+                    stream.write(json.dumps(row,ensure_ascii=False)+'\n')
+                    if split=='dev':add_fragments(dev_fragments,row['gold'][0])
+                    counts[f'{row["split"]}/{row["source"]}']+=1
+                    counts[f'{row["split"]}/length/'+('8-24' if len(row['gold'][0])<=24 else '25-60')]+=1
+                    counts[f'{row["split"]}/unit/{row["unit_type"]}']+=1
+                    counts[f'boundary/{row["boundaries"][0]["rule"] if row["boundaries"] else "whole-only"}']+=1
+        if split=='dev':dev_protection=Protection([args.out/'dev.jsonl'])
     dump(args.out/'rejected.json',rejected)
     dump(args.out/'manifest.json',dict(format='wime-sentence-training-v2',counts=dict(counts),selection=selection,
         reading_schema=READING_SCHEMA,tone_policy=TONE_POLICY,
@@ -226,6 +247,11 @@ def validate_release(args):
     assert fingerprint(args.out/'documents.sqlite3')==selection['documents_sha256']
     assert all(fingerprint(Path(p))==h for p,h in selection['protected'].items())
     protection=Protection([Path(p) for p in selection['protected']])
+    dev_protection=Protection([args.out/'dev.jsonl']);dev_fragments=defaultdict(set)
+    for line in (args.out/'dev.jsonl').open():add_fragments(dev_fragments,json.loads(line)['gold'][0])
+    test_fragments=defaultdict(set)
+    for row in json.loads(Registry().path('sentence-trajectories-test-v1','cases').read_text()):
+        add_fragments(test_fragments,row['gold'][0])
     db=sqlite3.connect((args.out/'documents.sqlite3').resolve().as_uri()+'?mode=ro&immutable=1',uri=True)
     db.row_factory=sqlite3.Row
     dictionary=sqlite3.connect(args.database.resolve().as_uri()+'?mode=ro&immutable=1',uri=True)
@@ -247,12 +273,12 @@ def validate_release(args):
                 assert doc['text'][max(0,offset-64):offset]==row['context']
                 assert hashlib.sha256(doc['text'].encode()).hexdigest()==row['content']==doc['content']
                 assert row['reading_window']==[max(0,offset-64),offset+len(text)+len(row['terminal'])]
+                assert not text_overlap(row,test_fragments)
                 assert all((char,row['input'][2*i:2*i+2]) in legal for i,char in enumerate(text))
-                cuts=[(0,len(text)),tuple(row['legacy_span'])]
-                for point in row['boundaries']:cuts.extend(((0,point['end']),(point['end'],len(text))))
-                for a,b in cuts:
-                    assert 0<=a<b<=len(text)
-                    assert not protection.contains(dict(row,context=(row['context']+text[:a])[-64:],input=row['input'][2*a:2*b],gold=[text[a:b]]))
+                if split=='train':assert not text_overlap(row,dev_fragments)
+                for view in derived_views(row):
+                    assert not protection.contains(view)
+                    if split=='train':assert not dev_protection.contains(view)
                     counts['derived_states_checked']+=1
                 group_bands[(row['group'],len(text)>24)]+=1
                 assert group_bands[(row['group'],len(text)>24)]<=2*selection['selection']['technical_per_band' if row['category']=='technical' else 'per_group_band']

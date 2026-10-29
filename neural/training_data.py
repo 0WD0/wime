@@ -120,9 +120,9 @@ def pack_trajectories(path, cache, vocab, window, protection, context_anchor, sa
             lengths[str(len(row['gold'][0]))] += 1
     if not retained:
         raise ValueError("no encodable sentences")
-    # Uniform sentence/group sampling. Paired sentences supply enough prefix
-    # and continuation requests for 60/20/20 per source without duplicating data.
-    probability = {source:min(.5,.2*count/paired[source]) if paired[source] else 0
+    # Aim for 60/20/20 where enough boundaries exist. Always keep a whole-input
+    # branch for paired sentences too; scarce boundaries must not erase it.
+    probability = {source:min(.4,.2*count/paired[source]) if paired[source] else 0
                    for source,count in sources.items()}
     np.array([probability[source] if has_boundary else 0 for source,has_boundary in retained],dtype='<f4').tofile(directory/'probability.bin')
     np.array(categories,dtype='u1').tofile(directory/'categories.bin')

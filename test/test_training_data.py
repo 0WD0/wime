@@ -50,6 +50,13 @@ class TrainingData(unittest.TestCase):
             filtered=pack_trajectories(path,root/'cache',vocab,32,Protection([held]),2,'trajectories')
             self.assertEqual(len(filtered),4)
 
+            for row in rows[1:]:row['boundaries']=[]
+            path.write_text(''.join(json.dumps(r)+'\n' for r in rows))
+            sparse=pack_trajectories(path,root/'cache',vocab,32,Protection([]),2,'trajectories')
+            with patch('torch.rand',return_value=torch.tensor([.1])):
+                _,y=sparse.batch(np.array([0]),'cpu')
+            self.assertEqual(y[y!=0].tolist(),[index[c] for c in '便宜行事']+[index['\ue2e2']])
+
     def test_projection_matches_loss_and_gradients(self):
         torch.manual_seed(3)
         model = CharLM(Config(vocab=13, context=10, n_embd=8, n_head=2, n_layer=2, dropout=0))
