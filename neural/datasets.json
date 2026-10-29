@@ -1482,6 +1482,158 @@
         "No independent technical-document training allocation.",
         "Contextual lexical neutral-tone choices need a separate audit."
       ]
+    },
+    "sentence-training-broad-v1": {
+      "kind": "corpus",
+      "status": "active",
+      "annotation": "gpt-sovits-mandarin-v1",
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-training-broad-v1"
+      },
+      "description": "Broad contextual sentence and punctuation-clause training: 260841 train rows, original source groups, long inputs and reannotated technical prose.",
+      "parents": [
+        "cleaned-multisource-v4",
+        "programming-v1"
+      ],
+      "exclude": [
+        {
+          "dataset": "programming-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "programming-test-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "stress-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "stress-failures-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "diverse-v1",
+          "files": [
+            "dev",
+            "test",
+            "evaluation"
+          ]
+        },
+        {
+          "dataset": "replay-v1",
+          "files": [
+            "dev"
+          ]
+        },
+        {
+          "dataset": "wdoom-cuda-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "committed-anchor-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "protected-debug-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "accuracy-expansion-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "residual-heldout-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "sentence-trajectories-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "programming-v1",
+          "files": [
+            "dev",
+            "test"
+          ]
+        },
+        {
+          "dataset": "sentence-training-broad-v1",
+          "files": [
+            "dev"
+          ]
+        }
+      ],
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "train": {
+          "path": "train.jsonl",
+          "format": "jsonl",
+          "rows": 260841
+        },
+        "dev": {
+          "path": "dev.jsonl",
+          "format": "jsonl",
+          "rows": 3287
+        },
+        "documents": {
+          "path": "documents.sqlite3",
+          "format": "sqlite"
+        },
+        "validation": {
+          "path": "validation.json"
+        },
+        "review": {
+          "path": "quality-review.json"
+        },
+        "curation": {
+          "path": "curation.json"
+        },
+        "rejected": {
+          "path": "rejected.json",
+          "format": "json-array",
+          "rows": 1363
+        }
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-training-broad-v1.dvc",
+        "sha256": "296032823e928ee16f559cb0b17bb032a41ca67fa16cabc818a5130f9f538bb6"
+      },
+      "quality": {
+        "contextual_tones": true,
+        "reading_accuracy": "structurally validated with spot checks; not individually human gold",
+        "boundaries": "conservative rules and source review; not measured user commit frequencies",
+        "source_groups_disjoint": true
+      },
+      "known_issues": [
+        "Targets contain Chinese characters only; punctuation remains in source context and boundaries.",
+        "Rule-supported internal prefixes exist for only part of the corpus; actual sampling shares are recorded.",
+        "Natural source prose can still contain colloquial wording, typos or factual inaccuracies."
+      ]
     }
   }
 }
