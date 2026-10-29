@@ -1,0 +1,6 @@
+outs:
+- md5: 185663feb1161090118b8ee454da5594.dir
+  size: 312402746
+  nfiles: 43
+  hash: md5
+  path: sentence-training-abc-v1
