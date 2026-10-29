@@ -1,0 +1,6 @@
+outs:
+- md5: 79a4fc53f4cfbf6f083846dfb32afe90.dir
+  size: 256230995
+  nfiles: 25
+  hash: md5
+  path: sentence-state-balanced-run-v1
