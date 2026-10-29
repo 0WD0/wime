@@ -45,6 +45,18 @@ def retain_group(groups, row, limit):
         del bucket[limit:]
 
 
+def possible_boundary(text):
+    return ('的时候' in text or PREDICATES.search(text)
+            or any(text.startswith(left) for left,right in PAIRS))
+
+
+def technical_line_fragment(text, start):
+    """A documentation soft wrap is not a new composition boundary."""
+    before=text[:start]
+    return bool(before and before[-1].isspace() and before.rstrip()
+                and before.rstrip()[-1] not in '。！？!?，；：')
+
+
 def boundary(text, segments):
     """Return at most one rule-supported boundary; no arbitrary character cut."""
     ends, tags, position = {}, [], 0
@@ -62,7 +74,9 @@ def boundary(text, segments):
                     and not ends[end].startswith("r")
                     and not re.search("可能|应该|那么|真的|是不是|怎么|如何|恐怕|那$|要$|才$", prefix)):
                 return [dict(end=end, reason=f"成对连接结构：{left}…｜{right}…", rule="paired-clause")]
-    for match in re.finditer("之后|以后|的时候|之前", text):
+    # Bare 之前/之后/以后 often modify a following noun phrase ("之前提及的…").
+    # Keep the explicit event construction; retain other sentences whole.
+    for match in re.finditer("的时候", text):
         end = match.end()
         if (4 <= end <= min(14, len(text)-3) and end in ends and not text[end:].startswith("的")
                 and any(pos.startswith(("v","t")) for stop,pos in tags if stop<=match.start())

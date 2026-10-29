@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'neural'))
-from sentence_sampling import boundary,legacy_span,source_units,retain_group
+from sentence_sampling import boundary,legacy_span,source_units,retain_group,technical_line_fragment
 
 
 class SentenceSampling(unittest.TestCase):
@@ -27,6 +27,14 @@ class SentenceSampling(unittest.TestCase):
         for row in reversed(rows):retain_group(b,row,2)
         self.assertEqual(a,b)
         self.assertEqual([[r['id'] for r in bucket] for bucket in a.values()],[['0','1'],['5','6']])
+
+    def test_document_soft_wrap_and_temporal_modifier_are_not_boundaries(self):
+        text='说明 Kubernetes\n的日志如何工作以及怎样实现。'
+        self.assertTrue(technical_line_fragment(text,text.index('的日志')))
+        text='上一步执行完成。\n现在可以重新启动服务。'
+        self.assertFalse(technical_line_fragment(text,text.index('现在')))
+        self.assertEqual(boundary('并且不会执行之前提及的换行符转写',
+            [('并且','c'),('不会','v'),('执行','v'),('之前','f'),('提及','v'),('的','uj'),('换行符','n'),('转写','v')]),[])
 
     def test_explicit_condition_and_topic(self):
         self.assertEqual(boundary('如果系统失败就重新启动', [('如果','c'),('系统','n'),('失败','v'),('就','d'),('重新','d'),('启动','v')])[0]['end'],6)

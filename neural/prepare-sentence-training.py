@@ -10,7 +10,7 @@ import sqlite3
 
 from dataset_registry import Registry
 from replay import Protection, fingerprint
-from sentence_sampling import boundary, legacy_span, LENGTHS, source_units, retain_group
+from sentence_sampling import boundary, legacy_span, LENGTHS, source_units, retain_group, possible_boundary, technical_line_fragment
 
 
 def dump(path, data):
@@ -69,7 +69,7 @@ def select(args):
     db=sqlite3.connect(args.out/'documents.sqlite3')
     fields=('id','group_id','source','category','split','content','raw_content','text','origin','source_document','cleaning')
     db.execute('CREATE TABLE documents('+','.join(f+' TEXT'+(' PRIMARY KEY' if f=='id' else '') for f in fields)+')')
-    buckets=defaultdict(dict);counts=Counter();seen_documents=set()
+    buckets=defaultdict(dict);paired_buckets=defaultdict(dict);counts=Counter();seen_documents=set()
     for number,doc in enumerate(source_documents(registry,args)):
         if doc['id'] in seen_documents:
             counts['excluded_duplicate_document']+=1;continue
@@ -79,6 +79,8 @@ def select(args):
         found=False
         for item in source_units(doc['text'],args.min_length,args.max_length):
             start=item['offset'];text=item['text'];context=doc['text'][max(0,start-64):start]
+            if doc['category']=='technical' and technical_line_fragment(doc['text'],start):
+                counts['excluded_technical_soft_wrap']+=1;continue
             identity=hashlib.sha256(f'sentence-training-v2:{doc["id"]}:{start}'.encode()).hexdigest()[:24]
             row=dict(id=identity,document=doc['id'],group=doc['group_id'],source=doc['source'],
                      category=doc['category'],content=doc['content'],split=doc['split'],offset=start,
@@ -89,7 +91,10 @@ def select(args):
             if any(any(combined[i:i+n] in keys for i in range(len(combined)-n+1)) for n,keys in fragments.items()):
                 counts['excluded_test_text_overlap']+=1;continue
             limit=args.technical_per_band if doc['category']=='technical' else args.per_group_band
+            row['boundaries']=boundary(text,jieba_fast.posseg.lcut(text)) if possible_boundary(text) else []
             retain_group(buckets[(doc['split'],doc['source'])],row,limit)
+            if row['boundaries']:
+                retain_group(paired_buckets[(doc['split'],doc['source'])],row,limit)
             counts[f'candidates/{doc["split"]}/{doc["source"]}']+=1
             found=True
         if found:
@@ -99,7 +104,9 @@ def select(args):
     seen=set();selected=[]
     # Dev wins exact target duplicates, avoiding train/dev phrase contamination.
     for split,source in sorted(buckets):
-        candidates=sorted((row for group in buckets[(split,source)].values() for row in group),key=lambda row:row['id'])
+        candidates={row['id']:row for pool in (buckets,paired_buckets)
+                    for group in pool[(split,source)].values() for row in group}
+        candidates=sorted(candidates.values(),key=lambda row:row['id'])
         kept=0
         for row in candidates:
             text=row['gold'][0]
@@ -107,7 +114,6 @@ def select(args):
                 counts['excluded_duplicate_target']+=1;continue
             if args.per_source and kept>=args.per_source:break
             seen.add(text);kept+=1
-            row['boundaries']=boundary(text,jieba_fast.posseg.lcut(text))
             selected.append(row)
             counts[f'{split}/{source}/'+('paired' if row['boundaries'] else 'whole_only')]+=1
         print(json.dumps(dict(split=split,source=source,selected=kept)),flush=True)
@@ -124,7 +130,8 @@ def select(args):
         sentence_length=[args.min_length,args.max_length],
         selection=dict(order='hash within original split/source group and length band; dev exact targets protected from train',
                        per_group_band=args.per_group_band,technical_per_band=args.technical_per_band,
-                       per_source=args.per_source,boundary_quota=None),
+                       per_source=args.per_source,boundary_quota=None,
+                       paired_reservoir='additional same-size group/length reservoir; does not discard any ordinary sentence'),
         limitations='Source sentences or existing punctuation-delimited clauses; Chinese-only targets. Rule boundaries are not individual human gold.',
         documents_sha256=fingerprint(args.out/'documents.sqlite3'),proposals_sha256=fingerprint(args.out/'proposals.jsonl')))
 
@@ -248,7 +255,7 @@ def validate_release(args):
                     assert not protection.contains(dict(row,context=(row['context']+text[:a])[-64:],input=row['input'][2*a:2*b],gold=[text[a:b]]))
                     counts['derived_states_checked']+=1
                 group_bands[(row['group'],len(text)>24)]+=1
-                assert group_bands[(row['group'],len(text)>24)]<=selection['selection']['technical_per_band' if row['category']=='technical' else 'per_group_band']
+                assert group_bands[(row['group'],len(text)>24)]<=2*selection['selection']['technical_per_band' if row['category']=='technical' else 'per_group_band']
                 counts[split]+=1;counts[split+'/paired' if row['boundaries'] else split+'/whole_only']+=1
     result=dict(counts=dict(counts),groups={s:sum(v==s for v in groups.values()) for s in ('train','dev')},documents=len(documents),
         source_offsets_contexts_and_hashes=True,train_dev_groups_and_targets_disjoint=True,
