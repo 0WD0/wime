@@ -161,7 +161,7 @@ class Session:
         """Units ending at position END (half a syllable when CODE is odd),
         from every kept frontier they can start at, before pruning."""
         decoder, w = self.decoder, self.decoder.weight
-        hypotheses, choices, owners = [], [], []
+        hypotheses, choices, owners, forced = [], [], [], []
         for start in range(max(0, end - decoder.units.longest), end):
             units = decoder.units.get(code[2 * start:])
             if self.constraints:
@@ -171,6 +171,8 @@ class Session:
                 hypotheses += self.kept[start]
                 for unit in units:
                     choices.append(unit), owners.append((first, len(hypotheses)))
+                    forced.append(all("pin" in self.constraints.get(start+i, ())[::2]
+                                      for i in range(len(unit[0]))))
         if not choices:
             return []
         q = self.lm_next([h.ids for h in hypotheses])[:, torch.tensor([u[1][0] for u in choices], device=decoder.device)]
@@ -192,6 +194,10 @@ class Session:
             extra = m.masked_fill(~valid | ~rare | (m < RARE_FLOOR), -math.inf).topk(min(RARE, len(choices)), dim=1)
             for row, more, values in zip(picks, extra.indices.tolist(), extra.values.tolist()):
                 row.extend(c for c, v in zip(more, values) if v > -math.inf)
+        # A confirmed character is an input constraint. Its byte fallback
+        # must survive even when the model assigns it a tiny probability.
+        for row, legal in zip(picks, valid.tolist()):
+            row.extend(c for c, fixed in enumerate(forced) if fixed and legal[c] and c not in row)
         q, m = q.tolist(), m.tolist()
         new, pending = [], []
         for i, h in enumerate(hypotheses):

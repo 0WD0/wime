@@ -191,6 +191,18 @@ class Decoding(unittest.TestCase):
     def test_unknown_keys_give_nothing(self):
         self.assertEqual(Toy().decode("", "vgxx"), [])
 
+    def test_fixed_rare_character_survives_the_probability_floor(self):
+        decoder = Toy()
+        decoder.units.index["vg"] = [("政", (1, 2))]
+        decoder.units.partial["v"] = [("政", (1, 2))]
+        decoder.model_next = lambda prompt, texts: torch.full((len(texts), 7), -20.)
+        decoder.lm_tails = lambda context, prefixes, tails: [-30.] * len(tails)
+        self.assertEqual(decoder.decode("", "vg"), [])
+        self.assertEqual(decoder.decode("", "vgju", pins=[(0, "政")])[0][0][0], "政")
+        # The same hard pin remains reachable without conditional guidance.
+        decoder.window = lambda: 0
+        self.assertEqual(decoder.decode("new", "vgju", pins=[(0, "政")])[0][0][0], "政")
+
 
 if __name__ == "__main__":
     unittest.main()
