@@ -9,6 +9,42 @@ PREDICATES = re.compile("需要|可以|应该|必须|已经|正在|能够|是否
 REQUEST = re.compile("^(?:请|求|想|希望|帮|告诉|有没有|能不能|如何|怎么|为什么)")
 
 
+def source_units(text, minimum=8, maximum=60):
+    """Exact source sentences, or clauses ending at existing punctuation.
+
+    Never remove an internal symbol, concatenate across punctuation, or cut a
+    long Han run just to fit the model window.
+    """
+    def unit(raw, offset, kind):
+        target = raw.rstrip('。！？!?\n，；').strip()
+        start = offset + len(raw) - len(raw.lstrip())
+        terminal = raw[-1] if raw[-1] in '。！？!?，；' else ''
+        if (minimum <= len(target) <= maximum and re.fullmatch(r'[\u3400-\u4dbf\u4e00-\u9fff]+',target)
+                and len(set(target)) >= 4 and not re.search(r'(的话|但是|而且|[把被与或但不就才该])$',target)
+                and text[start:start+len(target)+len(terminal)] == target+terminal):
+            return dict(offset=start,text=target,terminal=terminal,unit_type=kind)
+
+    for sentence in re.finditer(r'[^。！？!?\n]+[。！？!?\n]?',text):
+        whole = unit(sentence.group(),sentence.start(),'sentence')
+        if whole:
+            yield whole
+        elif re.search('[，；]',sentence.group()):
+            for clause in re.finditer(r'[^，；]+[，；]?',sentence.group()):
+                item = unit(clause.group(),sentence.start()+clause.start(),'clause')
+                if item:
+                    yield item
+
+
+def retain_group(groups, row, limit):
+    """Hash-reservoir per source group and length band, independent of boundaries."""
+    key = (row['group'],len(row['gold'][0])>24)
+    bucket = groups.setdefault(key,[])
+    if len(bucket)<limit or row['id']<bucket[-1]['id']:
+        bucket.append(row)
+        bucket.sort(key=lambda r:r['id'])
+        del bucket[limit:]
+
+
 def boundary(text, segments):
     """Return at most one rule-supported boundary; no arbitrary character cut."""
     ends, tags, position = {}, [], 0

@@ -5,7 +5,6 @@ The archive is a text corpus, not a vendored software dependency. Never execute
 archive contents or extract paths. Retain English/punctuation in the context.
 """
 import argparse
-import ast
 from collections import Counter
 import hashlib
 import json
@@ -23,25 +22,7 @@ REVISION = "fe59320b9e3858bc9d41b4ad8d86b1c77568ceb4"
 PYTHON_REVISION = "30950021e5c37e785a63d583628b637bdaf97fa8"
 
 
-def translated_prose(text):
-    """Read completed gettext translations, excluding fuzzy/obsolete entries."""
-    paragraphs = []
-    for block in re.split(r"\n\s*\n", text):
-        if re.search(r"^#,.*\bfuzzy\b|^#~", block, re.M):
-            continue
-        fields, field = {}, None
-        for line in block.splitlines():
-            match = re.match(r'(msgid|msgstr) (".*")$', line)
-            if match:
-                field = match[1]
-                fields[field] = ast.literal_eval(match[2])
-            elif line.startswith('"') and field:
-                fields[field] += ast.literal_eval(line)
-            elif not line.startswith("#"):
-                field = None
-        if fields.get("msgid") and fields.get("msgstr"):
-            paragraphs.append(fields["msgstr"])
-    return "\n".join(paragraphs)
+from technical_prose import translated_prose, render
 
 
 def main():
@@ -85,18 +66,7 @@ def main():
                   or not member.name.endswith(".md") or "/reference/" in member.name):
                 continue
             text = archive.extractfile(member).read().decode()
-            if python:
-                text = translated_prose(text)
-                text = re.sub(r":[a-z]+:`([^`<>]+)(?: <[^`]+>)?`", r"\1", text)
-                text = re.sub(r"\n(?:[ \t]{2,}[^\n]*(?:\n|$))+", "\n", text)
-            text = re.sub(r"\A---\n.*?\n---\n|<!--.*?-->|```.*?```|{{.*?}}", " ", text, flags=re.S)
-            text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", text)
-            text = re.sub(r"`([^`]*)`", r"\1", text)
-            text = re.sub(r"</?[^>]+>", " ", text)
-            text = re.sub(r"\n\s*\|.*", " ", text)
-            text = re.sub(r"[ \t]+", " ", text)
-            # Soft line wraps in Chinese prose should not split its meaning.
-            text = re.sub(r"(?<=[\u4e00-\u9fff])\n(?=[\u4e00-\u9fff])", "", text)
+            text = render(text, python)
             document = hashlib.sha256(text.encode()).hexdigest()
             bucket = int(document[:8], 16) % 100
             split = "test" if bucket < 10 else "dev" if bucket < 20 else "train"

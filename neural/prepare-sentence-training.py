@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a protected, source-matched sentence cohort for representation/sampling controls."""
+"""Build a broad, protected sentence/commit corpus with contextual readings."""
 import argparse
 from collections import Counter, defaultdict
 import hashlib
@@ -10,7 +10,7 @@ import sqlite3
 
 from dataset_registry import Registry
 from replay import Protection, fingerprint
-from sentence_sampling import boundary, legacy_span, LENGTHS
+from sentence_sampling import boundary, legacy_span, LENGTHS, source_units, retain_group
 
 
 def dump(path, data):
@@ -19,7 +19,7 @@ def dump(path, data):
 
 def protections(registry):
     references = registry.entry('mandarin-context-v2-r3-parquet')['exclude'] + [
-        dict(dataset=name, files=['cases']) for name in ('sentence-trajectories-dev-v1', 'sentence-trajectories-test-v1')]
+        dict(dataset=name, files=['cases']) for name in ('sentence-trajectories-dev-v1', 'sentence-trajectories-test-v1')] + [dict(dataset='programming-v1',files=['dev','test'])]
     paths = []
     for ref in references:
         registry.verify(ref['dataset'], ref['files'])
@@ -27,80 +27,106 @@ def protections(registry):
     return Protection(list(dict.fromkeys(paths)))
 
 
+def source_documents(registry, args):
+    """Original source splits and IDs survive extraction into this new dataset."""
+    db=sqlite3.connect(registry.path('cleaned-multisource-v4','documents').as_uri()+'?mode=ro&immutable=1',uri=True)
+    db.row_factory=sqlite3.Row
+    for row in db.execute("SELECT * FROM documents WHERE split IN ('train','dev') ORDER BY split,id"):
+        doc=dict(row)
+        doc.update(origin='cleaned-multisource-v4',source_document=doc['id'],cleaning='[]')
+        yield doc
+    db.close()
+    from technical_prose import documents
+    manifest=json.loads(registry.path('programming-v1','manifest').read_text())
+    for source,path,metadata in (('python',args.python_archive,manifest),
+                                 ('kubernetes',args.kubernetes_archive,manifest['appended_corpus'])):
+        if fingerprint(path)!=metadata['archive_sha256']:
+            raise ValueError(f'changed pinned archive: {path}')
+        for name,raw,text in documents(path,source,metadata['revision']):
+            content=hashlib.sha256(text.encode()).hexdigest()
+            bucket=int(content[:8],16)%100
+            if bucket<10:continue
+            split='dev' if bucket<20 else 'train'
+            yield dict(id=content,group_id=hashlib.sha256((source+':'+name).encode()).hexdigest(),
+                source=source,category='technical',split=split,content=content,
+                raw_content=hashlib.sha256(raw.encode()).hexdigest(),text=text,
+                origin=metadata['source']+'@'+metadata['revision'],source_document=name,
+                cleaning=json.dumps(['technical_prose.render; original legacy document identity retained']))
+
+
 def select(args):
     import jieba_fast.posseg
-    registry = Registry()
-    registry.verify('cleaned-multisource-v4', ['manifest', 'documents'])
-    protection = protections(registry)
-    # The new test's stricter contiguous overlap rule applies even when a
-    # different training document contains the same sentence or its context.
-    test = json.loads(registry.path('sentence-trajectories-test-v1', 'cases').read_text())
-    fragments = defaultdict(set)
+    registry=Registry()
+    registry.verify('cleaned-multisource-v4',['manifest','documents'])
+    registry.verify('programming-v1',['manifest'])
+    protection=protections(registry)
+    test=json.loads(registry.path('sentence-trajectories-test-v1','cases').read_text())
+    fragments=defaultdict(set)
     for row in test:
-        text = row['gold'][0]
-        size = min(12, len(text))
+        text=row['gold'][0];size=min(12,len(text))
         fragments[size].update(text[i:i+size] for i in range(len(text)-size+1))
-    args.out.mkdir(parents=True, exist_ok=False)
-    db = sqlite3.connect(registry.path('cleaned-multisource-v4', 'documents').as_uri()+'?mode=ro&immutable=1', uri=True)
-    db.row_factory = sqlite3.Row
-    selected, counts, seen_groups = [], Counter(), set()
-    for split, per_kind in (('train', (args.per_source//5, args.per_source*4//5)), ('dev', (20, 80))):
-        for source in ('wildchat', 'forum', 'zhihu', 'fineweb', 'zhwiki'):
-            buckets = [[], []]
-            # Content-hash IDs give a deterministic order independent of source
-            # file order. One retained sentence per source group caps repetition.
-            for doc in db.execute('SELECT * FROM documents WHERE split=? AND source=? ORDER BY id', (split,source)):
-                if doc['group_id'] in seen_groups or doc['id'] in protection.documents or doc['group_id'] in protection.groups:
-                    continue
-                choices = []
-                for match in re.finditer(r'[^。！？!?\n]+[。！？!?\n]?', doc['text']):
-                    raw = match.group(); text = raw.rstrip('。！？!?\n').strip()
-                    if (not 8 <= len(text) <= 24 or not re.fullmatch(r'[\u3400-\u4dbf\u4e00-\u9fff]+', text)
-                            or len(set(text)) < 4 or re.search(r'(的话|但是|而且|[把被与或但不就才该])$',text)):
-                        continue
-                    start = match.start()+len(raw)-len(raw.lstrip())
-                    terminal = raw[-1] if raw[-1] in '。！？!?' else ''
-                    if doc['text'][start:start+len(text)+len(terminal)] != text+terminal:
-                        continue
-                    context = doc['text'][max(0,start-64):start]
-                    row = dict(document=doc['id'],group=doc['group_id'],source=source,category=doc['category'],
-                               content=doc['content'],split=split,offset=start,context=context,gold=[text],terminal=terminal)
-                    if protection.contains(row):
-                        counts['excluded_protected'] += 1; continue
-                    combined = context+text
-                    if any(any(combined[i:i+n] in keys for i in range(len(combined)-n+1)) for n,keys in fragments.items()):
-                        counts['excluded_test_text_overlap'] += 1; continue
-                    segments = jieba_fast.posseg.lcut(text)
-                    ends = boundary(text, segments)
-                    kind = bool(ends)
-                    if len(buckets[kind]) >= per_kind[kind]:
-                        continue
-                    identity = hashlib.sha256(f'sentence-training-v1:{doc["id"]}:{start}'.encode()).hexdigest()[:24]
-                    choices.append(dict(row,id=identity,boundaries=ends))
-                if choices:
-                    row = min(choices, key=lambda r:r['id'])
-                    buckets[bool(row['boundaries'])].append(row)
-                    seen_groups.add(doc['group_id'])
-                if all(len(bucket) >= count for bucket,count in zip(buckets,per_kind)):
-                    break
-            # Preserve the paired/whole-only ratio when a source exhausts its
-            # valid groups. Never fabricate a boundary to fill the quota.
-            paired = min(len(buckets[1]), 4*len(buckets[0]))
-            whole = paired//4
-            kept = (buckets[0][:whole] + buckets[1][:4*whole]) if split=='train' else buckets[0]+buckets[1]
-            selected += kept
-            counts[f'{split}/{source}/whole_only'] = sum(not r['boundaries'] for r in kept)
-            counts[f'{split}/{source}/paired'] = sum(bool(r['boundaries']) for r in kept)
-            print(json.dumps(dict(split=split,source=source,selected=len(kept),available=list(map(len,buckets)))),flush=True)
-    db.close()
+    args.out.mkdir(parents=True,exist_ok=False)
+    db=sqlite3.connect(args.out/'documents.sqlite3')
+    fields=('id','group_id','source','category','split','content','raw_content','text','origin','source_document','cleaning')
+    db.execute('CREATE TABLE documents('+','.join(f+' TEXT'+(' PRIMARY KEY' if f=='id' else '') for f in fields)+')')
+    buckets=defaultdict(dict);counts=Counter();seen_documents=set()
+    for number,doc in enumerate(source_documents(registry,args)):
+        if doc['id'] in seen_documents:
+            counts['excluded_duplicate_document']+=1;continue
+        seen_documents.add(doc['id'])
+        if doc['id'] in protection.documents or doc['group_id'] in protection.groups:
+            counts['excluded_protected_document']+=1;continue
+        found=False
+        for item in source_units(doc['text'],args.min_length,args.max_length):
+            start=item['offset'];text=item['text'];context=doc['text'][max(0,start-64):start]
+            identity=hashlib.sha256(f'sentence-training-v2:{doc["id"]}:{start}'.encode()).hexdigest()[:24]
+            row=dict(id=identity,document=doc['id'],group=doc['group_id'],source=doc['source'],
+                     category=doc['category'],content=doc['content'],split=doc['split'],offset=start,
+                     context=context,gold=[text],terminal=item['terminal'],unit_type=item['unit_type'])
+            if protection.contains(row):
+                counts['excluded_protected_pair']+=1;continue
+            combined=context+text
+            if any(any(combined[i:i+n] in keys for i in range(len(combined)-n+1)) for n,keys in fragments.items()):
+                counts['excluded_test_text_overlap']+=1;continue
+            limit=args.technical_per_band if doc['category']=='technical' else args.per_group_band
+            retain_group(buckets[(doc['split'],doc['source'])],row,limit)
+            counts[f'candidates/{doc["split"]}/{doc["source"]}']+=1
+            found=True
+        if found:
+            db.execute('INSERT OR IGNORE INTO documents VALUES('+','.join('?' for _ in fields)+')',[doc[f] for f in fields])
+        if number%50000==0:
+            db.commit();print(json.dumps(dict(documents_scanned=number,candidates=sum(v for k,v in counts.items() if k.startswith('candidates/')))),flush=True)
+    seen=set();selected=[]
+    # Dev wins exact target duplicates, avoiding train/dev phrase contamination.
+    for split,source in sorted(buckets):
+        candidates=sorted((row for group in buckets[(split,source)].values() for row in group),key=lambda row:row['id'])
+        kept=0
+        for row in candidates:
+            text=row['gold'][0]
+            if text in seen:
+                counts['excluded_duplicate_target']+=1;continue
+            if args.per_source and kept>=args.per_source:break
+            seen.add(text);kept+=1
+            row['boundaries']=boundary(text,jieba_fast.posseg.lcut(text))
+            selected.append(row)
+            counts[f'{split}/{source}/'+('paired' if row['boundaries'] else 'whole_only')]+=1
+        print(json.dumps(dict(split=split,source=source,selected=kept)),flush=True)
+    db.execute('CREATE TEMP TABLE retained(id TEXT PRIMARY KEY)')
+    db.executemany('INSERT INTO retained VALUES(?)',[(n,) for n in {row['document'] for row in selected}])
+    db.execute('DELETE FROM documents WHERE id NOT IN (SELECT id FROM retained)')
+    db.commit();db.execute('VACUUM');db.close()
     with (args.out/'proposals.jsonl').open('w') as stream:
-        for row in selected:
-            stream.write(json.dumps(row,ensure_ascii=False)+'\n')
-    dump(args.out/'selection.json', dict(counts=dict(counts),protected=protection.files,
+        for row in selected:stream.write(json.dumps(row,ensure_ascii=False)+'\n')
+    dump(args.out/'selection.json',dict(counts=dict(counts),protected=protection.files,
         source=registry.snapshot('cleaned-multisource-v4',['manifest','documents']),
-        sentence_length=[8,24],selection='Hash-ordered documents; one sentence per group; 80% rule-supported boundaries, 20% whole-only within each source.',
-        limitations='Rule-derived training boundaries, not individually human reviewed or measured user commit frequencies.',
-        proposals_sha256=fingerprint(args.out/'proposals.jsonl')))
+        technical=registry.snapshot('programming-v1',['manifest']),
+        archives={str(p):fingerprint(p) for p in (args.python_archive,args.kubernetes_archive)},
+        sentence_length=[args.min_length,args.max_length],
+        selection=dict(order='hash within original split/source group and length band; dev exact targets protected from train',
+                       per_group_band=args.per_group_band,technical_per_band=args.technical_per_band,
+                       per_source=args.per_source,boundary_quota=None),
+        limitations='Source sentences or existing punctuation-delimited clauses; Chinese-only targets. Rule boundaries are not individual human gold.',
+        documents_sha256=fingerprint(args.out/'documents.sqlite3'),proposals_sha256=fingerprint(args.out/'proposals.jsonl')))
 
 
 def annotate(args):
@@ -166,7 +192,13 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation',choices=('select','annotate'))
     parser.add_argument('--out',type=Path,required=True)
-    parser.add_argument('--per-source',type=int,default=2500)
+    parser.add_argument('--per-source',type=int,default=0,help='optional smoke-test cap; 0 retains all eligible groups')
+    parser.add_argument('--per-group-band',type=int,default=1)
+    parser.add_argument('--technical-per-band',type=int,default=12)
+    parser.add_argument('--min-length',type=int,default=8)
+    parser.add_argument('--max-length',type=int,default=60)
+    parser.add_argument('--python-archive',type=Path,default=Path.home()/'.cache/wime-conditional/python-docs-zh-cn.tar.gz')
+    parser.add_argument('--kubernetes-archive',type=Path,default=Path.home()/'.cache/wime-conditional/kubernetes-website.tar.gz')
     parser.add_argument('--database',type=Path)
     parser.add_argument('--g2pw',type=Path)
     args=parser.parse_args()
