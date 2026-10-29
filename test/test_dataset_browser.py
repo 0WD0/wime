@@ -1,6 +1,7 @@
 """Pagination, version-scoped reviews and lossless training reads."""
 import hashlib
 import json
+import sqlite3
 from pathlib import Path
 import sys
 import tempfile
@@ -106,6 +107,29 @@ class DatasetBrowser(unittest.TestCase):
         self.assertEqual(detail['sentence_text'],target+'。')
         self.assertEqual(detail['source_document'],'scenario-1')
         self.assertEqual(detail['row']['review']['status'],'pending')
+
+    def test_registry_source_snapshot_resolves_original_text_and_detects_drift(self):
+        source=self.root/'cleaned';source.mkdir()
+        text='前文。你好。'
+        (source/'manifest.json').write_text('{}')
+        with sqlite3.connect(source/'documents.sqlite3') as db:
+            db.execute('CREATE TABLE documents(id TEXT,text TEXT,content TEXT)')
+            db.execute('INSERT INTO documents VALUES(?,?,?)',('doc',text,hashlib.sha256(text.encode()).hexdigest()))
+        (source/'chat.jsonl').write_text(json.dumps(dict(document='doc',source_document='original-1',cleaning=[]))+'\n')
+        self.registry.register(dict(id='cleaned',kind='cleaned',status='active',annotation='none',
+            location=dict(root='corpus',path='cleaned'),files=dict(manifest=dict(path='manifest.json'))))
+        (self.data/'manifest.json').write_text(json.dumps(dict(selection=dict(
+            source=self.registry.snapshot('cleaned',['manifest'])))))
+        row=dict(self.samples[0],document='doc',context='前文。',offset=3,reading_window=[0,len(text)])
+        (self.data/'dev.jsonl').write_text(json.dumps(row)+'\n')
+        for name in ('manifest','dev'):
+            self.registry.datasets['example']['files'][name]['sha256']=fingerprint(self.registry.path('example',name))
+        detail=self.browser.detail(self.request(row=1))
+        self.assertEqual(detail['source_document'],'original-1')
+        self.assertEqual(detail['annotation_text'],text)
+        (source/'manifest.json').write_text('{"changed":true}')
+        with self.assertRaisesRegex(ValueError,'清洗语料版本'):
+            self.browser.detail(self.request(row=1))
 
 
 if __name__ == '__main__':

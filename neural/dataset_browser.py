@@ -138,6 +138,10 @@ class Browser:
             return result
         manifest = json.loads(self.registry.path(dataset, "manifest").read_text())
         cleaned = manifest.get("provenance", {}).get("cleaned_corpus")
+        source = manifest.get("selection", {}).get("source")
+        if not cleaned and source and source["kind"] == "cleaned":
+            cleaned = dict(path=str(self.registry.path(source["id"], "manifest")),
+                           sha256=source["files"]["manifest"]["sha256"])
         local_documents = entry["files"].get("documents")
         if not cleaned and not local_documents:
             return result
