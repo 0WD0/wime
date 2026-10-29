@@ -36,6 +36,18 @@ def add_fragments(fragments, text):
     fragments[n].update(text[i:i+n] for i in range(len(text)-n+1))
 
 
+TECHNICAL_DEV_SEED='sentence-technical-development-v1'
+
+
+def reserve_technical_development(rows):
+    """Reserve whole original-training documents; old heldouts remain excluded."""
+    for row in rows:
+        if row['category']=='technical':
+            row['original_split']=row['split']
+            key=hashlib.sha256((TECHNICAL_DEV_SEED+':'+row['group']).encode()).hexdigest()
+            row['split']='dev' if int(key[:8],16)%10==0 else 'train'
+
+
 def protections(registry):
     references = registry.entry('mandarin-context-v2-r3-parquet')['exclude'] + [
         dict(dataset=name, files=['cases']) for name in ('sentence-trajectories-dev-v1', 'sentence-trajectories-test-v1')] + [dict(dataset='programming-v1',files=['dev','test'])]
@@ -136,6 +148,13 @@ def select(args):
             selected.append(row)
             counts[f'{split}/{source}/'+('paired' if row['boundaries'] else 'whole_only')]+=1
         print(json.dumps(dict(split=split,source=source,selected=kept)),flush=True)
+    reserve_technical_development(selected)
+    for key in list(counts):
+        if key.startswith(('train/','dev/')):del counts[key]
+    for row in selected:
+        counts[f'{row["split"]}/{row["source"]}/'+('paired' if row['boundaries'] else 'whole_only')]+=1
+    db.executemany('UPDATE documents SET split=? WHERE id=?',
+                  {(row['split'],row['document']) for row in selected if row['category']=='technical'})
     db.execute('CREATE TEMP TABLE retained(id TEXT PRIMARY KEY)')
     db.executemany('INSERT INTO retained VALUES(?)',[(n,) for n in {row['document'] for row in selected}])
     db.execute('DELETE FROM documents WHERE id NOT IN (SELECT id FROM retained)')
@@ -150,6 +169,7 @@ def select(args):
         selection=dict(order='hash within original split/source group and length band; dev exact targets protected from train',
                        per_group_band=args.per_group_band,technical_per_band=args.technical_per_band,
                        per_source=args.per_source,boundary_quota=None,
+                       technical_development_seed=TECHNICAL_DEV_SEED,
                        paired_reservoir='additional same-size group/length reservoir; does not discard any ordinary sentence'),
         limitations='Source sentences or existing punctuation-delimited clauses; Chinese-only targets. Rule boundaries are not individual human gold.',
         documents_sha256=fingerprint(args.out/'documents.sqlite3'),proposals_sha256=fingerprint(args.out/'proposals.jsonl')))
