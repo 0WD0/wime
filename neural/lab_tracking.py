@@ -47,7 +47,7 @@ def track(args, kind):
             registered = checkpoint('completed')
         else:
             registered = (store.import_history_evaluation(out, directory, args.experiment_name)
-                          if (out/'results.jsonl').exists() else store.import_evaluation(out))
+                          if (out/'results.jsonl').exists() else store.import_evaluation(out, experiment=directory, name=args.experiment_name))
             for entry in registered if isinstance(registered, list) else [registered]:
                 entry['experiment'] = experiment['id']
                 store.put('evaluation', entry['id'], entry)

@@ -108,28 +108,14 @@ wime-lab 中也可按 =l/H= 打开。=/= 搜索，=RET= 查看详情，=e= 修�
 
 * 检查训练数据
 
-=M-x wime-datasets= 打开版本目录，不启动输入法。选择数据集后按 =RET=，
-默认浏览 dev，每页 100 条。=]/[= 翻页，=/= 搜索，=s= 筛选来源，=t= 筛选声调，
-=S= 切换划分，=r= 随机跳转，=i= 查看来源和质量说明。
-样本详情展示模型左文、标注窗口、所在句子及切分位置、逐字读音和清洗来源。
-主列表先显示左文和目标，来源与读音留在详情；长左文保留靠近目标的末尾，悬停可看全文。
-审查用 =·= 待审查、=✓= 已确认、=!= 有问题、=–= 跳过表示，并配合主题颜色。
-=a= 确认，=x= 记录问题，=k= 跳过，=u= 撤销；Evil 中用 =K= 跳过、=gr= 刷新。
-反馈独立保存在 =~/.local/share/wime/reviews/datasets.sqlite3=，不会直接修改训练语料。
+=M-x wime-lab= 打开统一实验台，按 =d= 浏览数据集及划分。数据按页查询，
+左文与目标文本并排显示，=RET= 查看原始上下文、逐字读音和边界理由。
+=[/]= 翻页，=/= 搜索，=S/T/r= 筛选来源、声调或随机取页；=a/x/k/u= 确认、记录问题、跳过及撤销。
+人工审查独立于冻结数据保存。实验、评测差异和原始样本之间可以直接跳转，
+具体操作见 [[file:../../appkit-apps/wime-lab.el/README.org][实验台说明]]。
 
-数据查询环境使用 =neural/requirements-datasets.txt=，默认位于
-=~/.local/share/wime/environments/datasets/=。可用 =wime-datasets-python= 和
-=wime-datasets-program= 指向环境及源码中的 =neural/dataset_browser.py=。
-打包后的 wdoom 通过 =~/.local/share/wime/datasets/controller= 定位源码的 =neural/= 目录。
-
-=neural/datasets.json= 记录数据版本、来源和用途；=datasets/= 是 DVC 项目，
-负责管理新发布的 Parquet 分片，训练可用 =--dataset mandarin-context-v2-r3-parquet= 读取。
-DVC 对象保存在 =~/.local/share/wime/datasets/objects/=，DuckDB 查询缓存可以重建。
-发布版本用 jjosh 书签保留；DVC 清理历史对象时须涵盖这些书签，不能只看当前工作区。
-
-结构审计通过只说明字段和对齐合法。现有短片段尚未经过上屏边界审查；
-产品评测应以完整句子的输入轨迹为单位，配对检查合理前缀及正确上屏后的续写，
-同一句子的各个状态必须留在同一数据划分中。随机截断只用于鲁棒性诊断。
+数据环境默认位于 =~/.local/share/wime/environments/datasets/=；
+=wime-lab-data-python= 和 =wime-lab-data-program= 指定查询环境与控制器。
 
 * 安装神经模型
 

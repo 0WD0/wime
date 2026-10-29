@@ -45,6 +45,16 @@ class DatasetBrowser(unittest.TestCase):
     def request(self, **extra):
         return dict(dataset="example",split="dev",**extra)
 
+    def test_experiment_link_resolves_exact_sample_and_rejects_another_release(self):
+        expected = json.loads(json.dumps(self.registry.entry('example')))
+        request = self.request(id='1', expected=expected)
+        detail = self.browser.locate(request)
+        self.assertEqual(detail['row']['gold'], ['银行'])
+        self.assertEqual(detail['snapshot'], self.browser.snapshot('example'))
+        self.registry.datasets['example']['files']['dev']['sha256'] = 'another-version'
+        with self.assertRaisesRegex(ValueError, '数据版本'):
+            self.browser.locate(request)
+
     def test_cursor_filtering_and_literal_search(self):
         first = self.browser.page(self.request(limit=2))
         second = self.browser.page(self.request(limit=2,after=first['next']))

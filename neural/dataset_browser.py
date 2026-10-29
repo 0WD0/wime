@@ -244,7 +244,7 @@ class Browser:
             self.reviews.execute("INSERT OR REPLACE INTO reviews VALUES (?,?,?,?,?,?,?)", (*key, before["status"], before["note"], time.time()))
             self.reviews.execute("INSERT INTO history(dataset,snapshot,split,row_number,before,after) VALUES (?,?,?,?,?,?)",
                                  (*key, json.dumps(after), json.dumps(before)))
-        return before
+        return dict(review=before, dataset=key[0], snapshot=key[1], split=key[2], row=key[3])
 
     def locate(self, request):
         dataset, split = request["dataset"], request.get("split", "cases")
