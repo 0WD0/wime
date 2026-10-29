@@ -19,6 +19,14 @@ class IdentityTone:
 
 
 class Frontend(unittest.TestCase):
+    def test_blood_terms_inside_compounds_keep_the_reviewed_medical_reading(self):
+        frontend = MandarinFrontend(converter=lambda texts:[
+            ['gao1','xie3','tang2','gao1','xie3','zhi1']])
+        row=frontend.readings(['高血糖高血脂'])[0]
+        self.assertEqual(row['reading_evidence']['final'],['gao1','xue4','tang2','gao1','xue4','zhi1'])
+        self.assertIn('phrase_correction:血糖',row['reading_rules'][1])
+        self.assertIn('phrase_correction:血脂',row['reading_rules'][4])
+
     def test_phrase_correction_precedes_tone_rules(self):
         tone = IdentityTone()
         frontend = MandarinFrontend(converter=lambda texts: [["le4", "se4"]],

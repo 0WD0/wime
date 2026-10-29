@@ -19,7 +19,7 @@ HAN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
 TEXT_ROOT = Path(__file__).resolve().parents[3] / "third_party/gpt-sovits/GPT_SoVITS/text"
 NAMESPACE = "_wime_gpt_sovits_text"
 # Only these reviewed dictionary phrases override local segmentation boundaries.
-REVIEWED_PHRASE_BOUNDARIES = {"重焕": "v", "阳乾": "n", "阳干": "n"}
+REVIEWED_PHRASE_BOUNDARIES = {"重焕": "v", "阳乾": "n", "阳干": "n", "血糖": "n", "血脂": "n"}
 
 
 def numbered_reading(value):
