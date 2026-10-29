@@ -18,6 +18,7 @@ import torch
 from safetensors import safe_open
 from safetensors.torch import save_file
 from conditional import ROOT
+from composition import ENCODING
 from inference import ConditionalEvaluator
 
 
@@ -66,7 +67,7 @@ def main():
         path = args.new_model if alpha == 1 else args.out / f"retain-{alpha}.safetensors"
         if alpha != 1:
             interpolate(str(args.old_model), str(args.new_model), alpha, path)
-        models[alpha] = ConditionalEvaluator(str(path), context_anchor=2)
+        models[alpha] = ConditionalEvaluator(str(path))
     env = dict(os.environ, WIME_DATABASE=str(args.database), WIME_GRAMMAR=str(args.grammar_dir),
                WIME_GRAMMAR_MODULE=str(args.grammar_module))
     server = subprocess.Popen(["emacs", "-Q", "--batch", "-L", str(ROOT / "emacs-packages/wime"),
@@ -106,7 +107,7 @@ def main():
     eligible = [k for k, c in grid.items() if c["old/correct"] >= baseline]
     objective = lambda c: sum(c[d+"/correct"] / c[d+"/total"] for d in ("old", "new")) / 2
     selected = max(eligible, key=lambda k:(objective(grid[k]), k[0], -abs(k[1] - .1)))
-    report = dict(selected=dict(retained_update=selected[0], prior_weight=selected[1], context_anchor=2),
+    report = dict(selected=dict(retained_update=selected[0], prior_weight=selected[1]),
                   selection="mean of old/new domain accuracy; old-dev accuracy >= current; N-best only",
                   grid=[dict(retained_update=a, prior_weight=w, objective=objective(c), counts=c)
                         for (a, w), c in grid.items()],

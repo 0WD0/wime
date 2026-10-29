@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 
+from composition import ENCODING
 from inference import ConditionalEvaluator
 
 
@@ -22,7 +23,7 @@ def main():
     p.add_argument("--out", type=Path, required=True)
     args = p.parse_args()
     rows = json.loads(args.pools.read_text())
-    model = ConditionalEvaluator(str(args.model), context_anchor=2)
+    model = ConditionalEvaluator(str(args.model))
     priors = (0.0, .025, .05, .1, .2)
     counts = {w:Counter() for w in priors}
     for i, row in enumerate(rows):
@@ -47,7 +48,7 @@ def main():
             print(json.dumps(dict(cases=i + 1)), flush=True)
     args.out.mkdir(parents=True, exist_ok=True)
     report = dict(model=dict(path=str(args.model), sha256=digest(args.model)),
-                  pools=dict(path=str(args.pools), sha256=digest(args.pools)), context_anchor=2,
+                  pools=dict(path=str(args.pools), sha256=digest(args.pools)), encoding=ENCODING,
                   grid=[dict(prior_weight=w, counts=c,
                              objective=sum(c[d + "/correct"] / c[d + "/total"] for d in ("old", "new")) / 2)
                         for w, c in counts.items()])

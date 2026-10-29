@@ -6,7 +6,7 @@ import json
 import torch
 import torch.nn.functional as F
 
-from inference import anchored_prompt
+from composition import composition_prompt
 from conditional import composition_span
 
 
@@ -26,10 +26,6 @@ def ranking_composition(row, rng, whole_share=0.0):
     start = size - length
     result = composition_span(row, start, size)
     result["composition"] = "whole" if start == 0 else "suffix"
-    if start:
-        # The committed prefix has real keys; do not re-infer a polyphone.
-        result["known_reading"] = dict(text=row["gold"][0][:start][-16:],
-                                       input=row["input"][:2*start][-32:])
     if result["context"] and rng.random() < .1:
         result = dict(result, context=(result["context"] + rng.choice((" ", "\n", "\n\n")))[-64:])
     return result
@@ -41,11 +37,12 @@ def spelling_equivalent(a, b):
     return a.translate(table) == b.translate(table)
 
 
-def encode_candidate(row, text, index, window, anchor=2):
+def encode_candidate(row, text, index, window):
+    if "known_reading" in row:
+        raise ValueError("obsolete ranking state: re-mine pairs with wime-composition-v2")
     if len(text) * 2 != len(row["input"]):
         raise ValueError("ranking requires aligned complete candidates")
-    prefix = anchored_prompt(row["context"], row["input"], window, anchor,
-                             row.get("known_reading"))
+    prefix = composition_prompt(row["context"], row["input"], window, row.get("committed"))
     pre = [2] + [index.get(c, 1) for c in prefix]
     target = [index.get(c, 1) for c in text]
     if 1 in target or len(pre) + len(target) > window:
@@ -83,10 +80,10 @@ def curate_pairs(pairs, protected):
         if protected.contains(row):
             counts["protected"] += 1
             continue
-        if not row["context"].strip():
+        if not row["context"].strip() and not row.get("committed"):
             counts["ambiguous_blank_context"] += 1
             continue
-        slot = json.dumps([row["context"], row["input"], row.get("known_reading")],
+        slot = json.dumps([row["context"], row["input"], row.get("committed")],
                           ensure_ascii=False, sort_keys=True)
         positives[slot].update(row["gold"])
         eligible.append((slot, row))

@@ -10,8 +10,7 @@
       wime-neural-model-file (getenv "WIME_NEURAL_MODEL")
       wime-neural-search-method 'verify wime-neural-delay 0
       wime-search-width 16 wime-neural-inference-budget 4
-      wime-neural-seed-candidates t wime-neural-single-character t
-      wime-neural-context-anchor 2)
+      wime-neural-seed-candidates t wime-neural-single-character t)
 (setq wime-neural-prior-confidence (string-to-number (or (getenv "WIME_PRIOR_CONFIDENCE") "1")))
 (let ((cases (with-temp-buffer
                (insert-file-contents (getenv "WIME_CASES"))
@@ -28,7 +27,7 @@
                             wime--candidate-records)
             (error "Committed prefix is not a valid dictionary reading"))
           (wime--commit (alist-get 'committed_text case))
-          (let ((known (wime--context-reading (wime--context))))
+          (let ((known (alist-get 'committed (wime--composition-state))))
             (unless (equal (alist-get 'input known) (alist-get 'committed_input case))
               (error "Committed keys were lost or reinterpreted"))
             (wime-neural-mode 1)
@@ -40,7 +39,7 @@
             (when (or wime-neural--failed wime-neural--busy wime-neural--pending
                       (not wime-neural-last-latency))
               (error "Model did not finish after a real commit"))
-            (push `(:id ,(alist-get 'id case) :committed_reading ,known
+            (push `(:id ,(alist-get 'id case) :committed ,known
                     :input ,(alist-get 'input case) :gold ,(vconcat (alist-get 'gold case))
                     :result ,(car wime--candidates)) results)
             (wime-neural-mode -1)

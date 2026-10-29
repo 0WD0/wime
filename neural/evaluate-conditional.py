@@ -16,6 +16,8 @@ import time
 
 import numpy as np
 
+from composition import ENCODING, decode as decode_composition
+from regression import requests
 from conditional import ROOT
 from inference import ConditionalEvaluator, effective_prior_weight
 from rescorer import interleave
@@ -60,8 +62,6 @@ def main():
                    help="record candidate scores and gold reachability after prediction, for failure analysis")
     p.add_argument("--single-character", action="store_true",
                    help="match wime-neural-single-character for models trained on single spans")
-    p.add_argument("--context-anchor", type=int, choices=range(0, 9), default=0,
-                   help="keep up to this many committed characters as a fixed decoded prefix")
     p.add_argument("--proposal-order", choices=("position", "gain"), default="position")
     add_backend_arguments(p)
     p.add_argument("--pool-width", type=int,
@@ -96,21 +96,22 @@ def main():
             raise RuntimeError("search process exited")
         return json.loads(line)
 
-    evaluator = ConditionalEvaluator(args.model, context_anchor=args.context_anchor,
-                                     proposal_order=args.proposal_order)
+    evaluator = ConditionalEvaluator(args.model, proposal_order=args.proposal_order)
     rescorer = make_rescorer(args)
     decoder = make_decoder(args, evaluator, rescorer) if args.search_method == "decode" else None
     stats, results, latencies = Counter(), [], []
     started = time.monotonic()
     try:
-        for i, case in enumerate(cases):
-            code, context, gold = case["input"], case.get("context", ""), case["gold"]
+        for i, (case, state) in enumerate(zip(cases, requests(cases), strict=True)):
+            code, gold = case["input"], case["gold"]
+            committed = state["committed"]
+            context = state["context"] + (committed["text"] if committed else "")
             base = search(code, context, width=1)
             beam = search(code, context, width=args.pool_width)
             # The real input parser removes auxiliary codes only for the model;
             # every dictionary search still receives the complete typed input.
             model_code, syllables = beam["input"], beam["syllables"]
-            model_context = beam["context"]
+            model_context = state["context"] if committed else beam["context"]
             records = [c for c in beam["candidates"] if c["end"] == syllables]
             candidates = [c["text"] for c in records]
             original = base["candidates"][0]["text"] if base["candidates"] else ""
@@ -123,7 +124,8 @@ def main():
             prior_weight = args.prior_weight
             if decoder and (syllables > 1 or (args.single_character and syllables == 1)):
                 start = time.monotonic()
-                decoded = decoder.decode(model_context, model_code, args.context_anchor, aux=typed_aux(code))
+                decoded = decode_composition(decoder, model_context, model_code, committed,
+                                             window=evaluator.model.cfg.context, aux=typed_aux(code))
                 if decoded:
                     best = nbest = decoded[0][0]
                     if best not in candidates:
@@ -133,7 +135,7 @@ def main():
             elif candidates and (syllables > 1 or (args.single_character and syllables == 1)):
                 path_score = records[0]["score"]
                 start = time.monotonic()
-                scores, distributions = evaluator.evaluate(model_context, model_code, candidates)
+                scores, distributions = evaluator.evaluate(model_context, model_code, candidates, committed=committed)
                 pool_scores = scores.copy()
                 prior_weight = effective_prior_weight(scores, syllables, args.prior_weight, args.prior_confidence)
                 if rescorer:
@@ -146,7 +148,7 @@ def main():
                 # All seeds are real dictionary candidates; no gold enters selection.
                 while calls < args.budget:
                     if calls:
-                        scores, distributions = evaluator.evaluate(model_context, model_code, [draft])
+                        scores, distributions = evaluator.evaluate(model_context, model_code, [draft], committed=committed)
                         if rescorer:
                             scores = rescorer.combine(model_context, [draft], scores)
                         index = 0
@@ -187,7 +189,7 @@ def main():
                          outside_beam_rescue=best in gold and best not in candidates,
                          calls=calls,
                          oracle_reachable=oracle_reachable)
-            results.append(dict(id=case["id"], input=code, context=context, gold=gold,
+            results.append(dict(id=case["id"], input=code, context=state["context"], committed=committed, gold=gold,
                                 octagram=original, beam=(candidates or [""])[0], nbest=nbest,
                                 constrained=best, calls=calls, outside_beam=recoveries,
                                 document=case.get("document"),
@@ -215,7 +217,7 @@ def main():
 
     summary = dict(stats, margin=args.margin, budget=args.budget, prior_weight=args.prior_weight,
                    single_character=args.single_character,
-                   context_anchor=args.context_anchor,
+                   encoding=ENCODING,
                    proposal_order=args.proposal_order,
                    rescorer=args.rescorer, rescorer_weight=args.rescorer_weight if args.rescorer else None,
                    pool_width=args.pool_width, search_method=args.search_method,

@@ -55,7 +55,7 @@ def main():
     decoder = ConditionalDecoder.from_database(model.to(args.device), vocab, args.database, args.beam)
     cases = json.loads(args.cases.read_text())
     for row in cases[:5]:
-        decoder.decode(row["context"], row["input"])
+        decoder.decode(row["context"], row["input"], row.get("committed"))
     legal = {code: set(ids.tolist()) for code, ids in decoder.legal.items()}
     results = []
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -64,7 +64,7 @@ def main():
             if str(args.device).startswith("cuda"):
                 torch.cuda.synchronize()
             start = time.perf_counter()
-            candidates = decoder.decode(row["context"], row["input"])
+            candidates = decoder.decode(row["context"], row["input"], row.get("committed"))
             if str(args.device).startswith("cuda"):
                 torch.cuda.synchronize()
             milliseconds = 1000 * (time.perf_counter() - start)

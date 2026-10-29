@@ -82,12 +82,6 @@ Enable only with a model trained and evaluated on single-character spans.
 Older models retain contextual octagram ranking by default."
   :type 'boolean :group 'wime)
 
-(defcustom wime-neural-context-anchor 0
-  "Committed characters retained as a fixed decoder prefix by the CUDA worker.
-Zero uses the original context/composition separation.  Actual recently
-committed keys override inferred context readings; only new text is scored."
-  :type 'integer :group 'wime)
-
 (defcustom wime-neural-inference-budget 4
   "Maximum verification rounds per composition in `verify' mode.
 The optional CUDA seed selection scores the initial candidate pool in one
@@ -117,7 +111,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
   id buffer input position tick context records pool syllables pins
   method draft best best-score (round 0) visited scored
-  context-reading (context-anchor wime-neural-context-anchor)
+  history committed
   (seed-candidates wime-neural-seed-candidates)
   (prior-confidence wime-neural-prior-confidence)
   (prior-weight wime-neural-prior-weight)
@@ -170,7 +164,11 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
               (= (buffer-chars-modified-tick) (wime-neural--job-tick job))
               ;; Overlay properties and narrowing can change the context
               ;; without advancing buffer-chars-modified-tick.
-              (equal (wime-neural--context) (wime-neural--job-context job))))))
+              (equal (wime-neural--context) (wime-neural--job-context job))
+              (or (null (wime-neural--job-history job))
+                  (let ((state (wime--composition-state)))
+                    (and (equal (alist-get 'context state) (wime-neural--job-history job))
+                         (equal (alist-get 'committed state) (wime-neural--job-committed job)))))))))
 
 (defun wime-neural--reset ()
   "Cancel this buffer's scheduled work.  In-flight replies become stale."
@@ -213,14 +211,15 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                                                     "SELECT value FROM meta WHERE key = 'scheme'"))
                                 "mspy")
                        (error nil))))
-        (let ((job (wime-neural--make-job
+        (let* ((state (wime--composition-state))
+               (job (wime-neural--make-job
                     :id (cl-incf wime-neural--serial) :buffer (current-buffer)
                     :input wime--input :position (point)
                     :edit-generation (and (bound-and-true-p wime-edit-mode)
                                           (wime-edit--active-p)
                                           wime-edit--generation)
                     :tick (buffer-chars-modified-tick) :context (wime-neural--context)
-                    :context-reading (wime--context-reading (wime-neural--context))
+                    :history (alist-get 'context state) :committed (alist-get 'committed state)
                     :records records :syllables n :method method :pins wime--pins
                     :draft (car full))))
           (setq wime-neural--timer
@@ -306,10 +305,10 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   "Encode JOB's whole input, pins and learned readings for decoding."
   (let ((units (wime--parse (wime-neural--job-input job))))
     (json-serialize
-     `(:id ,(wime-neural--job-id job) :operation "decode" :context ,(wime-neural--job-context job)
+     `(:id ,(wime-neural--job-id job) :operation "decode" :context ,(or (wime-neural--job-history job) (wime-neural--job-context job))
        :syllables ,(length units) :input ,(wime--full-code units)
-       :context_anchor ,(wime-neural--job-context-anchor job)
-       :context_reading ,(or (wime-neural--job-context-reading job) :null)
+       :encoding "wime-composition-v2"
+       :committed ,(or (wime-neural--job-committed job) :null)
        :pins ,(vconcat (mapcar (lambda (pin) (vector (car pin) (string (nth 1 pin))))
                                (wime-neural--job-pins job)))
        :learned ,(vconcat (mapcar (lambda (span) (vector (car span) (cdr span)))
@@ -322,7 +321,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 (defun wime-neural--verify-request (job)
   "Encode JOB's candidates and draft for verification or reranking."
   (json-serialize
-   `(:id ,(wime-neural--job-id job) :context ,(wime-neural--job-context job)
+   `(:id ,(wime-neural--job-id job) :context ,(or (wime-neural--job-history job) (wime-neural--job-context job))
      :syllables ,(wime-neural--job-syllables job)
      :operation ,(if (eq (wime-neural--job-method job) 'verify) "verify" "rerank")
      :input ,(wime--full-code (wime--parse (wime-neural--job-input job)))
@@ -332,8 +331,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                                (= (wime-neural--job-round job) 0)) t :false)
      :prior_weight ,(wime-neural--job-prior-weight job)
      :prior_confidence ,(wime-neural--job-prior-confidence job)
-     :context_anchor ,(wime-neural--job-context-anchor job)
-     :context_reading ,(or (wime-neural--job-context-reading job) :null)
+     :encoding "wime-composition-v2"
+     :committed ,(or (wime-neural--job-committed job) :null)
      :candidates ,(vconcat
                    (mapcar (lambda (c)
                              `(:text ,(wime-candidate-text c) :end ,(wime-candidate-end c)

@@ -4,7 +4,7 @@ from collections import defaultdict
 import torch
 import torch.nn.functional as F
 
-from conditional import prompt
+from composition import composition_prompt
 from decoding_model import readings
 
 
@@ -53,8 +53,8 @@ class ConditionalDecoder:
         return cls(model, vocab, legal, beam)
 
     @torch.inference_mode()
-    def decode(self, context, code):
-        prefix = [2] + [self.index.get(c, 1) for c in prompt(context, code, self.model.cfg.context)]
+    def decode(self, context, code, committed=None):
+        prefix = [2] + [self.index.get(c, 1) for c in composition_prompt(context, code, self.model.cfg.context, committed)]
         syllables = [code[i:i+2] for i in range(0, len(code), 2)]
         if not syllables:
             return []

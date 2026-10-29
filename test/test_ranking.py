@@ -11,7 +11,8 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import CharLM, Config
-from inference import ConditionalEvaluator, anchored_prompt
+from inference import ConditionalEvaluator
+from composition import composition_prompt
 from ranking import encode_candidate, candidate_scores, preference_loss, ranking_composition, spelling_equivalent, curate_pairs
 from replay import phrases, coverage_additions, Protection
 
@@ -34,7 +35,7 @@ class Ranking(unittest.TestCase):
         rng.randint.return_value = 2
         suffix = ranking_composition(row, rng)
         self.assertEqual(suffix["gold"], ["行事"])
-        self.assertEqual(suffix["known_reading"], dict(text="便宜", input="bmyi"))
+        self.assertEqual(suffix["committed"], dict(text="便宜", input="bmyi"))
         whole = ranking_composition(row, random.Random(0), whole_share=1)
         self.assertEqual(whole["input"], row["input"])
         self.assertEqual(whole["gold"], row["gold"])
@@ -59,16 +60,16 @@ class Ranking(unittest.TestCase):
             curate_pairs([dict(one, split="test")], guard)
 
     def test_scores_match_deployed_evaluator_and_mask_fixed_prefix(self):
-        row = dict(context="允许便宜", input="x;ui", gold=["行事"],
-                   known_reading=dict(text="便宜", input="bmyi"))
+        row = dict(context="允许", input="x;ui", gold=["行事"],
+                   committed=dict(text="便宜", input="bmyi"))
         texts = ["行事", "形式"]
-        chars = sorted(set(anchored_prompt(row["context"], row["input"], 32, 2, row["known_reading"]) + "".join(texts)))
+        chars = sorted(set(composition_prompt(row["context"], row["input"], 32, row["committed"]) + "".join(texts)))
         vocab = ["<pad>", "<unk>", "<bos>"] + chars
         index = {c:i for i,c in enumerate(vocab)}
         model = CharLM(Config(vocab=len(vocab), n_layer=1, n_head=2, n_embd=8, context=32, dropout=0)).eval()
         evaluator = object.__new__(ConditionalEvaluator)
-        evaluator.model, evaluator.index, evaluator.device, evaluator.context_anchor = model, index, "cpu", 2
-        expected, _ = evaluator.evaluate(row["context"], row["input"], texts, known_reading=row["known_reading"])
+        evaluator.model, evaluator.index, evaluator.device = model, index, "cpu"
+        expected, _ = evaluator.evaluate(row["context"], row["input"], texts, committed=row["committed"])
         encoded = [encode_candidate(row, text, index, 32) for text in texts]
         x, y = (torch.tensor([p[i] for p in encoded]) for i in range(2))
         logits = model(x)[0].detach().requires_grad_()
@@ -110,6 +111,7 @@ class Ranking(unittest.TestCase):
             guard = Protection([path])
             self.assertTrue(guard.contains(dict(document="test-doc",context="别的",gold=["句子"])))
             self.assertTrue(guard.contains(dict(context="真刀真\n",gold=["枪"])))
+            self.assertTrue(guard.contains(dict(context="真刀", committed=dict(text="真", input="vf"), gold=["枪"])))
             self.assertFalse(guard.contains(dict(context="买一把",gold=["枪"])))
 
 

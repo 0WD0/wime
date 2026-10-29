@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import time
 
+from composition import ENCODING, decode as decode_composition
 from dataset_registry import Registry
 from regression import compare, requests, request_key
 from replay import fingerprint
@@ -38,7 +39,7 @@ def main():
     units = Units(rescorer.tokenizer,readings(args.database))
     decoders = {name:Decoder(ConditionalEvaluator(path),rescorer,units) for name,path in models.items()}
     for decoder in decoders.values():
-        decoder.decode("评测预热","nihk",2)
+        decoder.decode("评测预热","nihk")
     cache, results = {}, []
     with (args.out / "results.jsonl").open("w") as stream:
         for dataset,snapshot,cases,prepared in suites:
@@ -50,8 +51,8 @@ def main():
                     for name,decoder in decoders.items():
                         torch.cuda.synchronize()
                         start = time.perf_counter()
-                        candidates = decoder.decode(request["context"],request["input"],request["anchor"],
-                                                    request["known"],aux=request["aux"])
+                        candidates = decode_composition(decoder, request["context"], request["input"],
+                                                        request["committed"], aux=request["aux"])
                         torch.cuda.synchronize()
                         predictions[name] = dict(prediction=candidates[0][0] if candidates else "",
                                                  candidates=[text for text,score in candidates],
@@ -71,11 +72,11 @@ def main():
                   database_sha256=fingerprint(args.database),
                   rescorer_files_sha256={file.name:fingerprint(file) for file in sorted(args.rescorer.iterdir())
                                         if file.suffix in (".json",".safetensors")},
-                  profile=dict(backend="legacy",anchor=2,beam=16,rescorer_weight=1.5,
+                  profile=dict(backend="legacy",encoding=ENCODING,beam=16,rescorer_weight=1.5,
                                context_characters=64,personalization=False),
                   code_sha256={name:fingerprint(Path(__file__).with_name(name)) for name in
                                ("evaluate-regression.py","regression.py","decoder.py","decoding_model.py",
-                                "inference.py","conditional.py","rescorer.py")},
+                                "inference.py","conditional.py","composition.py","rescorer.py")},
                   unique_requests=len(cache),cases=len(results),seconds=time.monotonic()-started,
                   metrics=(compare(results,list(models)) if len(models)==2 else
                            {name:compare(results,[next(iter(models)),name]) for name in list(models)[1:]}),

@@ -29,7 +29,7 @@
   "Return the actual inference settings as a JSON-compatible recipe."
   (list :width wime-search-width :budget wime-neural-inference-budget
         :prior_weight wime-neural-prior-weight :prior_confidence wime-neural-prior-confidence
-        :context_anchor wime-neural-context-anchor
+        :encoding "wime-composition-v2"
         :single_character (if wime-neural-single-character t :false)
         :seed_draft (if wime-neural-seed-candidates "neural" "traditional")
         :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight
@@ -59,7 +59,6 @@
       (wime-neural-inference-budget . ,(plist-get profile :budget))
       (wime-neural-prior-weight . ,(plist-get profile :prior_weight))
       (wime-neural-prior-confidence . ,(plist-get profile :prior_confidence))
-      (wime-neural-context-anchor . ,(plist-get profile :context_anchor))
       (wime-neural-single-character . ,(eq (plist-get profile :single_character) t))
       (wime-neural-seed-candidates . ,(equal (plist-get profile :seed_draft) "neural"))
       (wime-neural-rescorer . ,(wime-checkpoint--nullable (plist-get profile :rescorer)))

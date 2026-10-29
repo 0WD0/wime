@@ -120,11 +120,11 @@ def sentence_views(row):
     return [legacy, row, composition_span(row,0,end), composition_span(row,end,len(row["gold"][0]))]
 
 
-def pack_trajectories(path, cache, vocab, window, protection, context_anchor, sampling):
+def pack_trajectories(path, cache, vocab, window, protection, sampling):
     recipe = dict(source_sha256=fingerprint(path),vocab=vocab,window=window,protection=protection.files,
-                  context_anchor=context_anchor,format="paired-sentence-cache-v1",
+                  encoding="wime-composition-v2",format="paired-sentence-cache-v2",
                   code={name:fingerprint(Path(__file__).with_name(name)) for name in
-                        ("training_data.py","conditional.py","trajectories.py","replay.py")})
+                        ("training_data.py","composition.py","conditional.py","trajectories.py","replay.py")})
     directory = cache / hashlib.sha256(json.dumps(recipe,sort_keys=True).encode()).hexdigest()
     if (directory/"metadata.json").exists():
         return PackedTrajectories(directory,sampling)
@@ -140,7 +140,7 @@ def pack_trajectories(path, cache, vocab, window, protection, context_anchor, sa
             if path.stem=='train' and any(protection.contains(view) for view in views):
                 excluded['protected_source_or_state'] += 1
                 continue
-            encoded = [encode_example(view,index,window,context_anchor) for view in views]
+            encoded = [encode_example(view,index,window) for view in views]
             if any(1 in y for x,y in encoded):
                 excluded['unknown_target'] += 1
                 continue
@@ -174,14 +174,14 @@ def pack_trajectories(path, cache, vocab, window, protection, context_anchor, sa
 
 
 def pack_examples(path, cache, vocab, window, protection, *, seed=0, span_share=0,
-                  single_share=0, whitespace_share=0, limit=0, context_anchor=0):
+                  single_share=0, whitespace_share=0, limit=0):
     split = path.stem
     recipe = dict(source_sha256=fingerprint(path), vocab=vocab, window=window,
                   protection=protection.files, seed=seed, span_share=span_share,
                   single_share=single_share, whitespace_share=whitespace_share, limit=limit,
-                  context_anchor=context_anchor,
+                  encoding="wime-composition-v2",
                   split=split, code={name: fingerprint(Path(__file__).with_name(name))
-                                    for name in ("training_data.py", "conditional.py", "replay.py")})
+                                    for name in ("training_data.py", "composition.py", "conditional.py", "replay.py")})
     key = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()
     directory = cache / key
     if (directory / "metadata.json").exists():
@@ -205,7 +205,7 @@ def pack_examples(path, cache, vocab, window, protection, *, seed=0, span_share=
                     excluded["protected_pair"] += 1
                     continue
             try:
-                x, y = encode_example(row, index, window, context_anchor)
+                x, y = encode_example(row, index, window)
             except ValueError:
                 excluded["window"] += 1
                 continue

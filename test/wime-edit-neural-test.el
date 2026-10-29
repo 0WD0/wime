@@ -26,7 +26,7 @@ worker process, and can check each asynchronous invalidation separately."
        (cl-letf (((symbol-function 'wime-edit--active-p) (lambda () active))
                  ((symbol-function 'wime-edit--writable-p) (lambda () writable))
                  ((symbol-function 'wime-edit--decodable-p) (lambda () decodable))
-                 ((symbol-function 'wime-neural--context) (lambda () context))
+                 ((symbol-function 'wime--context) (lambda (&optional _limit) context))
                  ((symbol-function 'wime--display) (lambda () (setq published t))))
          (let ((job (wime-neural--make-job
                      :id 1 :buffer (current-buffer) :input wime--input

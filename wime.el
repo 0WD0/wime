@@ -169,14 +169,14 @@ Return point to disable context.  Errors or invalid markers also yield none.")
 (defvar wime-edit--start)
 (declare-function wime-edit--active-p "wime-edit")
 
-(defun wime--context ()
+(defun wime--context (&optional limit)
   "Return committed context before the current composition."
   (save-excursion
     (when (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
       (goto-char wime-edit--start))
-    (wime--context-at-point)))
+    (wime--context-at-point limit)))
 
-(defun wime--context-at-point ()
+(defun wime--context-at-point (&optional limit)
   "Return the visible, editable suffix before the insertion point.
 Honor narrowing, input-area and field boundaries; stop at protected or
 hidden characters instead of joining text across them.  Paragraph limits
@@ -188,7 +188,7 @@ Keep at most 64 characters, matching the neural model's training window."
               (invisible-p (get-pos-property (point) 'invisible)))
           ""
         (let* ((end (point))
-               (start (max (- end 64) (wime--input-start)))
+               (start (max (- end (or limit 64)) (wime--input-start)))
                (start (max start (field-beginning end nil start)))
                (position end))
           ;; At most 64 characters, including overlay properties.  A read-only
@@ -934,19 +934,24 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
   (wime--clear-overlay)
   (run-hooks 'wime-reset-hook))
 
-(defvar-local wime--committed-reading nil
-  "Recent confirmed text, its actual keys, endpoint and modification tick.")
+(defvar-local wime--committed-state nil
+  "Confirmed input segment, endpoint, modification tick and dictionary.
+The segment keeps actual keys and auxiliary input; ordinary history is text.")
 
-(defun wime--context-reading (context)
-  "Return actual keys for the still-valid committed suffix within CONTEXT."
-  (pcase wime--committed-reading
-    (`(,text ,code ,end ,tick ,database)
-     (when (and (= end (point)) (= tick (buffer-chars-modified-tick))
-                (equal database wime-database-file))
-       (let* ((n (min (length context) (length text)))
-              (suffix (substring text (- (length text) n))))
-         (when (and (> n 0) (string-suffix-p suffix context))
-           `((text . ,suffix) (input . ,(substring code (- (length code) (* 2 n)))))))))))
+(defun wime--composition-state ()
+  "Return original history and any still-valid confirmed input segment."
+  (or
+   (pcase wime--committed-state
+     (`(,segment ,end ,tick ,database)
+      (when (and (= end (point)) (= tick (buffer-chars-modified-tick))
+                 (equal database wime-database-file))
+        (let* ((text (alist-get 'text segment))
+               ;; Read past the confirmed segment so it cannot evict history.
+               (visible (wime--context (+ 64 (length text)))))
+          (when (string-suffix-p text visible)
+            `((context . ,(substring visible 0 (- (length visible) (length text))))
+              (committed . ,segment)))))))
+   `((context . ,(wime--context)))))
 
 (defun wime--commit (text)
   "Commit TEXT, or the raw typed input when TEXT is nil."
@@ -954,7 +959,7 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
          (units (wime--parse fallback))
          (record (seq-find (lambda (c) (equal text (wime-candidate-text c)))
                            wime--candidate-records))
-         (old (wime--context-reading (wime--context)))
+         (old (alist-get 'committed (wime--composition-state)))
          (code (when (and record (string-match-p "\\`[一-鿿]+\\'" text)
                           (= (length text) (wime-candidate-end record))
                           (>= (length units) (length text))
@@ -967,13 +972,20 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
       (wime--learn text (seq-take units (length text)) wime--default-reading))
     (wime--reset)
     (insert (or text fallback))
-    (setq wime--committed-reading
+    (setq wime--committed-state
           (when code
-            (let* ((joined (concat (alist-get 'text old) text))
-                   (keys (concat (alist-get 'input old) code))
-                   (n (min 16 (length joined))))
-              (list (substring joined (- (length joined) n))
-                    (substring keys (- (length keys) (* 2 n)))
+            ;; Promote the complete old segment to history at this boundary,
+            ;; rather than saving an arbitrary suffix of its keys.
+            (when (> (+ (length (alist-get 'text old)) (length text)) 64)
+              (setq old nil))
+            (let* ((offset (length (alist-get 'text old)))
+                   (aux (append (alist-get 'aux old) nil)))
+              (cl-loop for unit in (seq-take units (length text)) for i from offset
+                       unless (string-empty-p (cdr unit))
+                       do (setq aux (append aux (list (vector i (downcase (cdr unit)))))))
+              (list `((text . ,(concat (alist-get 'text old) text))
+                      (input . ,(concat (alist-get 'input old) code))
+                      (aux . ,(vconcat aux)))
                     (point) (buffer-chars-modified-tick) wime-database-file))))))
 
 (defun wime--select-digit (key)

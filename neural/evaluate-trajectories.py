@@ -8,6 +8,7 @@ import time
 from dataset_registry import Registry
 from replay import fingerprint
 from trajectories import states, validate
+from composition import ENCODING, decode as decode_composition
 from trajectory_metrics import summarize
 
 
@@ -20,7 +21,6 @@ def main():
     parser.add_argument("--backend", choices=("conditional", "legacy", "qwen-hf"), required=True)
     parser.add_argument("--rescorer")
     parser.add_argument("--rescorer-weight", type=float, default=1.5)
-    parser.add_argument("--anchor", type=int, default=2)
     parser.add_argument("--beam", type=int, default=16)
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
@@ -47,7 +47,7 @@ def main():
         from inference import ConditionalEvaluator
         from backends import make_decoder
         from rescorer import Rescorer
-        evaluator = ConditionalEvaluator(args.model, device=args.device, context_anchor=args.anchor)
+        evaluator = ConditionalEvaluator(args.model, device=args.device)
         metadata, vocab = evaluator.metadata, evaluator.vocab
         rescorer = Rescorer(args.rescorer, args.rescorer_weight, device=args.device)
         decoder = make_decoder(args, evaluator, rescorer)
@@ -61,9 +61,9 @@ def main():
         error, candidates = None, []
         try:
             if args.backend == "conditional":
-                candidates = decoder.decode(state["context"], state["input"])
+                candidates = decoder.decode(state["context"], state["input"], state.get("committed"))
             else:
-                candidates = decoder.decode(state["context"], state["input"], args.anchor, state.get("known"))
+                candidates = decode_composition(decoder, state["context"], state["input"], state.get("committed"), window=evaluator.model.cfg.context)
         except ValueError as failure:
             error = str(failure)
         if args.device.startswith("cuda"):
@@ -71,6 +71,7 @@ def main():
         output = dict(prediction=candidates[0][0] if candidates else "",
                       candidates=[text for text, score in candidates[:5]],
                       ranked_candidates=[dict(text=text, score=score) for text, score in candidates],
+                      committed=state.get("committed"),
                       milliseconds=1000 * (time.perf_counter() - start),
                       error=error or ("no_candidates" if not candidates else None))
         if args.backend == "legacy" and candidates:
@@ -109,19 +110,19 @@ def main():
             stream.flush()
             if len(results) % 10 == 0:
                 print(json.dumps(dict(completed=len(results), total=len(cases), seconds=time.monotonic()-started)), flush=True)
-    report = dict(dataset=snapshot, model=str(args.model.resolve()), model_sha256=fingerprint(args.model),
+    report = dict(encoding=ENCODING, dataset=snapshot, model=str(args.model.resolve()), model_sha256=fingerprint(args.model),
                   database_sha256=fingerprint(args.database), cases_sha256=fingerprint(path),
                   backend=args.backend, rescorer=args.rescorer, rescorer_weight=args.rescorer_weight,
                   rescorer_files_sha256={file.name:fingerprint(file) for file in sorted(Path(args.rescorer).iterdir())
                                         if file.suffix in (".json", ".safetensors")} if args.rescorer else None,
-                  anchor=args.anchor if args.backend != "conditional" else 0, beam=args.beam,
+                  beam=args.beam,
                   training_steps=metadata.get("training_steps"), seconds=time.monotonic()-started,
                   precision="conditional FP32/TF32 disabled; Qwen uses existing BF16 runtime",
                   semantics="Fresh decode at reviewed boundaries; committed prefix and its actual keys supplied only after commit. "
                             "No auxiliary codes, learned user preferences or within-syllable states.",
                   code_sha256={file:fingerprint(Path(__file__).with_name(file)) for file in
                                ("evaluate-trajectories.py", "trajectories.py", "trajectory_metrics.py",
-                                "conditional_decode.py", "conditional.py", "inference.py", "decoder.py", "text_decoder.py",
+                                "composition.py", "conditional_decode.py", "conditional.py", "inference.py", "decoder.py", "text_decoder.py",
                                 "decoding_model.py", "rescorer.py", "backends.py")},
                   metrics=summarize(results))
     (args.out / "summary.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")

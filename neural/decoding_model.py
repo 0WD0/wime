@@ -4,7 +4,7 @@ import sqlite3
 
 import torch
 
-from inference import anchored_prompt
+from composition import prompt
 
 
 def readings(database):
@@ -31,10 +31,10 @@ class DecodingModel:
         self.weight = rescorer.weight if rescorer else 1.0
         self.device = evaluator.device if evaluator else "cpu"
 
-    def prompts(self, context, code, anchor, known):
+    def prompts(self, context, code):
         """Conditional-model prompt ids and LM context ids."""
         ev = self.evaluator
-        prefix = anchored_prompt(context, code, ev.model.cfg.context, anchor, known)
+        prefix = prompt(context, code, ev.model.cfg.context)
         return [2] + [ev.index.get(c, 1) for c in prefix], self.lm_ids(context)
 
     def lm_ids(self, context):

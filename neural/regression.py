@@ -2,6 +2,7 @@
 from collections import Counter, defaultdict
 import json
 from statistics import median
+from composition import validate_committed
 
 
 def typed_keys(raw):
@@ -19,31 +20,32 @@ def typed_keys(raw):
     return "".join(keys), list(auxiliary.items())
 
 
-def requests(cases, anchor=2):
+def requests(cases):
+    """Adapt old archives explicitly; new rows already separate history/commit."""
     controls = {row.get("parent", row["id"]): row for row in cases if row.get("variant") == "whole"}
     for row in cases:
-        context = row["context"]
-        known = row.get("context_reading")
-        if row.get("committed_text"):
-            known = dict(text=row["committed_text"], input=row["committed_input"])
-            context += known["text"]
+        context, committed = row["context"], row.get("committed")
         code, aux = typed_keys(row["input"])
-        context = context[-64:]
+        if row.get("committed_text"):
+            committed = dict(text=row["committed_text"], input=row["committed_input"])
+        elif row.get("context_reading"):
+            committed = row["context_reading"]
+            if not context.endswith(committed["text"]):
+                raise ValueError("archived reading does not match visible context")
+            context = context[:-len(committed["text"])]
         control = row.get("whole_control") or controls.get(row.get("parent"))
-        if known is None and control is not None and control is not row:
-            # Recover only readings of text ALREADY visible in the committed
-            # context. No untyped target characters enter a decoding request.
+        if committed is None and control is not None and control is not row:
+            # Recover only the prefix already visible in the archived state.
             full_code, _ = typed_keys(control["input"])
             for end in range(1, len(control["gold"][0])):
                 prefix = control["gold"][0][:end]
                 if (context == (control["context"] + prefix)[-64:]
                         and full_code[2 * end:].startswith(code)):
-                    known = dict(text=prefix[-64:], input=full_code[max(0,2*end-128):2*end])
+                    committed = dict(text=prefix, input=full_code[:2*end])
+                    context = control["context"]
                     break
-        if known is not None:
-            if not context.endswith(known["text"]) or len(known["input"]) != 2 * len(known["text"]):
-                raise ValueError("committed reading does not match the visible context")
-        yield dict(context=context, input=code, anchor=anchor, known=known, aux=aux)
+        validate_committed(committed)
+        yield dict(context=context, input=code, committed=committed, aux=aux)
 
 
 def request_key(request):

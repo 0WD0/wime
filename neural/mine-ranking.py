@@ -11,6 +11,7 @@ import subprocess
 import time
 
 from conditional import ROOT
+from composition import ENCODING
 from inference import ConditionalEvaluator
 from replay import Protection, fingerprint, rows
 from ranking import ranking_composition, spelling_equivalent
@@ -46,7 +47,7 @@ def main():
             rng = random.Random(sample_key)
             row = ranking_composition(row, rng, args.whole_share)
             # A bare one-character homophone has no reliable intended reading.
-            if len(row["gold"][0]) == 1 and not row["context"]:
+            if len(row["gold"][0]) == 1 and not row["context"] and not row.get("committed"):
                 continue
             if protection.contains(row):
                 counts["protected_span"] += 1
@@ -68,11 +69,11 @@ def main():
                                "--eval", "(setq load-prefer-newer t)", "-l",
                                str(ROOT / "emacs-packages/wime/test/search-conditional.el")],
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
-    evaluator = ConditionalEvaluator(str(args.model), context_anchor=2)
+    evaluator = ConditionalEvaluator(str(args.model))
     args.out.mkdir(parents=True, exist_ok=True)
 
     def search(row, prefix=""):
-        server.stdin.write(json.dumps(dict(input=row["input"], context=row["context"],
+        server.stdin.write(json.dumps(dict(input=row["input"], context=row["context"] + (row.get("committed") or {}).get("text", ""),
                                           prefix=prefix, width=args.width)) + "\n")
         server.stdin.flush()
         line = server.stdout.readline()
@@ -102,12 +103,12 @@ def main():
                     continue
                 texts = [gold] + negatives
                 # Use exactly the context accepted by the editable-buffer policy.
-                row = dict(row, context=answer["context"], input=answer["input"])
+                row = dict(row, input=answer["input"])
                 if protection.contains(row):
                     counts["protected_effective_context"] += 1
                     continue
                 scores, _ = evaluator.evaluate(row["context"], row["input"], texts,
-                                               known_reading=row.get("known_reading"))
+                                               committed=row.get("committed"))
                 joint = [s + .1*candidates[t] for s, t in zip(scores, texts)]
                 hard = max(range(1, len(texts)), key=lambda j:joint[j])
                 gap = joint[0] - joint[hard]
@@ -131,7 +132,7 @@ def main():
         server.wait(timeout=15)
     manifest = dict(counts=counts, sampled=len(samples), seconds=time.monotonic()-start,
                     source_files={str(p):fingerprint(p) for p in (args.model, args.replay, args.diverse, args.database)},
-                    protected_files=protection.files, width=args.width, context_anchor=2,
+                    protected_files=protection.files, width=args.width, encoding=ENCODING,
                     compositions="whole source row or suffix; original row endpoint preserved",
                     seed=args.seed, whole_share=args.whole_share, preserve_committed_reading=True,
                     limitations="Source windows and automatic readings can still be ambiguous; observed text is not proof that every alternate candidate is semantically wrong.",

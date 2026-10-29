@@ -29,7 +29,7 @@ class TrainingData(unittest.TestCase):
             path = root/'train.jsonl'
             path.write_text(''.join(json.dumps(row)+'\n' for row in rows))
             vocab = ['<pad>','<unk>','<bos>']+EXTRA+list('允许便宜行事')
-            data = pack_trajectories(path,root/'cache',vocab,32,Protection([]),2,'trajectories')
+            data = pack_trajectories(path,root/'cache',vocab,32,Protection([]),'trajectories')
             sampler = TrajectorySampler(data,(.6,.2,.2),.25)
             torch.manual_seed(9)
             indices, states = sampler.draw(40)
@@ -53,11 +53,11 @@ class TrainingData(unittest.TestCase):
         row = dict(context='允许',input='bmyix;ui',gold=['便宜行事'])
         continuation = sentence_views(dict(row,id='one',document='one',group='one',source='chat',
             split='train',legacy_span=[2,4],boundaries=[dict(end=2,reason='complete phrase')]))[3]
-        ordinary = dict(context='允许便宜',input='x;ui',gold=['行事'],
-                        known_reading=dict(text='便宜',input='bmyi'))
+        ordinary = dict(context='允许',input='x;ui',gold=['行事'],
+                        committed=dict(text='便宜',input='bmyi'))
         vocab=['<pad>','<unk>','<bos>']+EXTRA+list('允许便宜行事')
         index={c:i for i,c in enumerate(vocab)}
-        self.assertEqual(encode_example(continuation,index,32,2),encode_example(ordinary,index,32,2))
+        self.assertEqual(encode_example(continuation,index,32),encode_example(ordinary,index,32))
 
     def test_sentence_controls_share_groups_and_rng_without_revealing_future(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -69,14 +69,14 @@ class TrainingData(unittest.TestCase):
             rows[0]['category']='technical'
             path.write_text(''.join(json.dumps(r)+'\n' for r in rows))
             vocab=['<pad>','<unk>','<bos>']+EXTRA+list('允许便宜行事')
-            data=pack_trajectories(path,root/'cache',vocab,32,Protection([]),2,'trajectories')
-            control=pack_trajectories(path,root/'cache',vocab,32,Protection([]),2,'legacy-spans')
+            data=pack_trajectories(path,root/'cache',vocab,32,Protection([]),'trajectories')
+            control=pack_trajectories(path,root/'cache',vocab,32,Protection([]),'legacy-spans')
             self.assertEqual(len(data),5)
             self.assertEqual(data.categories.tolist(),[2,1,1,1,1])
             self.assertEqual(data.info['expected_state_shares']['chat'],dict(whole=.6,prefix=.2,continuation=.2))
             self.assertEqual(data.data.filename,control.data.filename)
             self.assertEqual(sentence_views(rows[0])[2]['context'],'允许')
-            self.assertEqual(sentence_views(rows[0])[3]['known_reading'],dict(text='便宜',input='bmyi'))
+            self.assertEqual(sentence_views(rows[0])[3]['committed'],dict(text='便宜',input='bmyi'))
             with patch('torch.rand',return_value=torch.tensor([.1,.6,.9,.9])):
                 x,y=data.batch(np.array([0,0,0,4]),'cpu')
             index={c:i for i,c in enumerate(vocab)}
@@ -85,19 +85,17 @@ class TrainingData(unittest.TestCase):
             indices=np.arange(5)
             torch.manual_seed(5); data.batch(indices,'cpu'); after=torch.rand(3)
             torch.manual_seed(5); control.batch(indices,'cpu'); torch.testing.assert_close(after,torch.rand(3))
-            anchored=pack_trajectories(path,root/'cache',vocab,32,Protection([]),0,'legacy-spans')
-            self.assertNotEqual(anchored.data.filename,control.data.filename)
             held=root/'held.json';held.write_text(json.dumps([dict(rows[0],gold=['无关'])]))
-            filtered=pack_trajectories(path,root/'cache',vocab,32,Protection([held]),2,'trajectories')
+            filtered=pack_trajectories(path,root/'cache',vocab,32,Protection([held]),'trajectories')
             self.assertEqual(len(filtered),4)
             dev_path=root/'dev.jsonl'
             dev_path.write_text(json.dumps(dict(rows[0],split='dev'))+'\n')
-            held_dev=pack_trajectories(dev_path,root/'cache',vocab,32,Protection([held]),2,'trajectories')
+            held_dev=pack_trajectories(dev_path,root/'cache',vocab,32,Protection([held]),'trajectories')
             self.assertEqual(len(held_dev),1)
 
             for row in rows[1:]:row['boundaries']=[]
             path.write_text(''.join(json.dumps(r)+'\n' for r in rows))
-            sparse=pack_trajectories(path,root/'cache',vocab,32,Protection([]),2,'trajectories')
+            sparse=pack_trajectories(path,root/'cache',vocab,32,Protection([]),'trajectories')
             with patch('torch.rand',return_value=torch.tensor([.1])):
                 _,y=sparse.batch(np.array([0]),'cpu')
             self.assertEqual(y[y!=0].tolist(),[index[c] for c in '便宜行事']+[index['\ue2e2']])

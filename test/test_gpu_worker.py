@@ -52,18 +52,18 @@ class WorkerContract(unittest.TestCase):
                                   "--database", "words", "--rescorer-weight", "1.5",
                                   "--japanese-model", "kana", "--japanese-table", "table"])
         original = SimpleNamespace(Decoder=mock.Mock(), Units=mock.Mock())
+        text = SimpleNamespace(TextDecoder=mock.Mock())
         table, evaluator = object(), object()
         model = SimpleNamespace(readings=mock.Mock(return_value=table))
-        with mock.patch.dict(sys.modules, decoder=original, decoding_model=model), \
-                mock.patch("rescorer.Rescorer") as hf, \
-                mock.patch("text_decoder.TextDecoder") as text:
+        with mock.patch.dict(sys.modules, decoder=original, decoding_model=model, text_decoder=text), \
+                mock.patch("rescorer.Rescorer") as hf:
             rescorer = worker.make_rescorer(args)
             result = worker.make_decoder(args, evaluator, rescorer)
         hf.assert_called_once_with("qwen", 1.5)
         original.Units.assert_called_once_with(rescorer.tokenizer, table)
         original.Decoder.assert_called_once_with(evaluator, rescorer, original.Units.return_value)
         self.assertIs(result, original.Decoder.return_value)
-        text.assert_not_called()
+        text.TextDecoder.assert_not_called()
         for assets in ([], ["--rescorer", "qwen"], ["--database", "words"]):
             with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 worker.parse_args(["model", "--backend", "legacy"] + assets)
@@ -107,9 +107,27 @@ class WorkerContract(unittest.TestCase):
             self.assertIsNone(result["promoted"])
             self.assertNotIn("score", result)
 
+    def test_verify_preserves_history_keys_and_visible_rescorer_context(self):
+        fixed = dict(text="便宜", input="bmyi", aux=[[0, "a"]])
+        request = self.request(context="允许", input="x;ui", draft="行事", committed=fixed)
+        evaluator = mock.Mock()
+        evaluator.evaluate.return_value = ([-.2], [None])
+        evaluator.proposals.return_value = []
+        rescorer = mock.Mock()
+        rescorer.combine.return_value = [-.2]
+        rescorer.proposals.return_value = []
+        worker.validate(request)
+        worker.respond(evaluator, request, rescorer)
+        evaluator.evaluate.assert_called_once_with("允许", "x;ui", ["行事"], committed=fixed)
+        rescorer.combine.assert_called_once_with("允许便宜", ["行事"], [-.2])
+        rescorer.proposals.assert_called_once_with("允许便宜", "行事")
+        for fixed in (dict(text="便宜", input="bm"), dict(text="便宜", input="pmy!")):
+            with self.assertRaises(ValueError):
+                worker.validate(dict(request, committed=fixed))
+
     def test_invalid_keyboard_or_window_retains_the_traditional_draft(self):
         class OutOfRange:
-            def evaluate(self, *_):
+            def evaluate(self, *_, **kwargs):
                 raise ValueError("unencodable composition")
         result = worker.respond(OutOfRange(), self.request())
         self.assertNotIn("score", result)
@@ -117,7 +135,7 @@ class WorkerContract(unittest.TestCase):
 
     def test_seed_uses_joint_scores_and_original_complete_candidate_indices(self):
         class Evaluator:
-            def evaluate(self, context, code, texts):
+            def evaluate(self, context, code, texts, committed=None):
                 self.texts = texts
                 return [-1, -1.1], ["first", "second"]
 
@@ -144,7 +162,7 @@ class WorkerContract(unittest.TestCase):
 
     def test_confident_seed_reports_the_weight_used_for_later_rounds(self):
         class Evaluator:
-            def evaluate(self, context, code, texts):
+            def evaluate(self, context, code, texts, committed=None):
                 return [-.05, -.2], [None, None]
 
             def proposals(self, draft, distribution, margin):
@@ -162,7 +180,7 @@ class WorkerContract(unittest.TestCase):
 
     def test_rescorer_joins_seed_selection_but_not_the_confidence_gate(self):
         class Evaluator:
-            def evaluate(self, context, code, texts):
+            def evaluate(self, context, code, texts, committed=None):
                 return [-.05, -.2], ["first", "second"]
 
             def proposals(self, draft, distribution, margin):
@@ -192,7 +210,7 @@ class WorkerContract(unittest.TestCase):
 
     def test_learned_reading_bonus_chooses_the_seed_without_changing_its_score(self):
         class Evaluator:
-            def evaluate(self, context, code, texts):
+            def evaluate(self, context, code, texts, committed=None):
                 return [-1, -3], [None, None]
 
             def proposals(self, draft, distribution, margin):
@@ -210,17 +228,18 @@ class WorkerContract(unittest.TestCase):
 
     def test_decode_passes_pins_and_learned_readings_and_needs_a_decoder(self):
         class Decoder:
-            def decode(self, *args):
-                self.args = args
+            def decode(self, *args, **kwargs):
+                self.args, self.kwargs = args, kwargs
                 return [("便宜", -.5)]
 
         request = self.request(operation="decode", input="bmy", syllables=2, draft="",
-                               context_anchor=2, pins=[[0, "便"]], learned=[[0, "便宜"]], memory_weight=10.0)
+                               pins=[[0, "便"]], learned=[[0, "便宜"]], memory_weight=10.0)
         decoder = Decoder()
-        self.assertEqual(worker.respond(None, request, None, decoder)["candidates"], [["便宜", -.5]])
-        self.assertEqual(decoder.args, ("", "bmy", 2, None, [(0, "便")], [(0, "便宜")], 10.0, []))
-        worker.respond(None, dict(request, aux=[[1, "kp"]]), None, decoder)
-        self.assertEqual(decoder.args[-1], [(1, "kp")])
+        self.assertEqual(worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), request, None, decoder)["candidates"], [["便宜", -.5]])
+        self.assertEqual(decoder.args, ("", "bmy"))
+        self.assertEqual(decoder.kwargs, dict(pins=[(0,"便")], learned=[(0,"便宜")], weight=10., aux=[]))
+        worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), dict(request, aux=[[1, "kp"]]), None, decoder)
+        self.assertEqual(decoder.kwargs["aux"], [(1,"kp")])
         self.assertEqual(worker.respond(None, request)["candidates"], [])
         for change in (dict(input="bmA"), dict(pins=[[0, "便宜"]]), dict(pins=[["0", "便"]]),
                        dict(learned=[[0, ""]]), dict(learned=[0]), dict(memory_weight=-1),

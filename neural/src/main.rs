@@ -13,9 +13,17 @@ struct Candidate {
 }
 
 #[derive(Deserialize)]
+struct Committed {
+    text: String,
+    input: String,
+}
+
+#[derive(Deserialize)]
 struct Request {
     id: u64,
     context: String,
+    #[serde(default)]
+    committed: Option<Committed>,
     syllables: usize,
     candidates: Vec<Candidate>,
     #[serde(default)]
@@ -62,6 +70,29 @@ fn prompt(context: &str, input: &str, window: usize) -> Option<String> {
     Some(result)
 }
 
+fn composition_prompt(
+    context: &str,
+    input: &str,
+    window: usize,
+    committed: Option<&Committed>,
+) -> Option<String> {
+    let Some(fixed) = committed else {
+        return prompt(context, input, window);
+    };
+    let size = fixed.text.chars().count();
+    if size == 0
+        || fixed.input.len() != 2 * size
+        || !fixed.text.chars().all(|c| ('㐀'..='鿿').contains(&c))
+        || !fixed.input.chars().all(|c| KEYS.contains(c))
+    {
+        return None;
+    }
+    if size + input.len().div_ceil(2) > window.checked_sub(4)? / 2 {
+        return prompt(&(context.to_owned() + &fixed.text), input, window);
+    }
+    Some(prompt(context, &(fixed.input.clone() + input), window)? + &fixed.text)
+}
+
 fn verify(reranker: &mut Reranker, request: &Request, conditional: bool) -> Response {
     let start = Instant::now();
     let mut response = Response {
@@ -77,10 +108,11 @@ fn verify(reranker: &mut Reranker, request: &Request, conditional: bool) -> Resp
     {
         return response;
     }
-    if let Some(prompt) = prompt(
+    if let Some(prompt) = composition_prompt(
         &request.context,
         &request.input,
         reranker.model().context_length(),
+        request.committed.as_ref(),
     ) {
         if let Some(distributions) = reranker.verify(&prompt, &request.draft) {
             let vocabulary: Vec<(char, usize)> = ('\u{3400}'..='\u{9fff}')
@@ -120,7 +152,12 @@ fn evaluate(reranker: &mut Reranker, request: &Request) -> Response {
         .iter()
         .all(|s| s.chars().count() < reranker.model().context_length());
     let promoted = if in_window && request.syllables > 0 {
-        reranker.best_where(&request.context, &texts, |i| CandidateFacts {
+        let context = request.context.clone()
+            + request
+                .committed
+                .as_ref()
+                .map_or("", |fixed| fixed.text.as_str());
+        reranker.best_where(&context, &texts, |i| CandidateFacts {
             answers_key: request.candidates[i].end == request.syllables,
             trusted_dictionary_hit: request.candidates[i].dictionary,
         })
@@ -181,6 +218,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn committed_prefix_keeps_identical_conditioning() {
+        let history = "前文".repeat(32);
+        let fixed = Committed {
+            text: "甲乙".into(),
+            input: "aabb".into(),
+        };
+        assert_eq!(
+            composition_prompt(&history, "ccdd", 128, Some(&fixed)),
+            Some(prompt(&history, "aabbccdd", 128).unwrap() + "甲乙")
+        );
+        assert_eq!(
+            composition_prompt("历史", "ccddeeff", 12, Some(&fixed)),
+            prompt("历史甲乙", "ccddeeff", 12)
+        );
+        assert!(composition_prompt(
+            "",
+            "cc",
+            128,
+            Some(&Committed {
+                text: "甲乙".into(),
+                input: "aa".into()
+            })
+        )
+        .is_none());
+    }
 
     #[test]
     fn prompt_preserves_distinct_keys_and_bounds_context() {

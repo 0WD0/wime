@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 from safetensors.torch import save_file
 
-from conditional import grow_depth, load_model, FORMAT
+from conditional import grow_depth, load_model, FORMAT, ENCODING
 from ranking import encode_candidate, candidate_scores, preference_loss
 from replay import Protection, split_path
 from training_data import pack_examples, pack_trajectories, supervised_logits, training_characters, TrajectorySampler
@@ -54,8 +54,6 @@ def main():
                    help="fraction of training rows replaced by 2-5 character composition spans")
     p.add_argument("--single-share", type=float, default=0.0)
     p.add_argument("--whitespace-share", type=float, default=0.0)
-    p.add_argument("--context-anchor", type=int, default=0,
-                   help="encode ordinary training with the deployed committed-prefix representation")
     p.add_argument("--sampling", choices=("rows", "legacy-spans", "trajectories"), default="rows")
     p.add_argument("--extra-sampling", choices=("rows", "legacy-spans", "trajectories"),
                    help="sampling for the extra corpus; defaults to primary sampling")
@@ -98,7 +96,7 @@ def main():
     if (args.steps < 1 or args.batch < 1 or not 0 <= args.extra_share <= 1
             or not 0 <= args.span_share <= 1 or not 0 <= args.single_share <= 1
             or args.span_share + args.single_share > 1
-            or not 0 <= args.whitespace_share <= 1 or args.learning_rate <= 0 or args.context_anchor < 0
+            or not 0 <= args.whitespace_share <= 1 or args.learning_rate <= 0
             or args.reference_weight < 0 or (args.reference_weight and not args.reference_model)
             or args.ranking_weight < 0 or args.ranking_batch < 1 or args.save_every < 0
             or not math.isfinite(args.ranking_prior_weight) or args.ranking_prior_weight < 0
@@ -131,12 +129,12 @@ def main():
             if args.span_share or args.single_share or args.whitespace_share or args.limit:
                 p.error("sentence sampling uses canonical groups without row augmentation")
             data = pack_trajectories(split_path(directory,split),args.encoded_cache,vocab,window,
-                                     protection,args.context_anchor,sampling)
+                                     protection,sampling)
         else:
             data = pack_examples(split_path(directory, split), args.encoded_cache, vocab, window,
                              protection, seed=args.seed, span_share=args.span_share,
                              single_share=args.single_share, whitespace_share=args.whitespace_share,
-                             limit=args.limit, context_anchor=args.context_anchor)
+                             limit=args.limit)
         exclusions.update({f"{directory}/{split}/{key}": value
                            for key, value in data.info["exclusions"].items()})
         if split == "train":
@@ -208,6 +206,7 @@ def main():
                 "extra_training_examples": len(extra_train) if extra_train is not None else 0,
                 "extra_validation_examples": len(extra_dev) if extra_dev is not None else 0,
                 "exclusions": dict(exclusions), "format": FORMAT, "config": dataclasses.asdict(model.cfg)}
+    settings["encoding"] = ENCODING
     settings["compositions"] = dict(compositions)
     if state_samplers:
         settings["state_sampling"] = {name: state_samplers[id(data)].info
@@ -229,7 +228,7 @@ def main():
         settings["extra_manifest"] = json.loads((args.extra_data / "manifest.json").read_text())
     if args.ranking_data:
         settings["ranking_sha256"] = hashlib.file_digest(args.ranking_data.open("rb"), "sha256").hexdigest()
-        settings["ranking_objective"] = dict(context_anchor=2, prior_weight=args.ranking_prior_weight, margin=.2,
+        settings["ranking_objective"] = dict(encoding=ENCODING, prior_weight=args.ranking_prior_weight, margin=.2,
                                              temperature=.1, score="mean new-character log probability; no EOS")
     (args.out / "run.json").write_text(json.dumps(settings, ensure_ascii=False, indent=2) + "\n")
     start, best = time.monotonic(), float("inf")
@@ -346,7 +345,7 @@ def main():
             if improved or checkpoint:
                 tensors = {k: v.detach().half().cpu().contiguous() for k, v in model.state_dict().items()
                            if k != "head.weight"}
-                info = dict(metadata, config=json.dumps(dataclasses.asdict(model.cfg)),
+                info = dict(metadata, encoding=ENCODING, config=json.dumps(dataclasses.asdict(model.cfg)),
                             vocab=json.dumps(vocab, ensure_ascii=False), precision="f16", conditional=FORMAT,
                             validation_loss=str(validation), training_steps=str(step),
                             ranking_weight=str(args.ranking_weight),

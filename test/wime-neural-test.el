@@ -25,47 +25,87 @@
                   (if (and (equal context "真刀真") (equal word "枪")) 1.0 0.0))))
        ,@body)))
 
-(ert-deftest wime-neural-committed-reading-retains-typed-polyphonic-keys ()
+(ert-deftest wime-neural-commits-retain-original-history-and-actual-input ()
   (let ((wime-user-database nil))
     (with-temp-buffer
-      (setq wime--input "bmyi"
-            wime--candidate-records (list (wime--make-candidate :text "便宜" :end 2)))
-      (wime--commit "便宜")
-      (should (equal (wime--context-reading (wime--context)) '((text . "便宜") (input . "bmyi"))))
-      (setq wime--input "x;ui"
-            wime--candidate-records (list (wime--make-candidate :text "行事" :end 2)))
-      (wime--commit "行事")
-      (should (equal (alist-get 'input (wime--context-reading (wime--context))) "bmyix;ui"))
+      (let ((history (make-string 64 ?史)))
+        (insert history)
+        (setq wime--input "bmAyi"
+              wime--candidate-records (list (wime--make-candidate :text "便宜" :end 2)))
+        (wime--commit "便宜")
+        (let ((state (wime--composition-state)))
+          (should (equal (alist-get 'context state) history))
+          (should (equal (alist-get 'committed state)
+                         '((text . "便宜") (input . "bmyi") (aux . [[0 "a"]]))))))
+      (setq wime--input (apply #'concat (make-list 10 "x;uiB"))
+            wime--candidate-records
+            (list (wime--make-candidate :text (apply #'concat (make-list 10 "行事")) :end 20)))
+      (wime--commit (wime-candidate-text (car wime--candidate-records)))
+      (let* ((state (wime--composition-state)) (fixed (alist-get 'committed state)))
+        (should (= (length (alist-get 'context state)) 64))
+        (should (= (length (alist-get 'text fixed)) 22))
+        (should (equal (alist-get 'input fixed) (concat "bmyi" (apply #'concat (make-list 10 "x;ui")))))
+        (should (equal (aref (alist-get 'aux fixed) 10) [21 "b"])))
       (let ((wime-database-file "another-scheme.db"))
-        (should-not (wime--context-reading (wime--context))))
+        (should-not (alist-get 'committed (wime--composition-state))))
       (setq-local wime-context-start-function (lambda () (- (point) 1)))
-      (should (equal (wime--context-reading (wime--context)) '((text . "事") (input . "ui"))))
-      (setq-local wime-context-start-function #'point)
-      (should-not (wime--context-reading (wime--context)))
+      (should-not (alist-get 'committed (wime--composition-state)))
       (setq-local wime-context-start-function nil)
       (insert " ")
-      (should-not (wime--context-reading (wime--context)))
+      (should-not (alist-get 'committed (wime--composition-state)))
       (delete-char -1)
-      (should-not (wime--context-reading (wime--context))))))
+      (should-not (alist-get 'committed (wime--composition-state))))))
 
-(ert-deftest wime-neural-request-snapshots-the-committed-reading ()
+(ert-deftest wime-neural-request-snapshots-the-composition-state ()
   (let ((wime-user-database nil))
     (with-temp-buffer
+      (insert "允许")
       (setq wime--input "bmyi"
             wime--candidate-records (list (wime--make-candidate :text "便宜" :end 2)))
       (wime--commit "便宜")
       (setq wime--input "x;ui"
             wime--candidate-records (list (wime--make-candidate :text "行事" :end 2 :score 0)))
       (let ((wime-neural-mode t) (wime-neural-model-file "model") (wime-neural--failed nil)
-            (wime-neural-search-method 'verify) (wime-neural-context-anchor 2) scheduled)
+            (wime-neural-search-method 'verify) scheduled)
         (wime-neural-test--mspy
          (cl-letf (((symbol-function 'run-with-timer)
                     (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
            (wime-neural--schedule))
          (let ((request (json-parse-string (wime-neural--request scheduled) :object-type 'alist)))
-           (should (= (alist-get 'context_anchor request) 2))
-           (should (equal (alist-get 'input (alist-get 'context_reading request)) "bmyi"))
+           (should (equal (alist-get 'encoding request) "wime-composition-v2"))
+           (should (equal (alist-get 'context request) "允许"))
+           (should (equal (alist-get 'input (alist-get 'committed request)) "bmyi"))
            (should (equal (alist-get 'input request) "x;ui"))))))))
+
+(ert-deftest wime-neural-raw-commit-ends-the-confirmed-segment ()
+  (let ((wime-user-database nil))
+    (with-temp-buffer
+      (setq wime--input "bmyi"
+            wime--candidate-records (list (wime--make-candidate :text "便宜" :end 2)))
+      (wime--commit "便宜")
+      (setq wime--input "raw")
+      (wime--commit nil)
+      (should (equal (wime--composition-state) '((context . "便宜raw")))))))
+
+(ert-deftest wime-neural-job-notices-history-changes-beyond-visible-tail ()
+  (let ((wime-user-database nil))
+    (with-temp-buffer
+      (insert (make-string 64 ?史))
+      (setq wime--input "bmyi"
+            wime--candidate-records (list (wime--make-candidate :text "便宜" :end 2)))
+      (wime--commit "便宜")
+      (setq wime--input "x;ui"
+            wime--candidate-records (list (wime--make-candidate :text "行事" :end 2 :score 0)))
+      (let ((wime-neural-mode t) (wime-neural-model-file "model") (wime-neural--failed nil)
+            (wime-neural-search-method 'verify) scheduled)
+        (wime-neural-test--mspy
+         (cl-letf (((symbol-function 'run-with-timer)
+                    (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
+           (wime-neural--schedule))
+         (should (wime-neural--valid-p scheduled))
+         (narrow-to-region 2 (point-max))
+         (should (equal (wime-neural--job-context scheduled) (wime--context)))
+         (should-not (wime-neural--valid-p scheduled)))))))
 
 (ert-deftest wime-neural-single-syllable-retains-contextual-grammar-ranking ()
   (with-temp-buffer
@@ -384,7 +424,7 @@
         (wime-japanese-model-file nil) (wime-japanese-table-file nil)
         wime-neural-rescorer wime-neural-rescorer-weight wime-neural-model-file
         wime-search-width wime-neural-inference-budget wime-neural-prior-weight
-        wime-neural-prior-confidence wime-neural-context-anchor
+        wime-neural-prior-confidence
         wime-neural-single-character wime-neural-seed-candidates wime-neural-search-method
         wime-neural-pool-width)
     (wime-checkpoint--apply '(:path "/m.safetensors"
@@ -575,7 +615,7 @@
         (wime-japanese-model-file nil) (wime-japanese-table-file nil)
         wime-neural-rescorer wime-neural-rescorer-weight wime-neural-model-file
         wime-search-width wime-neural-inference-budget wime-neural-prior-weight
-        wime-neural-prior-confidence wime-neural-context-anchor
+        wime-neural-prior-confidence
         wime-neural-single-character wime-neural-seed-candidates wime-neural-search-method
         wime-neural-pool-width)
     (wime-checkpoint--apply '(:path "/m.safetensors"

@@ -87,7 +87,7 @@ class Decoder(DecodingModel):
 
     # --- search -----------------------------------------------------------
 
-    def decode(self, context, code, anchor=0, known=None, pins=(), learned=(), weight=0.0, aux=()):
+    def decode(self, context, code, pins=(), learned=(), weight=0.0, aux=()):
         """Best complete readings of CODE as [(text, per-character score)].
 
         PINS fix characters by position and AUX (position, keys) restricts a
@@ -95,13 +95,13 @@ class Decoder(DecodingModel):
         LEARNED (start, text) readings earn WEIGHT per covered character. An
         odd CODE ends in half a syllable.
         """
-        key = (context, anchor, repr(known), tuple(learned), weight)
+        key = (context, tuple(learned), weight)
         constraints = {p: ("pin", c) for p, c in pins}
         for p, typed in aux:
             constraints[p] = constraints.get(p, ()) + ("aux", typed)
         session = self.session
         if session is None or session.key != key:
-            session = self.session = Session(self, key, context, anchor, known, constraints, learned, weight)
+            session = self.session = Session(self, key, context, constraints, learned, weight)
         elif session.constraints != constraints:
             # Frontiers before the first changed position cover no constrained one.
             first = min(p for p in set(constraints) | set(session.constraints)
@@ -112,9 +112,9 @@ class Decoder(DecodingModel):
 
 
 class Session:
-    def __init__(self, decoder, key, context, anchor, known, constraints, learned, weight):
+    def __init__(self, decoder, key, context, constraints, learned, weight):
         self.decoder, self.key = decoder, key
-        self.context, self.anchor, self.known = context, anchor, known
+        self.context = context
         self.constraints, self.learned, self.weight = constraints, learned, weight
         self.code, self.kept = "", [[Hypothesis("", (), 0.0, 0.0)]]
         self.memo, self.tails = {}, {}
@@ -227,7 +227,7 @@ class Session:
         characters, or None past its window: then the LM alone ranks."""
         decoder = self.decoder
         try:
-            prompt, self.lm_context = decoder.prompts(self.context, code, self.anchor, self.known)
+            prompt, self.lm_context = decoder.prompts(self.context, code)
         except ValueError:
             prompt = None
         if self.lm_context is None:

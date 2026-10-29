@@ -29,7 +29,7 @@ gpu_runtime(
         "native_rescorer.py",
         "japanese.py",
         "conditional.py",
-        "context-pinyin.json",
+        "composition.py",
         "requirements-gpu.txt",
         "//third_party/chinese-ime-lm:LICENSE",
         "//third_party/chinese-ime-lm/neural:model.py",

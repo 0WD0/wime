@@ -59,7 +59,7 @@ class Toy(TextDecoder):
         self.next_calls, self.tail_calls, self.conditional_texts = [], [], []
         super().__init__(evaluator, rescorer, READINGS, **kwargs)
 
-    def prompts(self, context, code, anchor, known):
+    def prompts(self, context, code):
         return [code], self.lm_ids(context)
 
     def window(self):
@@ -254,20 +254,19 @@ class TextDecoding(unittest.TestCase):
         self.assertEqual(decoder.decode("", "hj"), original)
         self.assertTrue(decoder.last_audit["request_cache_hit"])
 
-    def test_request_key_tracks_context_known_reading_anchor_and_search_settings(self):
+    def test_request_key_tracks_context_and_search_settings(self):
         decoder = Toy(cache_requests=16)
-        for args in [dict(), dict(context="车"), dict(known={"text": "车", "input": "ie"}),
-                     dict(anchor=2)]:
+        for args in [dict(), dict(context="车")]:
             context = args.pop("context", "")
             decoder.decode(context, "hj", **args)
             self.assertFalse(decoder.last_audit["request_cache_hit"])
             decoder.decode(context, "hj", **args)
             self.assertTrue(decoder.last_audit["request_cache_hit"])
         decoder.rewind_tokens = 0
-        decoder.decode("", "hj", anchor=2)
+        decoder.decode("", "hj")
         self.assertFalse(decoder.last_audit["request_cache_hit"])
         decoder.final_mode = "fused"
-        decoder.decode("", "hj", anchor=2)
+        decoder.decode("", "hj")
         self.assertFalse(decoder.last_audit["request_cache_hit"])
 
 

@@ -67,7 +67,7 @@ def summarize(rows):
 def decode(decoder, row, code):
     torch.cuda.synchronize()
     started = time.perf_counter()
-    candidates = decoder.decode(row["context"][-64:], code, anchor=2)
+    candidates = decoder.decode(row["context"][-64:], code)
     torch.cuda.synchronize()
     return [text for text, _ in candidates], 1000 * (time.perf_counter() - started)
 
@@ -179,7 +179,7 @@ def main():
         Path(__file__).with_name(name) for name in ("rescorer.py", "decoder.py", "inference.py", "conditional.py")]]}
     plan = dict(seed=args.seed, dev_ids=[r["id"] for r in dev], test_ids=[r["id"] for r in test],
                 extra_test_ids=[r["id"] for r in extra], no_typing=args.no_typing,
-                weights=args.weights, context_characters=64, context_anchor=2, sources=sources, code=code,
+                weights=args.weights, context_characters=64, encoding="wime-composition-v2", sources=sources, code=code,
                 selection="Best development top1; ties prefer the weight nearest production 1.5, then lower weight.",
                 timing="Warm backend decode only; no Emacs/IPC/40ms debounce; fresh session per full composition.")
     plan_path = args.output / "plan.json"

@@ -39,7 +39,7 @@ def main():
         lm = Rescorer(settings["path"], settings["weight"])
         table = readings(plan["database"])
         decoder = TextDecoder(evaluator, lm, table, **plan["decoder_parameters"])
-        decoder.decode("", "nihk", anchor=2)
+        decoder.decode("", "nihk")
         summaries = {}
         for suite_name, suite in plan["suites"].items():
             assert digest(suite["path"]) == suite["sha256"]
@@ -49,7 +49,7 @@ def main():
                 for row in rows:
                     torch.cuda.synchronize()
                     started = time.perf_counter()
-                    candidates = decoder.decode(row["context"], row["input"], anchor=2,
+                    candidates = decoder.decode(row["context"], row["input"],
                                                 pins=row.get("pins", ()), aux=row.get("aux", ()))
                     torch.cuda.synchronize()
                     elapsed = 1000 * (time.perf_counter() - started)
@@ -88,7 +88,7 @@ def main():
                         previous = decoder.rewind_tokens
                         decoder.rewind_tokens = 0
                         try:
-                            without = decoder.decode(row["context"], row["input"], anchor=2)
+                            without = decoder.decode(row["context"], row["input"])
                             result["without_healing"] = dict(candidates=without, audit=decoder.last_audit.copy())
                         finally:
                             decoder.rewind_tokens = previous

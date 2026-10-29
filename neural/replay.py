@@ -100,7 +100,7 @@ class Protection:
                     self.documents.add(row["document"])
                 if row.get("group"):
                     self.groups.add(row["group"])
-                context = self.normalize(row.get("context", ""))
+                context = self.normalize(row.get("context", "") + (row.get("committed") or {}).get("text", ""))
                 for gold in row["gold"]:
                     gold = self.normalize(gold)
                     self.exact.add((context[-64:], gold))
@@ -115,7 +115,7 @@ class Protection:
     def contains(self, row):
         if row.get("document") in self.documents or row.get("group") in self.groups:
             return True
-        context = self.normalize(row.get("context", ""))
+        context = self.normalize(row.get("context", "") + (row.get("committed") or {}).get("text", ""))
         for gold in row["gold"]:
             gold = self.normalize(gold)
             if (context[-64:], gold) in self.exact:

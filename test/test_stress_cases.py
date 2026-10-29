@@ -28,7 +28,8 @@ class StressCases(unittest.TestCase):
 
     def test_commit_only_adds_the_known_prefix_and_keeps_the_original_reading(self):
         row = self.rows["test/split-3"]
-        self.assertEqual((row["context"], row["input"], row["gold"]), ("之前真刀真", "qd", ["枪"]))
+        self.assertEqual((row["context"], row["input"], row["gold"]), ("之前", "qd", ["枪"]))
+        self.assertEqual(row["committed"], dict(text="真刀真", input="vfdkvf"))
         self.assertEqual(row["pinyin"], "qiang")
         self.assertEqual(self.row["context"], "之前")
 

@@ -61,7 +61,7 @@ def main():
             search.RESCORED = original_rescored * (4 if wide else 1)
             try:
                 decoder.decode(row["context"][-64:] if context is None else context,
-                               row["input"], anchor=2, pins=pins)
+                               row["input"], pins=pins)
                 session = decoder.session
                 final = session.kept[-1]
                 n = len(row["input"]) // 2

@@ -2,7 +2,8 @@
 import torch
 import math
 
-from conditional import FORMAT, load_model, prompt, anchored_prompt, context_reading, reading_map
+from conditional import FORMAT, load_model
+from composition import composition_prompt
 
 
 def effective_prior_weight(scores, syllables, weight, confidence=1.0):
@@ -21,7 +22,7 @@ def effective_prior_weight(scores, syllables, weight, confidence=1.0):
 
 
 class ConditionalEvaluator:
-    def __init__(self, path, device="cuda", context_anchor=0, proposal_order="position"):
+    def __init__(self, path, device="cuda", proposal_order="position"):
         if proposal_order not in ("position", "gain"):
             raise ValueError("unknown proposal order")
         torch.set_num_threads(4)
@@ -31,7 +32,6 @@ class ConditionalEvaluator:
             raise ValueError("expected a wime-ms-pinyin-v1 conditional model")
         self.model.to(device).eval()
         self.device = device
-        self.context_anchor = context_anchor
         self.proposal_order = proposal_order
         self.index = {c: i for i, c in enumerate(self.vocab)}
         chinese = [i for i, c in enumerate(self.vocab)
@@ -40,9 +40,8 @@ class ConditionalEvaluator:
         self.chinese_chars = [self.vocab[i] for i in chinese]
 
     @torch.inference_mode()
-    def evaluate(self, context, code, texts, context_anchor=None, known_reading=None):
-        limit = self.context_anchor if context_anchor is None else context_anchor
-        prefix = anchored_prompt(context, code, self.model.cfg.context, limit, known_reading)
+    def evaluate(self, context, code, texts, committed=None):
+        prefix = composition_prompt(context, code, self.model.cfg.context, committed)
         pre = [2] + [self.index.get(c, 1) for c in prefix]
         encoded = [[self.index.get(c, 1) for c in text] for text in texts]
         if any(len(pre) + len(t) > self.model.cfg.context for t in encoded):

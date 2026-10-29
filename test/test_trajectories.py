@@ -44,9 +44,9 @@ class Trajectories(unittest.TestCase):
         self.assertEqual(full, dict(context=row["context"],input=row["input"]))
         self.assertEqual(pairs[0]["prefix"],dict(context=row["context"],input=row["input"][:8]))
         suffix = pairs[0]["continuation"]
-        self.assertEqual(suffix["context"], "刚才聊到我们明天")
+        self.assertEqual(suffix["context"], "刚才聊到")
         self.assertEqual(suffix["input"], row["input"][8:])
-        self.assertEqual(suffix["known"],dict(text="我们明天",input=row["input"][:8]))
+        self.assertEqual(suffix["committed"],dict(text="我们明天",input=row["input"][:8]))
         self.assertEqual(row,before)
         for invalid in ([dict(end=8,reason="空后缀")], [dict(end=4,reason="")],
                         [dict(end=4,reason="重复")]*2):

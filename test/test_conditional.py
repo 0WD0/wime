@@ -9,7 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import composition_span, encode_example, input_tokens, prompt, INPUT, OUTPUT, EOS
 from conditional import CharLM, Config, grow_depth
 from conditional import augment_composition
-from inference import anchored_prompt, ConditionalEvaluator, effective_prior_weight
+from inference import ConditionalEvaluator, effective_prior_weight
+from composition import composition_prompt
 
 
 class Conditioning(unittest.TestCase):
@@ -35,27 +36,13 @@ class Conditioning(unittest.TestCase):
         self.assertEqual(position, ["乙", "甲乙"])
         self.assertEqual(gain, ["甲乙", "乙"])
 
-    def test_anchor_keeps_committed_prefix_and_actual_distinct_keys(self):
-        known = dict(text="便宜", input="bmyi")
-        actual = anchored_prompt("允许便宜", "x;ui", 128, 2, known)
-        self.assertEqual(actual, prompt("允许", "bmyix;ui") + "便宜")
-        self.assertNotEqual(actual, anchored_prompt("允许便宜", "x;ui", 128, 2,
-                                                    dict(text="便宜", input="pmyi")))
-        self.assertEqual(anchored_prompt("真刀真", "qd", 128, 0), prompt("真刀真", "qd"))
-        self.assertEqual(anchored_prompt("真刀真。", "qd", 128, 2), prompt("真刀真。", "qd"))
-        self.assertEqual(anchored_prompt("真刀真", "qd", 128, 2), prompt("真", "dkvfqd") + "刀真")
-        # Long current input consumes the budget; fixed context is shortened
-        # rather than dropping any newly typed syllables or scored characters.
-        pre = anchored_prompt("已确认的中文前缀" * 12, "aa" * 60, 128, 8)
-        self.assertLessEqual(1 + len(pre) + 60, 128)
-
     def test_ordinary_training_matches_committed_inference_without_scoring_prefix(self):
         row = dict(context="允许", input="bmyix;ui", gold=["便宜行事"])
         suffix = composition_span(row, 2, 4)
-        expected = anchored_prompt(suffix["context"], suffix["input"], 128, 2,
+        expected = composition_prompt(suffix["context"], suffix["input"], 128,
                                    dict(text="便宜", input="bmyi"))
         index = {c:i+3 for i,c in enumerate(sorted(set(expected + "行事" + EOS)))}
-        x, y = encode_example(suffix, index, 128, context_anchor=2)
+        x, y = encode_example(suffix, index, 128)
         self.assertEqual(x[:1+len(expected)], [2] + [index[c] for c in expected])
         self.assertEqual([value for value in y if value], [index[c] for c in "行事"+EOS])
         self.assertNotIn("行事", expected)
@@ -65,7 +52,7 @@ class Conditioning(unittest.TestCase):
                    pinyin="bian yi xing shi")
         for seed in range(20):
             sample = augment_composition(row, random.Random(seed), single_share=1)
-            start = len(sample["context"]) - len(row["context"])
+            start = len(sample.get("committed", {}).get("text", ""))
             self.assertEqual(sample["input"], row["input"][2 * start:2 * start + 2])
             self.assertEqual(sample["gold"], [row["gold"][0][start]])
         single = dict(context="前文", input="qd", gold=["枪"])
@@ -91,7 +78,8 @@ class Conditioning(unittest.TestCase):
         row = dict(context="这个", input="bud;yij;heb;le", gold=["补丁已经合并了"],
                    pinyin="bu ding yi jing he bing le", document="training-document")
         span = composition_span(row, 2, 6)
-        self.assertEqual(span["context"], "这个补丁")
+        self.assertEqual(span["context"], "这个")
+        self.assertEqual(span["committed"], dict(text="补丁", input="bud;"))
         self.assertEqual(span["input"], "yij;heb;")
         self.assertEqual(span["gold"], ["已经合并"])
         self.assertEqual(span["pinyin"], "yi jing he bing")
@@ -107,7 +95,7 @@ class Conditioning(unittest.TestCase):
                    reading_evidence={"frontend_before_sandhi": ["hen3", "hao3", "ba1"],
                                      "final": ["hen2", "hao3", "ba5"]})
         span = composition_span(row, 1, 3)
-        self.assertEqual(span["context"], "觉得很")
+        self.assertEqual(span["context"], "觉得")
         self.assertEqual(span["offset"], 18)
         for field in ("pinyin", "tones", "tone_sources", "reading_rules"):
             self.assertEqual(span[field], row[field][1:3])

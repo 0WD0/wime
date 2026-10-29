@@ -22,7 +22,7 @@ def states(row):
     for boundary in row["boundaries"]:
         end = boundary["end"]
         prefix = dict(context=context, input=code[:2 * end])
-        continuation = dict(context=(context + text[:end])[-64:], input=code[2 * end:],
-                            known=dict(text=text[:end], input=code[:2 * end]))
+        continuation = dict(context=context, input=code[2 * end:],
+                            committed=dict(text=text[:end], input=code[:2 * end]))
         pairs.append(dict(**boundary, prefix=prefix, continuation=continuation))
     return full, pairs

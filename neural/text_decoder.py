@@ -157,10 +157,10 @@ class TextDecoder(DecodingModel):
                                         [tuple(s[common:]) for s in chunk]))
         return [score / len(text) for score, text in zip(scores, texts)], "joint_canonical"
 
-    def decode(self, context, code, anchor=0, known=None, pins=(), learned=(),
+    def decode(self, context, code, pins=(), learned=(),
                weight=0.0, aux=()):
         if not self.cache_requests:
-            return self._decode(context, code, anchor, known, pins, learned, weight, aux)
+            return self._decode(context, code, pins, learned, weight, aux)
         from request_cache import RequestCache
         if self._requests is None:
             self._requests = RequestCache(self.cache_requests)
@@ -168,7 +168,7 @@ class TextDecoder(DecodingModel):
         # exactly the same constraints. Model weights/vocabulary are fixed for
         # the lifetime of this decoder, as for its lower-level score caches.
         pins, learned, aux = tuple(pins), tuple(learned), tuple(aux)
-        key = (context, code, anchor, repr(known), repr(pins), repr(learned), weight,
+        key = (context, code, repr(pins), repr(learned), weight,
                repr(aux), self.beam, self.per_hypothesis, self.rewind_tokens,
                self.guide_weight, self.final_mode, self.paths_per_surface,
                self.weight, self.memo_limit, self.cache_prefix, self.cache_guide,
@@ -183,14 +183,14 @@ class TextDecoder(DecodingModel):
             if self._branch_lm is not None:
                 self.last_audit["path_cache"] = self._branch_lm.stats.copy()
             return previous["candidates"]
-        candidates = self._decode(context, code, anchor, known, pins, learned, weight, aux)
+        candidates = self._decode(context, code, pins, learned, weight, aux)
         self.last_audit["request_cache_hit"] = False
         self._requests.put(key, dict(candidates=candidates, audit=self.last_audit,
                                      components=self.last_components))
         return candidates
 
     @torch.inference_mode()
-    def _decode(self, context, code, anchor=0, known=None, pins=(), learned=(),
+    def _decode(self, context, code, pins=(), learned=(),
                 weight=0.0, aux=()):
         self.last_audit = dict(lm_rows=0, expanded_paths=0, expanded_tokens=0,
                                frontiers=0, guide_texts=0, final_mode=self.final_mode,
@@ -218,7 +218,7 @@ class TextDecoder(DecodingModel):
         prompt = None
         if self.evaluator is not None and complete and (self.guide_weight or self.final_mode == "fused"):
             try:
-                prompt, _ = self.prompts(context[-64:], code[:2*complete], anchor, known)
+                prompt, _ = self.prompts(context[-64:], code[:2*complete])
                 if len(prompt) + constraint.syllables > self.window():
                     prompt = None
             except ValueError:

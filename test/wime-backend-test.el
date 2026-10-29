@@ -8,7 +8,7 @@
         (wime-backend-native-library "/bridge.so") (wime-backend-native-model "/model.gguf")
         (wime-neural-model-file "/conditional") (wime-neural-search-method 'decode)
         wime-search-width wime-neural-inference-budget wime-neural-prior-weight
-        wime-neural-prior-confidence wime-neural-context-anchor wime-neural-single-character
+        wime-neural-prior-confidence wime-neural-single-character
         wime-neural-seed-candidates wime-neural-rescorer-weight wime-neural-pool-width)
     (let ((recipe (list :path "/conditional" :profile (wime-checkpoint-profile))))
       (setq wime-backend-model 'qwen-hf wime-backend-native-model nil)

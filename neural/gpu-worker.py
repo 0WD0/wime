@@ -21,6 +21,7 @@ import sys
 import time
 
 from inference import ConditionalEvaluator, effective_prior_weight
+from composition import ENCODING, validate_committed, decode as decode_composition
 from rescorer import interleave
 from backends import add_backend_arguments, validate_backend, make_rescorer, make_decoder
 
@@ -53,17 +54,10 @@ def validate(request):
     confidence = request.get("prior_confidence", 1.0)
     if type(confidence) not in (int, float) or not 0 < confidence <= 1:
         raise ValueError("invalid request")
-    anchor = request.get("context_anchor", 0)
-    if type(anchor) is not int or not 0 <= anchor <= 8:
-        raise ValueError("invalid request")
-    known = request.get("context_reading")
-    if known is not None:
-        if (not isinstance(known, dict) or not isinstance(known.get("text"), str)
-                or not isinstance(known.get("input"), str)
-                or len(known["input"]) != 2 * len(known["text"])
-                or any(c not in "abcdefghijklmnopqrstuvwxyz;" for c in known["input"])
-                or not request["context"].endswith(known["text"])):
-            raise ValueError("invalid request")
+    if request.get("encoding", ENCODING) != ENCODING or any(
+            key in request for key in ("context_anchor", "context_reading")):
+        raise ValueError("obsolete composition encoding")
+    validate_committed(request.get("committed"))
     if request.get("operation") == "decode":
         weight = request.get("memory_weight", 0)
         if (any(c not in KEYS for c in request.get("input", ""))
@@ -114,11 +108,11 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
     if request.get("operation") == "decode":
         # Without a decoder the editor keeps its lattice candidates.
         result["candidates"] = [] if decoder is None else [
-            [text, score] for text, score in decoder.decode(
-                request["context"], request.get("input", ""), request.get("context_anchor", 0),
-                request.get("context_reading"), [tuple(p) for p in request.get("pins", [])],
-                [tuple(p) for p in request.get("learned", [])], request.get("memory_weight", 0),
-                [tuple(p) for p in request.get("aux", [])])]
+            [text, score] for text, score in decode_composition(decoder,
+                request["context"], request.get("input", ""), request.get("committed"),
+                window=evaluator.model.cfg.context,
+                pins=request.get("pins", []), learned=request.get("learned", []),
+                weight=request.get("memory_weight", 0), aux=request.get("aux", []))]
         result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
         return result
     if request.get("operation") != "verify":
@@ -132,17 +126,15 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
     seeding = request.get("seed_candidates", False) and bool(candidates)
     texts = [c["text"] for _, c in candidates] if seeding else [draft]
     try:
-        options = (dict(context_anchor=request["context_anchor"],
-                        known_reading=request.get("context_reading"))
-                   if request.get("context_anchor") else {})
-        scores, distributions = evaluator.evaluate(request["context"], code, texts, **options)
+        scores, distributions = evaluator.evaluate(request["context"], code, texts,
+                                                     committed=request.get("committed"))
     except ValueError:
         return result  # Invalid keys or an overlong composition retain traditional candidates.
     prior_weight = (effective_prior_weight(scores, syllables, request["prior_weight"],
                                            request.get("prior_confidence", 1.0)) if seeding else 0.0)
     if rescorer:
         # The confidence gate above stays a model-probability rule.
-        scores = rescorer.combine(request["context"], texts, scores)
+        scores = rescorer.combine(request["context"] + (request.get("committed") or {}).get("text", ""), texts, scores)
     # The editor's learned-reading bonus joins the choice but never the scores
     # returned, to which the editor adds it again.
     selected = (max(range(len(candidates)), key=lambda j: scores[j] +
@@ -158,7 +150,7 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
         result["candidate_scores"] = [[i, score] for (i, _), score in zip(candidates, scores)]
     prefixes = evaluator.proposals(texts[selected], distributions[selected], 0.5)
     if rescorer:
-        prefixes = interleave(rescorer.proposals(request["context"], texts[selected]), prefixes)
+        prefixes = interleave(rescorer.proposals(request["context"] + (request.get("committed") or {}).get("text", ""), texts[selected]), prefixes)
     result.update(score=scores[selected], prefixes=prefixes,
                   evaluated=len(texts),
                   elapsed_ms=1000 * (time.perf_counter() - start))
