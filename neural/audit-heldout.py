@@ -9,7 +9,7 @@ import time
 
 import ahocorasick
 
-from dataset_registry import Registry
+from dataset_registry import Registry, fingerprint
 from replay import rows
 
 
@@ -75,7 +75,12 @@ def audit(proposals, registry):
             registry.verify(name, ["train"])
             source = rows(path)
         else:
-            source = overlap.archived_rows(path, entry["files"]["train"]["sha256"])
+            if "storage" in entry:
+                registry.verify(name, ["train"])
+                expected = fingerprint(path)
+            else:
+                expected = entry["files"]["train"]["sha256"]
+            source = overlap.archived_rows(path, expected)
         count = 0
         for row in source:
             matches = overlap.scan(row)
