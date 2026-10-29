@@ -2,12 +2,13 @@
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
-from dataset_registry import Registry
+from dataset_registry import Registry, DATASET_PYTHON, fingerprint
 from replay import Protection
 
 
@@ -96,6 +97,25 @@ class DatasetRegistry(unittest.TestCase):
                           document="second-turn", group="conversation")
         self.assertTrue(guard.contains(other_turn))
         self.assertFalse(guard.contains(dict(other_turn, group="unrelated")))
+
+    @unittest.skipUnless(DATASET_PYTHON.is_file(), "dataset runtime required")
+    def test_explicit_dvc_stage_rejects_changed_and_missing_content(self):
+        def dvc(*args):
+            subprocess.run([str(DATASET_PYTHON), "-m", "dvc", *args], cwd=self.root,
+                           check=True, capture_output=True)
+        dvc("init", "--no-scm")
+        dvc("add", "storage/example")
+        metadata = self.data.with_suffix(".dvc")
+        entry = dict(storage=dict(type="dvc", metadata=str(metadata.relative_to(self.root)),
+                                  sha256=fingerprint(metadata)))
+        registry = Registry(self.catalog, roots={"repo": self.root})
+        registry._verify_dvc(entry)
+        (self.data / "train.jsonl").write_text('changed\n')
+        with self.assertRaisesRegex(ValueError, "checkout or repair"):
+            registry._verify_dvc(entry)
+        (self.data / "train.jsonl").unlink()
+        with self.assertRaisesRegex(ValueError, "checkout or repair"):
+            registry._verify_dvc(entry)
 
 
 if __name__ == "__main__":
