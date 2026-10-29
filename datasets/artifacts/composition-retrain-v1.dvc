@@ -1,0 +1,6 @@
+outs:
+- md5: 78e4a8c800ff75a4806f344ad2bcd437.dir
+  size: 363410738
+  nfiles: 117
+  hash: md5
+  path: composition-retrain-v1
