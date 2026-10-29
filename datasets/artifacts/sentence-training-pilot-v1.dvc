@@ -1,0 +1,6 @@
+outs:
+- md5: 988ab261ac35367d40d7189edcbb9a1b.dir
+  size: 11667189
+  nfiles: 11
+  hash: md5
+  path: sentence-training-pilot-v1

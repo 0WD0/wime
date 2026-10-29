@@ -1349,6 +1349,139 @@
         "Upstream pretrained model overlap is unknown.",
         "Keep frozen for final evaluation; do not use for checkpoint selection or error-directed training."
       ]
+    },
+    "sentence-training-pilot-v1": {
+      "kind": "corpus",
+      "status": "pilot",
+      "annotation": "gpt-sovits-mandarin-v1",
+      "parents": [
+        "cleaned-multisource-v4"
+      ],
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-training-pilot-v1"
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-training-pilot-v1.dvc",
+        "sha256": "f538d2a720cae76f821b5545d8ceeac14c1426364ed500d3b167f36f7d961252"
+      },
+      "description": "Source-matched sentence controls: 6757 train / 155 dev groups, contextual readings, reviewed boundary rules, legacy span locations; derive training states without duplicating labels.",
+      "exclude": [
+        {
+          "dataset": "programming-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "programming-test-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "stress-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "stress-failures-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "diverse-v1",
+          "files": [
+            "dev",
+            "test",
+            "evaluation"
+          ]
+        },
+        {
+          "dataset": "replay-v1",
+          "files": [
+            "dev"
+          ]
+        },
+        {
+          "dataset": "wdoom-cuda-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "committed-anchor-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "protected-debug-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "accuracy-expansion-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "residual-heldout-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "sentence-trajectories-dev-v1",
+          "files": [
+            "cases"
+          ]
+        }
+      ],
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "train": {
+          "path": "train.jsonl",
+          "format": "jsonl",
+          "rows": 6757
+        },
+        "dev": {
+          "path": "dev.jsonl",
+          "format": "jsonl",
+          "rows": 155
+        },
+        "validation": {
+          "path": "validation.json"
+        },
+        "review": {
+          "path": "selection-review.json"
+        },
+        "rejected": {
+          "path": "rejected.json",
+          "format": "json-array",
+          "rows": 23
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "human_verified_gold": false,
+        "boundaries": "rule-based, agent sample reviewed",
+        "tone_constraint_ready": false
+      },
+      "known_issues": [
+        "Small matched pilot, not the original multi-million-row corpus.",
+        "Boundary rules and source sentences are not individually human reviewed.",
+        "No independent technical-document training allocation.",
+        "Contextual lexical neutral-tone choices need a separate audit."
+      ]
     }
   }
 }
