@@ -139,7 +139,7 @@ def main():
                 pool_scores = scores.copy()
                 prior_weight = effective_prior_weight(scores, syllables, args.prior_weight, args.prior_confidence)
                 if rescorer:
-                    scores = rescored = rescorer.combine(model_context, candidates, scores)
+                    scores = rescored = rescorer.combine(context, candidates, scores)
                 nbest = candidates[int(np.argmax(scores))]
                 seed_index = (max(range(len(records)), key=lambda j: scores[j] +
                                   prior_weight * records[j]["score"] / syllables)
@@ -150,7 +150,7 @@ def main():
                     if calls:
                         scores, distributions = evaluator.evaluate(model_context, model_code, [draft], committed=committed)
                         if rescorer:
-                            scores = rescorer.combine(model_context, [draft], scores)
+                            scores = rescorer.combine(context, [draft], scores)
                         index = 0
                     else:
                         index = seed_index
@@ -165,7 +165,7 @@ def main():
                     proposed = None
                     prefixes = evaluator.proposals(draft, distributions[index], args.margin)
                     if rescorer:
-                        prefixes = interleave(rescorer.proposals(model_context, draft), prefixes)
+                        prefixes = interleave(rescorer.proposals(context, draft), prefixes)
                     for prefix in prefixes:
                         answer = search(code, context, prefix, args.pool_width)
                         full = [c for c in answer["candidates"] if c["end"] == syllables]
