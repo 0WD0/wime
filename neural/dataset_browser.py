@@ -147,9 +147,18 @@ class Browser:
             return result
         if local_documents:
             self.registry.verify(dataset, ["documents"])
-            values = self.db.execute("SELECT to_json(d) FROM read_json(?, sample_size=-1) d WHERE id=?",
-                                     [str(self.registry.path(dataset, "documents")), row["document"]]).fetchall()
-            document = json.loads(values[0][0]) if values else None
+            path = self.registry.path(dataset, "documents")
+            if path.suffix == ".sqlite3":
+                with sqlite3.connect(path.resolve().as_uri()+"?mode=ro&immutable=1",uri=True) as db:
+                    db.row_factory = sqlite3.Row
+                    record = db.execute("SELECT * FROM documents WHERE id=?",[row["document"]]).fetchone()
+                    document = dict(record) if record else None
+                if document and document.get("cleaning"):
+                    document["cleaning"] = json.loads(document["cleaning"])
+            else:
+                values = self.db.execute("SELECT to_json(d) FROM read_json(?, sample_size=-1) d WHERE id=?",
+                                         [str(path), row["document"]]).fetchall()
+                document = json.loads(values[0][0]) if values else None
             record = (document["text"], document["content"]) if document else None
         else:
             if fingerprint(Path(cleaned["path"])) != cleaned["sha256"]:

@@ -25,11 +25,13 @@ class TrainingData(unittest.TestCase):
                          context='允许',input='bmyix;ui',gold=['便宜行事'],legacy_span=[2,4],
                          boundaries=[dict(end=2,reason='complete phrase')] if i<4 else []) for i in range(5)]
             path=root/'train.jsonl'
+            rows[0]['category']='technical'
             path.write_text(''.join(json.dumps(r)+'\n' for r in rows))
             vocab=['<pad>','<unk>','<bos>']+EXTRA+list('允许便宜行事')
             data=pack_trajectories(path,root/'cache',vocab,32,Protection([]),2,'trajectories')
             control=pack_trajectories(path,root/'cache',vocab,32,Protection([]),2,'legacy-spans')
             self.assertEqual(len(data),5)
+            self.assertEqual(data.categories.tolist(),[2,1,1,1,1])
             self.assertEqual(data.info['expected_state_shares']['chat'],dict(whole=.6,prefix=.2,continuation=.2))
             self.assertEqual(data.data.filename,control.data.filename)
             self.assertEqual(sentence_views(rows[0])[2]['context'],'允许')

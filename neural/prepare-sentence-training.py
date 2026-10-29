@@ -130,67 +130,137 @@ def select(args):
 
 
 def annotate(args):
+    import shutil
+    import time
     from corpus_readings import Lexicon, Reader
     from mandarin_frontend import MandarinFrontend
     from corpus_tones import reading_notes, validate_tones, READING_SCHEMA, TONE_POLICY
     from corpus_integrity import reading_assets
     from trajectories import validate
-    selection = json.loads((args.out/'selection.json').read_text())
-    assert selection['proposals_sha256'] == fingerprint(args.out/'proposals.jsonl')
-    proposals = [json.loads(line) for line in (args.out/'proposals.jsonl').read_text().splitlines()]
-    protection = Protection([Path(p) for p in selection['protected']])
-    lexicon = Lexicon(args.database)
-    reader = Reader(lexicon, MandarinFrontend(args.g2pw))
-    counts, records, rejected = Counter(), [], []
-    for i in range(0,len(proposals),32):
-        batch = proposals[i:i+32]
-        readings = reader.readings([r['context']+r['gold'][0]+r['terminal'] for r in batch])
-        for row, reading in zip(batch, readings, strict=True):
-            start=len(row['context']); end=start+len(row['gold'][0])
-            if not all(reading['keys'][start:end]):
-                counts['excluded_unreachable_reading']+=1
-                rejected.append(dict(id=row['id'],reason='unreachable_reading'))
-                continue
-            row.update(input=''.join(reading['keys'][start:end]),pinyin=reading['pinyin'][start:end],tones=reading['tones'][start:end],
-                       reading_window=[max(0,row['offset']-64),row['offset']+len(row['gold'][0])+len(row['terminal'])],
-                       legacy_span=legacy_span(row['gold'][0],lexicon.segment(row['gold'][0]),row['id']))
-            notes = reading_notes(reading,start,end)
-            if notes:row['reading_notes']=notes
-            validate(row);validate_tones(row)
-            text=row['gold'][0]
-            cuts=[(0,len(text)),tuple(row['legacy_span'])]
-            for b in row['boundaries']:
-                cuts.extend(((0,b['end']),(b['end'],len(text))))
-            if any(protection.contains(dict(row,context=(row['context']+text[:a])[-64:],
+    selection=json.loads((args.out/'selection.json').read_text())
+    assert selection['proposals_sha256']==fingerprint(args.out/'proposals.jsonl')
+    assert all(fingerprint(Path(p))==h for p,h in selection['protected'].items())
+    code={f:fingerprint(Path(__file__).with_name(f)) for f in
+          ('prepare-sentence-training.py','sentence_sampling.py','mandarin_frontend.py','corpus_readings.py','corpus_tones.py')}
+    assets=reading_assets(args.g2pw,args.g2pw/'chinese-roberta-wwm-ext-large')
+    database_sha256=fingerprint(args.database)
+    recipe=dict(proposals=selection['proposals_sha256'],code=code,reading_assets=assets,database_sha256=database_sha256)
+    cache=args.out/'.annotation'
+    cache.mkdir(exist_ok=True)
+    if (cache/'recipe.json').exists():
+        if json.loads((cache/'recipe.json').read_text())!=recipe:
+            raise ValueError('annotation recipe changed; use a new output directory')
+    else:dump(cache/'recipe.json',recipe)
+    proposals=[json.loads(line) for line in (args.out/'proposals.jsonl').read_text().splitlines()]
+    protection=Protection([Path(p) for p in selection['protected']])
+    lexicon=Lexicon(args.database)
+    reader=Reader(lexicon,MandarinFrontend(args.g2pw))
+    print(json.dumps(dict(providers=reader.frontend.providers,total=len(proposals))),flush=True)
+    started=time.monotonic()
+    for part_start in range(0,len(proposals),512):
+        part=cache/f'{part_start:08d}.json'
+        if part.exists():continue
+        output=[]
+        for i in range(part_start,min(part_start+512,len(proposals)),32):
+            batch=proposals[i:min(i+32,part_start+512)]
+            readings=reader.readings([r['context']+r['gold'][0]+r['terminal'] for r in batch])
+            for proposal,reading in zip(batch,readings,strict=True):
+                row=dict(proposal);start=len(row['context']);end=start+len(row['gold'][0])
+                if not all(reading['keys'][start:end]):
+                    output.append(dict(id=row['id'],reason='unreachable_reading'));continue
+                row.update(input=''.join(reading['keys'][start:end]),pinyin=reading['pinyin'][start:end],tones=reading['tones'][start:end],
+                    reading_window=[max(0,row['offset']-64),row['offset']+len(row['gold'][0])+len(row['terminal'])],
+                    legacy_span=legacy_span(row['gold'][0],lexicon.segment(row['gold'][0]),row['id']))
+                notes=reading_notes(reading,start,end)
+                if notes:row['reading_notes']=notes
+                validate(row);validate_tones(row)
+                text=row['gold'][0]
+                cuts=[(0,len(text)),tuple(row['legacy_span'])]
+                for point in row['boundaries']:cuts.extend(((0,point['end']),(point['end'],len(text))))
+                if any(protection.contains(dict(row,context=(row['context']+text[:a])[-64:],
                         input=row['input'][2*a:2*b],gold=[text[a:b]])) for a,b in cuts):
-                counts['excluded_protected_state']+=1
-                rejected.append(dict(id=row['id'],reason='protected_derived_state'))
-                continue
-            records.append(row)
-            counts[f'{row["split"]}/{row["source"]}']+=1
-            counts[f'boundary/{row["boundaries"][0]["rule"] if row["boundaries"] else "whole-only"}']+=1
-        if i%320==0:print(json.dumps(dict(annotated=min(i+32,len(proposals)),total=len(proposals))),flush=True)
-    for split in ('train','dev'):
-        with (args.out/(split+'.jsonl')).open('x') as stream:
-            for row in records:
-                if row['split']==split:stream.write(json.dumps(row,ensure_ascii=False)+'\n')
+                    output.append(dict(id=row['id'],reason='protected_derived_state'));continue
+                output.append(dict(row=row))
+        dump(part.with_suffix('.partial'),output)
+        part.with_suffix('.partial').replace(part)
+        print(json.dumps(dict(annotated=min(part_start+512,len(proposals)),total=len(proposals),seconds=time.monotonic()-started)),flush=True)
+    counts=Counter();rejected=[]
+    streams={split:(args.out/(split+'.jsonl')).open('w') for split in ('train','dev')}
+    try:
+        for part_start in range(0,len(proposals),512):
+            for result in json.loads((cache/f'{part_start:08d}.json').read_text()):
+                if 'reason' in result:
+                    rejected.append(result);counts['excluded_'+result['reason']]+=1;continue
+                row=result['row'];streams[row['split']].write(json.dumps(row,ensure_ascii=False)+'\n')
+                counts[f'{row["split"]}/{row["source"]}']+=1
+                counts[f'{row["split"]}/length/'+('8-24' if len(row['gold'][0])<=24 else '25-60')]+=1
+                counts[f'{row["split"]}/unit/{row["unit_type"]}']+=1
+                counts[f'boundary/{row["boundaries"][0]["rule"] if row["boundaries"] else "whole-only"}']+=1
+    finally:
+        for stream in streams.values():stream.close()
     dump(args.out/'rejected.json',rejected)
-    dump(args.out/'manifest.json',dict(format='wime-sentence-training-v1',counts=dict(counts),selection=selection,
+    dump(args.out/'manifest.json',dict(format='wime-sentence-training-v2',counts=dict(counts),selection=selection,
         reading_schema=READING_SCHEMA,tone_policy=TONE_POLICY,
-        window='actual preceding 64 characters + full source sentence + original terminal; derive states from these same readings',
-        legacy_control=dict(lengths=LENGTHS,policy='One deterministic word-aligned span from each same source sentence; original length lottery, no original multi-million-row population.'),
+        window='actual preceding 64 characters + full source sentence or punctuation-delimited clause + original terminal; slice all states from this contextual reading',
+        legacy_control=dict(lengths=LENGTHS,policy='One deterministic word-aligned span per source unit; not an independent training row.'),
         state_weights=dict(whole=.6,prefix=.2,continuation=.2),
-        training_boundaries='Deterministic conservative rules, sample-reviewed; not individually human verified.',
-        reading_assets=reading_assets(args.g2pw,args.g2pw/'chinese-roberta-wwm-ext-large'),
-        database_sha256=fingerprint(args.database),
-        outputs={s:fingerprint(args.out/(s+'.jsonl')) for s in ('train','dev')},
-        code={f:fingerprint(Path(__file__).with_name(f)) for f in ('prepare-sentence-training.py','sentence_sampling.py','mandarin_frontend.py','corpus_readings.py','corpus_tones.py')}))
+        training_boundaries='Conservative rules; no boundary quota or synthetic cut. Actual possible state shares recorded by the trainer.',
+        reading_assets=assets,database_sha256=database_sha256,
+        outputs={split:fingerprint(args.out/(split+'.jsonl')) for split in ('train','dev')},code=code))
+    shutil.rmtree(cache)
     print(json.dumps(dict(counts),ensure_ascii=False),flush=True)
+
+
+def validate_release(args):
+    from corpus_tones import validate_tones
+    from trajectories import validate
+    manifest=json.loads((args.out/'manifest.json').read_text())
+    selection=manifest['selection']
+    assert fingerprint(args.out/'documents.sqlite3')==selection['documents_sha256']
+    assert all(fingerprint(Path(p))==h for p,h in selection['protected'].items())
+    protection=Protection([Path(p) for p in selection['protected']])
+    db=sqlite3.connect((args.out/'documents.sqlite3').resolve().as_uri()+'?mode=ro&immutable=1',uri=True)
+    db.row_factory=sqlite3.Row
+    dictionary=sqlite3.connect(args.database.resolve().as_uri()+'?mode=ro&immutable=1',uri=True)
+    legal=set(dictionary.execute('SELECT word,code FROM entry WHERE length(word)=1 AND length(code)=2'))
+    groups={};identities=set();targets=set();counts=Counter();group_bands=Counter();documents=set()
+    for split in ('train','dev'):
+        assert fingerprint(args.out/(split+'.jsonl'))==manifest['outputs'][split]
+        with (args.out/(split+'.jsonl')).open() as stream:
+            for line in stream:
+                row=json.loads(line);validate(row);validate_tones(row)
+                doc=db.execute('SELECT * FROM documents WHERE id=?',(row['document'],)).fetchone()
+                text=row['gold'][0];offset=row['offset']
+                assert row['split']==doc['split']==split and row['group']==doc['group_id']
+                assert row['source']==doc['source'] and row['category']==doc['category']
+                assert groups.setdefault(row['group'],split)==split
+                assert row['id'] not in identities and text not in targets
+                identities.add(row['id']);targets.add(text);documents.add(row['document'])
+                assert doc['text'][offset:offset+len(text)+len(row['terminal'])]==text+row['terminal']
+                assert doc['text'][max(0,offset-64):offset]==row['context']
+                assert hashlib.sha256(doc['text'].encode()).hexdigest()==row['content']==doc['content']
+                assert row['reading_window']==[max(0,offset-64),offset+len(text)+len(row['terminal'])]
+                assert all((char,row['input'][2*i:2*i+2]) in legal for i,char in enumerate(text))
+                cuts=[(0,len(text)),tuple(row['legacy_span'])]
+                for point in row['boundaries']:cuts.extend(((0,point['end']),(point['end'],len(text))))
+                for a,b in cuts:
+                    assert 0<=a<b<=len(text)
+                    assert not protection.contains(dict(row,context=(row['context']+text[:a])[-64:],input=row['input'][2*a:2*b],gold=[text[a:b]]))
+                    counts['derived_states_checked']+=1
+                group_bands[(row['group'],len(text)>24)]+=1
+                assert group_bands[(row['group'],len(text)>24)]<=selection['selection']['technical_per_band' if row['category']=='technical' else 'per_group_band']
+                counts[split]+=1;counts[split+'/paired' if row['boundaries'] else split+'/whole_only']+=1
+    result=dict(counts=dict(counts),groups={s:sum(v==s for v in groups.values()) for s in ('train','dev')},documents=len(documents),
+        source_offsets_contexts_and_hashes=True,train_dev_groups_and_targets_disjoint=True,
+        contextual_readings_structurally_valid=True,dictionary_reachable=True,protected_sources_and_states_absent=True,
+        limits='Rule boundaries and tone values are not individually human verified or audio-backed.')
+    dump(args.out/'validation.json',result)
+    print(json.dumps(result,ensure_ascii=False),flush=True)
 
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation',choices=('select','annotate'))
+    parser.add_argument('operation',choices=('select','annotate','validate'))
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--per-source',type=int,default=0,help='optional smoke-test cap; 0 retains all eligible groups')
     parser.add_argument('--per-group-band',type=int,default=1)
@@ -202,4 +272,4 @@ if __name__=='__main__':
     parser.add_argument('--database',type=Path)
     parser.add_argument('--g2pw',type=Path)
     args=parser.parse_args()
-    (select if args.operation=='select' else annotate)(args)
+    {'select':select,'annotate':annotate,'validate':validate_release}[args.operation](args)

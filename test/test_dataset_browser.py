@@ -131,6 +131,24 @@ class DatasetBrowser(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'清洗语料版本'):
             self.browser.detail(self.request(row=1))
 
+    def test_indexed_local_documents_preserve_source_detail(self):
+        text='前文。你好。'
+        path=self.data/'documents.sqlite3'
+        with sqlite3.connect(path) as db:
+            db.execute('CREATE TABLE documents(id TEXT PRIMARY KEY,text TEXT,content TEXT,source_document TEXT,origin TEXT,cleaning TEXT)')
+            db.execute('INSERT INTO documents VALUES(?,?,?,?,?,?)',('doc',text,hashlib.sha256(text.encode()).hexdigest(),
+                'library/example.po','pinned-source','["rendered prose"]'))
+        row=dict(self.samples[0],document='doc',context='前文。',offset=3,reading_window=[0,len(text)])
+        (self.data/'dev.jsonl').write_text(json.dumps(row)+'\n')
+        entry=self.registry.datasets['example']
+        entry['files']['dev']['sha256']=fingerprint(self.data/'dev.jsonl')
+        entry['files']['documents']=dict(path='documents.sqlite3',sha256=fingerprint(path))
+        detail=self.browser.detail(self.request(row=1))
+        self.assertEqual(detail['annotation_text'],text)
+        self.assertEqual(detail['source_document'],'library/example.po')
+        self.assertEqual(detail['cleaning'],['rendered prose'])
+        self.assertEqual(detail['source_origin'],'pinned-source')
+
 
 if __name__ == '__main__':
     unittest.main()

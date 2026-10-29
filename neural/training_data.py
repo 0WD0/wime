@@ -95,7 +95,7 @@ def pack_trajectories(path, cache, vocab, window, protection, context_anchor, sa
     directory.mkdir(parents=True,exist_ok=True)
     index = {c:i for i,c in enumerate(vocab)}
     excluded, lengths, sources, paired = Counter(), Counter(), Counter(), Counter()
-    retained, identities = [], []
+    retained, identities, categories = [], [], []
     with (directory/"tokens.part").open("wb") as stream:
         for row in rows(path):
             if row['split'] != path.stem:
@@ -113,6 +113,7 @@ def pack_trajectories(path, cache, vocab, window, protection, context_anchor, sa
                 packed[i,0,:len(x)],packed[i,1,:len(y)] = x,y
             packed.tofile(stream)
             retained.append((row['source'],bool(row['boundaries'])))
+            categories.append(2 if row.get('category')=='technical' else 1)
             identities.append(row['id'])
             sources[row['source']] += 1
             paired[row['source']] += bool(row['boundaries'])
@@ -124,7 +125,7 @@ def pack_trajectories(path, cache, vocab, window, protection, context_anchor, sa
     probability = {source:min(.5,.2*count/paired[source]) if paired[source] else 0
                    for source,count in sources.items()}
     np.array([probability[source] if has_boundary else 0 for source,has_boundary in retained],dtype='<f4').tofile(directory/'probability.bin')
-    np.ones(len(retained),dtype='u1').tofile(directory/'categories.bin')
+    np.array(categories,dtype='u1').tofile(directory/'categories.bin')
     os.replace(directory/'tokens.part',directory/'tokens.bin')
     info = dict(recipe=recipe,rows=len(retained),window=window,exclusions=dict(excluded),lengths=dict(lengths),
                 source_counts=dict(sources),paired_counts=dict(paired),

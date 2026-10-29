@@ -120,8 +120,8 @@ def main():
     compositions = Counter()
     def pack(split, directory=args.data):
         if args.sampling != "rows":
-            if args.span_share or args.single_share or args.whitespace_share or args.limit or args.primary_technical_share:
-                p.error("sentence sampling uses canonical groups without row augmentation or category overrides")
+            if args.span_share or args.single_share or args.whitespace_share or args.limit:
+                p.error("sentence sampling uses canonical groups without row augmentation")
             data = pack_trajectories(split_path(directory,split),args.encoded_cache,vocab,window,
                                      protection,args.context_anchor,args.sampling)
         else:
