@@ -101,7 +101,7 @@ def pack_trajectories(path, cache, vocab, window, protection, context_anchor, sa
             if row['split'] != path.stem:
                 raise ValueError("sentence split changed")
             views = sentence_views(row)
-            if any(protection.contains(view) for view in views):
+            if path.stem=='train' and any(protection.contains(view) for view in views):
                 excluded['protected_source_or_state'] += 1
                 continue
             encoded = [encode_example(view,index,window,context_anchor) for view in views]

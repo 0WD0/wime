@@ -57,6 +57,8 @@ def main():
     p.add_argument("--context-anchor", type=int, default=0,
                    help="encode ordinary training with the deployed committed-prefix representation")
     p.add_argument("--sampling", choices=("rows", "legacy-spans", "trajectories"), default="rows")
+    p.add_argument("--extra-sampling", choices=("rows", "legacy-spans", "trajectories"),
+                   help="sampling for the extra corpus; defaults to primary sampling")
     p.add_argument("--learning-rate", type=float, default=2e-4)
     p.add_argument("--reference-model", help="fixed older checkpoint for primary-domain retention")
     p.add_argument("--reference-weight", type=float, default=0.0,
@@ -118,12 +120,12 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     exclusions = Counter()
     compositions = Counter()
-    def pack(split, directory=args.data):
-        if args.sampling != "rows":
+    def pack(split, directory=args.data, sampling=args.sampling):
+        if sampling != "rows":
             if args.span_share or args.single_share or args.whitespace_share or args.limit:
                 p.error("sentence sampling uses canonical groups without row augmentation")
             data = pack_trajectories(split_path(directory,split),args.encoded_cache,vocab,window,
-                                     protection,args.context_anchor,args.sampling)
+                                     protection,args.context_anchor,sampling)
         else:
             data = pack_examples(split_path(directory, split), args.encoded_cache, vocab, window,
                              protection, seed=args.seed, span_share=args.span_share,
@@ -139,8 +141,9 @@ def main():
         return data
 
     train, dev = pack("train"), pack("dev")
-    extra_train = pack("train", args.extra_data) if args.extra_data else None
-    extra_dev = pack("dev", args.extra_data) if args.extra_data else None
+    extra_sampling=args.extra_sampling or args.sampling
+    extra_train = pack("train", args.extra_data, extra_sampling) if args.extra_data else None
+    extra_dev = pack("dev", args.extra_data, extra_sampling) if args.extra_data else None
     primary_groups = None
     if args.primary_technical_share is not None:
         primary_groups = {name: torch.tensor(np.flatnonzero(train.categories == category), device="cuda")

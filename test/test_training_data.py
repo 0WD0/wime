@@ -49,6 +49,10 @@ class TrainingData(unittest.TestCase):
             held=root/'held.json';held.write_text(json.dumps([dict(rows[0],gold=['无关'])]))
             filtered=pack_trajectories(path,root/'cache',vocab,32,Protection([held]),2,'trajectories')
             self.assertEqual(len(filtered),4)
+            dev_path=root/'dev.jsonl'
+            dev_path.write_text(json.dumps(dict(rows[0],split='dev'))+'\n')
+            held_dev=pack_trajectories(dev_path,root/'cache',vocab,32,Protection([held]),2,'trajectories')
+            self.assertEqual(len(held_dev),1)
 
             for row in rows[1:]:row['boundaries']=[]
             path.write_text(''.join(json.dumps(r)+'\n' for r in rows))
