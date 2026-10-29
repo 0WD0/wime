@@ -131,7 +131,7 @@ class Browser:
         row = self.selected(dataset, split, int(request["row"]))
         row["review"] = self.review_value(dataset, self.snapshot(dataset), split, row["_row"])
         entry = self.registry.entry(dataset)
-        result = dict(row=row, dataset=dataset, split=split, quality=entry.get("quality", {}),
+        result = dict(row=row, dataset=dataset, split=split, snapshot=self.snapshot(dataset), quality=entry.get("quality", {}),
                       known_issues=entry.get("known_issues", []))
         manifest_file = entry["files"].get("manifest")
         if not manifest_file or not row.get("document"):
@@ -246,11 +246,24 @@ class Browser:
                                  (*key, json.dumps(after), json.dumps(before)))
         return before
 
+    def locate(self, request):
+        dataset, split = request["dataset"], request.get("split", "cases")
+        current = self.registry.entry(dataset)
+        recorded = request["expected"]
+        if (recorded.get("storage") or recorded["files"]) != (current.get("storage") or current["files"]):
+            raise ValueError("评测记录的数据版本与当前注册表不一致，不能审查另一个版本")
+        self.view(dataset, split)
+        rows = self.db.execute("SELECT _row FROM samples WHERE id=?", [request["id"]]).fetchall()
+        if len(rows) != 1:
+            raise ValueError("无法唯一定位原始样本；请通过数据集浏览查看来源")
+        return self.detail(dict(dataset=dataset, split=split, row=rows[0][0]))
+
     def dispatch(self, request):
         op = request["op"]
         if op == "catalog": return self.catalog()
         if op == "page": return self.page(request)
         if op == "detail": return self.detail(request)
+        if op == "locate": return self.locate(request)
         if op == "review": return self.review(request)
         if op == "undo": return self.undo(int(request["event"]))
         raise ValueError(f"未知操作: {op}")

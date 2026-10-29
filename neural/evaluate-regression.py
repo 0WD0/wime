@@ -2,6 +2,8 @@
 """Full-backend regression controls sharing one baseline and identical requests."""
 import argparse
 import json
+from lab_tracking import add_arguments, track
+
 from pathlib import Path
 import time
 
@@ -18,7 +20,15 @@ def main():
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--rescorer", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    add_arguments(parser)
     args = parser.parse_args()
+    with track(args, "evaluate") as checkpoint:
+        return execute(args, parser, checkpoint)
+
+
+def execute(args, parser, checkpoint):
+    if (args.out / "summary.json").exists() or (args.out / "results.jsonl").exists():
+        raise ValueError("Evaluation output already exists; choose a new directory")
     models = dict(value.split("=",1) for value in args.model)
     if len(models) < 2 or len(models) != len(args.model):
         parser.error("at least two distinct model names required")
@@ -27,7 +37,7 @@ def main():
         path, snapshot = registry.evaluation(dataset)
         cases = json.loads(path.read_text())
         suites.append((dataset,snapshot,cases,list(requests(cases))))
-    args.out.mkdir(parents=True,exist_ok=False)
+    args.out.mkdir(parents=True,exist_ok=True)
     started = time.monotonic()
 
     import torch

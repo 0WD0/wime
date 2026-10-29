@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Fine-tune a released character LM on output-only conditional loss."""
 import argparse
+from lab_tracking import add_arguments, track
+
 from collections import Counter
 import dataclasses
 import hashlib
@@ -76,7 +78,13 @@ def main():
                    help="preserve technical sampling share when expanding chat replay")
     p.add_argument("--save-every", type=int, default=0,
                    help="retain intermediate checkpoints for development top-1 selection")
+    add_arguments(p)
     args = p.parse_args()
+    with track(args, "train") as checkpoint:
+        return execute(args, p, checkpoint)
+
+
+def execute(args, p, checkpoint):
     if args.state_shares and (args.sampling != "trajectories" or
             any(not math.isfinite(share) or share <= 0 for share in args.state_shares) or
             not math.isclose(sum(args.state_shares), 1.)):
@@ -231,6 +239,7 @@ def main():
         settings["ranking_objective"] = dict(encoding=ENCODING, prior_weight=args.ranking_prior_weight, margin=.2,
                                              temperature=.1, score="mean new-character log probability; no EOS")
     (args.out / "run.json").write_text(json.dumps(settings, ensure_ascii=False, indent=2) + "\n")
+    checkpoint()
     start, best = time.monotonic(), float("inf")
 
     seen = {id(data):torch.zeros(len(data), dtype=torch.bool, device="cuda")
@@ -365,6 +374,7 @@ def main():
                     temporary = target.with_suffix(".part")
                     save_file(tensors, str(temporary), metadata=info)
                     os.replace(temporary, target)
+                checkpoint()
     settings["seen_training_rows"] = {"primary":int(seen[id(train)].sum()),
                                       "extra":int(seen[id(extra_train)].sum()) if extra_train is not None else 0}
     settings["sampling_indices_sha256"] = {name:sample_streams[id(data)].hexdigest()

@@ -2,6 +2,8 @@
 """Evaluate paired sentence, meaningful-prefix and correctly committed continuation states."""
 import argparse
 import json
+from lab_tracking import add_arguments, track
+
 from pathlib import Path
 import time
 
@@ -23,7 +25,15 @@ def main():
     parser.add_argument("--rescorer-weight", type=float, default=1.5)
     parser.add_argument("--beam", type=int, default=16)
     parser.add_argument("--device", default="cuda")
+    add_arguments(parser)
     args = parser.parse_args()
+    with track(args, "evaluate") as checkpoint:
+        return execute(args, parser, checkpoint)
+
+
+def execute(args, parser, checkpoint):
+    if (args.out / "summary.json").exists() or (args.out / "results.jsonl").exists():
+        raise ValueError("Evaluation output already exists; choose a new directory")
     if args.backend != "conditional" and not args.rescorer:
         parser.error("a full backend requires --rescorer")
     registry = Registry()
@@ -31,7 +41,7 @@ def main():
     cases = json.loads(path.read_text())
     for row in cases:
         validate(row)
-    args.out.mkdir(parents=True, exist_ok=False)
+    args.out.mkdir(parents=True, exist_ok=True)
 
     import torch
     from conditional import load_model

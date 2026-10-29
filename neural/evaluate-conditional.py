@@ -6,6 +6,8 @@ for metrics, never sent to search or model. The optional CUDA worker shares this
 CPU/GPU latency is measured separately.
 """
 import argparse
+from lab_tracking import add_arguments, track
+
 from collections import Counter
 import json
 import hashlib
@@ -68,7 +70,15 @@ def main():
                    help="lattice width of the verify pool and prefix searches, as wime-neural-pool-width")
     p.add_argument("--search-method", choices=("verify", "decode"), default="verify",
                    help="decode: byte-constrained text search with the selected backend")
+    add_arguments(p)
     args = p.parse_args()
+    with track(args, "evaluate") as checkpoint:
+        return execute(args, p, checkpoint)
+
+
+def execute(args, p, checkpoint):
+    if (args.out / "summary.json").exists() or (args.out / "results.jsonl").exists():
+        raise ValueError("Evaluation output already exists; choose a new directory")
     validate_backend(args, p)
     if args.search_method == "decode" and not args.rescorer:
         p.error("decode requires --rescorer")
