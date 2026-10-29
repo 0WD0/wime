@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Paired full-backend regression gate for two conditional checkpoints."""
+"""Full-backend regression controls sharing one baseline and identical requests."""
 import argparse
 import json
 from pathlib import Path
@@ -13,14 +13,14 @@ from replay import fingerprint
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", action="append", required=True)
-    parser.add_argument("--model", action="append", required=True, help="name=/path; exactly two checkpoints")
+    parser.add_argument("--model", action="append", required=True, help="name=/path; first checkpoint is the baseline")
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--rescorer", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     models = dict(value.split("=",1) for value in args.model)
-    if len(models) != 2:
-        parser.error("exactly two distinct model names required")
+    if len(models) < 2 or len(models) != len(args.model):
+        parser.error("at least two distinct model names required")
     registry, suites = Registry(), []
     for dataset in args.dataset:
         path, snapshot = registry.evaluation(dataset)
@@ -77,7 +77,8 @@ def main():
                                ("evaluate-regression.py","regression.py","decoder.py","decoding_model.py",
                                 "inference.py","conditional.py","rescorer.py")},
                   unique_requests=len(cache),cases=len(results),seconds=time.monotonic()-started,
-                  metrics=compare(results,list(models)),
+                  metrics=(compare(results,list(models)) if len(models)==2 else
+                           {name:compare(results,[next(iter(models)),name]) for name in list(models)[1:]}),
                   interpretation="Archived regression counts, not estimated user traffic. "
                                  "Auxiliary keys retained; explicit or reconstructible committed keystrokes supplied. "
                                  "Predictions shared only for identical model-facing requests.")

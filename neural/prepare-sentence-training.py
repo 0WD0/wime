@@ -112,22 +112,34 @@ def annotate(args):
     selection = json.loads((args.out/'selection.json').read_text())
     assert selection['proposals_sha256'] == fingerprint(args.out/'proposals.jsonl')
     proposals = [json.loads(line) for line in (args.out/'proposals.jsonl').read_text().splitlines()]
+    protection = Protection([Path(p) for p in selection['protected']])
     lexicon = Lexicon(args.database)
     reader = Reader(lexicon, MandarinFrontend(args.g2pw))
-    counts, records = Counter(), []
+    counts, records, rejected = Counter(), [], []
     for i in range(0,len(proposals),32):
         batch = proposals[i:i+32]
         readings = reader.readings([r['context']+r['gold'][0]+r['terminal'] for r in batch])
         for row, reading in zip(batch, readings, strict=True):
             start=len(row['context']); end=start+len(row['gold'][0])
             if not all(reading['keys'][start:end]):
-                counts['excluded_unreachable_reading']+=1;continue
+                counts['excluded_unreachable_reading']+=1
+                rejected.append(dict(id=row['id'],reason='unreachable_reading'))
+                continue
             row.update(input=''.join(reading['keys'][start:end]),pinyin=reading['pinyin'][start:end],tones=reading['tones'][start:end],
                        reading_window=[max(0,row['offset']-64),row['offset']+len(row['gold'][0])+len(row['terminal'])],
                        legacy_span=legacy_span(row['gold'][0],lexicon.segment(row['gold'][0]),row['id']))
             notes = reading_notes(reading,start,end)
             if notes:row['reading_notes']=notes
             validate(row);validate_tones(row)
+            text=row['gold'][0]
+            cuts=[(0,len(text)),tuple(row['legacy_span'])]
+            for b in row['boundaries']:
+                cuts.extend(((0,b['end']),(b['end'],len(text))))
+            if any(protection.contains(dict(row,context=(row['context']+text[:a])[-64:],
+                        input=row['input'][2*a:2*b],gold=[text[a:b]])) for a,b in cuts):
+                counts['excluded_protected_state']+=1
+                rejected.append(dict(id=row['id'],reason='protected_derived_state'))
+                continue
             records.append(row)
             counts[f'{row["split"]}/{row["source"]}']+=1
             counts[f'boundary/{row["boundaries"][0]["rule"] if row["boundaries"] else "whole-only"}']+=1
@@ -136,6 +148,7 @@ def annotate(args):
         with (args.out/(split+'.jsonl')).open('x') as stream:
             for row in records:
                 if row['split']==split:stream.write(json.dumps(row,ensure_ascii=False)+'\n')
+    dump(args.out/'rejected.json',rejected)
     dump(args.out/'manifest.json',dict(format='wime-sentence-training-v1',counts=dict(counts),selection=selection,
         reading_schema=READING_SCHEMA,tone_policy=TONE_POLICY,
         window='actual preceding 64 characters + full source sentence + original terminal; derive states from these same readings',

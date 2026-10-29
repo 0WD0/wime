@@ -52,6 +52,7 @@ class PackedTrajectories:
         self.probability = np.memmap(directory / "probability.bin", mode="r", dtype="<f4")
         self.categories = np.memmap(directory / "categories.bin", mode="r", dtype="u1")
         self.sampling = sampling
+        self.sampled = Counter()
 
     def __len__(self):
         return len(self.data)
@@ -64,6 +65,7 @@ class PackedTrajectories:
         choices = 1 + (draw >= 1-2*probability) + (draw >= 1-probability).astype(np.int64)
         if self.sampling == "legacy-spans":
             choices[:] = 0
+        self.sampled.update(choices.tolist())
         data = torch.from_numpy(self.data[indices, choices]).long()
         length = int((data[:,0] != 0).sum(1).max())
         data = data[:,:,:length].to(device)

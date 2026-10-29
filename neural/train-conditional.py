@@ -222,6 +222,8 @@ def main():
 
     seen = {id(data):torch.zeros(len(data), dtype=torch.bool, device="cuda")
             for data in (train, extra_train) if data is not None}
+    sample_streams = {key:hashlib.sha256() for key in seen}
+    supervised_tokens = Counter()
 
     def batch(data, n):
         if data is train and primary_groups is not None:
@@ -233,11 +235,16 @@ def main():
             indices = torch.randint(len(data), (n,), device="cuda")
         if id(data) in seen:
             seen[id(data)][indices] = True
-        return data.batch(indices.cpu().numpy(), "cuda")
+        indices = indices.cpu().numpy()
+        if id(data) in sample_streams:
+            sample_streams[id(data)].update(indices.tobytes())
+        return data.batch(indices, "cuda")
 
-    def loss(x, y, preserve=False):
+    def loss(x, y, preserve=False, track=None):
         with torch.autocast("cuda", dtype=torch.bfloat16):
             logits, labels = supervised_logits(model, x, y)
+            if track:
+                supervised_tokens[track] += labels.numel()
             value = F.cross_entropy(logits.float(), labels)
             if preserve and reference is not None:
                 with torch.no_grad():
@@ -267,7 +274,8 @@ def main():
         # Deterministic batch-level domain mixture. Do not physically duplicate
         # technical rows, and retain the actual sampling share in run.json.
         domain = extra_train if extra_train is not None and np.random.random() < args.extra_share else train
-        value = loss(*batch(domain, args.batch), preserve=domain is train)
+        value = loss(*batch(domain, args.batch), preserve=domain is train,
+                     track="primary" if domain is train else "extra")
         rank_value = None
         if ranked is not None:
             # Draw in the CE control too, preserving identical CE batch RNG.
@@ -318,6 +326,12 @@ def main():
                     os.replace(temporary, target)
     settings["seen_training_rows"] = {"primary":int(seen[id(train)].sum()),
                                       "extra":int(seen[id(extra_train)].sum()) if extra_train is not None else 0}
+    settings["sampling_indices_sha256"] = {name:sample_streams[id(data)].hexdigest()
+        for name,data in (("primary",train),("extra",extra_train)) if data is not None}
+    settings["supervised_training_tokens_including_eos"] = dict(supervised_tokens)
+    if hasattr(train,"sampled"):
+        settings["sampled_states"] = {("legacy","whole","prefix","continuation")[key]:count
+                                      for key,count in train.sampled.items()}
     if primary_groups is not None:
         settings["seen_primary_categories"] = {name:int(seen[id(train)][indices].sum())
                                                 for name, indices in primary_groups.items()}
