@@ -86,8 +86,18 @@ class Registry:
         metadata = self.roots["repo"] / storage["metadata"]
         if fingerprint(metadata) != storage["sha256"]:
             raise ValueError(f"changed DVC dataset pointer: {metadata}")
-        result = subprocess.run([str(DATASET_PYTHON), "-m", "dvc", "status", "--json", metadata.name],
-                                cwd=metadata.parent, text=True, capture_output=True, check=True)
+        # Load the specified stage directly. CLI status can return {} without
+        # loading it when SCM discovery skips this monorepo's artifact folder.
+        result = subprocess.run([str(DATASET_PYTHON), "-c", """
+import json, sys
+from dvc.repo import Repo
+with Repo() as repo, repo.lock:
+    stages = repo.stage.load_file(sys.argv[1])
+    if len(stages) != 1:
+        raise ValueError("expected one explicitly tracked dataset stage")
+    print(json.dumps(stages[0].status()))
+""", str(metadata.resolve())], cwd=metadata.parent,
+                                text=True, capture_output=True, check=True)
         if json.loads(result.stdout):
             raise ValueError(f"DVC dataset needs checkout or repair: {result.stdout.strip()}")
 
