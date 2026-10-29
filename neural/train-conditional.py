@@ -18,7 +18,7 @@ from safetensors.torch import save_file
 from conditional import grow_depth, load_model, FORMAT
 from ranking import encode_candidate, candidate_scores, preference_loss
 from replay import Protection, split_path
-from training_data import pack_examples, pack_trajectories, supervised_logits, training_characters
+from training_data import pack_examples, pack_trajectories, supervised_logits, training_characters, TrajectorySampler
 from dataset_registry import Registry, CATALOG
 
 
@@ -59,6 +59,8 @@ def main():
     p.add_argument("--sampling", choices=("rows", "legacy-spans", "trajectories"), default="rows")
     p.add_argument("--extra-sampling", choices=("rows", "legacy-spans", "trajectories"),
                    help="sampling for the extra corpus; defaults to primary sampling")
+    p.add_argument("--state-shares", type=float, nargs=3, metavar=("WHOLE", "PREFIX", "CONTINUATION"),
+                   help="sample primary trajectory states explicitly; validate every dev state with these weights")
     p.add_argument("--learning-rate", type=float, default=2e-4)
     p.add_argument("--reference-model", help="fixed older checkpoint for primary-domain retention")
     p.add_argument("--reference-weight", type=float, default=0.0,
@@ -77,6 +79,10 @@ def main():
     p.add_argument("--save-every", type=int, default=0,
                    help="retain intermediate checkpoints for development top-1 selection")
     args = p.parse_args()
+    if args.state_shares and (args.sampling != "trajectories" or
+            any(not math.isfinite(share) or share <= 0 for share in args.state_shares) or
+            not math.isclose(sum(args.state_shares), 1.)):
+        p.error("--state-shares requires trajectories and three positive shares summing to one")
     registry, registered = Registry(args.registry), {}
     for domain, dataset in (("primary", args.dataset), ("extra", args.extra_dataset)):
         if dataset:
@@ -150,6 +156,8 @@ def main():
                           for name, category in (("chat", 1), ("technical", 2))}
         if any(len(group) == 0 for group in primary_groups.values()) or sum(map(len, primary_groups.values())) != len(train):
             raise ValueError("explicit primary shares require chat and technical categories only")
+    state_samplers = {id(data): TrajectorySampler(data, args.state_shares, args.primary_technical_share, "cuda")
+                      for data in (train, dev)} if args.state_shares else {}
     ranked, ranked_priors = None, None
     if args.ranking_data:
         pairs, priors = [], []
@@ -201,6 +209,9 @@ def main():
                 "extra_validation_examples": len(extra_dev) if extra_dev is not None else 0,
                 "exclusions": dict(exclusions), "format": FORMAT, "config": dataclasses.asdict(model.cfg)}
     settings["compositions"] = dict(compositions)
+    if state_samplers:
+        settings["state_sampling"] = {name: state_samplers[id(data)].info
+                                      for name, data in (("train", train), ("dev", dev))}
     settings["packing"] = {name:{**{k:v for k,v in data.info.items() if k != "recipe"},
         "recipe_sha256":hashlib.sha256(json.dumps(data.info["recipe"],sort_keys=True).encode()).hexdigest()}
         for name,data in (("train",train),("dev",dev))}
@@ -226,10 +237,19 @@ def main():
     seen = {id(data):torch.zeros(len(data), dtype=torch.bool, device="cuda")
             for data in (train, extra_train) if data is not None}
     sample_streams = {key:hashlib.sha256() for key in seen}
+    seen_states = torch.zeros((4, len(train)), dtype=torch.bool, device="cuda") if state_samplers else None
+    state_stream = hashlib.sha256()
+    state_categories = Counter()
     supervised_tokens = Counter()
 
     def batch(data, n):
-        if data is train and primary_groups is not None:
+        choices = None
+        if data is train and state_samplers:
+            indices, choices = state_samplers[id(data)].draw(n)
+            seen_states[choices, indices] = True
+            choices = choices.cpu().numpy()
+            state_stream.update(choices.tobytes())
+        elif data is train and primary_groups is not None:
             technical = round(n * args.primary_technical_share)
             indices = torch.cat([group[torch.randint(len(group), (count,), device="cuda")]
                                  for group, count in ((primary_groups["chat"], n-technical),
@@ -241,6 +261,9 @@ def main():
         indices = indices.cpu().numpy()
         if id(data) in sample_streams:
             sample_streams[id(data)].update(indices.tobytes())
+        if choices is not None:
+            state_categories.update(zip(data.categories[indices].tolist(), choices.tolist()))
+            return data.batch(indices, "cuda", choices=choices)
         return data.batch(indices, "cuda")
 
     def loss(x, y, preserve=False, track=None):
@@ -257,13 +280,29 @@ def main():
 
     def validate(step):
         model.eval()
+        strata = {}
         with torch.no_grad(), torch.random.fork_rng(devices=[0]):
             torch.manual_seed(42)
-            primary = sum(loss(*batch(dev, 64)).item() for _ in range(16)) / 16
+            if state_samplers:
+                primary = 0.
+                for name, state, weight, pool in state_samplers[id(dev)].strata():
+                    total, tokens = 0., 0
+                    for indices in pool.split(64):
+                        indices = indices.cpu().numpy()
+                        x, y = dev.batch(indices, "cuda", choices=np.full(len(indices), state))
+                        count = int((y != 0).sum())
+                        total += loss(x, y).item() * count
+                        tokens += count
+                    value = total / tokens
+                    strata[f"{name}/{('legacy','whole','prefix','continuation')[state]}"] = dict(
+                        loss=value, rows=len(pool), tokens=tokens, weight=weight)
+                    primary += weight * value
+            else:
+                primary = sum(loss(*batch(dev, 64)).item() for _ in range(16)) / 16
             extra = sum(loss(*batch(extra_dev, 64)).item() for _ in range(16)) / 16 if extra_dev is not None else None
         combined = (1 - args.extra_share) * primary + args.extra_share * extra if extra is not None else primary
         print(json.dumps(dict(step=step, validation_loss=combined,
-                              primary_validation=primary, extra_validation=extra)), flush=True)
+                              primary_validation=primary, extra_validation=extra, strata=strata)), flush=True)
         return combined
 
     validate(0)
@@ -332,6 +371,12 @@ def main():
     settings["sampling_indices_sha256"] = {name:sample_streams[id(data)].hexdigest()
         for name,data in (("primary",train),("extra",extra_train)) if data is not None}
     settings["supervised_training_tokens_including_eos"] = dict(supervised_tokens)
+    if state_samplers:
+        settings["sampling_states_sha256"] = state_stream.hexdigest()
+        settings["seen_primary_states"] = {name: int(seen_states[state].sum())
+                                            for state, name in enumerate(("legacy", "whole", "prefix", "continuation")) if state}
+        settings["sampled_category_states"] = {f"{category}/{state}": count
+                                               for (category, state), count in state_categories.items()}
     if hasattr(train,"sampled"):
         settings["sampled_states"] = {("legacy","whole","prefix","continuation")[key]:count
                                       for key,count in train.sampled.items()}

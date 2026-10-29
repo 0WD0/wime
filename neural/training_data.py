@@ -57,19 +57,55 @@ class PackedTrajectories:
     def __len__(self):
         return len(self.data)
 
-    def batch(self, indices, device):
+    def batch(self, indices, device, choices=None):
         # A/B also draw this variate: all arms see identical sentence indices,
         # despite selecting different views and consuming different token counts.
-        draw = torch.rand(len(indices)).numpy()
-        probability = self.probability[indices]
-        choices = 1 + (draw >= 1-2*probability) + (draw >= 1-probability).astype(np.int64)
-        if self.sampling == "legacy-spans":
-            choices[:] = 0
+        if choices is None:
+            draw = torch.rand(len(indices)).numpy()
+            probability = self.probability[indices]
+            choices = 1 + (draw >= 1-2*probability) + (draw >= 1-probability).astype(np.int64)
+            if self.sampling == "legacy-spans":
+                choices[:] = 0
         self.sampled.update(choices.tolist())
         data = torch.from_numpy(self.data[indices, choices]).long()
         length = int((data[:,0] != 0).sum(1).max())
         data = data[:,:,:length].to(device)
         return data[:,0], data[:,1]
+
+
+class TrajectorySampler:
+    """Choose the input state first, then an eligible sentence in that stratum."""
+    def __init__(self, data, shares, technical_share=None, device="cpu"):
+        self.shares = shares
+        self.device = device
+        self.groups = []
+        categories = [("all", np.ones(len(data), dtype=bool), 1.)] if technical_share is None else [
+            ("chat", data.categories == 1, 1-technical_share),
+            ("technical", data.categories == 2, technical_share)]
+        for name, mask, weight in categories:
+            pools = [np.flatnonzero(mask), np.flatnonzero(mask & (data.probability > 0))]
+            if any(not len(pool) for pool in pools):
+                raise ValueError(f"state sampling requires whole and paired sentences in {name}")
+            whole, paired = [torch.tensor(pool, device=device) for pool in pools]
+            self.groups.append((name, weight, (whole, paired, paired)))
+        self.info = dict(shares=list(shares), technical_share=technical_share,
+                         eligible_rows={name: dict(whole=len(pools[0]), paired=len(pools[1]))
+                                        for name, _, pools in self.groups})
+
+    def strata(self):
+        for name, category_weight, pools in self.groups:
+            for state, (share, pool) in enumerate(zip(self.shares, pools), 1):
+                yield name, state, category_weight * share, pool
+
+    def draw(self, n):
+        indices, states = [], []
+        counts = [n] if len(self.groups) == 1 else [n-round(n*self.groups[1][1]), round(n*self.groups[1][1])]
+        for (_, _, pools), count in zip(self.groups, counts):
+            prefix, continuation = (round(count*share) for share in self.shares[1:])
+            for state, pool, size in zip((1, 2, 3), pools, (count-prefix-continuation, prefix, continuation)):
+                indices.append(pool[torch.randint(len(pool), (size,), device=self.device)])
+                states.append(torch.full((size,), state, device=self.device, dtype=torch.long))
+        return torch.cat(indices), torch.cat(states)
 
 
 def sentence_views(row):

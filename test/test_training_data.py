@@ -14,10 +14,51 @@ import torch.nn.functional as F
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import CharLM, Config, EXTRA, encode_example
 from replay import Protection
-from training_data import pack_examples, pack_trajectories, sentence_views, supervised_logits, training_characters
+from training_data import pack_examples, pack_trajectories, sentence_views, supervised_logits, training_characters, TrajectorySampler
 
 
 class TrainingData(unittest.TestCase):
+    def test_state_sampling_preserves_categories_and_returns_actual_parents(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rows = [dict(id=str(i), document=str(i), group=str(i), source='chat', split='train',
+                         context='允许', input='bmyix;ui', gold=['便宜行事'], legacy_span=[2,4],
+                         category='technical' if i >= 6 else 'chat',
+                         boundaries=[dict(end=2,reason='complete phrase')] if i in (0,6) else [])
+                    for i in range(10)]
+            path = root/'train.jsonl'
+            path.write_text(''.join(json.dumps(row)+'\n' for row in rows))
+            vocab = ['<pad>','<unk>','<bos>']+EXTRA+list('允许便宜行事')
+            data = pack_trajectories(path,root/'cache',vocab,32,Protection([]),2,'trajectories')
+            sampler = TrajectorySampler(data,(.6,.2,.2),.25)
+            torch.manual_seed(9)
+            indices, states = sampler.draw(40)
+            self.assertEqual(torch.bincount(states).tolist(),[0,24,8,8])
+            self.assertEqual(int((data.categories[indices] == 2).sum()),10)
+            self.assertEqual(set(indices[states > 1].tolist()),{0,6})
+            for category, counts in ((1,[0,18,6,6]),(2,[0,6,2,2])):
+                self.assertEqual(torch.bincount(states[data.categories[indices]==category]).tolist(),counts)
+            torch.manual_seed(9)
+            repeated = sampler.draw(40)
+            torch.testing.assert_close(indices,repeated[0]);torch.testing.assert_close(states,repeated[1])
+            _, labels = data.batch(indices.numpy(),'cpu',choices=states.numpy())
+            for row, state in zip(labels,states):
+                expected = {1:'便宜行事',2:'便宜',3:'行事'}[int(state)]+'\ue2e2'
+                self.assertEqual(''.join(vocab[i] for i in row if i),expected)
+            self.assertEqual(dict(data.sampled),{1:24,2:8,3:8})
+            self.assertAlmostEqual(sum(weight for _,_,weight,_ in sampler.strata()),1.)
+            self.assertEqual(sum(len(pool) for _,_,_,pool in sampler.strata()),14)
+
+    def test_continuation_is_an_ordinary_example_with_committed_context(self):
+        row = dict(context='允许',input='bmyix;ui',gold=['便宜行事'])
+        continuation = sentence_views(dict(row,id='one',document='one',group='one',source='chat',
+            split='train',legacy_span=[2,4],boundaries=[dict(end=2,reason='complete phrase')]))[3]
+        ordinary = dict(context='允许便宜',input='x;ui',gold=['行事'],
+                        known_reading=dict(text='便宜',input='bmyi'))
+        vocab=['<pad>','<unk>','<bos>']+EXTRA+list('允许便宜行事')
+        index={c:i for i,c in enumerate(vocab)}
+        self.assertEqual(encode_example(continuation,index,32,2),encode_example(ordinary,index,32,2))
+
     def test_sentence_controls_share_groups_and_rng_without_revealing_future(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
