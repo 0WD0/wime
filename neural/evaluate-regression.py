@@ -83,7 +83,8 @@ def main():
                                  "Auxiliary keys retained; explicit or reconstructible committed keystrokes supplied. "
                                  "Predictions shared only for identical model-facing requests.")
     (args.out / "summary.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")
-    print(json.dumps(report["metrics"]["datasets"],ensure_ascii=False),flush=True)
+    print(json.dumps(dict(cases=len(results),unique_requests=len(cache),
+                          summary=str(args.out / "summary.json"))),flush=True)
 
 
 if __name__ == "__main__":
