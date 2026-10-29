@@ -61,7 +61,8 @@ class CompositionState(unittest.TestCase):
         engine=Mock();engine.decode.return_value=[('便宜行事',2.),('便宜形式',1.)]
         result=decode(engine,'允许','x;ui',dict(text='便宜',input='bmyi'),
                       pins=[(0,'行')],aux=[(1,'a')],learned=[(0,'行事')],weight=3.)
-        self.assertEqual(result,[('行事',2.),('形式',1.)])
+        self.assertEqual(result,[('行事',4.),('形式',2.)])
+        self.assertEqual(2 * (result[0][1] - result[1][1]), 4 * (2. - 1.))
         engine.decode.assert_called_once_with('允许','bmyix;ui',
             pins=[(0,'便'),(1,'宜'),(2,'行')],aux=[(3,'a')],learned=[(2,'行事')],weight=3.)
 

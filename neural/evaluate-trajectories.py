@@ -118,7 +118,9 @@ def main():
                   beam=args.beam,
                   training_steps=metadata.get("training_steps"), seconds=time.monotonic()-started,
                   precision="conditional FP32/TF32 disabled; Qwen uses existing BF16 runtime",
-                  semantics="Fresh decode at reviewed boundaries; committed prefix and its actual keys supplied only after commit. "
+                  semantics="Prefix, whole, then committed continuation at reviewed boundaries; "
+                            "decoder-local caches can be reused. Latencies are descriptive, not isolated benchmarks. "
+                            "Committed text/keys supplied only after commit. "
                             "No auxiliary codes, learned user preferences or within-syllable states.",
                   code_sha256={file:fingerprint(Path(__file__).with_name(file)) for file in
                                ("evaluate-trajectories.py", "trajectories.py", "trajectory_metrics.py",

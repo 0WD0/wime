@@ -64,7 +64,10 @@ def decode(decoder, context, code, committed=None, *, window=128,
 
     Existing search sees the original full input with confirmed characters
     pinned. Its LM token paths and conditional input remain comparable to
-    whole-input search. Scores retain the decoder's full-composition scale.
+    whole-input search. Rescale scores to pending characters so the editor's
+    length-scaled score differences retain the same confidence temperature.
+    Common confirmed-prefix contributions remain; these are ranking scores,
+    not absolute suffix log probabilities.
     """
     history, keys, fixed = expand(context, code, committed, window)
     offset = len(fixed)
@@ -72,4 +75,5 @@ def decode(decoder, context, code, committed=None, *, window=128,
         pins=list(enumerate(fixed)) + [(p + offset, c) for p, c in pins],
         learned=[(p + offset, text) for p, text in learned], weight=weight,
         aux=[(p + offset, typed) for p, typed in aux])
-    return [(text[offset:], score) for text, score in result if text.startswith(fixed)]
+    return [(text[offset:], score * len(text) / (len(text) - offset))
+            for text, score in result if text.startswith(fixed) and len(text) > offset]
