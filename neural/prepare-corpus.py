@@ -31,7 +31,7 @@ from corpus_tones import READING_SCHEMA, TONE_POLICY, reading_notes, validate_to
 from corpus_cleaning import clean_document, decode_entities
 
 # Historical diagnostic mixture; these weights are not measured commit behavior.
-LENGTHS = ((0.50, 1, 1), (0.25, 2, 3), (0.15, 4, 8), (0.10, 9, 24))
+from sentence_sampling import LENGTHS
 SENTENCE = re.compile(r"[^。！？!?\n]*[。！？!?\n]?")
 PARQUET_BATCH_SIZE = 256
 ANNOTATION_CORE = 128

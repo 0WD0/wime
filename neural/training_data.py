@@ -9,7 +9,8 @@ import random
 import numpy as np
 import torch
 
-from conditional import augment_composition, encode_example
+from conditional import augment_composition, composition_span, encode_example
+from trajectories import validate
 from replay import fingerprint, rows, split_path
 
 
@@ -40,6 +41,97 @@ class PackedExamples:
         length = int((data[:, 0] != 0).sum(1).max())
         data = data[:, :, :length].to(device)
         return data[:, 0], data[:, 1]
+
+
+class PackedTrajectories:
+    """One sampling identity per sentence; four disposable encoded views."""
+    def __init__(self, directory, sampling):
+        self.info = json.loads((directory / "metadata.json").read_text())
+        self.data = np.memmap(directory / "tokens.bin", mode="r", dtype="<i4",
+                             shape=(self.info["rows"], 4, 2, self.info["window"]))
+        self.probability = np.memmap(directory / "probability.bin", mode="r", dtype="<f4")
+        self.categories = np.memmap(directory / "categories.bin", mode="r", dtype="u1")
+        self.sampling = sampling
+
+    def __len__(self):
+        return len(self.data)
+
+    def batch(self, indices, device):
+        # A/B also draw this variate: all arms see identical sentence indices,
+        # despite selecting different views and consuming different token counts.
+        draw = torch.rand(len(indices)).numpy()
+        probability = self.probability[indices]
+        choices = 1 + (draw >= 1-2*probability) + (draw >= 1-probability).astype(np.int64)
+        if self.sampling == "legacy-spans":
+            choices[:] = 0
+        data = torch.from_numpy(self.data[indices, choices]).long()
+        length = int((data[:,0] != 0).sum(1).max())
+        data = data[:,:,:length].to(device)
+        return data[:,0], data[:,1]
+
+
+def sentence_views(row):
+    validate(row)
+    start, end = row["legacy_span"]
+    legacy = composition_span(row, start, end)
+    if not row["boundaries"]:
+        return [legacy, row, row, row]
+    if len(row["boundaries"]) != 1:
+        raise ValueError("training pilot expects one reviewed boundary per sentence")
+    end = row["boundaries"][0]["end"]
+    return [legacy, row, composition_span(row,0,end), composition_span(row,end,len(row["gold"][0]))]
+
+
+def pack_trajectories(path, cache, vocab, window, protection, context_anchor, sampling):
+    recipe = dict(source_sha256=fingerprint(path),vocab=vocab,window=window,protection=protection.files,
+                  context_anchor=context_anchor,format="paired-sentence-cache-v1",
+                  code={name:fingerprint(Path(__file__).with_name(name)) for name in
+                        ("training_data.py","conditional.py","trajectories.py","replay.py")})
+    directory = cache / hashlib.sha256(json.dumps(recipe,sort_keys=True).encode()).hexdigest()
+    if (directory/"metadata.json").exists():
+        return PackedTrajectories(directory,sampling)
+    directory.mkdir(parents=True,exist_ok=True)
+    index = {c:i for i,c in enumerate(vocab)}
+    excluded, lengths, sources, paired = Counter(), Counter(), Counter(), Counter()
+    retained, identities = [], []
+    with (directory/"tokens.part").open("wb") as stream:
+        for row in rows(path):
+            if row['split'] != path.stem:
+                raise ValueError("sentence split changed")
+            views = sentence_views(row)
+            if any(protection.contains(view) for view in views):
+                excluded['protected_source_or_state'] += 1
+                continue
+            encoded = [encode_example(view,index,window,context_anchor) for view in views]
+            if any(1 in y for x,y in encoded):
+                excluded['unknown_target'] += 1
+                continue
+            packed = np.zeros((4,2,window),dtype='<i4')
+            for i,(x,y) in enumerate(encoded):
+                packed[i,0,:len(x)],packed[i,1,:len(y)] = x,y
+            packed.tofile(stream)
+            retained.append((row['source'],bool(row['boundaries'])))
+            identities.append(row['id'])
+            sources[row['source']] += 1
+            paired[row['source']] += bool(row['boundaries'])
+            lengths[str(len(row['gold'][0]))] += 1
+    if not retained:
+        raise ValueError("no encodable sentences")
+    # Uniform sentence/group sampling. Paired sentences supply enough prefix
+    # and continuation requests for 60/20/20 per source without duplicating data.
+    probability = {source:min(.5,.2*count/paired[source]) if paired[source] else 0
+                   for source,count in sources.items()}
+    np.array([probability[source] if has_boundary else 0 for source,has_boundary in retained],dtype='<f4').tofile(directory/'probability.bin')
+    np.ones(len(retained),dtype='u1').tofile(directory/'categories.bin')
+    os.replace(directory/'tokens.part',directory/'tokens.bin')
+    info = dict(recipe=recipe,rows=len(retained),window=window,exclusions=dict(excluded),lengths=dict(lengths),
+                source_counts=dict(sources),paired_counts=dict(paired),
+                sentence_ids_sha256=hashlib.sha256(json.dumps(identities).encode()).hexdigest(),
+                expected_state_shares={source:dict(whole=1-2*probability[source]*paired[source]/count,
+                    prefix=probability[source]*paired[source]/count,continuation=probability[source]*paired[source]/count)
+                    for source,count in sources.items()})
+    (directory/'metadata.json').write_text(json.dumps(info,ensure_ascii=False)+'\n')
+    return PackedTrajectories(directory,sampling)
 
 
 def pack_examples(path, cache, vocab, window, protection, *, seed=0, span_share=0,

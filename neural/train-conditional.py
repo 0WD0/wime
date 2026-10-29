@@ -18,7 +18,7 @@ from safetensors.torch import save_file
 from conditional import grow_depth, load_model, FORMAT
 from ranking import encode_candidate, candidate_scores, preference_loss
 from replay import Protection, split_path
-from training_data import pack_examples, supervised_logits, training_characters
+from training_data import pack_examples, pack_trajectories, supervised_logits, training_characters
 from dataset_registry import Registry, CATALOG
 
 
@@ -56,6 +56,7 @@ def main():
     p.add_argument("--whitespace-share", type=float, default=0.0)
     p.add_argument("--context-anchor", type=int, default=0,
                    help="encode ordinary training with the deployed committed-prefix representation")
+    p.add_argument("--sampling", choices=("rows", "legacy-spans", "trajectories"), default="rows")
     p.add_argument("--learning-rate", type=float, default=2e-4)
     p.add_argument("--reference-model", help="fixed older checkpoint for primary-domain retention")
     p.add_argument("--reference-weight", type=float, default=0.0,
@@ -118,7 +119,13 @@ def main():
     exclusions = Counter()
     compositions = Counter()
     def pack(split, directory=args.data):
-        data = pack_examples(split_path(directory, split), args.encoded_cache, vocab, window,
+        if args.sampling != "rows":
+            if args.span_share or args.single_share or args.whitespace_share or args.limit or args.primary_technical_share:
+                p.error("sentence sampling uses canonical groups without row augmentation or category overrides")
+            data = pack_trajectories(split_path(directory,split),args.encoded_cache,vocab,window,
+                                     protection,args.context_anchor,args.sampling)
+        else:
+            data = pack_examples(split_path(directory, split), args.encoded_cache, vocab, window,
                              protection, seed=args.seed, span_share=args.span_share,
                              single_share=args.single_share, whitespace_share=args.whitespace_share,
                              limit=args.limit, context_anchor=args.context_anchor)
@@ -173,7 +180,7 @@ def main():
         reference = reference.cuda().eval().requires_grad_(False)
     # Architecture initialization consumes random numbers. Reset the sampling
     # stream so same-seed capacity controls receive the same training batches.
-    torch.cuda.manual_seed_all(args.seed)
+    torch.manual_seed(args.seed)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.95), weight_decay=0.1,
                                  fused=True)
     manifest = json.loads((args.data / "manifest.json").read_text())
@@ -191,6 +198,11 @@ def main():
                 "extra_validation_examples": len(extra_dev) if extra_dev is not None else 0,
                 "exclusions": dict(exclusions), "format": FORMAT, "config": dataclasses.asdict(model.cfg)}
     settings["compositions"] = dict(compositions)
+    settings["packing"] = {name:{**{k:v for k,v in data.info.items() if k != "recipe"},
+        "recipe_sha256":hashlib.sha256(json.dumps(data.info["recipe"],sort_keys=True).encode()).hexdigest()}
+        for name,data in (("train",train),("dev",dev))}
+    settings["initial_state_sha256"] = hashlib.sha256(b"".join(
+        tensor.detach().cpu().contiguous().numpy().tobytes() for tensor in model.state_dict().values())).hexdigest()
     if args.reference_model:
         with open(args.reference_model, "rb") as source:
             settings["reference_sha256"] = hashlib.file_digest(source, "sha256").hexdigest()

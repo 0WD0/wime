@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import torch
@@ -13,10 +14,40 @@ import torch.nn.functional as F
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import CharLM, Config, EXTRA, encode_example
 from replay import Protection
-from training_data import pack_examples, supervised_logits, training_characters
+from training_data import pack_examples, pack_trajectories, sentence_views, supervised_logits, training_characters
 
 
 class TrainingData(unittest.TestCase):
+    def test_sentence_controls_share_groups_and_rng_without_revealing_future(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rows = [dict(id=str(i),document=str(i),group=str(i),source='chat',split='train',
+                         context='允许',input='bmyix;ui',gold=['便宜行事'],legacy_span=[2,4],
+                         boundaries=[dict(end=2,reason='complete phrase')] if i<4 else []) for i in range(5)]
+            path=root/'train.jsonl'
+            path.write_text(''.join(json.dumps(r)+'\n' for r in rows))
+            vocab=['<pad>','<unk>','<bos>']+EXTRA+list('允许便宜行事')
+            data=pack_trajectories(path,root/'cache',vocab,32,Protection([]),2,'trajectories')
+            control=pack_trajectories(path,root/'cache',vocab,32,Protection([]),2,'legacy-spans')
+            self.assertEqual(len(data),5)
+            self.assertEqual(data.info['expected_state_shares']['chat'],dict(whole=.6,prefix=.2,continuation=.2))
+            self.assertEqual(data.data.filename,control.data.filename)
+            self.assertEqual(sentence_views(rows[0])[2]['context'],'允许')
+            self.assertEqual(sentence_views(rows[0])[3]['known_reading'],dict(text='便宜',input='bmyi'))
+            with patch('torch.rand',return_value=torch.tensor([.1,.6,.9,.9])):
+                x,y=data.batch(np.array([0,0,0,4]),'cpu')
+            index={c:i for i,c in enumerate(vocab)}
+            for actual,text in zip(y,['便宜行事','便宜','行事','便宜行事']):
+                self.assertEqual(actual[actual!=0].tolist(),[index[c] for c in text]+[index['\ue2e2']])
+            indices=np.arange(5)
+            torch.manual_seed(5); data.batch(indices,'cpu'); after=torch.rand(3)
+            torch.manual_seed(5); control.batch(indices,'cpu'); torch.testing.assert_close(after,torch.rand(3))
+            anchored=pack_trajectories(path,root/'cache',vocab,32,Protection([]),0,'legacy-spans')
+            self.assertNotEqual(anchored.data.filename,control.data.filename)
+            held=root/'held.json';held.write_text(json.dumps([dict(rows[0],gold=['无关'])]))
+            filtered=pack_trajectories(path,root/'cache',vocab,32,Protection([held]),2,'trajectories')
+            self.assertEqual(len(filtered),4)
+
     def test_projection_matches_loss_and_gradients(self):
         torch.manual_seed(3)
         model = CharLM(Config(vocab=13, context=10, n_embd=8, n_head=2, n_layer=2, dropout=0))
