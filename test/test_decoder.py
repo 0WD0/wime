@@ -93,6 +93,24 @@ class Lookahead(Toy):
         return [-8.0 * sum(a != b for a, b in zip(text, preferred)) for text in texts]
 
 
+class Literal(Toy):
+    """The LM finds the literal likely only after 整; later units see it."""
+
+    def __init__(self):
+        super().__init__()
+        self.lm_prefixes = []
+
+    def literal_ids(self, text):
+        return (1,) * len(text)
+
+    def lm_next(self, context, sequences):
+        self.lm_prefixes.extend(sequences)
+        return super().lm_next(context, sequences)
+
+    def lm_tails(self, context, prefixes, tails):
+        return [5.0 if {2, 9} & set(p) else -5.0 for p in prefixes]
+
+
 class Decoding(unittest.TestCase):
     def test_the_language_model_spells_the_keys(self):
         texts = [t for t, _ in Toy().decode("", "vgjuuuru")]
@@ -187,6 +205,17 @@ class Decoding(unittest.TestCase):
         # A half syllable's auxiliary code applies to its provisional character.
         self.assertEqual({t[3] for t, _ in Toy().decode("", "vgjuuur", aux=[(3, "r")])}, {"入"})
         self.assertEqual(Toy().decode("", "vgjuuur", aux=[(3, "x")]), [])
+
+    def test_a_literal_joins_the_language_model_path(self):
+        self.assertEqual(Literal().decode("", "vgjuuuru")[0][0], "证据输入")
+        decoder = Literal()
+        texts = [t for t, _ in decoder.decode("", "vgjuuuru", literals=[(2, "AB")])]
+        self.assertEqual(texts[0], "整句输入")
+        self.assertTrue(all(len(t) == 4 for t in texts))
+        # Units after the literal extend paths that already contain it.
+        self.assertTrue(any(s[-2:] == (1, 1) for s in decoder.lm_prefixes))
+        # Removing the literal restores the plain ranking in the same session.
+        self.assertEqual(decoder.decode("", "vgjuuuru")[0][0], "证据输入")
 
     def test_unknown_keys_give_nothing(self):
         self.assertEqual(Toy().decode("", "vgxx"), [])

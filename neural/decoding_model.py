@@ -40,6 +40,9 @@ class DecodingModel:
     def lm_ids(self, context):
         return self.rescorer.tokenizer(context[-128:] or "\n")["input_ids"]
 
+    def literal_ids(self, text):
+        return tuple(self.rescorer.tokenizer(text, add_special_tokens=False)["input_ids"])
+
     def window(self):
         return self.evaluator.model.cfg.context
 

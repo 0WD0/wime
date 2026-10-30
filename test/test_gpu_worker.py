@@ -233,18 +233,21 @@ class WorkerContract(unittest.TestCase):
                 return [("便宜", -.5)]
 
         request = self.request(operation="decode", input="bmy", syllables=2, draft="",
-                               pins=[[0, "便"]], learned=[[0, "便宜"]], memory_weight=10.0)
+                               pins=[[0, "便"]], learned=[[0, "便宜"]], memory_weight=10.0,
+                               literals=[[1, "GPU "]])
         decoder = Decoder()
         self.assertEqual(worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), request, None, decoder)["candidates"], [["便宜", -.5]])
         self.assertEqual(decoder.args, ("", "bmy"))
-        self.assertEqual(decoder.kwargs, dict(pins=[(0,"便")], learned=[(0,"便宜")], weight=10., aux=[]))
+        self.assertEqual(decoder.kwargs, dict(pins=[(0,"便")], learned=[(0,"便宜")], weight=10., aux=[],
+                                              literals=[(1, "GPU ")]))
         worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), dict(request, aux=[[1, "kp"]]), None, decoder)
         self.assertEqual(decoder.kwargs["aux"], [(1,"kp")])
         self.assertEqual(worker.respond(None, request)["candidates"], [])
         for change in (dict(input="bmA"), dict(pins=[[0, "便宜"]]), dict(pins=[["0", "便"]]),
                        dict(learned=[[0, ""]]), dict(learned=[0]), dict(memory_weight=-1),
                        dict(aux=[[0, "K"]]), dict(aux=[[0, ""]]), dict(aux=[[-1, "k"]]),
-                       dict(memory_weight=float("inf"))):
+                       dict(memory_weight=float("inf")), dict(literals=[[0, "a"]]),
+                       dict(literals=[[1, ""]]), dict(literals=[[1, "\ue2e1"]])):
             with self.assertRaises(ValueError):
                 worker.validate(dict(request, **change))
 

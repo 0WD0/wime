@@ -16,6 +16,10 @@ searches. A trailing half syllable is decoded provisionally: its last
 character's reading must start with the typed key. Pinned characters and
 typed auxiliary codes are hard constraints at their position; changing one
 keeps the frontiers before it when the complete input is unchanged.
+
+Literal text typed inside the composition (English, digits) sits between
+syllables. It joins only the LM's token path, so the LM scores the sentence
+as typed while the conditional model still sees the syllables alone.
 """
 import collections
 import itertools
@@ -87,35 +91,41 @@ class Decoder(DecodingModel):
 
     # --- search -----------------------------------------------------------
 
-    def decode(self, context, code, pins=(), learned=(), weight=0.0, aux=()):
+    def decode(self, context, code, pins=(), learned=(), weight=0.0, aux=(), literals=()):
         """Best complete readings of CODE as [(text, per-character score)].
 
         PINS fix characters by position and AUX (position, keys) restricts a
         position to characters whose auxiliary codes start with the keys;
-        LEARNED (start, text) readings earn WEIGHT per covered character. An
-        odd CODE ends in half a syllable.
+        LEARNED (start, text) readings earn WEIGHT per covered character.
+        LITERALS (position, text) follow the first POSITION characters; the
+        returned texts omit them. An odd CODE ends in half a syllable.
         """
         key = (context, tuple(learned), weight)
         constraints = {p: ("pin", c) for p, c in pins}
         for p, typed in aux:
             constraints[p] = constraints.get(p, ()) + ("aux", typed)
+        literals = {p: self.literal_ids(text) for p, text in literals}
         session = self.session
         if session is None or session.key != key:
-            session = self.session = Session(self, key, context, constraints, learned, weight)
-        elif session.constraints != constraints:
-            # Frontiers before the first changed position cover no constrained one.
-            first = min(p for p in set(constraints) | set(session.constraints)
-                        if constraints.get(p) != session.constraints.get(p))
-            session.kept = session.kept[:first + 1]
-            session.constraints = constraints
+            session = self.session = Session(self, key, context, constraints, learned, weight, literals)
+        elif session.constraints != constraints or session.literals != literals:
+            # A constraint at p changes frontiers after it; a literal at p
+            # changes frontier p itself. Earlier frontiers stay valid.
+            cut = min([p + 1 for p in set(constraints) | set(session.constraints)
+                       if constraints.get(p) != session.constraints.get(p)]
+                      + [p for p in set(literals) | set(session.literals)
+                         if literals.get(p) != session.literals.get(p)])
+            session.kept = session.kept[:max(cut, 1)]
+            session.constraints, session.literals = constraints, literals
         return session.decode(code)
 
 
 class Session:
-    def __init__(self, decoder, key, context, constraints, learned, weight):
+    def __init__(self, decoder, key, context, constraints, learned, weight, literals):
         self.decoder, self.key = decoder, key
         self.context = context
         self.constraints, self.learned, self.weight = constraints, learned, weight
+        self.literals = literals
         self.code, self.kept = "", [[Hypothesis("", (), 0.0, 0.0)]]
         self.memo, self.tails = {}, {}
         self.lm_context = None
@@ -228,6 +238,15 @@ class Session:
                 best[text] = h
         return sorted(best.values(), key=self.rank, reverse=True)[:self.decoder.beam]
 
+    def attach(self, kept, end):
+        """Append the literal typed after END characters to every LM path."""
+        ids = self.literals.get(end)
+        if not ids or not kept:
+            return kept
+        values = self.lm_tails([h.ids for h in kept], [ids] * len(kept))
+        return sorted((h._replace(ids=h.ids + ids, q=h.q + v) for h, v in zip(kept, values)),
+                      key=self.rank, reverse=True)
+
     def prompt(self, code, characters):
         """The conditional model's prompt for CODE and up to CHARACTERS
         characters, or None past its window: then the LM alone ranks."""
@@ -256,7 +275,7 @@ class Session:
             self.memo, self.tails = {}, {}
         prompt = self.prompt(complete, syllables)
         for end in range(len(self.kept), syllables + 1):
-            self.kept.append(self.finish(self.expand(code[:2 * end], end, prompt), prompt, end))
+            self.kept.append(self.attach(self.finish(self.expand(code[:2 * end], end, prompt), prompt, end), end))
         if half:
             prompt = self.prompt(complete, syllables + 1)
             final = self.finish(self.expand(code, syllables + 1, prompt), prompt, syllables)

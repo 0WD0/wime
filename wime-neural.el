@@ -111,7 +111,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
   id buffer input position tick context records pool syllables pins
   method draft best best-score (round 0) visited scored
-  history committed
+  history committed literals
   (seed-candidates wime-neural-seed-candidates)
   (prior-confidence wime-neural-prior-confidence)
   (prior-weight wime-neural-prior-weight)
@@ -124,6 +124,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 (declare-function wime-edit--active-p "wime-edit" ())
 (declare-function wime-edit--writable-p "wime-edit" ())
 (declare-function wime-edit--decodable-p "wime-edit" ())
+(declare-function wime-edit--literals "wime-edit" ())
 (defvar wime-edit-mode)
 (defvar wime-edit--generation)
 (defvar wime-neural--process nil)
@@ -220,6 +221,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                                           wime-edit--generation)
                     :tick (buffer-chars-modified-tick) :context (wime-neural--context)
                     :history (alist-get 'context state) :committed (alist-get 'committed state)
+                    :literals (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p)
+                                   (wime-edit--literals))
                     :records records :syllables n :method method :pins wime--pins
                     :draft (car full))))
           (setq wime-neural--timer
@@ -316,6 +319,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
        :aux ,(vconcat (cl-loop for unit in units for i from 0
                                unless (string-empty-p (cdr unit))
                                collect (vector i (downcase (cdr unit)))))
+       :literals ,(vconcat (mapcar (lambda (literal) (vector (car literal) (cdr literal)))
+                                   (wime-neural--job-literals job)))
        :memory_weight ,wime-neural-memory-weight :candidates []))))
 
 (defun wime-neural--verify-request (job)

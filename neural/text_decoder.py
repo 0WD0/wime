@@ -158,7 +158,9 @@ class TextDecoder(DecodingModel):
         return [score / len(text) for score, text in zip(scores, texts)], "joint_canonical"
 
     def decode(self, context, code, pins=(), learned=(),
-               weight=0.0, aux=()):
+               weight=0.0, aux=(), literals=()):
+        # Literal text is supported by the legacy decoder only; here both
+        # sides of it decode separately, as before.
         if not self.cache_requests:
             return self._decode(context, code, pins, learned, weight, aux)
         from request_cache import RequestCache

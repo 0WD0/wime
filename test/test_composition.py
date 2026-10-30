@@ -60,11 +60,13 @@ class CompositionState(unittest.TestCase):
     def test_decoder_pins_prefix_and_shifts_pending_constraints(self):
         engine=Mock();engine.decode.return_value=[('便宜行事',2.),('便宜形式',1.)]
         result=decode(engine,'允许','x;ui',dict(text='便宜',input='bmyi'),
-                      pins=[(0,'行')],aux=[(1,'a')],learned=[(0,'行事')],weight=3.)
+                      pins=[(0,'行')],aux=[(1,'a')],learned=[(0,'行事')],weight=3.,
+                      literals=[(1,'AB')])
         self.assertEqual(result,[('行事',4.),('形式',2.)])
         self.assertEqual(2 * (result[0][1] - result[1][1]), 4 * (2. - 1.))
         engine.decode.assert_called_once_with('允许','bmyix;ui',
-            pins=[(0,'便'),(1,'宜'),(2,'行')],aux=[(3,'a')],learned=[(2,'行事')],weight=3.)
+            pins=[(0,'便'),(1,'宜'),(2,'行')],aux=[(3,'a')],learned=[(2,'行事')],weight=3.,
+            literals=[(3,'AB')])
 
     def test_malformed_commits_do_not_become_fixed_output(self):
         for value in ([],dict(text='便宜',input='bm'),dict(text='\ue2e1',input='aa')):
