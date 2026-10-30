@@ -10,7 +10,7 @@ import sqlite3
 
 from dataset_registry import Registry
 from replay import Protection, fingerprint
-from sentence_sampling import boundary, legacy_span, LENGTHS, source_units, retain_group, possible_boundary, technical_line_fragment
+from sentence_sampling import boundary_candidates, legacy_span, LENGTHS, source_units, retain_group, technical_line_fragment
 
 
 def dump(path, data):
@@ -87,6 +87,8 @@ def source_documents(registry, args):
 
 def select(args):
     import jieba_fast.posseg
+    from corpus_readings import Lexicon
+    lexicon=Lexicon(args.database)
     registry=Registry()
     registry.verify('cleaned-multisource-v4',['manifest','documents'])
     registry.verify('programming-v1',['manifest'])
@@ -122,9 +124,11 @@ def select(args):
             if any(any(combined[i:i+n] in keys for i in range(len(combined)-n+1)) for n,keys in fragments.items()):
                 counts['excluded_test_text_overlap']+=1;continue
             limit=args.technical_per_band if doc['category']=='technical' else args.per_group_band
-            row['boundaries']=boundary(text,jieba_fast.posseg.lcut(text)) if possible_boundary(text) else []
+            row['boundary_candidates']=boundary_candidates(text,[(w.word,w.flag) for w in jieba_fast.posseg.lcut(text)],
+                                                           {end for _,end,_ in lexicon.segment(text)})
+            row['boundaries']=[]  # chosen by the boundaries operation
             retain_group(buckets[(doc['split'],doc['source'])],row,limit)
-            if row['boundaries']:
+            if row['boundary_candidates']:
                 retain_group(paired_buckets[(doc['split'],doc['source'])],row,limit)
             counts[f'candidates/{doc["split"]}/{doc["source"]}']+=1
             found=True
@@ -146,13 +150,13 @@ def select(args):
             if args.per_source and kept>=args.per_source:break
             seen.add(text);kept+=1
             selected.append(row)
-            counts[f'{split}/{source}/'+('paired' if row['boundaries'] else 'whole_only')]+=1
+            counts[f'{split}/{source}/'+('candidates' if row['boundary_candidates'] else 'whole_only')]+=1
         print(json.dumps(dict(split=split,source=source,selected=kept)),flush=True)
     reserve_technical_development(selected)
     for key in list(counts):
         if key.startswith(('train/','dev/')):del counts[key]
     for row in selected:
-        counts[f'{row["split"]}/{row["source"]}/'+('paired' if row['boundaries'] else 'whole_only')]+=1
+        counts[f'{row["split"]}/{row["source"]}/'+('candidates' if row['boundary_candidates'] else 'whole_only')]+=1
     db.executemany('UPDATE documents SET split=? WHERE id=?',
                   {(row['split'],row['document']) for row in selected if row['category']=='technical'})
     db.execute('CREATE TEMP TABLE retained(id TEXT PRIMARY KEY)')
@@ -171,8 +175,31 @@ def select(args):
                        per_source=args.per_source,boundary_quota=None,
                        technical_development_seed=TECHNICAL_DEV_SEED,
                        paired_reservoir='additional same-size group/length reservoir; does not discard any ordinary sentence'),
-        limitations='Source sentences or existing punctuation-delimited clauses; Chinese-only targets. Rule boundaries are not individual human gold.',
+        limitations='Source sentences or existing punctuation-delimited clauses; Chinese-only targets. Boundaries are rule candidates until the boundaries operation; not individual human gold.',
         documents_sha256=fingerprint(args.out/'documents.sqlite3'),proposals_sha256=fingerprint(args.out/'proposals.jsonl')))
+
+
+def choose_boundaries(args):
+    """Pick each proposal's commit boundary among its rule candidates by LM pause probability."""
+    from commit_pause import PAUSE_THRESHOLD, PauseScorer, choose
+    selection=json.loads((args.out/'selection.json').read_text())
+    assert selection['proposals_sha256']==fingerprint(args.out/'proposals.jsonl') and 'boundary_selection' not in selection
+    proposals=[json.loads(line) for line in (args.out/'proposals.jsonl').read_text().splitlines()]
+    scorer=PauseScorer(args.pause_model)
+    for start in range(0,len(proposals),4096):
+        choose(proposals[start:start+4096],scorer)
+        print(json.dumps(dict(chosen=min(start+4096,len(proposals)),total=len(proposals))),flush=True)
+    with (args.out/'proposals.jsonl').open('w') as stream:
+        for row in proposals:stream.write(json.dumps(row,ensure_ascii=False)+'\n')
+    rules=Counter(row['boundaries'][0]['rule'] if row['boundaries'] else 'whole-only' for row in proposals)
+    model={path.name:fingerprint(path) for path in sorted(args.pause_model.glob('*.json'))+sorted(args.pause_model.glob('*.safetensors'))}
+    selection.update(proposals_sha256=fingerprint(args.out/'proposals.jsonl'),boundary_selection=dict(
+        method='sentence_sampling.boundary_candidates, then the candidate with the highest LM pause probability',
+        threshold=PAUSE_THRESHOLD,model=str(args.pause_model),model_sha256=model,
+        code={f:fingerprint(Path(__file__).with_name(f)) for f in ('sentence_sampling.py','commit_pause.py')},
+        counts=dict(rules)))
+    dump(args.out/'selection.json',selection)
+    print(json.dumps(dict(rules),ensure_ascii=False),flush=True)
 
 
 def annotate(args):
@@ -184,7 +211,7 @@ def annotate(args):
     from corpus_integrity import reading_assets
     from trajectories import validate
     selection=json.loads((args.out/'selection.json').read_text())
-    assert selection['proposals_sha256']==fingerprint(args.out/'proposals.jsonl')
+    assert selection['proposals_sha256']==fingerprint(args.out/'proposals.jsonl') and 'boundary_selection' in selection
     assert all(fingerprint(Path(p))==h for p,h in selection['protected'].items())
     code={f:fingerprint(Path(__file__).with_name(f)) for f in
           ('prepare-sentence-training.py','sentence_sampling.py','mandarin_frontend.py','corpus_readings.py','corpus_tones.py')}
@@ -252,7 +279,7 @@ def annotate(args):
         window='actual preceding 64 characters + full source sentence or punctuation-delimited clause + original terminal; slice all states from this contextual reading',
         legacy_control=dict(lengths=LENGTHS,policy='One deterministic word-aligned span per source unit; not an independent training row.'),
         state_weights=dict(whole=.6,prefix=.2,continuation=.2),
-        training_boundaries='Conservative rules; no boundary quota or synthetic cut. Actual possible state shares recorded by the trainer.',
+        training_boundaries='Grammatical rule candidates chosen by LM pause probability (commit_pause); no quota or synthetic cut. Actual state shares recorded by the trainer.',
         reading_assets=assets,database_sha256=database_sha256,
         outputs={split:fingerprint(args.out/(split+'.jsonl')) for split in ('train','dev')},code=code))
     shutil.rmtree(cache)
@@ -313,7 +340,7 @@ def validate_release(args):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation',choices=('select','annotate','validate'))
+    parser.add_argument('operation',choices=('select','boundaries','annotate','validate'))
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--per-source',type=int,default=0,help='optional smoke-test cap; 0 retains all eligible groups')
     parser.add_argument('--per-group-band',type=int,default=1)
@@ -324,5 +351,6 @@ if __name__=='__main__':
     parser.add_argument('--kubernetes-archive',type=Path,default=Path.home()/'.cache/wime-conditional/kubernetes-website.tar.gz')
     parser.add_argument('--database',type=Path)
     parser.add_argument('--g2pw',type=Path)
+    parser.add_argument('--pause-model',type=Path,default=Path.home()/'.local/share/wime/rescorers/Qwen3.5-2B-Base')
     args=parser.parse_args()
-    {'select':select,'annotate':annotate,'validate':validate_release}[args.operation](args)
+    {'select':select,'boundaries':choose_boundaries,'annotate':annotate,'validate':validate_release}[args.operation](args)
