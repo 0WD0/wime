@@ -20,11 +20,13 @@ def main():
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--backend", choices=("conditional", "legacy"), required=True)
+    parser.add_argument("--backend", choices=("conditional", "legacy", "transducer"), required=True)
     parser.add_argument("--rescorer")
     parser.add_argument("--rescorer-weight", type=float, default=1.5)
     parser.add_argument("--beam", type=int, default=16)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--tones", choices=("none", "citation", "alternate"), default="none",
+                        help="transducer only: type citation tones on every or every other syllable")
     add_arguments(parser)
     args = parser.parse_args()
     with track(args, "evaluate") as checkpoint:
@@ -35,7 +37,9 @@ def execute(args, parser, checkpoint):
     if (args.out / "summary.json").exists() or (args.out / "results.jsonl").exists():
         raise ValueError("Evaluation output already exists; choose a new directory")
     if args.backend != "conditional" and not args.rescorer:
-        parser.error("legacy requires --rescorer")
+        parser.error("legacy and transducer require --rescorer")
+    if args.tones != "none" and args.backend != "transducer":
+        parser.error("--tones requires the transducer")
     registry = Registry()
     path, snapshot = registry.evaluation(args.dataset)
     cases = json.loads(path.read_text())
@@ -54,13 +58,19 @@ def execute(args, parser, checkpoint):
         model, vocab, metadata = load_model(args.model)
         decoder = ConditionalDecoder.from_database(model.to(args.device), vocab, args.database, args.beam)
     else:
-        from inference import ConditionalEvaluator
-        from fusion import make_decoder
         from rescorer import Rescorer
-        evaluator = ConditionalEvaluator(args.model, device=args.device)
-        metadata, vocab = evaluator.metadata, evaluator.vocab
         rescorer = Rescorer(args.rescorer, args.rescorer_weight, device=args.device)
-        decoder = make_decoder(args, evaluator, rescorer)
+        if args.backend == "transducer":
+            import transducer
+            from decoder import Decoder, Units
+            evaluator = transducer.Evaluator(args.model, device=args.device)
+            decoder = transducer.decoder_class(Decoder)(evaluator, rescorer, Units(rescorer.tokenizer, readings(args.database)))
+        else:
+            from inference import ConditionalEvaluator
+            from fusion import make_decoder
+            evaluator = ConditionalEvaluator(args.model, device=args.device)
+            decoder = make_decoder(args, evaluator, rescorer)
+        metadata, vocab = evaluator.metadata, evaluator.vocab
         decoder.beam = args.beam
     legal = readings(args.database)
 
@@ -101,6 +111,11 @@ def execute(args, parser, checkpoint):
     with (args.out / "results.jsonl").open("w") as stream:
         for row in cases:
             full, pairs = states(row)
+            if args.tones != "none":
+                from syllables import citation_tones
+                typed = [(i, t) for i, t in enumerate(citation_tones(row)) if args.tones == "citation" or i % 2 == 0]
+                decoder.tones = {row["input"][:2 * k]: [(i, t) for i, t in typed if i < k]
+                                 for k in range(1, len(row["input"]) // 2 + 1)}
             # Prefix is evaluated before the extra keystrokes are supplied.
             prefixes = [dict(end=pair["end"], reason=pair["reason"], prefix=predict(pair["prefix"]))
                         for pair in pairs]
@@ -125,7 +140,7 @@ def execute(args, parser, checkpoint):
                   backend=args.backend, rescorer=args.rescorer, rescorer_weight=args.rescorer_weight,
                   rescorer_files_sha256={file.name:fingerprint(file) for file in sorted(Path(args.rescorer).iterdir())
                                         if file.suffix in (".json", ".safetensors")} if args.rescorer else None,
-                  beam=args.beam,
+                  beam=args.beam, tones=args.tones,
                   training_steps=metadata.get("training_steps"), seconds=time.monotonic()-started,
                   precision="conditional FP32/TF32 disabled; Qwen BF16 on CUDA, FP32 on the CPU",
                   semantics="Prefix, whole, then committed continuation at reviewed boundaries; "
@@ -135,7 +150,7 @@ def execute(args, parser, checkpoint):
                   code_sha256={file:fingerprint(Path(__file__).with_name(file)) for file in
                                ("evaluate-trajectories.py", "trajectories.py", "trajectory_metrics.py",
                                 "composition.py", "conditional_decode.py", "conditional.py", "inference.py", "decoder.py",
-                                "decoding_model.py", "rescorer.py", "fusion.py")},
+                                "decoding_model.py", "rescorer.py", "fusion.py", "transducer.py", "syllables.py")},
                   metrics=summarize(results))
     (args.out / "summary.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps(dict(out=str(args.out), metrics=report["metrics"]), ensure_ascii=False), flush=True)

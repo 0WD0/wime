@@ -61,7 +61,16 @@ def execute(args, parser, checkpoint):
     from rescorer import Rescorer
     rescorer = Rescorer(str(args.rescorer),1.5)
     units = Units(rescorer.tokenizer,readings(args.database))
-    decoders = {name:Decoder(ConditionalEvaluator(path),rescorer,units) for name,path in models.items()}
+    import transducer
+    from safetensors import safe_open
+
+    def decoder_for(path):
+        # Transducer checkpoints say so in their metadata.
+        with safe_open(path, "pt") as f:
+            if f.metadata().get("format") == transducer.FORMAT:
+                return transducer.decoder_class(Decoder)(transducer.Evaluator(path), rescorer, units)
+        return Decoder(ConditionalEvaluator(path), rescorer, units)
+    decoders = {name:decoder_for(path) for name,path in models.items()}
     for name, decoder in decoders.items():
         decoder.weight, decoder.beam = weights[name], beams[name]
     for decoder in decoders.values():
@@ -103,7 +112,7 @@ def execute(args, parser, checkpoint):
                                context_characters=64,personalization=False),
                   code_sha256={name:fingerprint(Path(__file__).with_name(name)) for name in
                                ("evaluate-regression.py","regression.py","decoder.py","decoding_model.py",
-                                "inference.py","conditional.py","composition.py","rescorer.py")},
+                                "inference.py","conditional.py","composition.py","rescorer.py","transducer.py","syllables.py")},
                   unique_requests=len(cache),cases=len(results),seconds=time.monotonic()-started,
                   metrics=(compare(results,list(models)) if len(models)==2 else
                            {name:compare(results,[next(iter(models)),name]) for name in list(models)[1:]}),
