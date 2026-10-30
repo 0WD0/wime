@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--rescorer")
     parser.add_argument("--rescorer-weight", type=float, default=1.5)
     parser.add_argument("--beam", type=int, default=16)
+    parser.add_argument("--suffix-cap", help="LENGTH:CAP diversity cap for the legacy beam")
     parser.add_argument("--device", default="cuda")
     add_arguments(parser)
     args = parser.parse_args()
@@ -62,6 +63,7 @@ def execute(args, parser, checkpoint):
         rescorer = Rescorer(args.rescorer, args.rescorer_weight, device=args.device)
         decoder = make_decoder(args, evaluator, rescorer)
         decoder.beam = args.beam
+        decoder.suffix_cap = tuple(map(int, args.suffix_cap.split(":"))) if args.suffix_cap else None
     legal = readings(args.database)
 
     def predict(state):
@@ -125,7 +127,7 @@ def execute(args, parser, checkpoint):
                   backend=args.backend, rescorer=args.rescorer, rescorer_weight=args.rescorer_weight,
                   rescorer_files_sha256={file.name:fingerprint(file) for file in sorted(Path(args.rescorer).iterdir())
                                         if file.suffix in (".json", ".safetensors")} if args.rescorer else None,
-                  beam=args.beam,
+                  beam=args.beam, suffix_cap=args.suffix_cap,
                   training_steps=metadata.get("training_steps"), seconds=time.monotonic()-started,
                   precision="conditional FP32/TF32 disabled; Qwen uses existing BF16 runtime",
                   semantics="Prefix, whole, then committed continuation at reviewed boundaries; "

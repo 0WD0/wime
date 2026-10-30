@@ -231,6 +231,16 @@ class Decoding(unittest.TestCase):
         # Removing the literal restores the plain ranking in the same session.
         self.assertEqual(decoder.decode("", "vgjuuuru")[0][0], "证据输入")
 
+    def test_suffix_cap_keeps_alternatives_for_the_newest_character(self):
+        decoder = Toy()
+        decoder.beam, decoder.suffix_cap = 2, (1, 1)
+        texts = [t for t, _ in decoder.decode("", "vgju")]
+        self.assertEqual(len(texts), 2)
+        self.assertEqual({t[-1] for t in texts}, {"据", "句"})
+        # The cap orders admission, not size: the beam still fills.
+        decoder.beam, decoder.suffix_cap, decoder.session = 6, (1, 1), None
+        self.assertEqual(len(decoder.decode("", "vgju")), 6)
+
     def test_unknown_keys_give_nothing(self):
         self.assertEqual(Toy().decode("", "vgxx"), [])
 
