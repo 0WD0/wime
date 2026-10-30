@@ -14,27 +14,32 @@
 (require 'json)
 (require 'wime)
 
-(defcustom wime-neural-program
-  (expand-file-name "neural/gpu-worker.py" (file-name-directory (or load-file-name buffer-file-name)))
+(defconst wime-neural--directory
+  (expand-file-name "neural" (file-name-directory (or load-file-name buffer-file-name)))
+  "This package's worker sources and environment project.")
+
+;; The defaults are the evaluated decode setup, laid out as the README describes.
+(defcustom wime-neural-program (expand-file-name "gpu-worker.py" wime-neural--directory)
   "Local worker executable, by default this package's gpu-worker.py."
   :type 'string :group 'wime)
 
-(defcustom wime-neural-model-file nil
-  "Local safetensors model, downloaded separately at build time."
+(defcustom wime-neural-model-file
+  (expand-file-name "wime-syllable-mspy-25m/model.safetensors" wime-data-directory)
+  "Conditional model in safetensors format."
   :type '(choice (const nil) file) :group 'wime)
 
-(defcustom wime-neural-interpreter nil
+(defcustom wime-neural-interpreter (expand-file-name "python/bin/python" wime-data-directory)
   "Interpreter that runs `wime-neural-program', or nil to execute it directly.
-The CUDA worker's rescorer needs a Python with a recent transformers."
+The worker needs PyTorch with CUDA and transformers."
   :type '(choice (const nil) file) :group 'wime)
 
-(defcustom wime-neural-rescorer nil
+(defcustom wime-neural-rescorer (expand-file-name "rescorers/Qwen3.5-2B-Base" wime-data-directory)
   "Directory of a general causal language model for the worker.
-Its mean per-character log probability, times `wime-neural-rescorer-weight',
-is added to the model score of every verified candidate.  Nil disables it."
+Its log probability, times `wime-neural-rescorer-weight', joins the
+conditional model score.  Nil disables it."
   :type '(choice (const nil) directory) :group 'wime)
 
-(defcustom wime-neural-rescorer-weight 1.5
+(defcustom wime-neural-rescorer-weight 1.0
   "Weight of `wime-neural-rescorer' relative to the conditional model score."
   :type 'number :group 'wime)
 
@@ -51,7 +56,7 @@ CUDA seed selection and draft verification, so the models cannot outvote a
 correction the user made for the same keys; see `wime-user-database'."
   :type 'number :group 'wime)
 
-(defcustom wime-neural-beam 16
+(defcustom wime-neural-beam 32
   "Hypotheses the decoder keeps per character."
   :type 'natnum :group 'wime)
 
@@ -59,17 +64,17 @@ correction the user made for the same keys; see `wime-user-database'."
   "Seconds without a new input key before sending a neural request."
   :type 'number :group 'wime)
 
-(defcustom wime-neural-timeout 2.0
+(defcustom wime-neural-timeout 6.0
   "Seconds allowed for a response from an already running worker."
   :type 'number :group 'wime)
 
-(defcustom wime-neural-startup-timeout 10.0
+(defcustom wime-neural-startup-timeout 30.0
   "Seconds allowed for the first response, including model and CUDA setup.
 Traditional candidates remain usable during initialization.  Later requests
 use `wime-neural-timeout'."
   :type 'number :group 'wime)
 
-(defcustom wime-neural-search-method 'verify
+(defcustom wime-neural-search-method 'decode
   "Use conditional draft verification or decoding.
 Both require a wime-ms-pinyin-v1 model and a Microsoft double-pinyin database.
 `verify' scores lattice drafts; auxiliary codes constrain the dictionary search.
@@ -78,10 +83,10 @@ the lattice, including a trailing half syllable.  Readings, auxiliary codes
 and fixed characters are hard constraints.  Without a rescorer it verifies."
   :type '(choice (const verify) (const decode)) :group 'wime)
 
-(defcustom wime-neural-single-character nil
-  "Allow single-character compositions in conditional `verify' mode.
-Enable only with a model trained and evaluated on single-character spans.
-Older models retain contextual octagram ranking by default."
+(defcustom wime-neural-single-character t
+  "Let the model rank single-character compositions too.
+Disable for older models not trained on single-character spans; they
+retain contextual octagram ranking."
   :type 'boolean :group 'wime)
 
 (defcustom wime-neural-inference-budget 4

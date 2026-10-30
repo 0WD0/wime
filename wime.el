@@ -95,10 +95,16 @@
   :type 'natnum
   :group 'wime)
 
-(defcustom wime-database-file nil
+(defcustom wime-data-directory
+  (expand-file-name "wime" (or (getenv "XDG_DATA_HOME") "~/.local/share"))
+  "Directory holding the word database, models and worker environment."
+  :type 'directory
+  :group 'wime)
+
+(defcustom wime-database-file (expand-file-name "wanxiang.db" wime-data-directory)
   "SQLite database holding the full wanxiang word list, or nil.
 
-wdoom points this at the database built by the Bazel artifact.  When it
+gen/wime_gen.py builds it; wdoom points this at its Bazel artifact.  When it
 is nil or unreadable, wime falls back to the committed Elisp tables."
   :type '(choice (const nil) file)
   :group 'wime)

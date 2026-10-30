@@ -119,29 +119,39 @@ wime-lab 中也可按 =l/H= 打开。=/= 搜索，=RET= 查看详情，=e= 修�
 数据环境默认位于 =~/.local/share/wime/environments/datasets/=；
 =wime-lab-data-python= 和 =wime-lab-data-program= 指定查询环境与控制器。
 
-* 安装神经模型
+* 配置神经环境
 
-模型、Python 和本机编译的 CUDA 库放在 =$XDG_DATA_HOME/wime/=
-（默认 =~/.local/share/wime/=），不进 wdoom 快照。
+=decode= 需要 NVIDIA GPU（CUDA 13 驱动，约 6 GB 显存）。
+文件都放在 =wime-data-directory=（默认 =~/.local/share/wime/=），
+各选项的默认值就指向下表位置，放好后 =(wime-neural-mode 1)= 即可。
 
-| 做法 | 需要的模型 |
-|------+------------|
-| =verify= | 25M 条件模型 |
-| =decode= | 25M 条件模型和 =rescorers/Qwen3.5-2B-Base/=（Transformers，CUDA 上 BF16） |
-
-25M 条件模型为 =models/<sha256>.safetensors=；打包哈希固定在
-=neural_model.bzl=，也可用 =WIME_CONDITIONAL_MODEL= 指向同一文件。
+| 内容 | 位置 | 来源 |
+|------+------+------|
+| Python 环境 | =python/= | =neural/pyproject.toml= 和 =uv.lock= |
+| 词库 | =wanxiang.db= | 万象拼音墨奇辅助码发布包（CC-BY-4.0），=gen/wime_gen.py= 生成 |
+| 25M 音节模型 | =wime-syllable-mspy-25m/= | HF =0WD0/wime-syllable-mspy-25m=（CC-BY-SA-4.0） |
+| 通用语言模型 | =rescorers/Qwen3.5-2B-Base/= | HF =Qwen/Qwen3.5-2B-Base=（Apache-2.0） |
 
 #+begin_src sh
-uv venv --python 3.12 ~/.local/share/wime/python
-uv pip install --python ~/.local/share/wime/python/bin/python \
-    -r emacs-packages/wime/neural/requirements-gpu.txt
+D=~/.local/share/wime
+UV_PROJECT_ENVIRONMENT=$D/python uv sync --frozen --project emacs-packages/wime/neural
+$D/python/bin/hf download 0WD0/wime-syllable-mspy-25m --local-dir $D/wime-syllable-mspy-25m
+$D/python/bin/hf download Qwen/Qwen3.5-2B-Base \
+    --revision b1485b2fa6dfa1287294f269f5fb618e03d52d7c --local-dir $D/rescorers/Qwen3.5-2B-Base
+curl -LO https://github.com/amzxyz/rime-wanxiang/releases/download/v18.1.8/rime-wanxiang-moqi-fuzhu.zip
+unzip -d wanxiang rime-wanxiang-moqi-fuzhu.zip
+python3 emacs-packages/wime/gen/wime_gen.py --rime-data wanxiang --database $D/wanxiang.db
 #+end_src
 
-Qwen 的完整 HF 模型下载到上表目录即可。
-=./wdoom/bin/wdoom-prepare --native= 打包 worker、Elisp 和 25M 模型，重启后生效。
-缺少大模型时 wdoom 用 25M 的 =verify=；worker 出错时词格候选仍可用。
-=M-x wime-lab= 的评测、试输、检查点保存携带完整推理设置。
+=HF_ENDPOINT= 可指向 Hugging Face 镜像。Qwen 固定在评测用的版本。
+音节模型的输入是不带声调的音节（按微软双拼两键编码）和左文，不看辅助码；
+辅助码只在搜索里约束读音。
+没有大模型时把 =wime-neural-search-method= 设为 =verify=，只用 25M 模型。
+
+wdoom 自己打包：=./wdoom/bin/wdoom-prepare --native= 打包 worker、Elisp、词库和
+25M 模型（哈希固定在 =neural_model.bzl=，也可用 =WIME_CONDITIONAL_MODEL= 指向同一文件），
+重启后生效；推理设置来自 =M-x wime-lab= 保存的启动配置。
+缺少大模型时 wdoom 用 =verify=；worker 出错时词格候选仍可用。
 
 * 日本語
 

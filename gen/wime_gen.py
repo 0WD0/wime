@@ -222,6 +222,9 @@ def imported_dicts(dict_path):
         if collect:
             if not line.startswith("  "):
                 break
+            # Releases ship optional tables commented out: "  #- dicts/yixue.pro".
+            if line.lstrip().startswith("#"):
+                continue
             name = line.strip().lstrip("- ").split()[0]
             paths.append(dict_path.parent / (name + ".dict.yaml"))
     return paths

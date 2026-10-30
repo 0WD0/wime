@@ -1,0 +1,22 @@
+# The decode worker's environment; see the README for `uv sync`.  PyTorch
+# comes from the CUDA 13.0 index.
+[project]
+name = "wime-worker"
+version = "0"
+requires-python = "==3.12.*"
+dependencies = [
+    "torch==2.11.0",
+    "safetensors==0.8.0",
+    "transformers==5.17.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true

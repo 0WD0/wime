@@ -1,5 +1,0 @@
-# Optional CUDA worker. Install a CUDA-enabled PyTorch build for the host GPU.
-torch==2.11.0
-safetensors==0.8.0
-# HF weights for the Qwen3.5 language model.
-transformers==5.17.0

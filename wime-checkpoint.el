@@ -4,8 +4,7 @@
 (require 'json)
 (defcustom wime-checkpoint-program nil "Path to Wime Lab's Python controller." :type '(choice (const nil) file) :group 'wime)
 (defcustom wime-checkpoint-python "python3" "Python for the experiment controller." :type 'string :group 'wime)
-(defcustom wime-checkpoint-directory
-  (expand-file-name "wime" (or (getenv "XDG_DATA_HOME") "~/.local/share"))
+(defcustom wime-checkpoint-directory wime-data-directory
   "Persistent experiment and checkpoint directory." :type 'directory :group 'wime)
 (defvar wime-checkpoint-previous nil "Previous successfully selected runtime recipe.")
 

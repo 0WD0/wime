@@ -430,11 +430,11 @@
 (declare-function wime-grammar-query "librime-grammar" (context word rear))
 
 ;; The database is a Bazel artifact.  Point at the build output when running
-;; from the repository root so the batch suite works without a snapshot.
-(unless wime-database-file
-  (let ((candidate (expand-file-name "bazel-bin/emacs-packages/wime/wanxiang.db")))
-    (when (file-readable-p candidate)
-      (setq wime-database-file candidate))))
+;; from the repository root so the batch suite works without a snapshot, and
+;; never at an installed database.
+(setq wime-database-file
+      (let ((candidate (expand-file-name "bazel-bin/emacs-packages/wime/wanxiang.db")))
+        (and (file-readable-p candidate) candidate)))
 
 (defmacro wime-test--type (keys &rest body)
   "Type KEYS into a temporary buffer and evaluate BODY."
