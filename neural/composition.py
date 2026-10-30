@@ -58,6 +58,31 @@ def composition_prompt(context, code, window=128, committed=None):
     return prompt(history, keys, window) + fixed
 
 
+def rerank(decoder, reranker, rerank_weight, context, code, committed=None, *, window=128,
+           pins=(), learned=(), weight=0.0, aux=(), literals=()):
+    """Decode, then rank the final readings by m + RERANK_WEIGHT * the
+    reranker's log probability of the sentence as typed, literals included.
+
+    The decoder's session already holds this input, so only the reranker
+    runs again: one batch over at most a beam of complete sentences.
+    """
+    decode(decoder, context, code, committed, window=window, pins=pins, learned=learned,
+           weight=weight, aux=aux, literals=literals)
+    history, keys, fixed = expand(context, code, committed, window)
+    offset = len(fixed)
+    final = [h for h in decoder.session.final if h.text.startswith(fixed) and len(h.text) > offset]
+    if not final:
+        return []
+    shifted = {p + offset: text for p, text in literals}
+    surfaces = ["".join(shifted.get(i, "") + c for i, c in enumerate(h.text)) + shifted.get(len(h.text), "")
+                for h in final]
+    means = reranker.score(history, surfaces)
+    scores = [h.m + rerank_weight * mean * len(surface) + decoder.session.bonus(h.text)
+              for h, mean, surface in zip(final, means, surfaces)]
+    ranked = sorted(zip(final, scores), key=lambda pair: pair[1], reverse=True)
+    return [(h.text[offset:], score / (len(h.text) - offset)) for h, score in ranked]
+
+
 def decode(decoder, context, code, committed=None, *, window=128,
            pins=(), learned=(), weight=0.0, aux=(), literals=()):
     """Decode under fixed confirmed output, returning only uncommitted text.

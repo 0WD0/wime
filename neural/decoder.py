@@ -133,6 +133,7 @@ class Session:
         self.context = context
         self.constraints, self.learned, self.weight = constraints, learned, weight
         self.literals, self.texts, self.segment_prompts = literals, {}, {}
+        self.final = []  # the last decode's complete hypotheses, for reranking
         self.code, self.kept = "", [[Hypothesis("", (), 0.0, 0.0)]]
         self.memo, self.tails = {}, {}
         self.lm_context = None
@@ -322,6 +323,7 @@ class Session:
     def decode(self, code):
         syllables, half = len(code) // 2, len(code) % 2
         if not syllables:
+            self.final = []
             return []
         complete = code[:2 * syllables]
         if complete != self.code:
@@ -345,4 +347,5 @@ class Session:
         else:
             final = self.kept[syllables]
         n = syllables + half
-        return [(h.text, self.rank(h) / n) for h in final if len(h.text) == n]
+        self.final = [h for h in final if len(h.text) == n]
+        return [(h.text, self.rank(h) / n) for h in self.final]

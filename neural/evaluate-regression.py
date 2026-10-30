@@ -7,7 +7,7 @@ from lab_tracking import add_arguments, track
 from pathlib import Path
 import time
 
-from composition import ENCODING, decode as decode_composition
+from composition import ENCODING, decode as decode_composition, rerank as rerank_composition
 from dataset_registry import Registry
 from regression import compare, requests, request_key
 from replay import fingerprint
@@ -22,6 +22,8 @@ def main():
     parser.add_argument("--weight", action="append", default=[], help="name=LM fusion weight; default 1.5")
     parser.add_argument("--suffix-cap", action="append", default=[], help="name=LENGTH:CAP beam diversity cap")
     parser.add_argument("--beam", action="append", default=[], help="name=beam width; default 16")
+    parser.add_argument("--reranker", type=Path, help="larger LM for models given --rerank-weight")
+    parser.add_argument("--rerank-weight", action="append", default=[], help="name=weight; rerank that model's final readings")
     parser.add_argument("--out", type=Path, required=True)
     add_arguments(parser)
     args = parser.parse_args()
@@ -53,6 +55,12 @@ def execute(args, parser, checkpoint):
         if name not in models:
             parser.error(f"--beam names an unknown model: {name}")
         beams[name] = int(beam)
+    reranks = {}
+    for value in args.rerank_weight:
+        name, weight = value.split("=", 1)
+        if name not in models or not args.reranker:
+            parser.error(f"--rerank-weight needs --reranker and a known model: {name}")
+        reranks[name] = float(weight)
     registry, suites = Registry(), []
     for dataset in args.dataset:
         path, snapshot = registry.evaluation(dataset)
@@ -69,6 +77,7 @@ def execute(args, parser, checkpoint):
     rescorer = Rescorer(str(args.rescorer),1.5)
     units = Units(rescorer.tokenizer,readings(args.database))
     decoders = {name:Decoder(ConditionalEvaluator(path),rescorer,units) for name,path in models.items()}
+    reranker = Rescorer(str(args.reranker),1.0) if reranks else None
     for name, decoder in decoders.items():
         decoder.weight, decoder.suffix_cap, decoder.beam = weights[name], caps.get(name), beams[name]
     for decoder in decoders.values():
@@ -84,8 +93,10 @@ def execute(args, parser, checkpoint):
                     for name,decoder in decoders.items():
                         torch.cuda.synchronize()
                         start = time.perf_counter()
-                        candidates = decode_composition(decoder, request["context"], request["input"],
-                                                        request["committed"], aux=request["aux"])
+                        candidates = (rerank_composition(decoder, reranker, reranks[name], request["context"], request["input"],
+                                                         request["committed"], aux=request["aux"]) if name in reranks else
+                                      decode_composition(decoder, request["context"], request["input"],
+                                                         request["committed"], aux=request["aux"]))
                         torch.cuda.synchronize()
                         predictions[name] = dict(prediction=candidates[0][0] if candidates else "",
                                                  candidates=[text for text,score in candidates],
@@ -101,7 +112,8 @@ def execute(args, parser, checkpoint):
                 if len(results)%50 == 0:
                     print(json.dumps(dict(completed=len(results),unique_requests=len(cache),seconds=time.monotonic()-started)),flush=True)
     report = dict(models={name:dict(path=path,sha256=fingerprint(Path(path)),weight=weights[name],
-                                    suffix_cap=caps.get(name), beam=beams[name]) for name,path in models.items()},
+                                    suffix_cap=caps.get(name), beam=beams[name], rerank_weight=reranks.get(name)) for name,path in models.items()},
+                  reranker=str(args.reranker) if reranks else None,
                   datasets={name:snapshot for name,snapshot,_,_ in suites},
                   database_sha256=fingerprint(args.database),
                   rescorer_files_sha256={file.name:fingerprint(file) for file in sorted(args.rescorer.iterdir())

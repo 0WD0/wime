@@ -52,6 +52,19 @@ CUDA seed selection and draft verification, so the models cannot outvote a
 correction the user made for the same keys; see `wime-user-database'."
   :type 'number :group 'wime)
 
+(defcustom wime-neural-reranker nil
+  "Larger language model that reranks the legacy decoder's readings after a pause.
+Nil keeps the decoded order."
+  :type '(choice (const nil) directory) :group 'wime)
+
+(defcustom wime-neural-reranker-weight 1.5
+  "Weight of `wime-neural-reranker' relative to the conditional model score."
+  :type 'number :group 'wime)
+
+(defcustom wime-neural-rerank-delay 0.25
+  "Seconds after a decoded reading arrives, without new input, before reranking it."
+  :type 'number :group 'wime)
+
 (defcustom wime-neural-delay 0.04
   "Seconds without a new input key before requesting neural reranking."
   :type 'number :group 'wime)
@@ -261,6 +274,9 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
           (and wime-neural-rescorer
                (list "--rescorer" (expand-file-name wime-neural-rescorer)
                      "--rescorer-weight" (number-to-string wime-neural-rescorer-weight)))
+          (and wime-neural-reranker (eq wime-backend-model 'legacy)
+               (list "--reranker" (expand-file-name wime-neural-reranker)
+                     "--reranker-weight" (number-to-string wime-neural-reranker-weight)))
           (when (or (and wime-neural-rescorer (eq wime-neural-search-method 'decode))
                     (memq wime-backend-model '(minicpm-native legacy)))
             (unless (and wime-neural-rescorer (eq wime-neural-search-method 'decode)
@@ -300,7 +316,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 (defun wime-neural--request (job)
   "Encode JOB with explicit coverage and dictionary provenance."
   (pcase (wime-neural--job-method job)
-    ('decode (wime-neural--decode-request job))
+    ((or 'decode 'rerank) (wime-neural--decode-request job))
     ('japanese (wime-japanese--request job))
     (_ (wime-neural--verify-request job))))
 
@@ -308,7 +324,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   "Encode JOB's whole input, pins and learned readings for decoding."
   (let ((units (wime--parse (wime-neural--job-input job))))
     (json-serialize
-     `(:id ,(wime-neural--job-id job) :operation "decode" :context ,(or (wime-neural--job-history job) (wime-neural--job-context job))
+     `(:id ,(wime-neural--job-id job) :operation ,(symbol-name (wime-neural--job-method job))
+       :context ,(or (wime-neural--job-history job) (wime-neural--job-context job))
        :syllables ,(length units) :input ,(wime--full-code units)
        :encoding "wime-composition-v2"
        :committed ,(or (wime-neural--job-committed job) :null)
@@ -371,7 +388,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
   (when (and (not wime-neural--failed) (wime-neural--valid-p job))
     (if wime-neural--busy
         (setq wime-neural--pending job)
-      (unless (or (wime-neural--job-pool job) (memq (wime-neural--job-method job) '(decode japanese)))
+      (unless (or (wime-neural--job-pool job) (memq (wime-neural--job-method job) '(decode rerank japanese)))
         (setf (wime-neural--job-pool job) (wime-neural--pool job)))
       (condition-case nil
           (let ((process (wime-neural--start)))
@@ -381,7 +398,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                                          wime-neural-timeout wime-neural-startup-timeout)
                                      ;; Decoding from scratch, as after a new
                                      ;; composition's pause, costs per syllable.
-                                     (if (memq (wime-neural--job-method job) '(decode japanese))
+                                     (if (memq (wime-neural--job-method job) '(decode rerank japanese))
                                          (* 0.1 (wime-neural--job-syllables job)) 0))
                                   nil #'wime-neural--fail "worker timed out"))
             (process-send-string process (concat (wime-neural--request job) "\n")))
@@ -479,7 +496,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
         (setq wime-neural-last-latency (alist-get 'elapsed_ms response)
               wime--model-ranked t)
         (pcase (wime-neural--job-method job)
-          ('decode (wime-neural--decode-apply job response))
+          ((or 'decode 'rerank) (wime-neural--decode-apply job response))
           ('japanese (wime-japanese--apply job response))
           ('verify (wime-neural--verify-apply job response))
           (_ (when candidate (wime-neural--publish job candidate))))))))
@@ -505,7 +522,19 @@ words and completions stay after them, so a prefix can still be committed."
             wime--candidates (seq-take (seq-uniq (append texts wime--candidates)) wime-candidates-max))
       (unless wime--pins
         (setq wime--default-reading (car wime--candidates)))
-      (wime--display))))
+      (wime--display)
+      (when (and (eq (wime-neural--job-method job) 'decode) wime-neural-reranker
+                 (eq wime-backend-model 'legacy))
+        ;; After a pause the larger LM reranks this reading once.  Any key
+        ;; cancels the timer; the reply must match the state shown now.
+        (let ((rerank (copy-wime-neural--job job)))
+          (setf (wime-neural--job-id rerank) (cl-incf wime-neural--serial)
+                (wime-neural--job-method rerank) 'rerank
+                (wime-neural--job-records rerank) wime--candidate-records
+                (wime-neural--job-tick rerank) (buffer-chars-modified-tick)
+                (wime-neural--job-position rerank) (point))
+          (setq wime-neural--timer
+                (run-with-timer wime-neural-rerank-delay nil #'wime-neural--enqueue rerank)))))))
 
 (defun wime-neural--reply (response)
   "Complete the matching request with RESPONSE and dispatch latest pending work."
