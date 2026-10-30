@@ -1,0 +1,6 @@
+outs:
+- md5: f2d59b0eaf2f08fa8aa2aa1d91131f7b.dir
+  size: 2223317
+  nfiles: 4
+  hash: md5
+  path: rerank-oracle-v1
