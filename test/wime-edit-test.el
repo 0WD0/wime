@@ -326,8 +326,12 @@
     (wime-edit-test--type "!")
     (should (equal (wime-edit--literals) '((1 . "AP 4") (2 . "!"))))
     (wime-edit-test--command #'wime-toggle-english)
+    (wime-edit-test--type ",cc")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲AP 4丙!，戊"))
+    (should (equal (wime-edit--literals) '((1 . "AP 4") (2 . "!，"))))
+    (should (= wime-edit--end 10))
     (wime-edit-test--type " ")
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲AP 4丙!"))
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲AP 4丙!，戊"))
     (should-not (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil))))
 
 (ert-deftest wime-edit-deleting-the-last-syllable-leaves-literals-as-text ()

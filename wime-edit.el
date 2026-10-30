@@ -3,9 +3,11 @@
 ;;; Commentary:
 ;; Buffer characters carry immutable reading records, so ordinary edits and
 ;; undo retain the readings of untouched characters.  Literal text separates
-;; Chinese runs, except text typed in `wime-english-mode' inside a run: it is
-;; a literal unit of that run, which converts as one sentence around it.  Only the run at point participates in conversion; switching
-;; input methods suspends conversion without throwing away those records.
+;; Chinese runs, except punctuation and `wime-english-mode' text typed inside
+;; a run: they become literal units of it, and the run converts as one
+;; sentence around them.  Only the run at point participates in conversion;
+;; switching input methods suspends conversion without throwing away those
+;; records.
 
 ;;; Code:
 
@@ -633,18 +635,19 @@ fonts use the same units as the source-text alignment."
                  (nthcdr (1+ index) wime-edit--units)) (1+ index))
         t))))
 
-(defun wime-edit--type-literal (key)
-  "Insert KEY as literal text in the run at point; nil without a run.
-Text before the run's first syllable is context, not part of the run."
+(defun wime-edit--type-literal (text)
+  "Insert TEXT, a string or one key, as literal units of the run at point.
+Return nil without a run; text before its first syllable is context."
   (setq wime-edit--undoing nil wime-edit--paused-point nil)
   (wime-edit--sync)
   (when (and (wime-edit--active-p) (> (point) wime-edit--start))
     (let ((offset (- (point) wime-edit--start)))
       (wime-edit--refresh
        (append (seq-take wime-edit--units offset)
-               (list (wime-edit--make-unit :keys (char-to-string key) :literal t))
+               (mapcar (lambda (char) (wime-edit--make-unit :keys (string char) :literal t))
+                       (if (stringp text) text (string text)))
                (nthcdr offset wime-edit--units))
-       (1+ offset))
+       (+ offset (if (stringp text) (length text) 1)))
       t)))
 
 (defun wime-edit--choose (text)
@@ -675,8 +678,10 @@ Text before the run's first syllable is context, not part of the run."
          (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil))
     (wime-edit-finish) nil)
    ((wime--punctuation-for key)
-    (wime-edit-pause)
-    (insert (wime--punctuation-for key)) nil)
+    ;; Punctuation continues the sentence; only SPC or ESC ends conversion.
+    (unless (wime-edit--type-literal (wime--punctuation-for key))
+      (insert (wime--punctuation-for key)))
+    nil)
    (t (wime-edit-pause) (list key))))
 
 (defun wime-edit-delete-backward ()
