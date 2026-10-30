@@ -1940,6 +1940,71 @@
         "Boundary rules were tuned while inspecting dev-v2 boundaries; dev-v2 boundary agreement is optimistic.",
         "No row-level human quality review as in broad-v1 curation."
       ]
+    },
+    "sentence-trajectories-test-v3": {
+      "kind": "evaluation",
+      "status": "heldout",
+      "annotation": "gpt-sovits-mandarin-v1+agent-review-v3",
+      "parents": [
+        "cleaned-multisource-v4"
+      ],
+      "exclude_from_training": true,
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-test-v3"
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-test-v3.dvc",
+        "sha256": "3ef70fa4b1085c182fe04e686a156373004266d52f43d6ec3d2b91db7c5f0b18"
+      },
+      "description": "Sealed natural input release: 239 independent source groups from unused original test-split groups, 53 meaningful commit boundaries, 345 input states. No IME outputs used in construction.",
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "cases": {
+          "path": "cases.json",
+          "format": "json-array",
+          "rows": 239
+        },
+        "documents": {
+          "path": "source-documents.jsonl",
+          "format": "jsonl",
+          "rows": 239
+        },
+        "reading_review": {
+          "path": "reading-review.json"
+        },
+        "boundary_review": {
+          "path": "boundary-review.json",
+          "format": "json-array",
+          "rows": 58
+        },
+        "selection_ledger": {
+          "path": "selection-ledger.json",
+          "format": "json-array",
+          "rows": 333
+        },
+        "agent_review": {
+          "path": "agent-review.json",
+          "format": "json-array",
+          "rows": 333
+        },
+        "report": {
+          "path": "report.org"
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "reading_accuracy": "not independently estimated",
+        "human_verified_gold": false,
+        "content_review": "Every candidate read by agent; explicit accept/exclude reasons before IME inference.",
+        "training_releases_audited": 16,
+        "prior_evaluation_releases_audited": 17,
+        "remaining_source_or_text_matches": 0
+      }
     }
   }
 }

@@ -1,0 +1,6 @@
+outs:
+- md5: 0ef1b65d5c4551b769dbcc26cb92a70f.dir
+  size: 889976
+  nfiles: 19
+  hash: md5
+  path: sentence-trajectories-test-v3
