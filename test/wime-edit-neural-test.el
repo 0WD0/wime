@@ -32,15 +32,17 @@ worker process, and can check each asynchronous invalidation separately."
                      :id 1 :buffer (current-buffer) :input wime--input
                      :position (point) :tick (buffer-chars-modified-tick)
                      :context context :records wime--candidate-records
-                     :syllables 2 :edit-generation wime-edit--generation)))
+                     :syllables 2 :method 'decode :edit-generation wime-edit--generation)))
            ,@body)))))
 
 (ert-deftest wime-edit-neural-schedule-captures-run-generation ()
   (wime-edit-neural-test--composition
     (let ((wime-neural-model-file "model")
           (wime-neural--failed nil)
-          (wime-neural-search-method 'rerank) scheduled)
-      (cl-letf (((symbol-function 'run-with-timer)
+          (wime-neural-search-method 'verify) scheduled)
+      (cl-letf (((symbol-function 'wime--database) #'ignore)
+                ((symbol-function 'sqlite-select) (lambda (&rest _) '(("mspy"))))
+                ((symbol-function 'run-with-timer)
                  (lambda (_delay _repeat _function request)
                    (setq scheduled request) nil)))
         (wime-neural--schedule))
@@ -55,7 +57,7 @@ worker process, and can check each asynchronous invalidation separately."
     (backward-char)
     (should (wime-neural--valid-p job))
     (let ((position (point)))
-      (wime-neural--apply job '((promoted . 1) (elapsed_ms . 3.5)))
+      (wime-neural--apply job '((candidates . [["丙丁" -1.0]]) (elapsed_ms . 3.5)))
       (should published)
       (should (equal wime--candidates '("丙丁" "甲乙")))
       (should (= wime-neural-last-latency 3.5))
@@ -65,8 +67,10 @@ worker process, and can check each asynchronous invalidation separately."
   (wime-edit-neural-test--composition
     (let ((wime-neural-model-file "model")
           (wime-neural--failed nil)
-          (wime-neural-search-method 'rerank) scheduled)
-      (cl-letf (((symbol-function 'run-with-timer)
+          (wime-neural-search-method 'verify) scheduled)
+      (cl-letf (((symbol-function 'wime--database) #'ignore)
+                ((symbol-function 'sqlite-select) (lambda (&rest _) '(("mspy"))))
+                ((symbol-function 'run-with-timer)
                  (lambda (_delay _repeat _function request)
                    (setq scheduled request) nil)))
         ;; Candidate coverage alone cannot detect the lost syllable boundary.
@@ -88,7 +92,7 @@ worker process, and can check each asynchronous invalidation separately."
       ;; The keys, candidates and buffer can all be unchanged here.
       (should (= (buffer-chars-modified-tick) (wime-neural--job-tick job)))
       (should-not (wime-neural--valid-p job))
-      (wime-neural--apply job '((promoted . 1)))
+      (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
       (should-not published)
       (should (equal (car wime--candidates) "甲乙")))))
 
@@ -103,7 +107,7 @@ worker process, and can check each asynchronous invalidation separately."
         ('context (setq context "不同前文"))
         ('selected (setq wime--selected 1)))
       (should-not (wime-neural--valid-p job))
-      (wime-neural--apply job '((promoted . 1)))
+      (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
       (should-not published))))
 
 (ert-deftest wime-edit-neural-verification-continuation-retains-generation ()
@@ -163,7 +167,7 @@ worker process, and can check each asynchronous invalidation separately."
                    :id 1 :buffer (current-buffer) :input wime--input
                    :position (point) :tick (buffer-chars-modified-tick)
                    :context (wime-neural--context) :records wime--candidate-records
-                   :syllables 2 :edit-generation wime-edit--generation)))
+                   :syllables 2 :method 'decode :edit-generation wime-edit--generation)))
          ,@body))))
 
 (ert-deftest wime-edit-neural-callback-updates-real-text-without-moving-cursor ()
@@ -172,7 +176,7 @@ worker process, and can check each asynchronous invalidation separately."
     (set-mark 5)
     (should (equal (wime-neural--job-context job) "前文"))
     (should (wime-neural--valid-p job))
-    (wime-neural--apply job '((promoted . 1)))
+    (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
     (should (equal (buffer-substring-no-properties 1 5) "前文丙丁"))
     (should (= (point) 4))
     (should (= (mark) 5))
@@ -194,7 +198,7 @@ worker process, and can check each asynchronous invalidation separately."
         ('deactivated (wime-deactivate))
         ('database (setq-local wime-database-file "another-scheme.db")))
       (should-not (wime-neural--valid-p job))
-      (wime-neural--apply job '((promoted . 1)))
+      (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
       (save-restriction
         (widen)
         (should (equal (buffer-substring-no-properties 1 5) "前文甲乙"))))))
@@ -203,8 +207,10 @@ worker process, and can check each asynchronous invalidation separately."
   (wime-edit-neural-test--buffer
     (let ((wime-neural-model-file "model")
           (wime-neural--failed nil)
-          (wime-neural-search-method 'rerank) scheduled)
-      (cl-letf (((symbol-function 'run-with-timer)
+          (wime-neural-search-method 'verify) scheduled)
+      (cl-letf (((symbol-function 'wime--database) #'ignore)
+                ((symbol-function 'sqlite-select) (lambda (&rest _) '(("mspy"))))
+                ((symbol-function 'run-with-timer)
                  (lambda (_delay _repeat _function request)
                    (setq scheduled request) nil)))
         (setq wime-edit--units

@@ -1,7 +1,5 @@
 """Worker contract tests run without a GPU or model artifact."""
 import importlib.util
-import contextlib
-import io
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -19,74 +17,6 @@ class WorkerContract(unittest.TestCase):
     def request(self, **changes):
         return dict(dict(id=1, context="", syllables=2, candidates=[], operation="verify",
                          input="bmyi", draft="编译"), **changes)
-
-    def test_default_and_explicit_qwen_share_text_search(self):
-        for flags in ([], ["--backend", "qwen-hf"]):
-            args = worker.parse_args(["model", "--rescorer", "lm", "--database", "words"] + flags)
-            self.assertEqual(args.backend, "qwen-hf")
-            table, evaluator, rescorer = object(), object(), object()
-            model = SimpleNamespace(readings=mock.Mock(return_value=table))
-            text = SimpleNamespace(TextDecoder=mock.Mock())
-            with mock.patch.dict(sys.modules, decoding_model=model, text_decoder=text):
-                result = worker.make_decoder(args, evaluator, rescorer)
-            text.TextDecoder.assert_called_once_with(evaluator, rescorer, table)
-            self.assertIs(result, text.TextDecoder.return_value)
-        self.assertIsNone(worker.make_decoder(worker.parse_args(["model"]), evaluator, None))
-
-    def test_invalid_backend_fails_before_loading_models(self):
-        base = ["model", "--rescorer", "lm", "--database", "words"]
-        cases = [["--backend", "unknown"], ["--decoder-kind", "legacy"],
-                 ["--backend", "legacy", "--native-model", "model.gguf"],
-                 ["--backend", "minicpm-native"], ["--native-model", "model.gguf"],
-                 ["--backend", "minicpm-native", "--native-model", "model.gguf"],
-                 ["--backend", "minicpm-native", "--native-model", "model.gguf",
-                  "--native-library", "bridge.so", "--japanese-model", "kana"]]
-        for flags in cases:
-            with self.subTest(flags=flags), contextlib.redirect_stderr(io.StringIO()):
-                with self.assertRaises(SystemExit) as raised:
-                    worker.parse_args(base + flags)
-                self.assertEqual(raised.exception.code, 2)
-
-    def test_legacy_selects_original_decoder_and_hf_weights(self):
-        args = worker.parse_args(["model", "--backend", "legacy", "--rescorer", "qwen",
-                                  "--database", "words", "--rescorer-weight", "1.5",
-                                  "--japanese-model", "kana", "--japanese-table", "table"])
-        original = SimpleNamespace(Decoder=mock.Mock(), Units=mock.Mock())
-        text = SimpleNamespace(TextDecoder=mock.Mock())
-        table, evaluator = object(), object()
-        model = SimpleNamespace(readings=mock.Mock(return_value=table))
-        with mock.patch.dict(sys.modules, decoder=original, decoding_model=model, text_decoder=text), \
-                mock.patch("rescorer.Rescorer") as hf:
-            rescorer = worker.make_rescorer(args)
-            result = worker.make_decoder(args, evaluator, rescorer)
-        hf.assert_called_once_with("qwen", 1.5)
-        original.Units.assert_called_once_with(rescorer.tokenizer, table)
-        original.Decoder.assert_called_once_with(evaluator, rescorer, original.Units.return_value)
-        self.assertIs(result, original.Decoder.return_value)
-        text.TextDecoder.assert_not_called()
-        for assets in ([], ["--rescorer", "qwen"], ["--database", "words"]):
-            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-                worker.parse_args(["model", "--backend", "legacy"] + assets)
-
-    def test_native_selection_loads_only_tokenizer_and_native_backend(self):
-        args = worker.parse_args(["model", "--rescorer", "tokenizer", "--database", "words",
-                                  "--backend", "minicpm-native", "--native-library", "bridge.so",
-                                  "--native-model", "model.gguf"])
-        native = SimpleNamespace(NativeRescorer=mock.Mock())
-        model = SimpleNamespace(readings=mock.Mock(return_value={}))
-        text = SimpleNamespace(TextDecoder=mock.Mock())
-        evaluator = object()
-        with mock.patch.dict(sys.modules, native_rescorer=native, decoding_model=model, text_decoder=text), \
-                mock.patch("rescorer.Rescorer") as hf:
-            rescorer = worker.make_rescorer(args)
-            worker.make_decoder(args, evaluator, rescorer)
-        native.NativeRescorer.assert_called_once_with("tokenizer", 1.5, "bridge.so", "model.gguf")
-        hf.assert_not_called()
-        self.assertIs(text.TextDecoder.call_args.kwargs["lm_backend"], rescorer.backend)
-
-    def test_production_worker_rejects_experimental_search_overrides(self):
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            worker.parse_args(["model", "--text-final-mode", "fused"])
 
     def test_malformed_envelopes_are_rejected(self):
         for request in [None, [], {}, self.request(id=True), self.request(syllables=-1),

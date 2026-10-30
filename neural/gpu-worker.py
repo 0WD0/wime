@@ -8,8 +8,7 @@ included in errors. The model stays on the GPU until the process is stopped.
 An optional --rescorer adds a weighted general-LM score to every verified
 candidate, including the seed pool, and interleaves its token proposals with
 the model's per-character proposals. With --database as well, the decode
-operation replaces the dictionary lattice. The qwen-hf and minicpm-native
-backends use text_decoder.py; legacy uses the original fused decoder.py.
+operation replaces the dictionary lattice with the fused decoder.py.
 Without a language model, conditional verification remains available. With
 --japanese-model and --japanese-table as well, the japanese operation
 decodes typed kana, and --japanese-zenz reranks it: see japanese.py.
@@ -23,7 +22,7 @@ import time
 from inference import ConditionalEvaluator, effective_prior_weight
 from composition import ENCODING, validate_committed, decode as decode_composition
 from rescorer import interleave
-from backends import add_backend_arguments, validate_backend, make_rescorer, make_decoder
+from fusion import add_fusion_arguments, make_rescorer, make_decoder
 
 LETTERS = set("abcdefghijklmnopqrstuvwxyz")
 KEYS = LETTERS | {";"}
@@ -101,7 +100,7 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
     """Keep keyboard/coverage validation identical to conditional Rust verify."""
     validate(request)
     start = time.perf_counter()
-    result = dict(id=request["id"], promoted=None, elapsed_ms=0.0)
+    result = dict(id=request["id"], elapsed_ms=0.0)
     if request.get("operation") == "japanese":
         result["candidates"] = [] if japanese is None else [
             [text, score] for text, score in japanese.decode(
@@ -121,7 +120,7 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
         result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
         return result
     if request.get("operation") != "verify":
-        return result  # A conditional model must never perform unconditioned reranking.
+        return result
     result["prefixes"] = []
     code, draft, syllables = request.get("input", ""), request.get("draft", ""), request["syllables"]
     if not syllables or len(draft) != syllables or len(code) != 2 * syllables:
@@ -165,17 +164,13 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("model")
-    add_backend_arguments(parser)
+    add_fusion_arguments(parser)
     parser.add_argument("--database", help="wime word database, whose readings enable decode")
     parser.add_argument("--beam", type=int, default=16, help="legacy decoder beam width")
     parser.add_argument("--japanese-model", help="kana-conditioned model (train-japanese.py)")
     parser.add_argument("--japanese-table", help="reading table for the rescorer (build-japanese-table.py)")
     parser.add_argument("--japanese-zenz", help="zenz directory (convert-zenz.py) for the final Japanese ranking")
-    args = parser.parse_args(argv)
-    validate_backend(args, parser)
-    if args.backend == "minicpm-native" and (args.japanese_model or args.japanese_table or args.japanese_zenz):
-        parser.error("Japanese requires the qwen-hf or legacy HF backend")
-    return args
+    return parser.parse_args(argv)
 
 
 def main():

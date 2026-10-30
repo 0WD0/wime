@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--backend", choices=("conditional", "legacy", "qwen-hf"), required=True)
+    parser.add_argument("--backend", choices=("conditional", "legacy"), required=True)
     parser.add_argument("--rescorer")
     parser.add_argument("--rescorer-weight", type=float, default=1.5)
     parser.add_argument("--beam", type=int, default=16)
@@ -35,7 +35,7 @@ def execute(args, parser, checkpoint):
     if (args.out / "summary.json").exists() or (args.out / "results.jsonl").exists():
         raise ValueError("Evaluation output already exists; choose a new directory")
     if args.backend != "conditional" and not args.rescorer:
-        parser.error("a full backend requires --rescorer")
+        parser.error("legacy requires --rescorer")
     registry = Registry()
     path, snapshot = registry.evaluation(args.dataset)
     cases = json.loads(path.read_text())
@@ -55,7 +55,7 @@ def execute(args, parser, checkpoint):
         decoder = ConditionalDecoder.from_database(model.to(args.device), vocab, args.database, args.beam)
     else:
         from inference import ConditionalEvaluator
-        from backends import make_decoder
+        from fusion import make_decoder
         from rescorer import Rescorer
         evaluator = ConditionalEvaluator(args.model, device=args.device)
         metadata, vocab = evaluator.metadata, evaluator.vocab
@@ -127,15 +127,15 @@ def execute(args, parser, checkpoint):
                                         if file.suffix in (".json", ".safetensors")} if args.rescorer else None,
                   beam=args.beam,
                   training_steps=metadata.get("training_steps"), seconds=time.monotonic()-started,
-                  precision="conditional FP32/TF32 disabled; Qwen uses existing BF16 runtime",
+                  precision="conditional FP32/TF32 disabled; Qwen BF16 on CUDA, FP32 on the CPU",
                   semantics="Prefix, whole, then committed continuation at reviewed boundaries; "
                             "decoder-local caches can be reused. Latencies are descriptive, not isolated benchmarks. "
                             "Committed text/keys supplied only after commit. "
                             "No auxiliary codes, learned user preferences or within-syllable states.",
                   code_sha256={file:fingerprint(Path(__file__).with_name(file)) for file in
                                ("evaluate-trajectories.py", "trajectories.py", "trajectory_metrics.py",
-                                "composition.py", "conditional_decode.py", "conditional.py", "inference.py", "decoder.py", "text_decoder.py",
-                                "decoding_model.py", "rescorer.py", "backends.py")},
+                                "composition.py", "conditional_decode.py", "conditional.py", "inference.py", "decoder.py",
+                                "decoding_model.py", "rescorer.py", "fusion.py")},
                   metrics=summarize(results))
     (args.out / "summary.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps(dict(out=str(args.out), metrics=report["metrics"]), ensure_ascii=False), flush=True)

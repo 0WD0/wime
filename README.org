@@ -30,7 +30,7 @@ wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
 wdoom 默认启用 =wime-editable-preedit=：候选是 buffer 中的真实文字，
 读音作为不写入文件的属性保存。可直接移动光标，在待转换字后补大写辅助码；
 待上屏中文里键入的标点，以及 =C-\\= 切到英文后键入的字母、空格和数字，都原样成为这段的一部分：
-继续输入仍是同一句，前后中文联合转换（legacy 后端让通用模型连同这些文字一起打分），空格一并确认。
+继续输入仍是同一句，前后中文联合转换（通用模型连同这些文字一起打分），空格一并确认。
 英文模式下 wime 仍是输入法，旧浮动模式先上屏当前候选；
 =C-u C-\\= 或其他输入法下仍是 =toggle-input-method= 。
 普通插入和粘贴作为原样文字，把相邻中文段分开；明确选定的字保持固定。
@@ -81,13 +81,11 @@ wdoom 的 =wdoom-input= 模块会配置好一切。单独使用时：
 worker 出错或超时，词格候选照常可用。
 =wime-neural-search-method= 选择做法：
 
-- =decode= :: 不经过词格。Qwen HF 与 MiniCPM 原生共用 =neural/text_decoder.py=：
-  token 的原始字节必须满足读音、辅助码和固定字约束；25M 模型只引导有限宽度搜索，
-  最终按完整文本的通用模型概率和用户学习偏好排序。
-  支持半音节、跨上屏边界的 token 修复，以及重复请求缓存。
+- =decode= :: 不经过词格。=neural/decoder.py= 逐字做 beam 搜索
+  （=wime-neural-beam=，wdoom 为 32），每步分数是 25M 条件模型加权上 Qwen 的概率；
+  读音、辅助码、固定字和学到的读音都是约束。支持半音节和夹在句中的英文、标点。
 - =verify= :: 词格给出候选池，25M 模型（可加通用模型重排）从中挑选，
   并提出更可能的前缀交给词格重搜。缺少大模型时 wdoom 用它。
-- =rerank= :: 旧的 Rust CPU worker 的无条件重排，需要相应的模型。
 
 条件模型只支持微软双拼；其他方案只用词格。
 
@@ -126,17 +124,13 @@ wime-lab 中也可按 =l/H= 打开。=/= 搜索，=RET= 查看详情，=e= 修�
 模型、Python 和本机编译的 CUDA 库放在 =$XDG_DATA_HOME/wime/=
 （默认 =~/.local/share/wime/=），不进 wdoom 快照。
 
-| 中文后端 | 模型目录 | 运行方式 |
-|----------+----------+----------|
-| =verify= | 条件模型 | 词格候选校验；不加载通用大模型 |
-| =qwen-hf=（默认） | =rescorers/Qwen3.5-2B-Base/= | Transformers BF16 |
-| =minicpm-native= | =rescorers/MiniCPM5-2B/= | llama.cpp BF16 GGUF；HF 只负责分词 |
-| =legacy= | =rescorers/Qwen3.5-2B-Base/= | 原字符同步搜索；25M 条件模型与 Qwen HF 融合排序 |
+| 做法 | 需要的模型 |
+|------+------------|
+| =verify= | 25M 条件模型 |
+| =decode= | 25M 条件模型和 =rescorers/Qwen3.5-2B-Base/=（Transformers，CUDA 上 BF16） |
 
-25M 条件模型仍为 =models/<sha256>.safetensors=；打包哈希固定在
+25M 条件模型为 =models/<sha256>.safetensors=；打包哈希固定在
 =neural_model.bzl=，也可用 =WIME_CONDITIONAL_MODEL= 指向同一文件。
-=qwen-hf= 与 =minicpm-native= 使用相同的字节约束搜索配置；=legacy= 保留
-原搜索和融合排序，便于运行时回切对照。
 
 #+begin_src sh
 uv venv --python 3.12 ~/.local/share/wime/python
@@ -144,28 +138,10 @@ uv pip install --python ~/.local/share/wime/python/bin/python \
     -r emacs-packages/wime/neural/requirements-gpu.txt
 #+end_src
 
-Qwen 的完整 HF 模型下载到上表目录即可。MiniCPM 先准备本地 HF 模型下载，
-再从当前 workspace 构建已经导入的 llama.cpp，安装匹配的 tokenizer 和 BF16 GGUF：
-
-#+begin_src sh
-~/.local/share/wime/python/bin/python emacs-packages/wime/neural/prepare-native.py \
-    --model-dir /path/to/MiniCPM5-2B \
-    --gguf /path/to/MiniCPM5-2B-BF16.gguf --cuda-architectures 89
-#+end_src
-
-=89= 对应 RTX 4090，其他 GPU 使用其 CUDA 架构编号。构建需要 CMake、Ninja 和
-CUDA toolkit；=--nvcc= 可指定编译器。没有现成 GGUF 时省略 =--gguf=，并用
-=--convert-python= 指定装有 llama.cpp 转换依赖的独立 Python 环境；转换固定为 BF16。
-安装器校验模型结构和精度，拒绝覆盖不同的已安装模型，按源码及编译器标识保存独立库版本。
-运行时从 =native/current/lib/libwime_llama.so= 选择版本，检查点保存解析后的具体路径。
-
+Qwen 的完整 HF 模型下载到上表目录即可。
 =./wdoom/bin/wdoom-prepare --native= 打包 worker、Elisp 和 25M 模型，重启后生效。
-=M-x wime-select-backend= 选择 =verify=、=qwen-hf=、=minicpm-native= 或 =legacy=：先预热，再等当前
-输入结束后切换，并保存下次启动配置；失败保留当前 worker。
-=verify= 只用词格和条件小模型，不加载通用大模型，也不支持日文转换。
-缺少大模型时保留 25M 的 =verify=；worker 出错时词格候选仍可用。
-=M-x wime-lab= 的评测、试输、检查点保存也携带后端和原生模型路径。
-MiniCPM 原生目前只支持中文；日文输入使用 Qwen HF，切换界面会检查这一限制。
+缺少大模型时 wdoom 用 25M 的 =verify=；worker 出错时词格候选仍可用。
+=M-x wime-lab= 的评测、试输、检查点保存携带完整推理设置。
 
 * 日本語
 

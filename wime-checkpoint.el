@@ -33,9 +33,6 @@
         :single_character (if wime-neural-single-character t :false)
         :seed_draft (if wime-neural-seed-candidates "neural" "traditional")
         :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight
-        :backend (symbol-name wime-backend-model)
-        :native_library (or wime-backend-native-library :null)
-        :native_model (or wime-backend-native-model :null)
         :pool_width (or wime-neural-pool-width :null) :beam wime-neural-beam
         :search_method (symbol-name wime-neural-search-method)))
 
@@ -46,14 +43,10 @@
 (defun wime-checkpoint--settings (recipe)
   "Read RECIPE into runtime variable bindings before changing live state."
   (let* ((profile (plist-get recipe :profile))
-         (backend (plist-get profile :backend))
          (method (plist-get profile :search_method)))
-    (unless (member backend '("qwen-hf" "minicpm-native" "legacy"))
-      (error "Unknown model backend: %s" backend))
-    (unless (member method '("rerank" "verify" "decode"))
+    (unless (member method '("verify" "decode"))
       (error "Unknown search method: %s" method))
     `((wime-neural-model-file . ,(plist-get recipe :path))
-      (wime-backend-model . ,(intern backend))
       (wime-neural-search-method . ,(intern method))
       (wime-search-width . ,(plist-get profile :width))
       (wime-neural-inference-budget . ,(plist-get profile :budget))
@@ -62,8 +55,6 @@
       (wime-neural-single-character . ,(eq (plist-get profile :single_character) t))
       (wime-neural-seed-candidates . ,(equal (plist-get profile :seed_draft) "neural"))
       (wime-neural-rescorer . ,(wime-checkpoint--nullable (plist-get profile :rescorer)))
-      (wime-backend-native-library . ,(wime-checkpoint--nullable (plist-get profile :native_library)))
-      (wime-backend-native-model . ,(wime-checkpoint--nullable (plist-get profile :native_model)))
       (wime-neural-rescorer-weight . ,(or (plist-get profile :rescorer_weight) 1.5))
       (wime-neural-beam . ,(or (plist-get profile :beam) 16))
       (wime-neural-pool-width . ,(wime-checkpoint--nullable (plist-get profile :pool_width))))))

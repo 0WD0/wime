@@ -1,4 +1,4 @@
-;;; wime-neural.el --- Local asynchronous candidate reranking -*- lexical-binding: t; -*-
+;;; wime-neural.el --- Local asynchronous neural verification and decoding -*- lexical-binding: t; -*-
 
 ;; Package-Requires: ((emacs "29.1"))
 
@@ -14,10 +14,9 @@
 (require 'json)
 (require 'wime)
 
-(require 'wime-backend)
-
-(defcustom wime-neural-program "wime-neural"
-  "Local reranking worker executable."
+(defcustom wime-neural-program
+  (expand-file-name "neural/gpu-worker.py" (file-name-directory (or load-file-name buffer-file-name)))
+  "Local worker executable, by default this package's gpu-worker.py."
   :type 'string :group 'wime)
 
 (defcustom wime-neural-model-file nil
@@ -30,7 +29,7 @@ The CUDA worker's rescorer needs a Python with a recent transformers."
   :type '(choice (const nil) file) :group 'wime)
 
 (defcustom wime-neural-rescorer nil
-  "Directory of a general causal language model for the CUDA worker.
+  "Directory of a general causal language model for the worker.
 Its mean per-character log probability, times `wime-neural-rescorer-weight',
 is added to the model score of every verified candidate.  Nil disables it."
   :type '(choice (const nil) directory) :group 'wime)
@@ -53,11 +52,11 @@ correction the user made for the same keys; see `wime-user-database'."
   :type 'number :group 'wime)
 
 (defcustom wime-neural-beam 16
-  "Hypotheses the legacy decoder keeps per character."
+  "Hypotheses the decoder keeps per character."
   :type 'natnum :group 'wime)
 
 (defcustom wime-neural-delay 0.04
-  "Seconds without a new input key before requesting neural reranking."
+  "Seconds without a new input key before sending a neural request."
   :type 'number :group 'wime)
 
 (defcustom wime-neural-timeout 2.0
@@ -70,15 +69,14 @@ Traditional candidates remain usable during initialization.  Later requests
 use `wime-neural-timeout'."
   :type 'number :group 'wime)
 
-(defcustom wime-neural-search-method 'rerank
-  "Use candidate reranking, conditional draft verification or decoding.
-`verify' requires a wime-ms-pinyin-v1 model and a Microsoft double-pinyin
-database.  Auxiliary codes continue to constrain the dictionary search.
-`decode' also needs `wime-neural-rescorer': the CUDA worker spells the keys
-without the lattice using `wime-backend-model', including a trailing half
-syllable.  Readings, auxiliary codes and fixed characters are hard constraints.
-Without a rescorer it verifies instead."
-  :type '(choice (const rerank) (const verify) (const decode)) :group 'wime)
+(defcustom wime-neural-search-method 'verify
+  "Use conditional draft verification or decoding.
+Both require a wime-ms-pinyin-v1 model and a Microsoft double-pinyin database.
+`verify' scores lattice drafts; auxiliary codes constrain the dictionary search.
+`decode' also needs `wime-neural-rescorer': the worker spells the keys without
+the lattice, including a trailing half syllable.  Readings, auxiliary codes
+and fixed characters are hard constraints.  Without a rescorer it verifies."
+  :type '(choice (const verify) (const decode)) :group 'wime)
 
 (defcustom wime-neural-single-character nil
   "Allow single-character compositions in conditional `verify' mode.
@@ -94,8 +92,7 @@ round; subsequent rounds each verify one prefix-constrained draft."
 
 (defcustom wime-neural-seed-candidates nil
   "Let the CUDA worker score the initial candidate pool to choose a draft.
-This avoids relying on single-character corrections to reach a better word.
-Requires gpu-worker.py; the Rust worker retains its traditional draft."
+This avoids relying on single-character corrections to reach a better word."
   :type 'boolean :group 'wime)
 
 (defcustom wime-neural-prior-weight 0.1
@@ -205,17 +202,13 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                      wime-neural-search-method))
            (full (seq-filter (lambda (c) (= n (wime-candidate-end c))) records)))
       (when (and (or (eq method 'decode)
-                     (and (or (> n 1) (and (= n 1) wime-neural-single-character (eq method 'verify)))
-                          full (eq (car full) (car records))
-                          (or (eq method 'verify)
-                              (and (> (length full) 1)
-                                   (not (wime-candidate-dictionary (car records)))))))
-                 (or (eq method 'rerank)
-                     (condition-case nil
-                         (equal (caar (sqlite-select (wime--database)
-                                                    "SELECT value FROM meta WHERE key = 'scheme'"))
-                                "mspy")
-                       (error nil))))
+                     (and (or (> n 1) (and (= n 1) wime-neural-single-character))
+                          full (eq (car full) (car records))))
+                 (condition-case nil
+                     (equal (caar (sqlite-select (wime--database)
+                                                "SELECT value FROM meta WHERE key = 'scheme'"))
+                            "mspy")
+                   (error nil)))
         (let* ((state (wime--composition-state))
                (job (wime-neural--make-job
                     :id (cl-incf wime-neural--serial) :buffer (current-buffer)
@@ -257,30 +250,16 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 
 (defun wime-neural--command (model)
   "Worker command line for MODEL; the model stays the last argument."
-  (unless (memq wime-backend-model '(qwen-hf minicpm-native legacy))
-    (error "Unknown model backend: %s" wime-backend-model))
   (append (and wime-neural-interpreter (list wime-neural-interpreter))
           (list (or (executable-find wime-neural-program)
                     (expand-file-name wime-neural-program)))
           (and wime-neural-rescorer
                (list "--rescorer" (expand-file-name wime-neural-rescorer)
                      "--rescorer-weight" (number-to-string wime-neural-rescorer-weight)))
-          (when (or (and wime-neural-rescorer (eq wime-neural-search-method 'decode))
-                    (memq wime-backend-model '(minicpm-native legacy)))
-            (unless (and wime-neural-rescorer (eq wime-neural-search-method 'decode)
-                         wime-database-file)
-              (error "Selected model backend requires a rescorer, database and decode search"))
-            (append (list "--database" (expand-file-name wime-database-file)
-                          "--backend" (symbol-name wime-backend-model))
-                    (when (eq wime-backend-model 'legacy)
-                      (list "--beam" (number-to-string wime-neural-beam)))
-                    (when (eq wime-backend-model 'minicpm-native)
-                      (unless (and wime-backend-native-library wime-backend-native-model)
-                        (error "MiniCPM requires a native library and GGUF model"))
-                      (list "--native-library" (expand-file-name wime-backend-native-library)
-                            "--native-model" (expand-file-name wime-backend-native-model)))))
-          (and (not (eq wime-backend-model 'minicpm-native))
-               wime-neural-rescorer (bound-and-true-p wime-japanese-model-file)
+          (and wime-neural-rescorer (eq wime-neural-search-method 'decode)
+               (list "--database" (expand-file-name wime-database-file)
+                     "--beam" (number-to-string wime-neural-beam)))
+          (and wime-neural-rescorer (bound-and-true-p wime-japanese-model-file)
                (bound-and-true-p wime-japanese-table-file)
                (append (list "--japanese-model" (expand-file-name wime-japanese-model-file)
                              "--japanese-table" (expand-file-name wime-japanese-table-file))
@@ -330,11 +309,11 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
        :memory_weight ,wime-neural-memory-weight :candidates []))))
 
 (defun wime-neural--verify-request (job)
-  "Encode JOB's candidates and draft for verification or reranking."
+  "Encode JOB's candidates and draft for verification."
   (json-serialize
    `(:id ,(wime-neural--job-id job) :context ,(or (wime-neural--job-history job) (wime-neural--job-context job))
      :syllables ,(wime-neural--job-syllables job)
-     :operation ,(if (eq (wime-neural--job-method job) 'verify) "verify" "rerank")
+     :operation "verify"
      :input ,(wime--full-code (wime--parse (wime-neural--job-input job)))
      :draft ,(if (wime-neural--job-draft job)
                  (wime-candidate-text (wime-neural--job-draft job)) "")
@@ -475,20 +454,15 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
       (wime-neural--publish job (wime-neural--job-best job)))))
 
 (defun wime-neural--apply (job response)
-  "Apply RESPONSE only if JOB is current and its promoted reading covers input."
+  "Apply RESPONSE only if JOB is still current."
   (when (wime-neural--valid-p job)
     (with-current-buffer (wime-neural--job-buffer job)
-      (let* ((index (alist-get 'promoted response))
-             (records (wime-neural--job-records job))
-             (candidate (and (integerp index) (> index 0) (< index (length records))
-                             (nth index records))))
-        (setq wime-neural-last-latency (alist-get 'elapsed_ms response)
-              wime--model-ranked t)
-        (pcase (wime-neural--job-method job)
-          ('decode (wime-neural--decode-apply job response))
-          ('japanese (wime-japanese--apply job response))
-          ('verify (wime-neural--verify-apply job response))
-          (_ (when candidate (wime-neural--publish job candidate))))))))
+      (setq wime-neural-last-latency (alist-get 'elapsed_ms response)
+            wime--model-ranked t)
+      (pcase (wime-neural--job-method job)
+        ('decode (wime-neural--decode-apply job response))
+        ('japanese (wime-japanese--apply job response))
+        ('verify (wime-neural--verify-apply job response))))))
 
 (defun wime-neural--decode-apply (job response)
   "Show RESPONSE's readings of JOB's whole input ahead of the lattice's.
@@ -541,7 +515,7 @@ words and completions stay after them, so a prefix can still be committed."
 
 ;;;###autoload
 (define-minor-mode wime-neural-mode
-  "Rerank wime sentence candidates locally after a short typing pause."
+  "Verify or decode wime compositions locally after a short typing pause."
   :global t :group 'wime
   (if wime-neural-mode
       (progn

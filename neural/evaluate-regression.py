@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Full-backend regression controls sharing one baseline and identical requests."""
+"""Fused-decoder regression controls sharing one baseline and identical requests."""
 import argparse
 import json
 from lab_tracking import add_arguments, track

@@ -117,12 +117,12 @@
         (should (equal wime--candidates '("枪" "强")))
         (cl-letf (((symbol-function 'run-with-timer)
                    (lambda (&rest _) (setq scheduled t))))
-          (dolist (wime-neural-search-method '(rerank verify))
+          (dolist (wime-neural-search-method '(verify decode))
             (wime-neural--schedule)
             (should-not scheduled)
             (should (equal wime--candidates '("枪" "强")))))))))
 
-(ert-deftest wime-neural-single-character-is-opt-in-and-verify-only ()
+(ert-deftest wime-neural-single-character-is-opt-in ()
   (with-temp-buffer
     (let ((wime-neural-mode t) (wime-neural--failed nil)
           (wime-neural-single-character t)
@@ -132,9 +132,6 @@
         (setq wime--input "qd" wime--candidates (wime--candidates "qd"))
         (cl-letf (((symbol-function 'run-with-timer)
                    (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
-          (let ((wime-neural-search-method 'rerank))
-            (wime-neural--schedule)
-            (should-not scheduled))
           (let ((wime-neural-search-method 'verify))
             (wime-neural--schedule)
             (should (= (wime-neural--job-syllables scheduled) 1))
@@ -170,11 +167,12 @@
                    :context "" :records wime--candidate-records :syllables 2)))
          (unwind-protect (progn ,@body) (wime--reset))))))
 
-(ert-deftest wime-neural-promotes-only-a-current-full-reading ()
+(ert-deftest wime-neural-shows-only-full-decoded-readings ()
   (wime-neural-test--composition
-    (wime-neural--apply job '((promoted . 2)))
+    (setf (wime-neural--job-method job) 'decode)
+    (wime-neural--apply job '((candidates . [["甲" -1.0]])))
     (should (equal (car wime--candidates) "甲乙"))
-    (wime-neural--apply job '((promoted . 1) (elapsed_ms . 3.5)))
+    (wime-neural--apply job '((candidates . [["丙丁" -1.0]]) (elapsed_ms . 3.5)))
     (should (equal wime--candidates '("丙丁" "甲乙" "甲")))
     (should (= wime-neural-last-latency 3.5))))
 
@@ -192,7 +190,8 @@
         ('provider (setq-local wime-neural-context-start-function (lambda () 4))))
       (should (= (buffer-chars-modified-tick) (wime-neural--job-tick job)))
       (should-not (wime-neural--valid-p job))
-      (wime-neural--apply job '((promoted . 1)))
+      (setf (wime-neural--job-method job) 'decode)
+      (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
       (should (equal (car wime--candidates) "甲乙")))))
 
 (ert-deftest wime-neural-scheduled-request-contains-only-bounded-editable-context ()
@@ -326,7 +325,8 @@
   (wime-neural-test--composition
     ;; Same input after backspace and retyping still has different candidate records.
     (setq wime--candidate-records (copy-sequence wime--candidate-records))
-    (wime-neural--apply job '((promoted . 1)))
+    (setf (wime-neural--job-method job) 'decode)
+    (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
     (should (equal (car wime--candidates) "甲乙"))))
 
 (ert-deftest wime-neural-rejects-buffer-edits-and-manual-selection ()
@@ -341,7 +341,8 @@
 (ert-deftest wime-neural-cancel-and-commit-invalidate-replies ()
   (wime-neural-test--composition
     (wime--commit "甲乙")
-    (wime-neural--apply job '((promoted . 1)))
+    (setf (wime-neural--job-method job) 'decode)
+    (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
     (should (equal (buffer-string) "甲乙"))
     (should-not wime--candidates)))
 
@@ -368,25 +369,16 @@
     (let* ((process (make-pipe-process :name "wime-protocol-test" :noquery t))
            (wime-neural--process process) (wime-neural--busy job)
            (wime-neural--pending nil) (wime-neural--timeout-timer nil))
+      (setf (wime-neural--job-method job) 'decode)
       (unwind-protect
           (progn
-            (wime-neural--filter process "{\"id\":9,\"promoted\":1}\n{\"id\":1,")
+            (wime-neural--filter process "{\"id\":9,\"candidates\":[[\"丙丁\",-1]]}\n{\"id\":1,")
             (should (eq wime-neural--busy job))
             (should (equal (car wime--candidates) "甲乙"))
-            (wime-neural--filter process "\"promoted\":1,\"elapsed_ms\":2}\n")
+            (wime-neural--filter process "\"candidates\":[[\"丙丁\",-1]],\"elapsed_ms\":2}\n")
             (should-not wime-neural--busy)
             (should (equal (car wime--candidates) "丙丁")))
         (delete-process process)))))
-
-(ert-deftest wime-neural-dictionary-leader-does-not-schedule-work ()
-  (wime-neural-test--composition
-    (let ((wime-neural-model-file "model.safetensors") (wime-neural--failed nil)
-          (wime-neural-search-method 'rerank)
-          (called nil))
-      (setf (wime-candidate-dictionary (car wime--candidate-records)) t)
-      (cl-letf (((symbol-function 'run-with-timer) (lambda (&rest _) (setq called t))))
-        (wime-neural--schedule)
-        (should-not called)))))
 
 (ert-deftest wime-neural-failure-preserves-traditional-candidates ()
   (wime-neural-test--composition
@@ -428,7 +420,7 @@
         wime-neural-single-character wime-neural-seed-candidates wime-neural-search-method
         wime-neural-pool-width)
     (wime-checkpoint--apply '(:path "/m.safetensors"
-                              :profile (:search_method "verify" :backend "qwen-hf" :width 16 :budget 4 :rescorer "/lm" :rescorer_weight 2
+                              :profile (:search_method "verify" :width 16 :budget 4 :rescorer "/lm" :rescorer_weight 2
                                         :pool_width 32)))
     (should (equal (wime-neural--command wime-neural-model-file)
                    '("/usr/bin/python3" "/bin/true" "--rescorer" "/lm"
@@ -436,7 +428,7 @@
     (should (equal (plist-get (wime-checkpoint-profile) :rescorer) "/lm"))
     (should (= wime-neural-pool-width 32))
     ;; A conditional-only profile disables the general rescorer.
-    (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:search_method "verify" :backend "qwen-hf" :width 16 :budget 4)))
+    (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:search_method "verify" :width 16 :budget 4)))
     (should-not wime-neural-rescorer)
     (should (= wime-neural-rescorer-weight 1.5))
     (should (eq (plist-get (wime-checkpoint-profile) :rescorer) :null))))
@@ -619,12 +611,12 @@
         wime-neural-single-character wime-neural-seed-candidates wime-neural-search-method
         wime-neural-pool-width)
     (wime-checkpoint--apply '(:path "/m.safetensors"
-                              :profile (:backend "qwen-hf" :width 16 :budget 4 :rescorer "/lm" :search_method "decode")))
+                              :profile (:width 16 :budget 4 :rescorer "/lm" :search_method "decode")))
     (should (eq wime-neural-search-method 'decode))
     (should (equal (wime-neural--command wime-neural-model-file)
                    '("/bin/true" "--rescorer" "/lm" "--rescorer-weight" "1.5"
-                     "--database" "/w.db" "--backend" "qwen-hf" "/m.safetensors")))
+                     "--database" "/w.db" "--beam" "16" "/m.safetensors")))
     (should (equal (plist-get (wime-checkpoint-profile) :search_method) "decode"))
-    (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:search_method "verify" :backend "qwen-hf" :width 16 :budget 4 :rescorer "/lm")))
+    (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:search_method "verify" :width 16 :budget 4 :rescorer "/lm")))
     (should (eq wime-neural-search-method 'verify))
     (should-not (member "--database" (wime-neural--command wime-neural-model-file)))))

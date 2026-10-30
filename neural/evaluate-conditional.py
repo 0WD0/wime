@@ -23,7 +23,7 @@ from regression import requests
 from conditional import ROOT
 from inference import ConditionalEvaluator, effective_prior_weight
 from rescorer import interleave
-from backends import add_backend_arguments, validate_backend, make_rescorer, make_decoder
+from fusion import add_fusion_arguments, make_rescorer, make_decoder
 
 
 
@@ -65,11 +65,11 @@ def main():
     p.add_argument("--single-character", action="store_true",
                    help="match wime-neural-single-character for models trained on single spans")
     p.add_argument("--proposal-order", choices=("position", "gain"), default="position")
-    add_backend_arguments(p)
+    add_fusion_arguments(p)
     p.add_argument("--pool-width", type=int,
                    help="lattice width of the verify pool and prefix searches, as wime-neural-pool-width")
     p.add_argument("--search-method", choices=("verify", "decode"), default="verify",
-                   help="decode: byte-constrained text search with the selected backend")
+                   help="decode: the fused decoder without the lattice")
     add_arguments(p)
     args = p.parse_args()
     with track(args, "evaluate") as checkpoint:
@@ -79,7 +79,6 @@ def main():
 def execute(args, p, checkpoint):
     if (args.out / "summary.json").exists() or (args.out / "results.jsonl").exists():
         raise ValueError("Evaluation output already exists; choose a new directory")
-    validate_backend(args, p)
     if args.search_method == "decode" and not args.rescorer:
         p.error("decode requires --rescorer")
     if args.width < 1 or args.budget < 1 or not 0 < args.prior_confidence <= 1:
@@ -231,7 +230,6 @@ def execute(args, p, checkpoint):
                    proposal_order=args.proposal_order,
                    rescorer=args.rescorer, rescorer_weight=args.rescorer_weight if args.rescorer else None,
                    pool_width=args.pool_width, search_method=args.search_method,
-                   backend=args.backend, native_library=args.native_library, native_model=args.native_model,
                    prior_confidence=args.prior_confidence,
                    width=args.width, seed_draft=args.seed_draft,
                    device=evaluator.device,
