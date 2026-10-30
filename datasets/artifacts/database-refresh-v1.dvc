@@ -1,0 +1,6 @@
+outs:
+- md5: a4200f92275373c24f7ceaf0c5bb5fe0.dir
+  size: 136293015
+  nfiles: 21
+  hash: md5
+  path: database-refresh-v1

@@ -8,10 +8,10 @@ Run `gen/update_nightly.py` to refresh the URLs and hashes.
 """
 
 _DICT_URL = "https://github.com/amzxyz/rime-wanxiang/releases/download/dict-nightly/rime-wanxiang-moqi-fuzhu.zip"
-_DICT_SHA256 = "07ed550c6cb48ee2adb872fd4680b84535f620bc3311dd74e33ac80a6263f618"
+_DICT_SHA256 = "41122e898b5c2c3bbf2208b89e2e5ce1d4e391f0689eca50dbdb849e52ae55df"
 
 _GRAM_URL = "https://github.com/amzxyz/RIME-LMDG/releases/download/LTS/wanxiang-lts-zh-hans.gram"
-_GRAM_SHA256 = "d26da3d6fe567bcf4aad8790475356997d8bc0886b087b292c5063c0adc12bd0"
+_GRAM_SHA256 = "e34500ab44626dc039a0641792ecba98ab63307646eb3d29186be56608ffe094"
 
 
 def _rime_wanxiang_impl(ctx):
