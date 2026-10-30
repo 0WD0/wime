@@ -313,6 +313,9 @@ Qwen3.5-2B rescorer."
 (defvar-local wime--selected 0
   "Index into `wime--candidates' of the selected candidate.")
 
+(defvar-local wime--model-ranked nil
+  "Non-nil once a model result has been applied to the current candidates.")
+
 (defvar-local wime--candidate-scores nil
   "Reranker scores for the current records, as (TEXT . PER-CHARACTER SCORE).")
 
@@ -912,7 +915,7 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
     (setq wime--pins (seq-filter (lambda (pin)
                                    (equal (car (nth (car pin) units)) (nth 2 pin)))
                                  wime--pins)))
-  (setq wime--candidate-scores nil
+  (setq wime--candidate-scores nil wime--model-ranked nil
         wime--candidates (wime--candidates wime--input)
         wime--selected 0)
   ;; A pinned refresh shows the user's own correction, not wime's offer.
@@ -929,6 +932,7 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
         wime--search-cache nil
         wime--candidates nil
         wime--candidate-scores nil
+        wime--model-ranked nil
         wime--span-choices nil
         wime--pins nil
         wime--list-view nil

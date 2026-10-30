@@ -16,7 +16,8 @@
 (declare-function evil-normal-state "evil-states" (&optional arg))
 
 (defcustom wime-edit-max-syllables 24
-  "Maximum Chinese characters reconsidered together around point."
+  "Maximum Chinese characters reconsidered together around point.
+Literal text inside the run does not count."
   :type 'natnum :group 'wime)
 
 (defface wime-edit-pending-face
@@ -187,8 +188,18 @@ of truth.  Widen only for display; confirmation still respects narrowing."
                     (equal field (get-char-property end 'field)))
           (cl-incf end))
         ;; A bounded window keeps idle decoding practical in long paragraphs.
-        (setq start (max start (- (min end (point)) limit)))
-        (setq end (min end (+ start limit)))
+        (let ((p (min end (point))) (n 0))
+          (while (and (> p start)
+                      (or (wime-edit--unit-literal (wime-edit--unit-at (1- p))) (< n limit)))
+            (cl-decf p)
+            (unless (wime-edit--unit-literal (wime-edit--unit-at p)) (cl-incf n)))
+          (setq start p))
+        (let ((p start) (n 0))
+          (while (and (< p end)
+                      (or (wime-edit--unit-literal (wime-edit--unit-at p)) (< n limit)))
+            (unless (wime-edit--unit-literal (wime-edit--unit-at p)) (cl-incf n))
+            (cl-incf p))
+          (setq end p))
         ;; A run starts with a syllable; earlier literal text is context.
         (while (and (< start end) (wime-edit--unit-literal (wime-edit--unit-at start)))
           (cl-incf start))
@@ -285,26 +296,40 @@ of truth.  Widen only for display; confirmation still respects narrowing."
     (wime-edit--refresh-pending-decorations)))
 
 (defun wime-edit--candidate-text ()
-  "Return a full reading, with a one-character fallback for incomplete keys."
+  "Return a full reading, with a one-character fallback for incomplete keys.
+While a model decode is pending, characters already shown keep their text:
+dictionary guesses would replace the last decoded reading, and a character
+leaving the window at that moment would keep the guess."
   (let* ((syllables (wime-edit--syllables wime-edit--units))
          (n (length syllables))
          (candidate (seq-find
                      (lambda (c) (and (= (wime-candidate-end c) n)
                                       (= (length (wime-candidate-text c)) n)))
-                     wime--candidate-records)))
-    (or (and (not (wime-edit--decodable-p))
-             (mapconcat #'wime-edit--unit-text syllables ""))
-        (and candidate (wime-candidate-text candidate))
-        (let (wime--candidate-records wime--search-cache wime--pins)
-          (apply #'concat
-               (mapcar (lambda (unit)
-                         (or (and (wime-edit--unit-pin unit)
-                                  (char-to-string (wime-edit--unit-pin unit)))
-                             (car (wime--candidates-for
-                                   (caar (wime--parse (wime-edit--unit-keys unit)))
-                                   (cdar (wime--parse (wime-edit--unit-keys unit)))))
-                             (substring (wime-edit--unit-keys unit) 0 1)))
-                       syllables))))))
+                     wime--candidate-records))
+         (guess (and candidate (wime-candidate-text candidate)))
+         (provisional (and (not wime--model-ranked)
+                           (bound-and-true-p wime-neural-mode)
+                           (not (bound-and-true-p wime-neural--failed))
+                           (bound-and-true-p wime-neural-rescorer)
+                           (eq (bound-and-true-p wime-neural-search-method) 'decode)))
+         (i -1))
+    (cond
+     ((not (wime-edit--decodable-p))
+      (mapconcat #'wime-edit--unit-text syllables ""))
+     ((and guess (not provisional)) guess)
+     (t
+      (let (wime--candidate-records wime--search-cache wime--pins)
+        (mapconcat (lambda (unit)
+                     (cl-incf i)
+                     (or (and (wime-edit--unit-pin unit)
+                              (char-to-string (wime-edit--unit-pin unit)))
+                         (and provisional (wime-edit--shown unit))
+                         (and guess (substring guess i (1+ i)))
+                         (car (wime--candidates-for
+                               (caar (wime--parse (wime-edit--unit-keys unit)))
+                               (cdar (wime--parse (wime-edit--unit-keys unit)))))
+                         (substring (wime-edit--unit-keys unit) 0 1)))
+                   syllables ""))))))
 
 (defun wime-edit--decodable-p ()
   "Whether flattening this run preserves its syllable boundaries."
@@ -319,15 +344,16 @@ of truth.  Widen only for display; confirmation still respects narrowing."
   (wime--display)
   (run-hooks 'wime-candidates-updated-hook))
 
+(defun wime-edit--shown (unit)
+  "UNIT's character in the run, or nil when UNIT is not shown yet."
+  (cl-loop for p from (marker-position wime-edit--start) below wime-edit--end
+           when (eq (wime-edit--unit-at p) unit) return (char-to-string (char-after p))))
+
 (defun wime-edit--unit-text (unit)
   "Keep an existing UNIT's displayed text while an interior key is pending."
-  (let ((p (marker-position wime-edit--start)) found)
-    (while (and (< p wime-edit--end) (not found))
-      (when (eq (wime-edit--unit-at p) unit)
-        (setq found (char-to-string (char-after p))))
-      (cl-incf p))
-    (or found (and (wime-edit--unit-pin unit) (char-to-string (wime-edit--unit-pin unit)))
-        (substring (wime-edit--unit-keys unit) 0 1))))
+  (or (wime-edit--shown unit)
+      (and (wime-edit--unit-pin unit) (char-to-string (wime-edit--unit-pin unit)))
+      (substring (wime-edit--unit-keys unit) 0 1)))
 
 (defun wime-edit--replace (text units &optional cursor)
   "Replace the selected run with TEXT and UNITS, preserving point and mark.

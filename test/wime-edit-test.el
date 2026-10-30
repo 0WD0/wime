@@ -14,6 +14,9 @@
   "Run BODY with editable input and a portable deterministic dictionary."
   (declare (indent 0))
   `(let ((wime-editable-preedit t)
+         ;; Batch wdoom may configure model decoding; these tests drive the
+         ;; editor with dictionary results alone.
+         (wime-neural-mode nil)
          (wime-candidates-updated-hook nil)
          (wime-candidate-style 'list)
          (wime-show-candidates t)
@@ -333,6 +336,36 @@
     (wime-edit-test--type " ")
     (should (equal (buffer-substring-no-properties 1 (point-max)) "甲AP 4丙!，戊"))
     (should-not (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil))))
+
+(ert-deftest wime-edit-window-counts-syllables-only ()
+  (wime-edit-test--buffer
+    (setq current-input-method "wime")
+    (let ((wime-edit-max-syllables 2))
+      (wime-edit-test--type "aa")
+      (wime-edit-test--command #'wime-toggle-english)
+      (wime-edit-test--type "XYZ")
+      (wime-edit-test--command #'wime-toggle-english)
+      (wime-edit-test--type "bb")
+      (should (= wime-edit--start 1))
+      (wime-edit-test--type "cc")
+      ;; The window starts at a syllable, not at the literal before it.
+      (should (= wime-edit--start 5))
+      (should (equal wime--input "bbcc")))))
+
+;; A decoded reading must survive the dictionary guess shown while the next
+;; decode is pending; otherwise a character leaving the window keeps the guess.
+(ert-deftest wime-edit-pending-decode-keeps-decoded-characters ()
+  (wime-edit-test--buffer
+    (let ((wime-neural-mode t) (wime-neural--failed nil)
+          (wime-neural-rescorer "lm") (wime-neural-search-method 'decode))
+      (wime-edit-test--type "aa")
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "甲"))
+      (setq wime--candidate-records (list (wime--make-candidate :text "乙" :score 0 :end 1))
+            wime--model-ranked t)
+      (wime--display)
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙"))
+      (wime-edit-test--type "bb")
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙丙")))))
 
 (ert-deftest wime-edit-deleting-the-last-syllable-leaves-literals-as-text ()
   (wime-edit-test--buffer
