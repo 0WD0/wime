@@ -19,6 +19,7 @@ def main():
     parser.add_argument("--model", action="append", required=True, help="name=/path; first checkpoint is the baseline")
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--rescorer", type=Path, required=True)
+    parser.add_argument("--weight", action="append", default=[], help="name=LM fusion weight; default 1.5")
     parser.add_argument("--out", type=Path, required=True)
     add_arguments(parser)
     args = parser.parse_args()
@@ -32,6 +33,12 @@ def execute(args, parser, checkpoint):
     models = dict(value.split("=",1) for value in args.model)
     if len(models) < 2 or len(models) != len(args.model):
         parser.error("at least two distinct model names required")
+    weights = {name: 1.5 for name in models}
+    for value in args.weight:
+        name, weight = value.split("=", 1)
+        if name not in models:
+            parser.error(f"--weight names an unknown model: {name}")
+        weights[name] = float(weight)
     registry, suites = Registry(), []
     for dataset in args.dataset:
         path, snapshot = registry.evaluation(dataset)
@@ -48,6 +55,8 @@ def execute(args, parser, checkpoint):
     rescorer = Rescorer(str(args.rescorer),1.5)
     units = Units(rescorer.tokenizer,readings(args.database))
     decoders = {name:Decoder(ConditionalEvaluator(path),rescorer,units) for name,path in models.items()}
+    for name, decoder in decoders.items():
+        decoder.weight = weights[name]
     for decoder in decoders.values():
         decoder.decode("评测预热","nihk")
     cache, results = {}, []
@@ -77,12 +86,12 @@ def execute(args, parser, checkpoint):
                 stream.flush()
                 if len(results)%50 == 0:
                     print(json.dumps(dict(completed=len(results),unique_requests=len(cache),seconds=time.monotonic()-started)),flush=True)
-    report = dict(models={name:dict(path=path,sha256=fingerprint(Path(path))) for name,path in models.items()},
+    report = dict(models={name:dict(path=path,sha256=fingerprint(Path(path)),weight=weights[name]) for name,path in models.items()},
                   datasets={name:snapshot for name,snapshot,_,_ in suites},
                   database_sha256=fingerprint(args.database),
                   rescorer_files_sha256={file.name:fingerprint(file) for file in sorted(args.rescorer.iterdir())
                                         if file.suffix in (".json",".safetensors")},
-                  profile=dict(backend="legacy",encoding=ENCODING,beam=16,rescorer_weight=1.5,
+                  profile=dict(backend="legacy",encoding=ENCODING,beam=16,rescorer_weight=(next(iter(weights.values())) if len(set(weights.values())) == 1 else weights),
                                context_characters=64,personalization=False),
                   code_sha256={name:fingerprint(Path(__file__).with_name(name)) for name in
                                ("evaluate-regression.py","regression.py","decoder.py","decoding_model.py",
