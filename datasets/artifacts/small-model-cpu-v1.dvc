@@ -1,0 +1,6 @@
+outs:
+- md5: bc90468a7d26457f5acd33be1407e657.dir
+  size: 43192775
+  nfiles: 30
+  hash: md5
+  path: small-model-cpu-v1
