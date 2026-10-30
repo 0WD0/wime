@@ -26,7 +26,9 @@ class Rescorer:
     def __init__(self, path, weight, device="cuda"):
         from transformers import AutoModelForCausalLM, AutoTokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(path)
-        self.model = AutoModelForCausalLM.from_pretrained(path, dtype=torch.bfloat16).to(device).eval()
+        # CPUs without native BF16 matmul run FP32 several times faster.
+        dtype = torch.bfloat16 if device.startswith("cuda") else torch.float32
+        self.model = AutoModelForCausalLM.from_pretrained(path, dtype=dtype).to(device).eval()
         self.weight, self.device = weight, device
         self.pad = self.tokenizer.pad_token_id or 0
 
