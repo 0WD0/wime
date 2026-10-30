@@ -17,9 +17,11 @@ character's reading must start with the typed key. Pinned characters and
 typed auxiliary codes are hard constraints at their position; changing one
 keeps the frontiers before it when the complete input is unchanged.
 
-Literal text typed inside the composition (English, digits) sits between
-syllables. It joins only the LM's token path, so the LM scores the sentence
-as typed while the conditional model still sees the syllables alone.
+Literal text typed inside the composition (English, punctuation) sits
+between syllables. The LM's token path includes it, so the LM scores the
+sentence as typed. The conditional model never saw literals among
+syllables; each literal starts a new composition for it, whose context is
+the hypothesis text before it plus the literal, as in training.
 """
 import collections
 import itertools
@@ -104,7 +106,8 @@ class Decoder(DecodingModel):
         constraints = {p: ("pin", c) for p, c in pins}
         for p, typed in aux:
             constraints[p] = constraints.get(p, ()) + ("aux", typed)
-        literals = {p: self.literal_ids(text) for p, text in literals}
+        texts = dict(literals)
+        literals = {p: self.literal_ids(text) for p, text in texts.items()}
         session = self.session
         if session is None or session.key != key:
             session = self.session = Session(self, key, context, constraints, learned, weight, literals)
@@ -117,6 +120,7 @@ class Decoder(DecodingModel):
                          if literals.get(p) != session.literals.get(p)])
             session.kept = session.kept[:max(cut, 1)]
             session.constraints, session.literals = constraints, literals
+        session.texts = texts
         return session.decode(code)
 
 
@@ -125,7 +129,7 @@ class Session:
         self.decoder, self.key = decoder, key
         self.context = context
         self.constraints, self.learned, self.weight = constraints, learned, weight
-        self.literals = literals
+        self.literals, self.texts, self.segment_prompts = literals, {}, {}
         self.code, self.kept = "", [[Hypothesis("", (), 0.0, 0.0)]]
         self.memo, self.tails = {}, {}
         self.lm_context = None
@@ -167,12 +171,44 @@ class Session:
                 self.lm_context, [k[0] for k in missing], [k[1] for k in missing])))
         return [self.tails[k] for k in keys]
 
+    def segment(self, position):
+        """Start of the conditional-model composition holding character POSITION."""
+        return max([0] + [p for p in self.literals if p <= position])
+
+    def spans(self, complete):
+        bounds = [0] + sorted(p for p in self.literals if 0 < p < complete) + [complete]
+        return list(zip(bounds, bounds[1:]))
+
+    def segment_prompts_for(self, start, texts):
+        """Conditional prompts for the composition from START after a literal,
+        one per text: its characters before START, with the literals, extend
+        the context. None when any exceeds the window: the LM alone ranks."""
+        decoder, syllables = self.decoder, len(self.code) // 2
+        stop = min([p for p in self.literals if p > start] + [syllables])
+        code = self.code[2 * start:2 * stop]
+        characters = stop - start + (self.half and stop == syllables)
+        result = []
+        for text in texts:
+            key = (text[:start], code, characters)
+            if key not in self.segment_prompts:
+                surface = "".join(self.texts.get(i, "") + c for i, c in enumerate(text[:start]))
+                try:
+                    prompt = decoder.model_prompt(self.context + surface + self.texts[start], code)
+                except ValueError:
+                    prompt = None
+                self.segment_prompts[key] = (prompt if prompt is not None
+                                             and len(prompt) + characters <= decoder.window() else None)
+            result.append(self.segment_prompts[key])
+        return None if any(p is None for p in result) else result
+
     def expand(self, code, end, prompt):
         """Units ending at position END (half a syllable when CODE is odd),
         from every kept frontier they can start at, before pruning."""
         decoder, w = self.decoder, self.decoder.weight
         hypotheses, choices, owners, forced = [], [], [], []
-        for start in range(max(0, end - decoder.units.longest), end):
+        # A unit never spans a literal.
+        segment = self.segment(end - 1)
+        for start in range(max(segment, end - decoder.units.longest), end):
             units = decoder.units.get(code[2 * start:])
             if self.constraints:
                 units = [u for u in units if self.allowed(code, start, u[0])]
@@ -188,9 +224,12 @@ class Session:
         q = self.lm_next([h.ids for h in hypotheses])[:, torch.tensor([u[1][0] for u in choices], device=decoder.device)]
         half = len(code) % 2
         # The conditional model has seen only complete syllables of a half one.
-        m = (decoder.model_next(prompt, [h.text for h in hypotheses])[
-            :, torch.tensor(decoder.char_ids([u[0][0] for u in choices]), device=decoder.device).flatten()]
-             if not half and prompt is not None else torch.zeros_like(q))
+        prompts = (None if half else [prompt] * len(hypotheses) if segment == 0 or prompt is None
+                   else self.segment_prompts_for(segment, [h.text for h in hypotheses]))
+        columns = torch.tensor(decoder.char_ids([u[0][0] for u in choices]), device=decoder.device).flatten()
+        m = (torch.zeros_like(q) if prompts is None or prompts[0] is None
+             else decoder.model_next(prompt, [h.text for h in hypotheses])[:, columns] if segment == 0
+             else decoder.model_next_each(prompts, [h.text[segment:] for h in hypotheses])[:, columns])
         valid = torch.zeros(len(hypotheses), len(choices), dtype=torch.bool)
         for c, (a, b) in enumerate(owners):
             valid[a:b, c] = True
@@ -229,8 +268,15 @@ class Session:
             return []
         w = self.decoder.weight
         new = sorted(new, key=lambda e: e[3] + w * e[2] + self.bonus(e[0]), reverse=True)[:RESCORED]
-        scores = ([0.0] * len(new) if prompt is None
-                  else self.decoder.model_score(prompt, [e[0][:complete] for e in new]))
+        scores = [0.0] * len(new)
+        if prompt is not None:
+            for start, stop in self.spans(complete):
+                texts = [e[0] for e in new]
+                prompts = None if start == 0 else self.segment_prompts_for(start, texts)
+                if start == 0 or prompts is not None:
+                    values = (self.decoder.model_score(prompt, [t[:stop] for t in texts]) if start == 0
+                              else self.decoder.model_score_each(prompts, [t[start:stop] for t in texts]))
+                    scores = [a + b for a, b in zip(scores, values)]
         best = {}
         for (text, ids, q, _), m in zip(new, scores):
             h = Hypothesis(text, ids, q, m)
@@ -272,11 +318,14 @@ class Session:
         if len(self.memo) > MEMO:
             # General-LM rows depend only on the unchanged left context and
             # output token prefix, so key edits do not invalidate them.
-            self.memo, self.tails = {}, {}
-        prompt = self.prompt(complete, syllables)
+            self.memo, self.tails, self.segment_prompts = {}, {}, {}
+        self.half = bool(half)
+        # The first composition ends at the first literal inside the input.
+        first = min([p for p in self.literals if p < syllables] + [syllables])
+        prompt = self.prompt(complete[:2 * first], first)
         for end in range(len(self.kept), syllables + 1):
             self.kept.append(self.attach(self.finish(self.expand(code[:2 * end], end, prompt), prompt, end), end))
-        if half:
+        if half and first == syllables:
             prompt = self.prompt(complete, syllables + 1)
             final = self.finish(self.expand(code, syllables + 1, prompt), prompt, syllables)
         else:

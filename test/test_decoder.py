@@ -98,10 +98,20 @@ class Literal(Toy):
 
     def __init__(self):
         super().__init__()
-        self.lm_prefixes = []
+        self.lm_prefixes, self.compositions = [], set()
 
     def literal_ids(self, text):
         return (1,) * len(text)
+
+    def model_prompt(self, context, code):
+        self.compositions.add((context, code))
+        return [0]
+
+    def model_next_each(self, prompts, texts):
+        return torch.zeros(len(texts), 7)
+
+    def model_score_each(self, prompts, texts):
+        return [0.0] * len(texts)
 
     def lm_next(self, context, sequences):
         self.lm_prefixes.extend(sequences)
@@ -214,6 +224,10 @@ class Decoding(unittest.TestCase):
         self.assertTrue(all(len(t) == 4 for t in texts))
         # Units after the literal extend paths that already contain it.
         self.assertTrue(any(s[-2:] == (1, 1) for s in decoder.lm_prefixes))
+        # For the conditional model the literal starts a new composition
+        # whose context is the text typed before it.
+        self.assertIn(("整句AB", "uuru"), decoder.compositions)
+        self.assertTrue(all(code == "uuru" for _, code in decoder.compositions))
         # Removing the literal restores the plain ranking in the same session.
         self.assertEqual(decoder.decode("", "vgjuuuru")[0][0], "证据输入")
 

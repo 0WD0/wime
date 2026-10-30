@@ -33,9 +33,11 @@ class DecodingModel:
 
     def prompts(self, context, code):
         """Conditional-model prompt ids and LM context ids."""
+        return self.model_prompt(context, code), self.lm_ids(context)
+
+    def model_prompt(self, context, code):
         ev = self.evaluator
-        prefix = prompt(context, code, ev.model.cfg.context)
-        return [2] + [ev.index.get(c, 1) for c in prefix], self.lm_ids(context)
+        return [2] + [ev.index.get(c, 1) for c in prompt(context, code, ev.model.cfg.context)]
 
     def lm_ids(self, context):
         return self.rescorer.tokenizer(context[-128:] or "\n")["input_ids"]
@@ -79,27 +81,34 @@ class DecodingModel:
         picked = picked[torch.arange(len(targets), device=self.device), torch.tensor(targets, device=self.device)]
         return torch.zeros(len(tails), device=self.device).index_add_(0, rows, picked).tolist()
 
-    @torch.inference_mode()
     def model_next(self, prompt, texts):
         """Conditional log p(next char | prompt + text): [len(texts), V]."""
-        encoded = self.char_ids(texts)
-        size = len(prompt) + max(map(len, encoded))
-        inputs = [prompt + e + [0] * (size - len(prompt) - len(e)) for e in encoded]
-        logits, _ = self.evaluator.model(torch.tensor(inputs, device=self.device))
-        last = torch.tensor([len(prompt) + len(e) - 1 for e in encoded], device=self.device)
+        return self.model_next_each([prompt] * len(texts), texts)
+
+    def model_score(self, prompt, texts):
+        """Conditional sum log p(text | prompt) for each text."""
+        return self.model_score_each([prompt] * len(texts), texts)
+
+    @torch.inference_mode()
+    def model_next_each(self, prompts, texts):
+        """model_next with its own prompt for each text."""
+        rows = [p + e for p, e in zip(prompts, self.char_ids(texts))]
+        size = max(map(len, rows))
+        logits, _ = self.evaluator.model(torch.tensor([r + [0] * (size - len(r)) for r in rows], device=self.device))
+        last = torch.tensor([len(r) - 1 for r in rows], device=self.device)
         return logits[torch.arange(len(texts), device=self.device), last].float().log_softmax(-1)
 
     @torch.inference_mode()
-    def model_score(self, prompt, texts):
-        """Conditional sum log p(text | prompt) for each text."""
+    def model_score_each(self, prompts, texts):
+        """model_score with its own prompt for each text."""
         encoded = self.char_ids(texts)
-        size = len(prompt) + max(map(len, encoded)) - 1
-        inputs = [prompt + e[:-1] + [0] * (size - len(prompt) - len(e) + 1) for e in encoded]
+        size = max(len(p) + len(e) - 1 for p, e in zip(prompts, encoded))
+        inputs = [p + e[:-1] + [0] * (size - len(p) - len(e) + 1) for p, e in zip(prompts, encoded)]
         logits, _ = self.evaluator.model(torch.tensor(inputs, device=self.device))
         rows, columns, targets = [], [], []
-        for i, e in enumerate(encoded):
+        for i, (p, e) in enumerate(zip(prompts, encoded)):
             for j, char in enumerate(e):
-                rows.append(i), columns.append(len(prompt) - 1 + j), targets.append(char)
+                rows.append(i), columns.append(len(p) - 1 + j), targets.append(char)
         rows = torch.tensor(rows, device=self.device)
         picked = logits[rows, torch.tensor(columns, device=self.device)].float().log_softmax(-1)
         picked = picked[torch.arange(len(targets), device=self.device), torch.tensor(targets, device=self.device)]
