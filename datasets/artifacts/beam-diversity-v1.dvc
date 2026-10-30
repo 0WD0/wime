@@ -1,0 +1,6 @@
+outs:
+- md5: 68b69ca17ed5787e2e911cb6b5bf10a0.dir
+  size: 31811801
+  nfiles: 25
+  hash: md5
+  path: beam-diversity-v1
