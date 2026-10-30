@@ -88,6 +88,9 @@
 (defvar wime-title "wime"
   "The title shown in the mode line.")
 
+(defvar wime-english-title "英"
+  "The title shown while `wime-english-mode' inserts keys literally.")
+
 (defcustom wime-candidates-max 10
   "Maximum number of candidates shown at once."
   :type 'natnum
@@ -168,6 +171,7 @@ Return point to disable context.  Errors or invalid markers also yield none.")
 
 (defvar wime-edit--start)
 (declare-function wime-edit--active-p "wime-edit")
+(declare-function wime-edit-pause "wime-edit")
 
 (defun wime--context (&optional limit)
   "Return committed context before the current composition."
@@ -1034,10 +1038,36 @@ In the span view only numbered alternatives respond; others do nothing."
   (message "wime punctuation: %s"
            (if wime-ascii-punctuation "ASCII" "中文")))
 
+(define-minor-mode wime-english-mode
+  "Insert keys literally while wime stays the input method.
+Chinese typed before the switch stays pending: editable readings keep
+their records until confirmed, so SPC after switching back confirms both."
+  :lighter nil
+  (force-mode-line-update))
+
+(defun wime-toggle-english (&optional arg)
+  "Switch between Chinese and literal English without leaving composition.
+Outside wime, or with prefix ARG, run `toggle-input-method' instead."
+  (interactive "P")
+  (if (and (equal current-input-method "wime") (not arg))
+      (wime-english-mode 'toggle)
+    (toggle-input-method arg t)))
+
+(defun wime--english-input (key)
+  "Insert KEY literally after suspending the Chinese at point.
+Editable readings stay pending; the floating composition has no place for
+literal text, so it commits its selected candidate first."
+  (when (wime--active-p)
+    (if (bound-and-true-p wime-edit-mode)
+        (wime-edit-pause)
+      (wime--commit (nth wime--selected wime--candidates))))
+  (list key))
+
 (defun wime-input-method (key)
   "Process KEY for the wanxiang input method."
   (cond
    ((wime--text-read-only-p) (list key))
+   (wime-english-mode (wime--english-input key))
    ((bound-and-true-p wime-edit-mode) (wime-edit--input-method key))
    (t (wime--legacy-input-method key))))
 
@@ -1152,11 +1182,13 @@ In the span view only numbered alternatives respond; others do nothing."
   (when wime-editable-preedit (wime-edit-mode 1))
   (setq-local input-method-function #'wime-input-method)
   (setq-local deactivate-current-input-method-function #'wime-deactivate)
+  (wime-english-mode -1)
   (wime-mode 1))
 
 (defun wime-deactivate ()
   "Deactivate the wime input method."
   (wime--reset)
+  (wime-english-mode -1)
   (wime-mode -1)
   (kill-local-variable 'input-method-function))
 
@@ -1170,11 +1202,11 @@ In the span view only numbered alternatives respond; others do nothing."
 Bright while wime handles input, dim while the buffer is read-only and
 keys pass through."
   (if (and (equal current-input-method "wime") (bound-and-true-p wime-mode))
-      (propertize wime-title
+      (propertize (if wime-english-mode wime-english-title wime-title)
                   'face (if (wime--text-read-only-p)
                             'wime-indicator-dim-face
                           'wime-indicator-face)
-                  'help-echo "wime: 中文双拼")
+                  'help-echo (if wime-english-mode "wime: 英文，C-\\ 切回中文" "wime: 中文双拼"))
     ""))
 
 (register-input-method "wime" "euc-cn" #'wime-activate wime-title

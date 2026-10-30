@@ -461,6 +461,14 @@
     (wime--reset)
     (should (equal (wime-input-method ?A) (list ?A)))))
 
+(ert-deftest wime-english-mode-commits-floating-composition-first ()
+  (wime-test--type "ni"
+    (let ((selected (nth wime--selected wime--candidates)))
+      (wime-english-mode 1)
+      (should (equal (wime-input-method ?x) (list ?x)))
+      (should (equal (buffer-string) selected))
+      (should-not (wime--active-p)))))
+
 (ert-deftest wime-parse-keeps-typed-order ()
   (should (equal (wime--parse "yrZt") '(("yr" . "Z") ("t" . ""))))
   (should (equal (wime--parse "nihk") '(("ni" . "") ("hk" . ""))))

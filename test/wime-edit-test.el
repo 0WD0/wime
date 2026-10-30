@@ -306,6 +306,22 @@
     (should (equal (buffer-substring-no-properties 1 (point-max)) "乙API42丙"))
     (should (equal (wime-edit-test--keys 7) "bb"))))
 
+;; C-\ inside wime keeps the input method, so SPC still confirms both runs.
+(ert-deftest wime-edit-english-mode-keeps-earlier-run-pending ()
+  (wime-edit-test--buffer
+    (setq current-input-method "wime")
+    (wime-edit-test--type "aa")
+    (wime-edit-test--command #'wime-toggle-english)
+    (should wime-english-mode)
+    (wime-edit-test--type "API 42")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲API 42"))
+    (should (equal (wime-edit-test--keys 1) "aa"))
+    (should-not (wime-edit--unit-at 2))
+    (wime-edit-test--command #'wime-toggle-english)
+    (wime-edit-test--type "bb ")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲API 42丙"))
+    (should-not (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil))))
+
 (ert-deftest wime-edit-ordinary-insertion-deletion-and-yank-keep-untouched-readings ()
   (wime-edit-test--buffer
     (wime-edit-test--type "aabbcc")
