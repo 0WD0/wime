@@ -1790,6 +1790,156 @@
       "build": {
         "metadata": "emacs-packages/wime/datasets/artifacts/sentence-evaluation-build-v2.dvc"
       }
+    },
+    "sentence-training-large-v1": {
+      "kind": "corpus",
+      "status": "active",
+      "annotation": "gpt-sovits-mandarin-v1",
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-training-large-v1"
+      },
+      "description": "Large contextual sentence and clause training from all cleaned sources (up to 32 units per source group and length band): 1,322,012 train rows, 280,029 with LM-pause-selected commit boundaries.",
+      "parents": [
+        "cleaned-multisource-v4",
+        "programming-v1"
+      ],
+      "exclude": [
+        {
+          "dataset": "programming-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "programming-test-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "stress-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "stress-failures-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "diverse-v1",
+          "files": [
+            "dev",
+            "test",
+            "evaluation"
+          ]
+        },
+        {
+          "dataset": "replay-v1",
+          "files": [
+            "dev"
+          ]
+        },
+        {
+          "dataset": "wdoom-cuda-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "committed-anchor-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "protected-debug-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "accuracy-expansion-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "residual-heldout-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "sentence-trajectories-dev-v1",
+          "files": [
+            "cases"
+          ]
+        },
+        {
+          "dataset": "programming-v1",
+          "files": [
+            "dev",
+            "test"
+          ]
+        },
+        {
+          "dataset": "sentence-training-large-v1",
+          "files": [
+            "dev"
+          ]
+        }
+      ],
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "train": {
+          "path": "train.jsonl",
+          "format": "jsonl",
+          "rows": 1322012
+        },
+        "dev": {
+          "path": "dev.jsonl",
+          "format": "jsonl",
+          "rows": 13259
+        },
+        "documents": {
+          "path": "documents.sqlite3",
+          "format": "sqlite"
+        },
+        "validation": {
+          "path": "validation.json"
+        },
+        "selection": {
+          "path": "selection.json"
+        },
+        "rejected": {
+          "path": "rejected.json",
+          "format": "json-array",
+          "rows": 6007
+        }
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-training-large-v1.dvc",
+        "sha256": "89d25559aa2cb4c189eb0c15583992ee20fc5cf23ff10d9865d3a0e0d49a3056"
+      },
+      "quality": {
+        "contextual_tones": true,
+        "reading_accuracy": "structurally validated with spot checks; not individually human gold",
+        "boundaries": "sentence_sampling.boundary_candidates + commit_pause (LM pause >= 0.02); dev-v2 recall 33.6%, about 93% natural in an 80-row manual training sample; not individually human gold",
+        "source_groups_disjoint": true
+      },
+      "known_issues": [
+        "Targets contain Chinese characters only; punctuation remains in source context and boundaries.",
+        "Long documents contribute up to 32 short and 32 long units, so wiki and web prose weigh more than in broad-v1.",
+        "Boundary rules were tuned while inspecting dev-v2 boundaries; dev-v2 boundary agreement is optimistic.",
+        "No row-level human quality review as in broad-v1 curation."
+      ]
     }
   }
 }
