@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--rescorer", type=Path, required=True)
     parser.add_argument("--weight", action="append", default=[], help="name=LM fusion weight; default 1.5")
     parser.add_argument("--suffix-cap", action="append", default=[], help="name=LENGTH:CAP beam diversity cap")
+    parser.add_argument("--beam", action="append", default=[], help="name=beam width; default 16")
     parser.add_argument("--out", type=Path, required=True)
     add_arguments(parser)
     args = parser.parse_args()
@@ -46,6 +47,12 @@ def execute(args, parser, checkpoint):
         if name not in models:
             parser.error(f"--suffix-cap names an unknown model: {name}")
         caps[name] = tuple(map(int, cap.split(":")))
+    beams = {name: 16 for name in models}
+    for value in args.beam:
+        name, beam = value.split("=", 1)
+        if name not in models:
+            parser.error(f"--beam names an unknown model: {name}")
+        beams[name] = int(beam)
     registry, suites = Registry(), []
     for dataset in args.dataset:
         path, snapshot = registry.evaluation(dataset)
@@ -63,7 +70,7 @@ def execute(args, parser, checkpoint):
     units = Units(rescorer.tokenizer,readings(args.database))
     decoders = {name:Decoder(ConditionalEvaluator(path),rescorer,units) for name,path in models.items()}
     for name, decoder in decoders.items():
-        decoder.weight, decoder.suffix_cap = weights[name], caps.get(name)
+        decoder.weight, decoder.suffix_cap, decoder.beam = weights[name], caps.get(name), beams[name]
     for decoder in decoders.values():
         decoder.decode("评测预热","nihk")
     cache, results = {}, []
@@ -94,12 +101,12 @@ def execute(args, parser, checkpoint):
                 if len(results)%50 == 0:
                     print(json.dumps(dict(completed=len(results),unique_requests=len(cache),seconds=time.monotonic()-started)),flush=True)
     report = dict(models={name:dict(path=path,sha256=fingerprint(Path(path)),weight=weights[name],
-                                    suffix_cap=caps.get(name)) for name,path in models.items()},
+                                    suffix_cap=caps.get(name), beam=beams[name]) for name,path in models.items()},
                   datasets={name:snapshot for name,snapshot,_,_ in suites},
                   database_sha256=fingerprint(args.database),
                   rescorer_files_sha256={file.name:fingerprint(file) for file in sorted(args.rescorer.iterdir())
                                         if file.suffix in (".json",".safetensors")},
-                  profile=dict(backend="legacy",encoding=ENCODING,beam=16,rescorer_weight=(next(iter(weights.values())) if len(set(weights.values())) == 1 else weights),
+                  profile=dict(backend="legacy",encoding=ENCODING,beam=(next(iter(beams.values())) if len(set(beams.values())) == 1 else beams),rescorer_weight=(next(iter(weights.values())) if len(set(weights.values())) == 1 else weights),
                                context_characters=64,personalization=False),
                   code_sha256={name:fingerprint(Path(__file__).with_name(name)) for name in
                                ("evaluate-regression.py","regression.py","decoder.py","decoding_model.py",
