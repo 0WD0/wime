@@ -1,6 +1,6 @@
 outs:
-- md5: 3b8c3d19bcc1506cb2e2f90f6b3a768f.dir
-  size: 58828934
+- md5: a5e5016a4d6b329fb962d846ea694f5b.dir
+  size: 58829308
   nfiles: 27
   hash: md5
   path: beam-width-v1
