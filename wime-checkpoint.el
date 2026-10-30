@@ -36,8 +36,7 @@
         :backend (symbol-name wime-backend-model)
         :native_library (or wime-backend-native-library :null)
         :native_model (or wime-backend-native-model :null)
-        :pool_width (or wime-neural-pool-width :null)
-        :reranker (or wime-neural-reranker :null) :reranker_weight wime-neural-reranker-weight
+        :pool_width (or wime-neural-pool-width :null) :beam wime-neural-beam
         :search_method (symbol-name wime-neural-search-method)))
 
 (defun wime-checkpoint--nullable (value)
@@ -66,8 +65,7 @@
       (wime-backend-native-library . ,(wime-checkpoint--nullable (plist-get profile :native_library)))
       (wime-backend-native-model . ,(wime-checkpoint--nullable (plist-get profile :native_model)))
       (wime-neural-rescorer-weight . ,(or (plist-get profile :rescorer_weight) 1.5))
-      (wime-neural-reranker . ,(wime-checkpoint--nullable (plist-get profile :reranker)))
-      (wime-neural-reranker-weight . ,(or (plist-get profile :reranker_weight) 1.5))
+      (wime-neural-beam . ,(or (plist-get profile :beam) 16))
       (wime-neural-pool-width . ,(wime-checkpoint--nullable (plist-get profile :pool_width))))))
 
 (defun wime-checkpoint--apply (recipe)

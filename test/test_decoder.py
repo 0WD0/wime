@@ -231,36 +231,6 @@ class Decoding(unittest.TestCase):
         # Removing the literal restores the plain ranking in the same session.
         self.assertEqual(decoder.decode("", "vgjuuuru")[0][0], "证据输入")
 
-    def test_suffix_cap_keeps_alternatives_for_the_newest_character(self):
-        decoder = Toy()
-        decoder.beam, decoder.suffix_cap = 2, (1, 1)
-        texts = [t for t, _ in decoder.decode("", "vgju")]
-        self.assertEqual(len(texts), 2)
-        self.assertEqual({t[-1] for t in texts}, {"据", "句"})
-        # The cap orders admission, not size: the beam still fills.
-        decoder.beam, decoder.suffix_cap, decoder.session = 6, (1, 1), None
-        self.assertEqual(len(decoder.decode("", "vgju")), 6)
-
-    def test_rerank_orders_final_readings_by_the_larger_lm(self):
-        from composition import rerank
-
-        class Reranker:
-            def __init__(self):
-                self.seen = []
-
-            def score(self, context, texts):
-                self.seen.append(texts)
-                return [5.0 if text.startswith("整句") else 0.0 for text in texts]
-
-        decoder, reranker = Literal(), Reranker()
-        self.assertEqual(decoder.decode("", "vgjuuuru")[0][0], "证据输入")
-        ranked = rerank(decoder, reranker, 1.0, "", "vgjuuuru")
-        self.assertEqual(ranked[0][0], "整句输入")
-        self.assertEqual({t for t, _ in ranked}, {h.text for h in decoder.session.final})
-        # The larger LM reads the sentence as typed, literal included.
-        rerank(decoder, reranker, 1.0, "", "vgjuuuru", literals=[(2, "AB")])
-        self.assertIn("整句AB输入", reranker.seen[-1])
-
     def test_unknown_keys_give_nothing(self):
         self.assertEqual(Toy().decode("", "vgxx"), [])
 

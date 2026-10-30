@@ -21,7 +21,7 @@ import sys
 import time
 
 from inference import ConditionalEvaluator, effective_prior_weight
-from composition import ENCODING, validate_committed, decode as decode_composition, rerank as rerank_composition
+from composition import ENCODING, validate_committed, decode as decode_composition
 from rescorer import interleave
 from backends import add_backend_arguments, validate_backend, make_rescorer, make_decoder
 
@@ -58,7 +58,7 @@ def validate(request):
             key in request for key in ("context_anchor", "context_reading")):
         raise ValueError("obsolete composition encoding")
     validate_committed(request.get("committed"))
-    if request.get("operation") in ("decode", "rerank"):
+    if request.get("operation") == "decode":
         weight = request.get("memory_weight", 0)
         if (any(c not in KEYS for c in request.get("input", ""))
                 or not isinstance(request.get("pins", []), list)
@@ -97,7 +97,7 @@ def validate(request):
                 raise ValueError("invalid request")
 
 
-def respond(evaluator, request, rescorer=None, decoder=None, japanese=None, reranker=None):
+def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
     """Keep keyboard/coverage validation identical to conditional Rust verify."""
     validate(request)
     start = time.perf_counter()
@@ -107,17 +107,6 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None, rera
             [text, score] for text, score in japanese.decode(
                 request["context"], request["kana"], request.get("pending", []), request.get("shift"),
                 request.get("explicit", False), request.get("pending_shift", False))]
-        result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
-        return result
-    if request.get("operation") == "rerank":
-        # Sent after a typing pause; without a reranker the decoded order stands.
-        result["candidates"] = [] if decoder is None or reranker is None else [
-            [text, score] for text, score in rerank_composition(decoder, reranker, reranker.weight,
-                request["context"], request.get("input", ""), request.get("committed"),
-                window=evaluator.model.cfg.context,
-                pins=request.get("pins", []), learned=request.get("learned", []),
-                weight=request.get("memory_weight", 0), aux=request.get("aux", []),
-                literals=request.get("literals", []))]
         result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
         return result
     if request.get("operation") == "decode":
@@ -178,8 +167,7 @@ def parse_args(argv=None):
     parser.add_argument("model")
     add_backend_arguments(parser)
     parser.add_argument("--database", help="wime word database, whose readings enable decode")
-    parser.add_argument("--reranker", help="larger LM rescoring the legacy decoder's final readings on rerank requests")
-    parser.add_argument("--reranker-weight", type=float, default=1.5)
+    parser.add_argument("--beam", type=int, default=16, help="legacy decoder beam width")
     parser.add_argument("--japanese-model", help="kana-conditioned model (train-japanese.py)")
     parser.add_argument("--japanese-table", help="reading table for the rescorer (build-japanese-table.py)")
     parser.add_argument("--japanese-zenz", help="zenz directory (convert-zenz.py) for the final Japanese ranking")
@@ -195,6 +183,8 @@ def main():
     evaluator = ConditionalEvaluator(args.model, device="cuda")
     rescorer = make_rescorer(args)
     decoder = make_decoder(args, evaluator, rescorer)
+    if decoder:
+        decoder.beam = args.beam
     # Pay CUDA/kernel initialization once, before the first interactive request.
     evaluator.evaluate("", "aaaa", ["中文"])
     if rescorer:
@@ -208,13 +198,8 @@ def main():
         japanese.decode("", "にほんご")
     if decoder:
         decoder.decode("", "nihk")
-    reranker = None
-    if decoder and args.reranker:
-        from rescorer import Rescorer
-        reranker = Rescorer(args.reranker, args.reranker_weight)
-        reranker.score("", ["中文"])
     for line in sys.stdin:
-        response = respond(evaluator, json.loads(line), rescorer, decoder, japanese, reranker)
+        response = respond(evaluator, json.loads(line), rescorer, decoder, japanese)
         print(json.dumps(response, ensure_ascii=False, allow_nan=False), flush=True)
 
 

@@ -10,7 +10,7 @@ import time
 from dataset_registry import Registry
 from replay import fingerprint
 from trajectories import states, validate
-from composition import ENCODING, decode as decode_composition, rerank as rerank_composition
+from composition import ENCODING, decode as decode_composition
 from trajectory_metrics import summarize
 
 
@@ -24,9 +24,6 @@ def main():
     parser.add_argument("--rescorer")
     parser.add_argument("--rescorer-weight", type=float, default=1.5)
     parser.add_argument("--beam", type=int, default=16)
-    parser.add_argument("--suffix-cap", help="LENGTH:CAP diversity cap for the legacy beam")
-    parser.add_argument("--reranker", help="larger LM reranking every state's final readings, as after a typing pause")
-    parser.add_argument("--reranker-weight", type=float, default=1.5)
     parser.add_argument("--device", default="cuda")
     add_arguments(parser)
     args = parser.parse_args()
@@ -53,7 +50,6 @@ def execute(args, parser, checkpoint):
 
     torch.set_num_threads(4)
     torch.backends.cuda.matmul.allow_tf32 = False
-    reranker = None
     if args.backend == "conditional":
         model, vocab, metadata = load_model(args.model)
         decoder = ConditionalDecoder.from_database(model.to(args.device), vocab, args.database, args.beam)
@@ -66,8 +62,6 @@ def execute(args, parser, checkpoint):
         rescorer = Rescorer(args.rescorer, args.rescorer_weight, device=args.device)
         decoder = make_decoder(args, evaluator, rescorer)
         decoder.beam = args.beam
-        decoder.suffix_cap = tuple(map(int, args.suffix_cap.split(":"))) if args.suffix_cap else None
-        reranker = Rescorer(args.reranker, args.reranker_weight, device=args.device) if args.reranker else None
     legal = readings(args.database)
 
     def predict(state):
@@ -79,9 +73,7 @@ def execute(args, parser, checkpoint):
             if args.backend == "conditional":
                 candidates = decoder.decode(state["context"], state["input"], state.get("committed"))
             else:
-                candidates = (rerank_composition(decoder, reranker, reranker.weight, state["context"], state["input"],
-                                                 state.get("committed"), window=evaluator.model.cfg.context) if reranker else
-                              decode_composition(decoder, state["context"], state["input"], state.get("committed"), window=evaluator.model.cfg.context))
+                candidates = decode_composition(decoder, state["context"], state["input"], state.get("committed"), window=evaluator.model.cfg.context)
         except ValueError as failure:
             error = str(failure)
         if args.device.startswith("cuda"):
@@ -133,8 +125,7 @@ def execute(args, parser, checkpoint):
                   backend=args.backend, rescorer=args.rescorer, rescorer_weight=args.rescorer_weight,
                   rescorer_files_sha256={file.name:fingerprint(file) for file in sorted(Path(args.rescorer).iterdir())
                                         if file.suffix in (".json", ".safetensors")} if args.rescorer else None,
-                  beam=args.beam, suffix_cap=args.suffix_cap, reranker=args.reranker,
-                  reranker_weight=args.reranker_weight if args.reranker else None,
+                  beam=args.beam,
                   training_steps=metadata.get("training_steps"), seconds=time.monotonic()-started,
                   precision="conditional FP32/TF32 disabled; Qwen uses existing BF16 runtime",
                   semantics="Prefix, whole, then committed continuation at reviewed boundaries; "

@@ -50,27 +50,6 @@ worker process, and can check each asynchronous invalidation separately."
       (backward-char)
       (should (wime-neural--valid-p scheduled)))))
 
-(ert-deftest wime-edit-neural-decode-schedules-one-pause-rerank ()
-  (wime-edit-neural-test--composition
-    (let ((wime-neural-reranker "lm") (wime-backend-model 'legacy) scheduled)
-      (setf (wime-neural--job-method job) 'decode)
-      (cl-letf (((symbol-function 'run-with-timer)
-                 (lambda (_delay _repeat _function next) (setq scheduled next) nil)))
-        (wime-neural--apply job '((id . 1) (candidates . [["丙丁" -1.0]]))))
-      (should (equal (car wime--candidates) "丙丁"))
-      (should (eq (wime-neural--job-method scheduled) 'rerank))
-      ;; The rerank snapshot matches the state the decode reply produced.
-      (should (wime-neural--valid-p scheduled))
-      (should (equal (alist-get 'operation (json-parse-string (wime-neural--request scheduled)
-                                                             :object-type 'alist))
-                     "rerank"))
-      (let ((rerank scheduled))
-        (setq scheduled nil)
-        (cl-letf (((symbol-function 'run-with-timer) (lambda (&rest _) (setq scheduled t) nil)))
-          (wime-neural--apply rerank '((id . 2) (candidates . [["甲乙" -0.5] ["丙丁" -1.0]]))))
-        (should (equal (car wime--candidates) "甲乙"))
-        (should-not scheduled)))))
-
 (ert-deftest wime-edit-neural-publishes-after-cursor-movement ()
   (wime-edit-neural-test--composition
     (backward-char)

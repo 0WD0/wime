@@ -87,12 +87,9 @@ Hypothesis = collections.namedtuple("Hypothesis", "text ids q m")
 class Decoder(DecodingModel):
     """Model-facing methods are separate so tests can replace the models."""
 
-    def __init__(self, evaluator, rescorer, units, beam=BEAM, per_hypothesis=PER_HYPOTHESIS, suffix_cap=None):
+    def __init__(self, evaluator, rescorer, units, beam=BEAM, per_hypothesis=PER_HYPOTHESIS):
         super().__init__(evaluator, rescorer, beam, per_hypothesis)
         self.units, self.session = units, None
-        # (length, cap): at most CAP hypotheses sharing their last LENGTH
-        # characters enter the beam before the rest fill it in rank order.
-        self.suffix_cap = suffix_cap
 
     # --- search -----------------------------------------------------------
 
@@ -133,7 +130,6 @@ class Session:
         self.context = context
         self.constraints, self.learned, self.weight = constraints, learned, weight
         self.literals, self.texts, self.segment_prompts = literals, {}, {}
-        self.final = []  # the last decode's complete hypotheses, for reranking
         self.code, self.kept = "", [[Hypothesis("", (), 0.0, 0.0)]]
         self.memo, self.tails = {}, {}
         self.lm_context = None
@@ -286,18 +282,7 @@ class Session:
             h = Hypothesis(text, ids, q, m)
             if text not in best or self.rank(h) > self.rank(best[text]):
                 best[text] = h
-        ranked = sorted(best.values(), key=self.rank, reverse=True)
-        if self.decoder.suffix_cap is None:
-            return ranked[:self.decoder.beam]
-        # Variants of an older uncertain character (封/风/疯 × 意思) must not
-        # crowd out the alternatives at the newest one (疑似) before later
-        # keys can decide them.
-        length, cap = self.decoder.suffix_cap
-        counts, diverse, rest = collections.Counter(), [], []
-        for h in ranked:
-            counts[h.text[-length:]] += 1
-            (diverse if counts[h.text[-length:]] <= cap else rest).append(h)
-        return sorted((diverse + rest)[:self.decoder.beam], key=self.rank, reverse=True)
+        return sorted(best.values(), key=self.rank, reverse=True)[:self.decoder.beam]
 
     def attach(self, kept, end):
         """Append the literal typed after END characters to every LM path."""
@@ -323,7 +308,6 @@ class Session:
     def decode(self, code):
         syllables, half = len(code) // 2, len(code) % 2
         if not syllables:
-            self.final = []
             return []
         complete = code[:2 * syllables]
         if complete != self.code:
@@ -347,5 +331,4 @@ class Session:
         else:
             final = self.kept[syllables]
         n = syllables + half
-        self.final = [h for h in final if len(h.text) == n]
-        return [(h.text, self.rank(h) / n) for h in self.final]
+        return [(h.text, self.rank(h) / n) for h in final if len(h.text) == n]
