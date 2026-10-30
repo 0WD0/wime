@@ -1,0 +1,6 @@
+outs:
+- md5: e142f7b2ed7372e16578a5c121d8b730.dir
+  size: 13270810
+  nfiles: 14
+  hash: md5
+  path: composition-large-test-v2
