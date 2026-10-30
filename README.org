@@ -128,7 +128,7 @@ wime-lab 中也可按 =l/H= 打开。=/= 搜索，=RET= 查看详情，=e= 修�
 | 内容 | 位置 | 来源 |
 |------+------+------|
 | Python 环境 | =python/= | =neural/pyproject.toml= 和 =uv.lock= |
-| 词库 | =wanxiang.db= | 万象拼音墨奇辅助码发布包（CC-BY-4.0），=gen/wime_gen.py= 生成 |
+| 词库 | =wanxiang.db= | HF 数据集 =0WD0/wime-wanxiang-mspy=（万象拼音，CC-BY-4.0） |
 | 25M 音节模型 | =wime-syllable-mspy-25m/= | HF =0WD0/wime-syllable-mspy-25m=（CC-BY-SA-4.0） |
 | 通用语言模型 | =rescorers/Qwen3.5-2B-Base/= | HF =Qwen/Qwen3.5-2B-Base=（Apache-2.0） |
 
@@ -138,12 +138,11 @@ UV_PROJECT_ENVIRONMENT=$D/python uv sync --frozen --project emacs-packages/wime/
 $D/python/bin/hf download 0WD0/wime-syllable-mspy-25m --local-dir $D/wime-syllable-mspy-25m
 $D/python/bin/hf download Qwen/Qwen3.5-2B-Base \
     --revision b1485b2fa6dfa1287294f269f5fb618e03d52d7c --local-dir $D/rescorers/Qwen3.5-2B-Base
-curl -LO https://github.com/amzxyz/rime-wanxiang/releases/download/v18.1.8/rime-wanxiang-moqi-fuzhu.zip
-unzip -d wanxiang rime-wanxiang-moqi-fuzhu.zip
-python3 emacs-packages/wime/gen/wime_gen.py --rime-data wanxiang --database $D/wanxiang.db
+$D/python/bin/hf download 0WD0/wime-wanxiang-mspy wanxiang.db --repo-type dataset --local-dir $D
 #+end_src
 
-=HF_ENDPOINT= 可指向 Hugging Face 镜像。Qwen 固定在评测用的版本。
+=HF_ENDPOINT= 可指向 Hugging Face 镜像。Qwen 固定在评测用的版本；
+词库是 =gen/wime_gen.py= 由万象拼音 nightly 生成并评测过的版本。
 音节模型的输入是不带声调的音节（按微软双拼两键编码）和左文，不看辅助码；
 辅助码只在搜索里约束读音。
 没有大模型时把 =wime-neural-search-method= 设为 =verify=，只用 25M 模型。
