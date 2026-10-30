@@ -1,0 +1,6 @@
+outs:
+- md5: cd37b67f511337cc4611cc7a5b937c91.dir
+  size: 3339520
+  nfiles: 5
+  hash: md5
+  path: rerank-27b-v1
