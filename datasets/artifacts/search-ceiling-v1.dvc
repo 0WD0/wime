@@ -1,0 +1,6 @@
+outs:
+- md5: afca64897ddb5b7656c6835227651b88.dir
+  size: 130219
+  nfiles: 3
+  hash: md5
+  path: search-ceiling-v1
