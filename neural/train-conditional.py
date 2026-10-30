@@ -350,8 +350,8 @@ def execute(args, p, checkpoint):
             validation = validate(step)
             improved = validation < best
             best = min(best, validation)
-            checkpoint = args.save_every and (step % args.save_every == 0 or step == args.steps)
-            if improved or checkpoint:
+            save_step = args.save_every and (step % args.save_every == 0 or step == args.steps)
+            if improved or save_step:
                 tensors = {k: v.detach().half().cpu().contiguous() for k, v in model.state_dict().items()
                            if k != "head.weight"}
                 info = dict(metadata, encoding=ENCODING, config=json.dumps(dataclasses.asdict(model.cfg)),
@@ -369,7 +369,7 @@ def execute(args, p, checkpoint):
                     temporary = args.out / "model.safetensors.part"
                     save_file(tensors, str(temporary), metadata=info)
                     os.replace(temporary, args.out / "model.safetensors")
-                if checkpoint:
+                if save_step:
                     target = args.out / f"step-{step}.safetensors"
                     temporary = target.with_suffix(".part")
                     save_file(tensors, str(temporary), metadata=info)
