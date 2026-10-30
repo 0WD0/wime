@@ -19,6 +19,33 @@ DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "wi
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "wime/datasets"
 
 
+def snapshot(registry, dataset):
+    entry = registry.entry(dataset)
+    # Editing a description or quality assessment must not orphan reviews.
+    content = entry.get("storage") or entry["files"]
+    return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
+
+
+def human_problems(dataset, split="cases", registry=None, reviews=None):
+    """{sample id: note} for rows a person marked problem in the current version.
+
+    Review row numbers follow file order, as the browser's row_number() does.
+    """
+    registry = registry or Registry()
+    path = Path(reviews or os.environ.get("WIME_DATASET_REVIEWS", DATA / "reviews/datasets.sqlite3"))
+    if not path.exists():
+        return {}
+    with sqlite3.connect(path) as db:
+        marked = dict(db.execute("SELECT row_number, note FROM reviews WHERE dataset=? AND snapshot=? AND split=? "
+                                 "AND status='problem'", (dataset, snapshot(registry, dataset), split)).fetchall())
+    if not marked:
+        return {}
+    source = registry.path(dataset, split)
+    text = source.read_text()
+    rows = json.loads(text) if text.lstrip().startswith("[") else [json.loads(line) for line in text.splitlines() if line]
+    return {rows[number - 1]["id"]: note for number, note in marked.items()}
+
+
 class Browser:
     def __init__(self, registry=None, cache=CACHE, reviews=None):
         self.registry = registry or Registry()
@@ -42,10 +69,7 @@ class Browser:
                 for name, entry in self.registry.datasets.items()]
 
     def snapshot(self, dataset):
-        entry = self.registry.entry(dataset)
-        # Editing a description or quality assessment must not orphan reviews.
-        content = entry.get("storage") or entry["files"]
-        return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
+        return snapshot(self.registry, dataset)
 
     def view(self, dataset, split):
         entry = self.registry.entry(dataset)
