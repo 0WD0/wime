@@ -7,6 +7,49 @@ wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
 停键后，本地神经模型在后台重新解码，并从你的纠正中学习。
 同一个后台也提供日文输入法 =wime-japanese= （AZIK 输入，见[[*日本語][日本語]]）。
 
+* 安装
+
+需要 Emacs 29.1 或更新版本，并带有 SQLite 支持。
+在 Emacs 中执行 =(sqlite-available-p)= 应返回非 nil。
+中文词库输入可以直接使用；神经推理另外需要 NVIDIA GPU，见[[*配置神经环境][配置神经环境]]。
+
+保留下载的完整源码目录。下面的 shell 命令均在 wime 目录执行，
+也就是包含 =wime.el=、=neural/= 和 =japanese/= 的目录。
+
+先安装 [[https://docs.astral.sh/uv/][uv]] 并下载词库：
+
+#+begin_src sh
+D="${XDG_DATA_HOME:-$HOME/.local/share}/wime"
+uvx --from huggingface-hub hf download 0WD0/wime-wanxiang-mspy wanxiang.db \
+    --repo-type dataset --local-dir "$D"
+#+end_src
+
+将以下配置加入 init 文件，把源码路径换成实际位置：
+
+#+begin_src emacs-lisp
+(add-to-list 'load-path "/path/to/wime")
+(require 'wime)
+(setq wime-editable-preedit t
+      wime-candidate-style 'spans)
+(wime-setup)
+#+end_src
+
+词库默认位于 =$XDG_DATA_HOME/wime/wanxiang.db=，
+没有设置 =XDG_DATA_HOME= 时为 =~/.local/share/wime/wanxiang.db=。
+放在其他位置时，设置 =wime-database-file=。按 =C-\\= 启用中文输入。
+
+纠错学习需主动启用：
+
+#+begin_src emacs-lisp
+(setq wime-user-database (expand-file-name "user.sqlite3" wime-data-directory))
+#+end_src
+
+启用后，每次上屏会在本地保存按键、文字、初始候选和最多 64 字的光标前文。
+设 =wime-user-database= 为 nil 可停止记录和学习；
+=M-x wime-history= 可删除历史而保留学习偏好。
+要清空两者，退出 Emacs 后删除这个数据库文件。
+神经推理通过本地子进程处理输入。
+
 * 使用
 
 ** 按键
@@ -28,7 +71,7 @@ wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
 标点默认上屏全角，=M-x wime-toggle-punctuation= 切换为半角。
 只读缓冲区里按键原样透传。
 
-wdoom 默认启用 =wime-editable-preedit=：候选是 buffer 中的真实文字，
+启用 =wime-editable-preedit= 后，候选是 buffer 中的真实文字，
 读音作为不写入文件的属性保存。可直接移动光标，在待转换字后补大写辅助码；
 待上屏中文里键入的标点，以及 =C-\\= 切到英文后键入的字母、空格和数字，都原样成为这段的一部分：
 继续输入仍是同一句，前后中文联合转换（通用模型连同这些文字一起打分），空格一并确认。
@@ -45,25 +88,12 @@ wdoom 默认启用 =wime-editable-preedit=：候选是 buffer 中的真实文字
 
 ** 分段视图
 
-=wime-candidate-style= 为 =spans= 时（wdoom 装了重排模型后的默认），
+=wime-candidate-style= 为 =spans= 时，
 半上屏隐藏双拼串，大写辅助码以小号上标贴在对应汉字旁，暂存后仍保留。
 模型拿不准的字加波浪线，替代写法在对应字词下方竖排，整段统一编号。
 双拼和辅助码仍保存在读音记录中，可继续补码纠错。
 按数字把那一段固定下来，其余部分重新解码；
 固定的字在它的按键改变前一直有效。
-
-** 启用
-
-wdoom 的 =wdoom-input= 模块会配置好一切。单独使用时：
-
-#+begin_src emacs-lisp
-(require 'wime)
-(setq wime-database-file "/path/to/wanxiang.db")
-(wime-setup)                            ; default-input-method 设为 "wime"
-#+end_src
-
-可选的 octagram 搭配评分需要 =wime-grammar-module= 和 =wime-grammar-shared-dir=。
-神经模型见下文。
 
 * 工作方式
 
@@ -91,7 +121,7 @@ worker 出错或超时，词格候选照常可用。
 
 ** 纠错学习
 
-设置 =wime-user-database= 后（wdoom 为 =$XDG_DATA_HOME/wime/user.sqlite3=），
+设置 =wime-user-database= 后，
 每次上屏完整读音都记录按键、上屏文本、wime 首先给出的读音和光标前文。
 这份日志只存本机，也是真实使用的评测数据。
 
@@ -100,7 +130,7 @@ worker 出错或超时，词格候选照常可用。
 学到的读音在词格和神经阶段都有强偏好，模型不会推翻你的纠正。
 
 =M-x wime-memory= 管理学习偏好，=M-x wime-history= 查看上屏历史；
-wime-lab 中也可按 =l/H= 打开。=/= 搜索，=RET= 查看详情，=e= 修改词语和编码，
+=/= 搜索，=RET= 查看详情，=e= 修改词语和编码，
 =m/u= 标记或取消标记，=d= 删除标记记录（无标记时删除当前行），=U= 撤销。
 撤销记录保留到管理 buffer 被关闭；=+= 加载更多，=g= 刷新。
 启用 Evil 时进入普通状态，保留移动与搜索键；=s= 筛选，=H/L= 切换历史与学习偏好，
@@ -108,22 +138,11 @@ wime-lab 中也可按 =l/H= 打开。=/= 搜索，=RET= 查看详情，=e= 修�
 删除上屏历史保留学习偏好，删除偏好也保留历史。修改读音会按当前词库校验。
 =M-x wime-memory-at-point= 查找选区、当前候选或光标处文字中的学习词语。
 
-* 检查训练数据
-
-=M-x wime-lab= 打开统一实验台，按 =d= 浏览数据集及划分。数据按页查询，
-左文与目标文本并排显示，=RET= 查看原始上下文、逐字读音和边界理由。
-=[/]= 翻页，=/= 搜索，=S/T/r= 筛选来源、声调或随机取页；=a/x/k/u= 确认、记录问题、跳过及撤销。
-人工审查独立于冻结数据保存。实验、评测差异和原始样本之间可以直接跳转，
-具体操作见 [[file:../../appkit-apps/wime-lab.el/README.org][实验台说明]]。
-
-数据环境默认位于 =~/.local/share/wime/environments/datasets/=；
-=wime-lab-data-python= 和 =wime-lab-data-program= 指定查询环境与控制器。
-
 * 配置神经环境
 
 =decode= 需要 NVIDIA GPU（CUDA 13 驱动，约 6 GB 显存）。
 文件都放在 =wime-data-directory=（默认 =~/.local/share/wime/=），
-各选项的默认值就指向下表位置，放好后 =(wime-neural-mode 1)= 即可。
+各选项的默认值就指向下表位置。
 
 | 内容 | 位置 | 来源 |
 |------+------+------|
@@ -133,27 +152,36 @@ wime-lab 中也可按 =l/H= 打开。=/= 搜索，=RET= 查看详情，=e= 修�
 | 通用语言模型 | =rescorers/Qwen3.5-2B-Base/= | HF =Qwen/Qwen3.5-2B-Base=（Apache-2.0） |
 
 #+begin_src sh
-D=~/.local/share/wime
-UV_PROJECT_ENVIRONMENT=$D/python uv sync --frozen --project emacs-packages/wime/neural
-$D/python/bin/hf download 0WD0/wime-syllable-40m --local-dir $D/wime-syllable-40m
-$D/python/bin/hf download Qwen/Qwen3.5-2B-Base \
-    --revision b1485b2fa6dfa1287294f269f5fb618e03d52d7c --local-dir $D/rescorers/Qwen3.5-2B-Base
-$D/python/bin/hf download 0WD0/wime-wanxiang-mspy wanxiang.db --repo-type dataset --local-dir $D
+D="${XDG_DATA_HOME:-$HOME/.local/share}/wime"
+UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural
+"$D/python/bin/hf" download 0WD0/wime-syllable-40m --local-dir "$D/wime-syllable-40m"
+"$D/python/bin/hf" download Qwen/Qwen3.5-2B-Base \
+    --revision b1485b2fa6dfa1287294f269f5fb618e03d52d7c --local-dir "$D/rescorers/Qwen3.5-2B-Base"
 #+end_src
 
-=HF_ENDPOINT= 可指向 Hugging Face 镜像。Qwen 固定在评测用的版本；
-词库是 =gen/wime_gen.py= 由万象拼音 nightly 生成并评测过的版本。
+然后在 Emacs 中启用：
+
+#+begin_src emacs-lisp
+(require 'wime-neural)
+(wime-neural-mode 1)
+#+end_src
+
+=HF_ENDPOINT= 可指向 Hugging Face 镜像。Qwen 使用上面固定的版本；
+词库是 =gen/wime_gen.py= 由万象拼音 nightly 生成的 SQLite。
 音节模型逐音节给出汉字：输入是声母、韵母和可选的声调（=C-1= … =C-5=）以及左文，
 不看辅助码；辅助码和声调在搜索里约束读音。
 
-wdoom 自己打包：=./wdoom/bin/wdoom-prepare --native= 打包 worker、Elisp、词库和
-音节模型（哈希固定在 =neural_model.bzl=，也可用 =WIME_SYLLABLE_MODEL= 指向同一文件），
-重启后生效；推理设置来自 =M-x wime-lab= 保存的启动配置。
 缺少大模型或 worker 出错时，词格候选仍可用。
 
 * 日本語
 
-=M-x set-input-method= 可选择四个方案：
+先加载日文输入法：
+
+#+begin_src emacs-lisp
+(require 'wime-japanese)
+#+end_src
+
+=M-x set-input-method= 可选择四个方案；假名转换随源码提供：
 
 | 名称 | 键位与规则 | 运行时规则表 |
 |------+------------+--------------|
@@ -184,12 +212,12 @@ wdoom 自己打包：=./wdoom/bin/wdoom-prepare --native= 打包 worker、Elisp�
 在仓库根目录执行：
 
 #+begin_src sh
-emacs -Q --batch -l emacs-packages/wime/gen/japanese.el -f wime-japanese-generate
+emacs -Q --batch -l gen/japanese.el -f wime-japanese-generate
 #+end_src
 
 生成 =base.eld=、=azik.eld=、=romaji.eld=、=onishi-azik.eld= 和 =layouts.eld=，不访问 ddskk 或网络。
 将命令最后一项换成 =wime-japanese-check= 可以只检查产物是否过期。
-重新启用输入法会重读规则和键位；wdoom 的快照需重新打包后使用。
+重新启用输入法会重读规则和键位。
 规则表每行一条 =(按键 假名 [剩余按键])=，行尾注释是等效普通罗马字。
 表里的按键是重排后的逻辑键；换方案用 =M-x set-input-method=，各缓冲区独立。
 预编辑区显示已转换的假名和还在等待的键；
@@ -209,37 +237,37 @@ AZIK 双键出两个假名时，第一个假名跟第一个键，其余跟最后
 全部按 zenz 与 Qwen 的整句概率重排。
 平假名和片假名始终在候选里。尚无纠错学习。
 
-wdoom 在 =$XDG_DATA_HOME/wime/japanese/= 下找到两个文件时启用：
+神经汉字转换另外需要假名模型和读音表。
+上面的下载步骤目前只提供中文模型；已有日文产物时，可在启用神经模式前配置：
+
+#+begin_src emacs-lisp
+(setq wime-japanese-model-file
+      (expand-file-name "japanese/kana-model.safetensors" wime-data-directory)
+      wime-japanese-table-file
+      (expand-file-name "japanese/readings.json" wime-data-directory))
+#+end_src
 
 - =kana-model.safetensors= :: =neural/train-japanese.py= 训练的假名模型。
-- =readings.json= :: Qwen 词表的读音表：
-
-#+begin_src sh
-python neural/build-japanese-lexicon.py --out lexicon.json   # fugashi + UniDic 的环境
-python neural/build-japanese-table.py \
-    --rescorer ~/.local/share/wime/rescorers/Qwen3.5-2B-Base \
-    --lexicon lexicon.json \
-    --out ~/.local/share/wime/japanese/readings.json
-#+end_src
+- =readings.json= :: Qwen 词表的日文读音表。
 
 读音来自 JMdict 和 KANJIDIC2（Tagaini Jisho 软件包里的数据库），
 加上训练语料里出现过的 UniDic 词和 JMnedict 专有名词，
 每个读音只留语料里最常见的 4 个新写法。
-训练语料及其许可固定在 =neural/japanese-sources.json= ；
-=prepare-japanese.py= 用 MeCab + UniDic 3.1 注音，
-排除 2025–26 年加入 Tatoeba 的测试句，
-=evaluate-japanese.py= 和 =test/record-japanese.el= 在这些句子上评测。
+数据来源和许可记录在 =neural/japanese-sources.json=。
+JMdict、KANJIDIC2 和 JMnedict 来自 James William Breen 与 EDRDG，
+按 [[https://www.edrdg.org/edrdg/licence.html][EDRDG 的 CC BY-SA 4.0 许可声明]]使用。
 
-可选的 =zenz/= 目录启用重排，由 zenz-v3.2-small（Apache-2.0）的 gguf 转换：
-
-#+begin_src sh
-PYTHONPATH=llama.cpp/gguf-py python neural/convert-zenz.py \
-    ggml-model-Q5_K_M.gguf ~/.local/share/wime/japanese/zenz
-#+end_src
+可选的 =wime-japanese-zenz-directory= 指向 zenz-v3.2-small（Apache-2.0）
+转换后的目录，为完整候选增加重排。
 
 * 词库
 
-Bazel 在构建时下载上游 nightly 产物，不依赖本机安装：
+发布词库来自 [[https://github.com/amzxyz/rime-wanxiang][amzxyz 的万象拼音]]，
+按 CC-BY-4.0 使用；wime 将其转换为按双拼码索引的 SQLite，保留辅助码和声调。
+日常安装使用上面下载的 =wanxiang.db=，=M-x wime-select-database= 可切换其他数据库。
+每个库的 =meta= 表记录方案名和声母位、韵母位用到的键。
+
+monorepo 中的 Bazel 集成在构建时下载上游产物：
 
 - =rime_wanxiang.bzl= 按固定 URL 和 sha256 拉取万象的墨奇辅助码词库
   和 octagram 模型 =wanxiang-lts-zh-hans.gram=。
@@ -249,46 +277,35 @@ Bazel 在构建时下载上游 nightly 产物，不依赖本机安装：
   =schemes/= 下的表生成其他方案：
   =database_liangti= 是按实测击键成本优化的量体双拼，
   =database_liangti_fast= 是只求最快的量体双拼·速。
-  用 =M-x wime-select-database= 切换。
 
-每个库的 =meta= 表记录方案名和声母位、韵母位用到的键。
+可选的 octagram 搭配评分需要 =wime-grammar-module= 和 =wime-grammar-shared-dir=。
+它的本地模块构建属于 monorepo 集成。
 
 * 开发
 
-ERT 测试在仓库根目录通过已准备的 wdoom 快照运行。隔离状态目录并禁用个人词库，
-避免测试写入真实输入记录：
+在 wime 目录运行输入、编辑、学习和异步协议的 ERT 测试：
 
 #+begin_src sh
-WDOOM_STATE_DIR=$(mktemp -d) ./wdoom/bin/wdoom --batch \
-  --eval '(setq wime-user-database nil
-                native-comp-enable-subr-trampolines (make-temp-file "wdoom-trampolines" t))' \
-  -l ert -l emacs-packages/wime/test/wime-test.el \
-  -l emacs-packages/wime/test/wime-edit-test.el \
-  -l emacs-packages/wime/test/wime-edit-neural-test.el \
-  -l emacs-packages/wime/test/wime-neural-test.el \
-  -l emacs-packages/wime/test/wime-japanese-test.el -f ert-run-tests-batch-and-exit < /dev/null
+make test-elisp
 #+end_src
 
-Python 测试不需要 GPU 和模型，但需要 =neural/requirements-training.txt= 里的依赖：
+测试使用临时的小词库，禁用个人输入记录，不需要 wdoom、模型或网络。
+=WIME_TEST_DATABASE=/path/to/wanxiang.db make test-elisp= 可改用已下载的完整词库。
+Evil、octagram 和其他可选集成在未安装时跳过。
+
+Python 运行时测试只需 PyTorch 和 safetensors，在 CPU 上使用小模型测试解码逻辑和 worker 协议：
 
 #+begin_src sh
-cd emacs-packages/wime/test && python -m unittest
+make test-python PYTHON=/path/to/python
 #+end_src
 
-模型训练与评测在 =neural/=：
+训练、语料处理和模型评测脚本保留在 =neural/= 和 =test/=，
+属于内部研发工具，依赖 monorepo 中的其他项目及本地数据；不提供外部复现支持。
+它们不属于安装步骤和运行时测试。
 
-- =prepare-corpus.py= :: 按 =corpus-v2-sources.json= 固定的来源清洗、注音，
-  =merge-corpus.py= 合并。=prepare-technical.py= 准备技术文档。
-- =prepare-sentence-training.py= :: 整句、前缀和上屏边界的训练集。
-- =train-transducer.py= :: 训练音节模型。字符网络从 =train-conditional.py=
-  训练的 25M 条件模型初始化，后者已不再用于推理。
-- =prepare-trajectories.py= :: 冻结评测集；=evaluate-trajectories.py= 评测
-  整句、前缀和上屏后的续写，=evaluate-regression.py= 跑回归集。
-
-=test/record-conditional.el= 经过真实的异步路径评测解码结果，
-设置 =WIME_TYPING_INTERVAL= 时逐键输入。
-
-=test/*-measurements.json= 等文件记录了各项选型背后的测量。
+wdoom 使用者仍由 =wdoom-input= 配置输入法；
+=./wdoom/bin/wdoom-prepare --native= 打包源码、词库和模型。
+推理配置由 =wime-lab= 保存，音节模型哈希固定在 =neural_model.bzl=。
 
 * 许可
 
