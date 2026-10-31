@@ -64,6 +64,16 @@
     (should (= (length (alist-get 'context (wime--composition-state wime-neural-context-limit)))
                wime-neural-context-limit))))
 
+(ert-deftest wime-neural-history-starts-with-the-context-prefix ()
+  (with-temp-buffer
+    (insert "我想")
+    (setq-local wime-context-prefix-function (lambda () "对方：明天去哪\n我："))
+    (should (equal (wime--context) "我想"))
+    (should (equal (wime-neural--context) "对方：明天去哪\n我：我想"))
+    (should (equal (alist-get 'context (wime-neural--state)) "对方：明天去哪\n我：我想"))
+    (setq-local wime-context-prefix-function (lambda () (error "client failure")))
+    (should (equal (wime-neural--context) "我想"))))
+
 (ert-deftest wime-neural-request-snapshots-the-composition-state ()
   (let ((wime-user-database nil))
     (with-temp-buffer

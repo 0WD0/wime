@@ -146,6 +146,21 @@ editors can set this in their mode hook.  It can only narrow the context;
 field, prompt, visibility, read-only and length limits still apply.
 Return point to disable context.  Errors or invalid markers also yield none.")
 
+(defvar-local wime-context-prefix-function nil
+  "Optional function returning text that precedes this buffer's input, or nil.
+Called without arguments, for example by a chat buffer to supply its latest
+messages before the composer.  The neural decoder reads the text right
+before the buffer context; the lattice and the commit log never see it.
+Errors yield no prefix.")
+
+(defun wime--context-prefix ()
+  "Return `wime-context-prefix-function' text, or the empty string."
+  (or (and wime-context-prefix-function
+           (condition-case nil
+               (save-excursion (funcall wime-context-prefix-function))
+             (error nil)))
+      ""))
+
 (defvar eshell-last-output-end)
 
 (defun wime--input-start ()

@@ -105,7 +105,13 @@ When disabled, single-character input retains dictionary ranking."
 The language model reads all of them; the syllable model its last 64.")
 
 (defun wime-neural--context ()
-  (wime--context wime-neural-context-limit))
+  (concat (wime--context-prefix) (wime--context wime-neural-context-limit)))
+
+(defun wime-neural--state ()
+  "The composition state, its history led by `wime-context-prefix-function' text."
+  (let ((state (wime--composition-state wime-neural-context-limit)))
+    (cons (cons 'context (concat (wime--context-prefix) (alist-get 'context state)))
+          (assq-delete-all 'context state))))
 
 (defun wime-neural--valid-p (job)
   "Whether JOB still belongs to the current unselected composition."
@@ -132,7 +138,7 @@ The language model reads all of them; the syllable model its last 64.")
               ;; without advancing buffer-chars-modified-tick.
               (equal (wime-neural--context) (wime-neural--job-context job))
               (or (null (wime-neural--job-history job))
-                  (let ((state (wime--composition-state wime-neural-context-limit)))
+                  (let ((state (wime-neural--state)))
                     (and (equal (alist-get 'context state) (wime-neural--job-history job))
                          (equal (alist-get 'committed state) (wime-neural--job-committed job)))))))))
 
@@ -172,7 +178,7 @@ complete."
   (let ((units (wime--parse wime--input)))
     (when (and (= (length (caar units)) 2) (wime-neural--model-p units)
                (or (not (bound-and-true-p wime-edit-mode)) (wime-edit--decodable-p)))
-      (let* ((state (wime--composition-state wime-neural-context-limit))
+      (let* ((state (wime-neural--state))
              (editing (wime--editing-p))
              (job (wime-neural--make-job
                    :id (cl-incf wime-neural--serial) :buffer (current-buffer)
