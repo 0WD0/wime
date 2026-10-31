@@ -402,12 +402,8 @@ class KanaModel:
     """Character LM over <bos> context <input> kana <output> text <eos>."""
 
     def __init__(self, path, device="cuda"):
-        import sys
         from safetensors import safe_open
-        here = Path(__file__).resolve().parent
-        if not (here / "model.py").is_file():
-            sys.path.insert(0, str(here.parents[2] / "third_party/chinese-ime-lm/neural"))
-        from model import CharLM, Config
+        from charlm import CharLM, Config
         with safe_open(str(path), framework="pt") as f:
             meta = f.metadata()
             weights = {k: f.get_tensor(k).float() for k in f.keys()}

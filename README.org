@@ -292,12 +292,10 @@ cd emacs-packages/wime/test && python -m unittest
 设置 =WIME_TYPING_INTERVAL= 时逐键输入。
 
 =test/*-measurements.json= 等文件记录了各项选型背后的测量。
-模型实现及其上游历史在 =third_party/chinese-ime-lm/=。
 
 * 许可
 
 wime 的代码以 GPL-3.0-or-later 发布，全文见 =LICENSE=。
-worker 附带的 =model.py= 来自 chinese-ime-lm（GPL-3.0）。
 模型和词库另有许可，见「配置神经环境」的表。
 
 * 尚未实现

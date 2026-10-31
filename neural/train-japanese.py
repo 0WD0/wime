@@ -10,7 +10,6 @@ import collections
 import json
 import math
 import random
-import sys
 import time
 from pathlib import Path
 
@@ -18,10 +17,8 @@ import numpy as np
 import torch
 from safetensors.torch import save_file
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "third_party/chinese-ime-lm/neural"))
-from model import CharLM, Config, RESERVED  # noqa: E402
-
-from japanese import EOS, FORMAT, INPUT, OUTPUT  # noqa: E402
+from charlm import CharLM, Config, RESERVED
+from japanese import EOS, FORMAT, INPUT, OUTPUT
 
 WEIGHTS = dict(tatoeba=0.2, aozora=0.3, wikipedia=0.4, wikinews=0.1)
 

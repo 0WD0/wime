@@ -1,8 +1,8 @@
 """Aligned syllable transducer: one output character per typed syllable.
 
-Three parts. A causal character network (the CharLM transformer, initialized
-from a conditional checkpoint) reads the left context, an OUTPUT marker and
-the characters so far; it never sees keys, so its states survive keystrokes.
+Three parts. A causal character network (charlm.CharLM, initialized from a
+conditional checkpoint) reads the left context, an OUTPUT marker and the
+characters so far; it never sees keys, so its states survive keystrokes.
 A small bidirectional encoder reads every syllable of the composition as
 initial + final + tone embeddings, each possibly unknown: toneless, toned and
 half-typed input share one model. Optionally the top cross_layers blocks of
@@ -22,7 +22,7 @@ from safetensors.torch import save_file
 
 from conditional import load_model
 from composition import OUTPUT, expand
-from model import CharLM, Config
+from charlm import CharLM, Config
 import syllables
 
 FORMAT = "wime-syllable-transducer-v1"

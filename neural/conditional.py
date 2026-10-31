@@ -7,19 +7,11 @@ Auxiliary codes remain hard constraints in wime's dictionary search.
 """
 import dataclasses
 import json
-import sys
-from pathlib import Path
 
 import torch
 from safetensors import safe_open
 
-ROOT = Path(__file__).resolve().parents[3]
-# The immutable runtime ships the imported model implementation beside this
-# file. Source-tree training uses the same implementation from the monorepo.
-if not Path(__file__).with_name("model.py").is_file():
-    sys.path.insert(0, str(ROOT / "third_party/chinese-ime-lm/neural"))
-from model import CharLM, Config  # noqa: E402
-
+from charlm import CharLM, Config
 from composition import KEYS, INPUT, OUTPUT, EOS, ENCODING, input_tokens, prompt, composition_prompt
 
 FORMAT = "wime-ms-pinyin-v1"

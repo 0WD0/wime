@@ -8,7 +8,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from composition import OUTPUT
 import transducer
-from model import Config  # on the path once transducer is imported
+from charlm import Config
 
 
 def evaluator():
