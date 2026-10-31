@@ -2,7 +2,7 @@
 #+options: toc:nil num:nil
 
 wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
-输入方式是双拼（默认微软双拼）加大写的墨奇辅助码，词库取自万象拼音。
+输入方式是双拼（默认微软双拼）加大写的墨奇辅助码。
 打字时先由词典词格给出候选；
 停键后，本地神经模型在后台重新解码，并从你的纠正中学习。
 同一个后台也提供日文输入法 =wime-japanese= （AZIK 输入，见[[*日本語][日本語]]）。
@@ -117,7 +117,7 @@ worker 出错或超时，词格候选照常可用。
 
 缺少通用语言模型、仅输入第一个音节的首键时，也只用词格。
 
-神经阶段目前只接微软双拼的词库；其他方案只用词格。
+神经阶段读取所选词库中的音节特征，各方案共用同一个模型。旧词库需要重新生成。
 
 ** 纠错学习
 
@@ -166,8 +166,7 @@ UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural
 (wime-neural-mode 1)
 #+end_src
 
-=HF_ENDPOINT= 可指向 Hugging Face 镜像。Qwen 使用上面固定的版本；
-词库是 =gen/wime_gen.py= 由万象拼音 nightly 生成的 SQLite。
+=HF_ENDPOINT= 可指向 Hugging Face 镜像。Qwen 使用上面固定的版本。
 音节模型逐音节给出汉字：输入是声母、韵母和可选的声调（=C-1= … =C-5=）以及左文，
 不看辅助码；辅助码和声调在搜索里约束读音。
 
@@ -262,24 +261,25 @@ JMdict、KANJIDIC2 和 JMnedict 来自 James William Breen 与 EDRDG，
 
 * 词库
 
-发布词库来自 [[https://github.com/amzxyz/rime-wanxiang][amzxyz 的万象拼音]]，
-按 CC-BY-4.0 使用；wime 将其转换为按双拼码索引的 SQLite，保留辅助码和声调。
-日常安装使用上面下载的 =wanxiang.db=，=M-x wime-select-database= 可切换其他数据库。
-每个库的 =meta= 表记录方案名和声母位、韵母位用到的键。
+=schemes/*.json= 直接定义各方案的声母、韵母、零声母和整音节别名。
+=gen/wime_gen.py= 按所选方案生成一份 SQLite 词库，同时写入按键和音节特征。
+使用时将 =wime-database-file= 指向自己方案的词库即可。
 
-monorepo 中的 Bazel 集成在构建时下载上游产物：
+monorepo 中运行 =bazel build //emacs-packages/wime:databases= 可生成全部方案：
 
-- =rime_wanxiang.bzl= 按固定 URL 和 sha256 拉取万象的墨奇辅助码词库
-  和 octagram 模型 =wanxiang-lts-zh-hans.gram=。
-  =gen/update_nightly.py= 更新到最新的 nightly 并改写 sha256。
-- =gen/wime_gen.py= 移植万象的拼写运算，把词库转成按双拼码索引的 SQLite。
-- =//emacs-packages/wime:database= 生成 =wanxiang.db= （微软双拼）。
-  =schemes/= 下的表生成其他方案：
-  =database_liangti= 是按实测击键成本优化的量体双拼，
-  =database_liangti_fast= 是只求最快的量体双拼·速。
+| 方案       | 文件名                   |
+|------------+--------------------------|
+| 微软双拼   | wanxiang.db              |
+| 自然码     | wanxiang-ziranma.db       |
+| 小鹤双拼   | wanxiang-flypy.db         |
+| 搜狗双拼   | wanxiang-sogou.db         |
+| 量体双拼   | wanxiang-liangti.db       |
+| 量体双拼·速 | wanxiang-liangti-fast.db |
 
-可选的 octagram 搭配评分需要 =wime-grammar-module= 和 =wime-grammar-shared-dir=。
-它的本地模块构建属于 monorepo 集成。
+词库数据和转换前的方案规则来自 [[https://github.com/amzxyz/rime-wanxiang][amzxyz 的万象拼音]]，
+按 CC-BY-4.0 使用；转换后保留辅助码和声调。
+可选的 octagram 搭配评分需要 =wime-grammar-module= 和 =wime-grammar-shared-dir=，
+其本地模块构建属于 monorepo 集成。
 
 * 开发
 

@@ -33,19 +33,24 @@ exports_files(["gen/wime_gen.py"], visibility = ["//emacs-packages/wime/neural:_
 py_binary(
     name = "generator",
     srcs = ["gen/wime_gen.py"],
+    data = [
+        "schemes/mspy.json",
+        "//emacs-packages/wime/neural:context-pinyin.json",
+    ],
     main = "gen/wime_gen.py",
 )
 
 genrule(
     name = "database",
     srcs = [
+        "schemes/mspy.json",
         "@rime_wanxiang//:sources",
-        "@rime_wanxiang//:wanxiang_algebra.yaml",
         "@rime_wanxiang//:wanxiang_pro.dict.yaml",
     ],
     outs = ["wanxiang.db"],
     cmd = "RIME=$$(dirname $(location @rime_wanxiang//:wanxiang_pro.dict.yaml)); " +
-          "$(location :generator) --rime-data $$RIME --database $@",
+          "$(location :generator) --rime-data $$RIME --database $@ " +
+          "--scheme $(location schemes/mspy.json)",
     tools = [":generator"],
     visibility = ["//wdoom/bazel/native:__pkg__"],
 )
@@ -88,7 +93,6 @@ genrule(
     srcs = [
         "schemes/ziranma.json",
         "@rime_wanxiang//:sources",
-        "@rime_wanxiang//:wanxiang_algebra.yaml",
         "@rime_wanxiang//:wanxiang_pro.dict.yaml",
     ],
     outs = ["wanxiang-ziranma.db"],
@@ -104,7 +108,6 @@ genrule(
     srcs = [
         "schemes/flypy.json",
         "@rime_wanxiang//:sources",
-        "@rime_wanxiang//:wanxiang_algebra.yaml",
         "@rime_wanxiang//:wanxiang_pro.dict.yaml",
     ],
     outs = ["wanxiang-flypy.db"],
@@ -120,7 +123,6 @@ genrule(
     srcs = [
         "schemes/sogou.json",
         "@rime_wanxiang//:sources",
-        "@rime_wanxiang//:wanxiang_algebra.yaml",
         "@rime_wanxiang//:wanxiang_pro.dict.yaml",
     ],
     outs = ["wanxiang-sogou.db"],

@@ -6,14 +6,16 @@ context-pinyin.json, which also maps each syllable to its Microsoft
 double-pinyin code; other layouts or full pinyin reach the same features.
 """
 import ast
+from contextlib import closing
 import json
 from pathlib import Path
+import sqlite3
 import sys
 
 # The worker bundle ships the generator beside this file.
 if not Path(__file__).with_name("wime_gen.py").is_file():
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gen"))
-from wime_gen import split_pinyin  # noqa: E402
+from wime_gen import SYLLABLE_ENCODING, split_pinyin  # noqa: E402
 
 CODES = json.loads(Path(__file__).with_name("context-pinyin.json").read_text())["syllables"]
 SPLIT = {syllable: split_pinyin(syllable) for syllable in CODES}
@@ -36,15 +38,31 @@ def labelled(pinyin, tone):
     return INITIAL.get(initial, 0), FINAL.get(final, 0), tone
 
 
-def typed(code, tones=()):
+def database_layout(database):
+    """Load the selected database's mapping from typed keys to model features."""
+    with closing(sqlite3.connect(f"file:{database}?mode=ro", uri=True)) as db:
+        meta = dict(db.execute("SELECT key, value FROM meta"))
+        if meta.get("syllable_encoding") != SYLLABLE_ENCODING:
+            raise ValueError("rebuild the database to include syllable features")
+        keys = {code: (initial, final) for code, initial, final
+                in db.execute("SELECT code, initial, final FROM syllable")}
+    initials = {}
+    for code, (initial, _) in keys.items():
+        initials.setdefault(code[0], set()).add(initial)
+    half = {key: next(iter(values)) for key, values in initials.items() if len(values) == 1}
+    return keys, half
+
+
+def typed(code, tones=(), layout=None):
     """Features of double-pinyin keys, a trailing half syllable included.
 
     TONES gives (syllable index, tone) pairs typed with the keys."""
+    keys, half = (KEYS, HALF) if layout is None else layout
     tone = dict(tones)
     result = []
     for i in range(0, len(code), 2):
         pair = code[i:i + 2]
-        initial, final = KEYS.get(pair, (None, None)) if len(pair) == 2 else (HALF.get(pair), None)
+        initial, final = keys.get(pair, (None, None)) if len(pair) == 2 else (half.get(pair), None)
         result.append((INITIAL.get(initial, 0), FINAL.get(final, 0), tone.get(i // 2, 0)))
     return result
 

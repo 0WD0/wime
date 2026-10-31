@@ -529,6 +529,8 @@ prefix of one of its comma-separated groups."
    (list (read-file-name "wime database: "
                          (and wime-database-file (file-name-directory wime-database-file))
                          wime-database-file t)))
+  (when (fboundp 'wime-neural--stop)
+    (wime-neural--stop))
   (when wime--db
     (ignore-errors (sqlite-close wime--db)))
   (setq wime-database-file (and file (expand-file-name file))

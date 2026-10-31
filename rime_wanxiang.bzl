@@ -4,7 +4,6 @@ The Moqi auxiliary codes only exist in the release artifacts, not in the
 git tree, so the release archive is downloaded and extracted.  The grammar
 model is a separate nightly-updated asset from amzxyz/RIME-LMDG.
 
-Run `gen/update_nightly.py` to refresh the URLs and hashes.
 """
 
 _DICT_URL = "https://github.com/amzxyz/rime-wanxiang/releases/download/dict-nightly/rime-wanxiang-moqi-fuzhu.zip"

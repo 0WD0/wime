@@ -5,18 +5,18 @@
 (defvar wime-japanese-model-file)
 (defvar wime-japanese-table-file)
 
-(defmacro wime-neural-test--mspy (&rest body)
-  "Run BODY with a database reporting the model's trained scheme."
+(defmacro wime-neural-test--database (&rest body)
+  "Run BODY with a database reporting model features."
   (declare (indent 0))
   `(let ((wime--position-keys (cons wime--default-keys wime--default-keys)))
      (cl-letf (((symbol-function 'wime--database) (lambda () 'test-database))
-               ((symbol-function 'sqlite-select) (lambda (&rest _) '(("mspy")))))
+               ((symbol-function 'sqlite-select) (lambda (&rest _) '(("wime-syllable-features-v1")))))
        ,@body)))
 
 (defmacro wime-neural-test--single-syllable (&rest body)
   "Run BODY with a small contextual dictionary for a single syllable."
   (declare (indent 0))
-  `(wime-neural-test--mspy
+  `(wime-neural-test--database
      (cl-letf (((symbol-function 'wime--entries-for)
                 (lambda (code)
                   (when (equal code "qd") '(("枪" "a" 100) ("强" "b" 100)))))
@@ -67,7 +67,7 @@
             wime--candidate-records (list (wime--make-candidate :text "行事" :end 2 :score 0)))
       (let ((wime-neural-mode t) (wime-neural-model-file "model") (wime-neural--failed nil)
             (wime-neural-rescorer "/lm") scheduled)
-        (wime-neural-test--mspy
+        (wime-neural-test--database
          (cl-letf (((symbol-function 'run-with-timer)
                     (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
            (wime-neural--schedule))
@@ -98,7 +98,7 @@
             wime--candidate-records (list (wime--make-candidate :text "行事" :end 2 :score 0)))
       (let ((wime-neural-mode t) (wime-neural-model-file "model") (wime-neural--failed nil)
             (wime-neural-rescorer "/lm") scheduled)
-        (wime-neural-test--mspy
+        (wime-neural-test--database
          (cl-letf (((symbol-function 'run-with-timer)
                     (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
            (wime-neural--schedule))
@@ -151,7 +151,7 @@
 
 (defmacro wime-neural-test--composition (&rest body)
   (declare (indent 0))
-  `(wime-neural-test--mspy
+  `(wime-neural-test--database
      (with-temp-buffer
      (let ((wime-neural-mode t) (wime-user-database nil))
        (setq wime--input "aabb"
@@ -206,18 +206,31 @@
                                                            :object-type 'alist))
                      "这个函数")))))
 
-(ert-deftest wime-neural-conditional-scheduling-requires-the-trained-keyboard-scheme ()
+(ert-deftest wime-neural-requires-database-phonetic-features ()
   (wime-neural-test--composition
-    (let ((wime-neural-rescorer "/lm") (wime-neural-model-file "model.safetensors")
-          (wime-neural--failed nil) (scheduled nil) (scheme "liangti"))
+    (let ((wime-neural-model-file "model.safetensors") (wime-neural--failed nil)
+          (encoding "wime-syllable-features-v1") scheduled)
       (cl-letf (((symbol-function 'wime--database) (lambda () 'database))
-                ((symbol-function 'sqlite-select) (lambda (&rest _) (list (list scheme))))
+                ((symbol-function 'sqlite-select)
+                 (lambda (&rest _) (list (list encoding))))
                 ((symbol-function 'run-with-timer) (lambda (&rest _) (setq scheduled t))))
         (wime-neural--schedule)
-        (should-not scheduled)
-        (setq scheme "mspy")
+        (should scheduled)
+        (setq scheduled nil encoding "unknown")
         (wime-neural--schedule)
-        (should scheduled)))))
+        (should-not scheduled)))))
+
+(ert-deftest wime-switching-databases-stops-the-old-worker-and-clears-key-metadata ()
+  (with-temp-buffer
+    (let ((wime-database-file "/old.db") (wime--db nil)
+          (wime--position-keys '("a" . "b"))
+          (wime-neural--process nil) (wime-neural--busy t) (wime-neural--pending t)
+          (wime-neural--timeout-timer nil))
+      (wime-select-database "/new.db")
+      (should (equal wime-database-file "/new.db"))
+      (should-not wime-neural--busy)
+      (should-not wime-neural--pending)
+      (should-not wime--position-keys))))
 
 (ert-deftest wime-neural-rejects-replaced-compositions ()
   (wime-neural-test--composition
@@ -333,7 +346,7 @@
             (puthash "aabb" '(("甲乙" . "")) wime--memory)
             (cl-letf (((symbol-function 'run-with-timer)
                        (lambda (_delay _repeat _function job) (setq scheduled job) nil))
-                      ((symbol-function 'sqlite-select) (lambda (&rest _) '(("mspy")))))
+                      ((symbol-function 'sqlite-select) (lambda (&rest _) '(("wime-syllable-features-v1")))))
               ;; A half syllable has no lattice sentence, but decodes.
               (setq wime--input "aabbc" wime--candidate-records nil wime--pins '((0 ?甲 "aa")))
               (wime-neural--schedule)

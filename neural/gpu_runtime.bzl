@@ -2,7 +2,6 @@
 
 def _gpu_runtime_impl(ctx):
     output = ctx.actions.declare_directory("wime-cuda")
-    manifest = ctx.actions.declare_file(ctx.label.name + "-files.json")
     files = {source.basename: source.path for source in ctx.files.srcs}
     for source in ctx.files.pypinyin:
         # Wheel members retain their package/data/metadata paths.
@@ -15,11 +14,25 @@ def _gpu_runtime_impl(ctx):
                 break
         if not matched:
             fail("Unexpected pypinyin wheel member: " + source.path)
-    ctx.actions.write(manifest, json.encode(files))
-    ctx.actions.run(
-        executable = ctx.executable._bundle,
-        arguments = [manifest.path, output.path],
-        inputs = [manifest] + ctx.files.srcs + ctx.files.pypinyin,
+    args = ctx.actions.args()
+    args.add(output.path)
+    for relative, source in files.items():
+        args.add(relative)
+        args.add(source)
+    ctx.actions.run_shell(
+        command = """set -eu
+destination="$1"
+shift
+while [ "$#" -gt 0 ]; do
+    output="$destination/$1"
+    mkdir -p "$(dirname "$output")"
+    cp "$2" "$output"
+    case "$1" in gpu-worker.py) chmod 755 "$output";; *) chmod 644 "$output";; esac
+    shift 2
+done
+""",
+        arguments = [args],
+        inputs = ctx.files.srcs + ctx.files.pypinyin,
         outputs = [output],
         mnemonic = "WimeCudaRuntime",
     )
@@ -30,6 +43,5 @@ gpu_runtime = rule(
     attrs = {
         "srcs": attr.label_list(allow_files = True),
         "pypinyin": attr.label(default = "@wime_pypinyin//:files"),
-        "_bundle": attr.label(default = "//emacs-packages/wime/neural:bundle-gpu", executable = True, cfg = "exec"),
     },
 )

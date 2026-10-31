@@ -16,7 +16,7 @@ import tarfile
 from pypinyin import lazy_pinyin
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gen"))
-from wime_gen import Converter, load_rules
+from wime_gen import load_scheme
 
 REVISION = "fe59320b9e3858bc9d41b4ad8d86b1c77568ceb4"
 PYTHON_REVISION = "30950021e5c37e785a63d583628b637bdaf97fa8"
@@ -28,7 +28,8 @@ from technical_prose import translated_prose, render
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--archive", type=Path, required=True)
-    p.add_argument("--algebra", type=Path, required=True)
+    p.add_argument("--scheme", type=Path,
+                   default=Path(__file__).resolve().parents[1] / "schemes/mspy.json")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--corpus", choices=("kubernetes", "python"), default="kubernetes")
     p.add_argument("--exclude-data", type=Path, required=True,
@@ -36,7 +37,7 @@ def main():
     p.add_argument("--append-data", type=Path,
                    help="Retain all splits of this prepared corpus, excluding shared targets from the new source")
     args = p.parse_args()
-    converter = Converter(rules=load_rules(args.algebra))
+    converter, _ = load_scheme(args.scheme)
     excluded = set()
     for directory in filter(None, (args.exclude_data, args.append_data)):
         for split in ("train", "dev", "test"):

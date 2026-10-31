@@ -6,6 +6,7 @@ composition exceeds the window, rebase the entire confirmed segment into
 history; never retain an arbitrary two-character tail.
 """
 KEYS = "abcdefghijklmnopqrstuvwxyz;"
+CODE_KEYS = KEYS + ",./"
 INPUT, OUTPUT, EOS = "\ue2e0", "\ue2e1", "\ue2e2"
 ENCODING = "wime-composition-v2"
 
@@ -26,7 +27,8 @@ def validate_committed(committed):
     if (not isinstance(text, str) or not text or not all("㐀" <= c <= "鿿" for c in text)
             or not isinstance(code, str) or len(code) != 2 * len(text)):
         raise ValueError("committed text requires aligned actual keys")
-    input_tokens(code)
+    if any(c not in CODE_KEYS for c in code):
+        raise ValueError("committed input contains invalid code keys")
 
 
 def expand(context, code, committed=None, window=128):

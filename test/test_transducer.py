@@ -23,6 +23,16 @@ def evaluator():
 
 
 class JointScores(unittest.TestCase):
+    def test_different_layout_keys_with_the_same_sounds_give_identical_scores(self):
+        ev = evaluator()
+        canonical = ev.prompt("前文", "bmyi", [(0, 4)])
+        ev.syllable_layout = ({"a,": ("b", "ian"), "a.": ("y", "i")}, {})
+        other = ev.prompt("前文", "a,a.", [(0, 4)])
+        self.assertEqual(canonical.features, other.features)
+        with torch.inference_mode():
+            torch.testing.assert_close(ev.joint([canonical], ["便宜"], [(0, 0), (0, 1)]),
+                                       ev.joint([other], ["便宜"], [(0, 0), (0, 1)]))
+
     def test_batched_prompts_match_independent_scoring_with_encoder_padding(self):
         ev = evaluator()
         prompts = [ev.prompt("前文", "bmyi"), ev.prompt("前", "x;uijxyi", [(1, 4)])]

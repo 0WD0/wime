@@ -11,12 +11,12 @@ import math
 import sys
 import time
 
-from composition import ENCODING, validate_committed, decode as decode_composition
+from composition import CODE_KEYS, ENCODING, validate_committed, decode as decode_composition
 from fusion import add_fusion_arguments, make_rescorer, make_decoder
 from transducer import Evaluator
 
 LETTERS = set("abcdefghijklmnopqrstuvwxyz")
-KEYS = LETTERS | {";"}
+KEYS = set(CODE_KEYS)
 
 
 def validate(request):

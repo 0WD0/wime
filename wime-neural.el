@@ -155,8 +155,8 @@ When disabled, single-character input retains dictionary ranking."
       (when (and (wime-neural--decodable-p units)
                  (condition-case nil
                      (equal (caar (sqlite-select (wime--database)
-                                                "SELECT value FROM meta WHERE key = 'scheme'"))
-                            "mspy")
+                                                "SELECT value FROM meta WHERE key = 'syllable_encoding'"))
+                            "wime-syllable-features-v1")
                    (error nil)))
         (let* ((state (wime--composition-state))
                (job (wime-neural--make-job

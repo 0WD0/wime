@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Generate wime's SQLite word database from the pinned rime-wanxiang sources.
+"""Generate wime's SQLite word database using a JSON double-pinyin scheme.
 
-By default the database is keyed by the Microsoft double-pinyin code, a
-faithful port of the `pro/微软双拼` rules in `wanxiang_algebra.yaml`.  With
-``--scheme`` selects a JSON definition: either an upstream algebra dialect or
-an initial/final key table (see ``schemes/``).
+By default the database uses schemes/mspy.json. ``--scheme`` selects another
+self-contained JSON definition with initial/final keys, zero initials and
+complete-syllable aliases (see ``schemes/``).
 
 Either way a ``meta`` table records which keys occur in the initial and final
 position of a syllable, so the engine can tell a code key from punctuation.
@@ -21,109 +20,27 @@ from pathlib import Path
 SYLLABLE_ENCODING = "wime-syllable-features-v1"
 
 
-def load_rules(algebra_path, dialect="微软双拼"):
-    """Extract the ``pro/DIALECT`` algebra rules without a YAML library."""
-    lines = algebra_path.read_text(encoding="utf-8").splitlines()
-    rules = []
-    in_pro = in_dialect = in_append = False
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        indent = len(line) - len(line.lstrip(" "))
-        if indent == 0:
-            in_pro = stripped == "pro:"
-            in_dialect = in_append = False
-            continue
-        if not in_pro:
-            continue
-        if indent == 2:
-            in_dialect = re.split(r"\s+#", stripped, maxsplit=1)[0].strip() == dialect + ":"
-            in_append = False
-            continue
-        if not in_dialect:
-            continue
-        if indent == 4:
-            in_append = stripped.startswith("__append:")
-            continue
-        if in_append and stripped.startswith("- "):
-            rule = re.split(r"\s+#", stripped[2:], maxsplit=1)[0].strip()
-            rules.append(compile_rule(rule))
-    if not rules:
-        raise ValueError(f"no pro/{dialect} spelling rules in {algebra_path}")
-    return rules
-
-
-def load_scheme(path, rime_data):
+def load_scheme(path):
     """Return a converter and identifier from a build-time JSON definition."""
     scheme = json.loads(path.read_text(encoding="utf-8"))
     if (not isinstance(scheme, dict) or not isinstance(scheme.get("name"), str)
             or not re.fullmatch(r"[a-z][a-z0-9-]*", scheme["name"])):
         raise ValueError("scheme needs an ASCII name")
-    if "algebra" in scheme:
-        if not isinstance(scheme["algebra"], str) or "initials" in scheme or "finals" in scheme:
-            raise ValueError("choose an algebra dialect or initial/final tables")
-        converter = Converter(load_rules(rime_data / "wanxiang_algebra.yaml", scheme["algebra"]))
-    else:
-        for field in ("initials", "finals"):
-            table = scheme.get(field)
-            if not isinstance(table, dict) or not table or any(
-                    not isinstance(k, str) or not isinstance(v, str) or len(v) != 1
-                    or v not in "abcdefghijklmnopqrstuvwxyz;,./" for k, v in table.items()):
-                raise ValueError(f"{field} must map sounds to single code keys")
-        converter = Converter(scheme=scheme)
-    return converter, scheme["name"]
-
-
-def compile_rule(rule):
-    parts = rule.split("/")
-    name = parts[0]
-    if name in ("xform", "derive", "abbrev"):
-        return (name, parts[1], _rime_replacement(parts[2]))
-    if name == "xlit":
-        return (name, parts[1], parts[2])
-    if name == "erase":
-        return (name, parts[1], "")
-    raise ValueError("unsupported algebra rule: %s" % rule)
-
-
-def _rime_replacement(value):
-    """Translate Rime's $1 backreferences to Python's \\1 form."""
-    return re.sub(r"\$(\d)", r"\\\1", value)
-
-
-def apply_rules(code, rules):
-    spellings = {code}
-    for name, pattern, replacement in rules:
-        if name == "xform":
-            spellings = {re.sub(pattern, replacement, s) for s in spellings}
-        elif name in ("derive", "abbrev"):
-            derived = set(spellings)
-            for s in spellings:
-                if re.search(pattern, s):
-                    derived.add(re.sub(pattern, replacement, s))
-            spellings = derived
-        elif name == "xlit":
-            table = str.maketrans(pattern, replacement)
-            spellings = {s.translate(table) for s in spellings}
-        elif name == "erase":
-            spellings = {re.sub(pattern, "", s) for s in spellings}
-    return spellings
-
-
-def _extract_code(spelling):
-    """Pull the typed double-pinyin code out of an algebra spelling.
-
-    The rules append a tone digit and keep the trailing ';' separator we
-    introduced.  ``◯`` is the placeholder for the ``ing`` key, which is
-    literally ``;`` on the keyboard, so it is restored before the separator is
-    removed.
-    """
-    spelling = spelling.replace("◯", ";")
-    if spelling.endswith(";"):
-        spelling = spelling[:-1]
-    spelling = re.sub(r"\d+$", "", spelling)
-    return spelling
+    for field in ("initials", "finals"):
+        table = scheme.get(field)
+        if not isinstance(table, dict) or not table or any(
+                not isinstance(k, str) or not isinstance(v, str) or len(v) != 1
+                or v not in "abcdefghijklmnopqrstuvwxyz;,./" for k, v in table.items()):
+            raise ValueError(f"{field} must map sounds to single code keys")
+    for field in ("zero_initials", "syllables"):
+        table = scheme.get(field, {})
+        if not isinstance(table, dict) or any(
+                not isinstance(k, str) or split_pinyin(k) is None or not isinstance(v, list) or not v
+                or any(not isinstance(code, str) or len(code) != 2
+                       or set(code) - set("abcdefghijklmnopqrstuvwxyz;,./") for code in v)
+                for k, v in table.items()):
+            raise ValueError(f"{field} must map syllables to complete two-key codes")
+    return Converter(scheme=scheme), scheme["name"]
 
 
 INITIALS = ("zh", "ch", "sh", "b", "p", "m", "f", "d", "t", "n", "l", "g", "k",
@@ -140,7 +57,7 @@ def split_pinyin(pinyin):
     plain = "".join(c for c in plain if c.isascii()).lower()
     if not re.fullmatch(r"[a-z]+", plain):
         return None
-    # Syllabic nasals, spelled the way the wanxiang algebra does (嗯 ń = en).
+    # Syllabic nasals (嗯 ń = en).
     plain = {"n": "en", "ng": "eng", "m": "me"}.get(plain, plain)
     for initial in INITIALS:
         if plain.startswith(initial) and len(plain) > len(initial):
@@ -152,33 +69,34 @@ def split_pinyin(pinyin):
 
 
 class Converter:
-    """Double-pinyin conversion with a per-syllable cache.
+    """Double-pinyin conversion from a JSON table, with a per-syllable cache."""
 
-    ``rules`` is a list of compiled algebra rules; ``scheme`` a table dict
-    with ``initials`` and ``finals``.  Exactly one of them is used.
-    """
-
-    def __init__(self, rules=None, scheme=None):
-        self.rules = rules
+    def __init__(self, scheme):
         self.scheme = scheme
         self.cache = {}
+        self.aliases = {}
+        for pinyin, codes in scheme.get("syllables", {}).items():
+            parts = split_pinyin(pinyin)
+            if parts in self.aliases and self.aliases[parts] != codes:
+                raise ValueError(f"conflicting syllable aliases for {pinyin}")
+            self.aliases[parts] = codes
 
     def codes(self, pinyin):
         if pinyin not in self.cache:
-            result = set()
-            if self.scheme is not None:
-                parts = split_pinyin(pinyin)
-                if parts:
+            result = []
+            parts = split_pinyin(pinyin)
+            if parts:
+                aliases = self.aliases.get(parts)
+                if aliases is None and not parts[0]:
+                    aliases = self.scheme.get("zero_initials", {}).get(parts[1])
+                if aliases is not None:
+                    result = aliases
+                else:
                     initial = self.scheme["initials"].get(parts[0])
                     final = self.scheme["finals"].get(parts[1])
                     if initial and final:
-                        result.add(initial + final)
-            else:
-                for spelling in apply_rules(pinyin + ";", self.rules):
-                    code = _extract_code(spelling)
-                    if code and all(ch.isascii() for ch in code):
-                        result.add(code)
-            self.cache[pinyin] = sorted(result)
+                        result = [initial + final]
+            self.cache[pinyin] = sorted(set(result))
         return self.cache[pinyin]
 
     def position_keys(self):
@@ -298,13 +216,18 @@ def build_database(dict_paths, converter, output, name):
         [(code, word, aux, weight, "/".join("".join(sorted(seen)) for seen in tones[key]))
          for key, weight in best.items() for code, word, aux in [key]])
     connection.execute("CREATE INDEX entry_code ON entry(code, weight DESC)")
-    # Layout-independent phonetic features for the syllable model.  Keep all
-    # pronunciations when multiple syllables share the same pair of keys.
-    connection.execute("CREATE TABLE syllable (code TEXT, initial TEXT, final TEXT, "
-                       "PRIMARY KEY (code, initial, final))")
-    connection.executemany("INSERT INTO syllable VALUES (?, ?, ?)", sorted({
-        (code, *parts) for pinyin, codes in converter.cache.items()
-        if (parts := split_pinyin(pinyin)) is not None for code in codes if len(code) == 2}))
+    # Use the model's fixed syllable inventory and collision order for every
+    # layout. Primary codes take precedence over aliases of other syllables.
+    inventory = json.loads((Path(__file__).resolve().parents[1] /
+                            "neural/context-pinyin.json").read_text())["syllables"]
+    features = {code: split_pinyin(pinyin) for pinyin in inventory
+                if (code := converter.primary(pinyin))}
+    for pinyin in inventory:
+        for code in converter.codes(pinyin):
+            features.setdefault(code, split_pinyin(pinyin))
+    connection.execute("CREATE TABLE syllable (code TEXT PRIMARY KEY, initial TEXT, final TEXT)")
+    connection.executemany("INSERT INTO syllable VALUES (?, ?, ?)",
+                           [(code, *parts) for code, parts in sorted(features.items())])
     initial_keys, final_keys = converter.position_keys()
     connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     connection.executemany("INSERT INTO meta VALUES (?, ?)",
@@ -320,13 +243,10 @@ def main():
     parser.add_argument("--rime-data", type=Path, required=True)
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--scheme", type=Path,
-                        help="JSON scheme definition; default: wanxiang 微软双拼 rules")
+                        default=Path(__file__).resolve().parents[1] / "schemes/mspy.json",
+                        help="JSON scheme definition; default: schemes/mspy.json")
     args = parser.parse_args()
-    if args.scheme:
-        converter, name = load_scheme(args.scheme, args.rime_data)
-    else:
-        converter = Converter(load_rules(args.rime_data / "wanxiang_algebra.yaml"))
-        name = "mspy"
+    converter, name = load_scheme(args.scheme)
     dict_paths = imported_dicts(args.rime_data / "wanxiang_pro.dict.yaml")
     total, unique = build_database(dict_paths, converter, args.database, name)
     print("database %s: %d input entries, %d unique; keys %s | %s"

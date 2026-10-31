@@ -9,4 +9,5 @@ test-elisp:
 	$(EMACS) -Q --batch -l test/run.el
 
 test-python:
-	$(PYTHON) -B test/run-runtime.py
+	cd test && $(PYTHON) -B -m unittest -v \
+		test_composition test_decoder test_gpu_worker test_japanese test_rescorer test_transducer test_schemes

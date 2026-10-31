@@ -16,4 +16,6 @@ def make_decoder(args, evaluator, rescorer):
     if rescorer is None or not args.database:
         return None
     from decoder import Decoder, Units
+    from syllables import database_layout
+    evaluator.syllable_layout = database_layout(args.database)
     return Decoder(evaluator, rescorer, Units.from_database(rescorer.tokenizer, args.database))

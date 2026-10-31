@@ -167,7 +167,8 @@ class Evaluator:
     def prompt(self, context, code, tones=()):
         if len(code) % 2 or len(code) // 2 > self.model.encoder_cfg.positions:
             raise ValueError("expected complete syllables within the encoder's positions")
-        return Prompt(context, syllables.typed(code, tones), self.model.encoder_cfg.marker)
+        return Prompt(context, syllables.typed(code, tones, getattr(self, "syllable_layout", None)),
+                      self.model.encoder_cfg.marker)
 
     def encoded(self, prompt):
         if prompt.encoded is None:

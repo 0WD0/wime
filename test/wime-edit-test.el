@@ -140,7 +140,7 @@
       (cl-letf (((symbol-function 'run-with-timer)
                  (lambda (_delay _repeat _function job) (setq scheduled job) nil))
                 ((symbol-function 'wime--database) (lambda () nil))
-                ((symbol-function 'sqlite-select) (lambda (&rest _) '(("mspy")))))
+                ((symbol-function 'sqlite-select) (lambda (&rest _) '(("wime-syllable-features-v1")))))
         (wime-neural--schedule)
         (should-not scheduled)
         (wime-edit-test--type "c")

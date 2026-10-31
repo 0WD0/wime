@@ -7,7 +7,7 @@
 (defun wime-test--fixture ()
   "Create a small word database, removed when this Emacs exits."
   (let* ((file (make-temp-file "wime-test-" nil ".db"))
-         (db (sqlite-open file nil)))
+         (db (sqlite-open file)))
     (unwind-protect
         (progn
           (sqlite-execute db "CREATE TABLE entry (code TEXT, word TEXT, aux TEXT, weight REAL, tones TEXT)")

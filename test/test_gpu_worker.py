@@ -13,6 +13,10 @@ spec.loader.exec_module(worker)
 
 
 class WorkerContract(unittest.TestCase):
+    def test_custom_layout_punctuation_is_valid_in_pending_and_committed_keys(self):
+        worker.validate(dict(id=1, operation="decode", context="", syllables=2, input="a,b.",
+                             committed=dict(text="前", input="c/")))
+
     def request(self, **changes):
         return dict(dict(id=1, context="", syllables=2, operation="decode", input="bmyi"), **changes)
 
