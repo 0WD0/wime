@@ -9,33 +9,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
 from conditional import composition_span, encode_example, input_tokens, prompt, INPUT, OUTPUT, EOS
 from conditional import CharLM, Config, grow_depth
 from conditional import augment_composition
-from inference import ConditionalEvaluator, effective_prior_weight
 from composition import composition_prompt
 
 
 class Conditioning(unittest.TestCase):
-    def test_prior_gate_uses_full_candidate_probability_and_can_be_disabled(self):
-        self.assertEqual(effective_prior_weight([-.1, -.2], 1, .1, .5), 0)
-        self.assertEqual(effective_prior_weight([-.1, -.2], 8, .1, .5), .1)
-        self.assertEqual(effective_prior_weight([0], 1, .1, 1), .1)
-        self.assertEqual(effective_prior_weight([-1000], 100, .1, .5), .1)
-        with self.assertRaises(ValueError):
-            effective_prior_weight([-.1], 1, .1, 0)
-
-    def test_proposal_order_can_prioritize_stronger_later_evidence(self):
-        evaluator = object.__new__(ConditionalEvaluator)
-        evaluator.device = "cpu"
-        evaluator.index = {c: i for i, c in enumerate("甲乙丙丁")}
-        evaluator.chinese = torch.arange(4)
-        evaluator.chinese_chars = list("甲乙丙丁")
-        distribution = torch.tensor([[-1., -.4, -10., -10.], [-4., -.2, -10., -10.]])
-        evaluator.proposal_order = "position"
-        position = evaluator.proposals("甲甲", distribution, .5)
-        evaluator.proposal_order = "gain"
-        gain = evaluator.proposals("甲甲", distribution, .5)
-        self.assertEqual(position, ["乙", "甲乙"])
-        self.assertEqual(gain, ["甲乙", "乙"])
-
     def test_ordinary_training_matches_committed_inference_without_scoring_prefix(self):
         row = dict(context="允许", input="bmyix;ui", gold=["便宜行事"])
         suffix = composition_span(row, 2, 4)

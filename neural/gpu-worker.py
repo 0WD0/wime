@@ -1,15 +1,13 @@
 #!/usr/bin/env -S python3 -B
-"""Optional persistent CUDA worker using the existing wime JSON-lines protocol.
+"""Persistent CUDA worker for wime's JSON-lines protocol (wime-neural-program).
 
-Select this executable as wime-neural-program, with a conditional model and
-verify search. Requires the local Python environment to provide PyTorch with
-CUDA and safetensors. Stdout is exclusively the protocol; no typed text is
-included in errors. The model stays on the GPU until the process is stopped.
-An optional --rescorer adds a weighted general-LM score to every verified
-candidate, including the seed pool, and interleaves its token proposals with
-the model's per-character proposals. With --database as well, the decode
-operation replaces the dictionary lattice with the fused decoder.py.
-Without a language model, conditional verification remains available. With
+It loads a syllable transducer (transducer.py). Stdout is exclusively the
+protocol; no typed text is included in errors. The verify operation scores
+lattice drafts and proposes prefixes for the lattice to search. An optional
+--rescorer adds a weighted general-LM score to every verified candidate,
+including the seed pool, and interleaves its token proposals with the
+model's per-character proposals. With --database as well, the decode
+operation replaces the dictionary lattice with the fused decoder.py. With
 --japanese-model and --japanese-table as well, the japanese operation
 decodes typed kana, and --japanese-zenz reranks it: see japanese.py.
 """
@@ -19,17 +17,28 @@ import math
 import sys
 import time
 
-from inference import effective_prior_weight
 from composition import ENCODING, validate_committed, decode as decode_composition
 from rescorer import interleave
-from fusion import add_fusion_arguments, make_evaluator, make_rescorer, make_decoder
+from fusion import add_fusion_arguments, make_rescorer, make_decoder
+from transducer import Evaluator
 
 LETTERS = set("abcdefghijklmnopqrstuvwxyz")
 KEYS = LETTERS | {";"}
 
 
+def effective_prior_weight(scores, syllables, weight, confidence=1.0):
+    """Use the model alone when its full-candidate probability is high enough.
+
+    Select once from the initial complete pool, then keep it fixed for all
+    verification rounds. One disables the gate.
+    """
+    if confidence < 1 and max(scores) * syllables >= math.log(confidence):
+        return 0.0
+    return weight
+
+
 def validate(request):
-    """Reject malformed envelopes before dispatch, as the Rust worker does."""
+    """Reject malformed envelopes before dispatch."""
     if not isinstance(request, dict):
         raise ValueError("invalid request")
     for key in ("id", "syllables"):
@@ -102,7 +111,6 @@ def validate(request):
 
 
 def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
-    """Keep keyboard/coverage validation identical to conditional Rust verify."""
     validate(request)
     start = time.perf_counter()
     result = dict(id=request["id"], elapsed_ms=0.0)
@@ -171,7 +179,7 @@ def parse_args(argv=None):
     parser.add_argument("model")
     add_fusion_arguments(parser)
     parser.add_argument("--database", help="wime word database, whose readings enable decode")
-    parser.add_argument("--beam", type=int, default=16, help="legacy decoder beam width")
+    parser.add_argument("--beam", type=int, default=16, help="decoder beam width")
     parser.add_argument("--japanese-model", help="kana-conditioned model (train-japanese.py)")
     parser.add_argument("--japanese-table", help="reading table for the rescorer (build-japanese-table.py)")
     parser.add_argument("--japanese-zenz", help="zenz directory (convert-zenz.py) for the final Japanese ranking")
@@ -180,7 +188,7 @@ def parse_args(argv=None):
 
 def main():
     args = parse_args()
-    evaluator = make_evaluator(args.model)
+    evaluator = Evaluator(args.model)
     rescorer = make_rescorer(args)
     decoder = make_decoder(args, evaluator, rescorer)
     if decoder:

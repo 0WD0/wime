@@ -1,16 +1,16 @@
-"""Legacy fused decoding: the general LM spells the keys, fused with the 25M.
+"""Fused decoding: the general LM spells the keys, fused with the syllable model.
 
 No dictionary lattice. At character position p a unit (an LM token, or the
 byte tokens of a character the LM vocabulary lacks) may follow when its
 characters' readings spell the next keys. The beam is character-synchronous,
 so hypotheses compared at one frontier cover the same characters, each
-ranked by  m + w * q + bonus:  m the pinyin-conditioned model's log
-probability of the text given every key typed so far, q the LM's, and the
+ranked by  m + w * q + bonus:  m the syllable transducer's log
+probability of the text given every syllable typed so far, q the LM's, and the
 bonus learned readings earn per character they cover.
 
 A Session revisits the composition whenever its complete syllables change:
 every frontier is pruned with all currently typed complete syllables in the
-conditional model's prompt, so later keys can recover an earlier reading.
+transducer's prompt, so later keys can recover an earlier reading.
 LM distributions are memoized by token prefix and reused across these
 searches. A trailing half syllable is decoded provisionally: its last
 character's reading must start with the typed key. Pinned characters and
@@ -19,8 +19,8 @@ keeps the frontiers before it when the complete input is unchanged.
 
 Literal text typed inside the composition (English, punctuation) sits
 between syllables. The LM's token path includes it, so the LM scores the
-sentence as typed. The conditional model never saw literals among
-syllables; each literal starts a new composition for it, whose context is
+sentence as typed. The transducer never saw literals among syllables;
+each literal starts a new composition for it, whose context is
 the hypothesis text before it plus the literal, as in training.
 """
 import collections
@@ -38,7 +38,7 @@ MEMO = 4096  # memoized LM rows, ~0.5 MB each
 # again under the current keys; that rescoring dominates a syllable's cost.
 RESCORED = 4 * BEAM
 # A byte token's probability is shared by every character it starts, so a
-# character the LM lacks competes only by the conditional model's score.
+# character the LM lacks competes only by the transducer's score.
 RARE, RARE_FLOOR = 2, math.log(0.02)
 
 
@@ -194,7 +194,7 @@ class Session:
         return [self.tails[k] for k in keys]
 
     def segment(self, position):
-        """Start of the conditional-model composition holding character POSITION."""
+        """Start of the transducer composition holding character POSITION."""
         return max([0] + [p for p in self.literals if p <= position])
 
     def spans(self, complete):
@@ -202,7 +202,7 @@ class Session:
         return list(zip(bounds, bounds[1:]))
 
     def segment_prompts_for(self, start, texts):
-        """Conditional prompts for the composition from START after a literal,
+        """Transducer prompts for the composition from START after a literal,
         one per text: its characters before START, with the literals, extend
         the context. None when any exceeds the window: the LM alone ranks."""
         decoder, syllables = self.decoder, len(self.code) // 2
@@ -246,7 +246,7 @@ class Session:
             return []
         q = self.lm_next([h.ids for h in hypotheses])[:, torch.tensor([u[1][0] for u in choices], device=decoder.device)]
         half = len(code) % 2
-        # The conditional model has seen only complete syllables of a half one.
+        # The transducer reads complete syllables only; a half one has no score.
         prompts = (None if half else [prompt] * len(hypotheses) if segment == 0 or prompt is None
                    else self.segment_prompts_for(segment, [h.text for h in hypotheses]))
         columns = torch.tensor(decoder.char_ids([u[0][0] for u in choices]), device=decoder.device).flatten()
@@ -317,7 +317,7 @@ class Session:
                       key=self.rank, reverse=True)
 
     def prompt(self, code, characters):
-        """The conditional model's prompt for CODE and up to CHARACTERS
+        """The transducer's prompt for CODE and up to CHARACTERS
         characters, or None past its window: then the LM alone ranks."""
         decoder = self.decoder
         try:

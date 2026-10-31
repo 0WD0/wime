@@ -4,12 +4,9 @@ from pathlib import Path
 import unittest
 from unittest.mock import Mock
 
-import torch
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'neural'))
 from composition import composition_prompt, prompt, expand, decode, validate_committed
-from conditional import CharLM, Config, composition_span, encode_example
-from inference import ConditionalEvaluator
+from conditional import composition_span, encode_example
 
 
 class CompositionState(unittest.TestCase):
@@ -22,19 +19,12 @@ class CompositionState(unittest.TestCase):
         # Unknown history has no invented pinyin and no fixed output.
         self.assertEqual(composition_prompt('银行行长', 'aa'),prompt('银行行长','aa'))
 
-    def test_teacher_forcing_logits_and_supervised_suffix_are_identical(self):
-        torch.manual_seed(17)
+    def test_supervised_suffix_of_a_commit_is_identical(self):
         row=dict(context='前文'*32,input='aabbccdd',gold=['甲乙丙丁'])
         whole=composition_prompt(row['context'],row['input'])
         vocab=['<pad>','<unk>','<bos>']+sorted(set(whole+'甲乙丙丁\ue2e2'))
         index={c:i for i,c in enumerate(vocab)}
-        ev=ConditionalEvaluator.__new__(ConditionalEvaluator)
-        ev.model=CharLM(Config(vocab=len(vocab),n_layer=2,n_head=2,n_embd=16,context=128,dropout=0)).eval()
-        ev.index=index;ev.device='cpu'
-        _,all_rows=ev.evaluate(row['context'],row['input'],['甲乙丙丁','甲乙丁丙'])
         suffix=composition_span(row,2,4)
-        _,tail_rows=ev.evaluate(suffix['context'],suffix['input'],['丙丁','丁丙'],suffix['committed'])
-        torch.testing.assert_close(all_rows[:,2:],tail_rows,atol=1e-6,rtol=1e-6)
         x,y=encode_example(row,index,128);sx,sy=encode_example(suffix,index,128)
         self.assertEqual(x,sx)
         self.assertEqual([v for v in sy if v],[index[c] for c in '丙丁\ue2e2'])

@@ -56,20 +56,11 @@ def execute(args, parser, checkpoint):
 
     import torch
     from decoder import Decoder, Units
-    from inference import ConditionalEvaluator
     from rescorer import Rescorer
+    import transducer
     rescorer = Rescorer(str(args.rescorer),1.5)
     units = Units.from_database(rescorer.tokenizer,args.database)
-    import transducer
-    from safetensors import safe_open
-
-    def decoder_for(path):
-        # Transducer checkpoints say so in their metadata.
-        with safe_open(path, "pt") as f:
-            if f.metadata().get("format") == transducer.FORMAT:
-                return transducer.decoder_class(Decoder)(transducer.Evaluator(path), rescorer, units)
-        return Decoder(ConditionalEvaluator(path), rescorer, units)
-    decoders = {name:decoder_for(path) for name,path in models.items()}
+    decoders = {name:Decoder(transducer.Evaluator(path), rescorer, units) for name,path in models.items()}
     for name, decoder in decoders.items():
         decoder.weight, decoder.beam = weights[name], beams[name]
     for decoder in decoders.values():
@@ -107,11 +98,11 @@ def execute(args, parser, checkpoint):
                   database_sha256=fingerprint(args.database),
                   rescorer_files_sha256={file.name:fingerprint(file) for file in sorted(args.rescorer.iterdir())
                                         if file.suffix in (".json",".safetensors")},
-                  profile=dict(backend="legacy",encoding=ENCODING,beam=(next(iter(beams.values())) if len(set(beams.values())) == 1 else beams),rescorer_weight=(next(iter(weights.values())) if len(set(weights.values())) == 1 else weights),
+                  profile=dict(backend="transducer",encoding=ENCODING,beam=(next(iter(beams.values())) if len(set(beams.values())) == 1 else beams),rescorer_weight=(next(iter(weights.values())) if len(set(weights.values())) == 1 else weights),
                                context_characters=64,personalization=False),
                   code_sha256={name:fingerprint(Path(__file__).with_name(name)) for name in
                                ("evaluate-regression.py","regression.py","decoder.py","decoding_model.py",
-                                "inference.py","conditional.py","composition.py","rescorer.py","transducer.py","syllables.py")},
+                                "conditional.py","composition.py","rescorer.py","transducer.py","syllables.py")},
                   unique_requests=len(cache),cases=len(results),seconds=time.monotonic()-started,
                   metrics=(compare(results,list(models)) if len(models)==2 else
                            {name:compare(results,[next(iter(models)),name]) for name in list(models)[1:]}),

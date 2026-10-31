@@ -18,6 +18,12 @@ class WorkerContract(unittest.TestCase):
         return dict(dict(id=1, context="", syllables=2, candidates=[], operation="verify",
                          input="bmyi", draft="编译"), **changes)
 
+    def test_prior_gate_uses_full_candidate_probability_and_can_be_disabled(self):
+        self.assertEqual(worker.effective_prior_weight([-.1, -.2], 1, .1, .5), 0)
+        self.assertEqual(worker.effective_prior_weight([-.1, -.2], 8, .1, .5), .1)
+        self.assertEqual(worker.effective_prior_weight([0], 1, .1, 1), .1)
+        self.assertEqual(worker.effective_prior_weight([-1000], 100, .1, .5), .1)
+
     def test_malformed_envelopes_are_rejected(self):
         for request in [None, [], {}, self.request(id=True), self.request(syllables=-1),
                         self.request(context=[]), self.request(candidates=[{}]),

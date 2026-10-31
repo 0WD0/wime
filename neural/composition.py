@@ -63,7 +63,7 @@ def decode(decoder, context, code, committed=None, *, window=128,
     """Decode under fixed confirmed output, returning only uncommitted text.
 
     Existing search sees the original full input with confirmed characters
-    pinned. Its LM token paths and conditional input remain comparable to
+    pinned. Its LM token paths and transducer input remain comparable to
     whole-input search. Rescale scores to pending characters so the editor's
     length-scaled score differences retain the same confidence temperature.
     Common confirmed-prefix contributions remain; these are ranking scores,

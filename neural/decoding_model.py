@@ -1,10 +1,8 @@
-"""Shared dictionary readings and uncached model scoring primitives."""
+"""Dictionary readings and uncached scoring by the syllable transducer and the LM."""
 import collections
 import sqlite3
 
 import torch
-
-from composition import prompt
 
 
 def readings(database):
@@ -33,7 +31,7 @@ def aux_match(groups, typed):
 
 
 class DecodingModel:
-    """Model interface shared by byte search and offline reference experiments."""
+    """The decoder's model calls, separate so tests can replace the models."""
 
     def __init__(self, evaluator, rescorer, beam=16, per_hypothesis=24):
         self.evaluator, self.rescorer = evaluator, rescorer
@@ -42,13 +40,11 @@ class DecodingModel:
         self.device = evaluator.device if evaluator else "cpu"
 
     def prompts(self, context, code, tones=()):
-        """Conditional-model prompt ids and LM context ids."""
+        """The transducer's prompt and LM context ids."""
         return self.model_prompt(context, code, tones), self.lm_ids(context)
 
     def model_prompt(self, context, code, tones=()):
-        """The conditional model reads no tones; a syllable transducer's does."""
-        ev = self.evaluator
-        return [2] + [ev.index.get(c, 1) for c in prompt(context, code, ev.model.cfg.context)]
+        return self.evaluator.prompt(context, code, tones)
 
     def lm_ids(self, context):
         return self.rescorer.tokenizer(context[-128:] or "\n")["input_ids"]
@@ -93,35 +89,26 @@ class DecodingModel:
         return torch.zeros(len(tails), device=self.device).index_add_(0, rows, picked).tolist()
 
     def model_next(self, prompt, texts):
-        """Conditional log p(next char | prompt + text): [len(texts), V]."""
+        """log p(next char | prompt + text): [len(texts), V]."""
         return self.model_next_each([prompt] * len(texts), texts)
 
     def model_score(self, prompt, texts):
-        """Conditional sum log p(text | prompt) for each text."""
+        """Sum log p(text | prompt) for each text."""
         return self.model_score_each([prompt] * len(texts), texts)
 
     @torch.inference_mode()
     def model_next_each(self, prompts, texts):
         """model_next with its own prompt for each text."""
-        rows = [p + e for p, e in zip(prompts, self.char_ids(texts))]
-        size = max(map(len, rows))
-        logits, _ = self.evaluator.model(torch.tensor([r + [0] * (size - len(r)) for r in rows], device=self.device))
-        last = torch.tensor([len(r) - 1 for r in rows], device=self.device)
-        return logits[torch.arange(len(texts), device=self.device), last].float().log_softmax(-1)
+        return self.evaluator.joint(prompts, texts, [(i, len(t)) for i, t in enumerate(texts)])
 
     @torch.inference_mode()
     def model_score_each(self, prompts, texts):
         """model_score with its own prompt for each text."""
-        encoded = self.char_ids(texts)
-        size = max(len(p) + len(e) - 1 for p, e in zip(prompts, encoded))
-        inputs = [p + e[:-1] + [0] * (size - len(p) - len(e) + 1) for p, e in zip(prompts, encoded)]
-        logits, _ = self.evaluator.model(torch.tensor(inputs, device=self.device))
-        rows, columns, targets = [], [], []
-        for i, (p, e) in enumerate(zip(prompts, encoded)):
-            for j, char in enumerate(e):
-                rows.append(i), columns.append(len(p) - 1 + j), targets.append(char)
-        rows = torch.tensor(rows, device=self.device)
-        picked = logits[rows, torch.tensor(columns, device=self.device)].float().log_softmax(-1)
-        picked = picked[torch.arange(len(targets), device=self.device), torch.tensor(targets, device=self.device)]
+        slots = [(i, j) for i, t in enumerate(texts) for j in range(len(t))]
+        if not slots:
+            return [0.0] * len(texts)
+        values = self.evaluator.joint(prompts, texts, slots)
+        targets = torch.tensor([self.evaluator.index.get(texts[i][j], 1) for i, j in slots], device=self.device)
+        picked = values[torch.arange(len(slots), device=self.device), targets]
+        rows = torch.tensor([i for i, _ in slots], device=self.device)
         return torch.zeros(len(texts), device=self.device).index_add_(0, rows, picked).tolist()
-

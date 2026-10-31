@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Per-keystroke legacy decode latency, typing each case key by key.
+"""Per-keystroke decode latency, typing each case key by key.
 
 Each case keeps one decoder session across its keystrokes, as the editor
 does; every prefix with a complete first syllable is decoded, although the
@@ -16,7 +16,7 @@ import torch
 from composition import decode as decode_composition
 from dataset_registry import Registry
 from decoder import Decoder, Units
-from inference import ConditionalEvaluator
+from transducer import Evaluator
 from replay import fingerprint
 from rescorer import Rescorer
 
@@ -32,7 +32,7 @@ def main():
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--rescorer", type=Path, required=True)
-    parser.add_argument("--rescorer-weight", type=float, default=1.0)
+    parser.add_argument("--rescorer-weight", type=float, default=1.5)
     parser.add_argument("--beam", type=int, action="append", required=True)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--threads", type=int, default=4, help="CPU threads")
@@ -40,7 +40,7 @@ def main():
     args = parser.parse_args()
     path, snapshot = Registry().evaluation(args.dataset)
     cases = sorted(json.loads(path.read_text()), key=lambda c: c["id"])[:args.cases]
-    evaluator = ConditionalEvaluator(args.model, device=args.device)
+    evaluator = Evaluator(args.model, device=args.device)
     rescorer = Rescorer(str(args.rescorer), args.rescorer_weight, device=args.device)
     torch.set_num_threads(args.threads)
     sync = torch.cuda.synchronize if args.device.startswith("cuda") else lambda: None

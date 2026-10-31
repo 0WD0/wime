@@ -1,4 +1,4 @@
-"""Coverage, leakage guards and exact inference/training score agreement."""
+"""Coverage, leakage guards and the preference loss."""
 import json
 import random
 from pathlib import Path
@@ -10,10 +10,7 @@ from unittest.mock import Mock
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "neural"))
-from conditional import CharLM, Config
-from inference import ConditionalEvaluator
-from composition import composition_prompt
-from ranking import encode_candidate, candidate_scores, preference_loss, ranking_composition, spelling_equivalent, curate_pairs
+from ranking import preference_loss, ranking_composition, spelling_equivalent, curate_pairs
 from replay import phrases, coverage_additions, Protection
 
 
@@ -58,26 +55,6 @@ class Ranking(unittest.TestCase):
         self.assertEqual(counts["alternate_observed_positive"], 2)
         with self.assertRaises(ValueError):
             curate_pairs([dict(one, split="test")], guard)
-
-    def test_scores_match_deployed_evaluator_and_mask_fixed_prefix(self):
-        row = dict(context="允许", input="x;ui", gold=["行事"],
-                   committed=dict(text="便宜", input="bmyi"))
-        texts = ["行事", "形式"]
-        chars = sorted(set(composition_prompt(row["context"], row["input"], 32, row["committed"]) + "".join(texts)))
-        vocab = ["<pad>", "<unk>", "<bos>"] + chars
-        index = {c:i for i,c in enumerate(vocab)}
-        model = CharLM(Config(vocab=len(vocab), n_layer=1, n_head=2, n_embd=8, context=32, dropout=0)).eval()
-        evaluator = object.__new__(ConditionalEvaluator)
-        evaluator.model, evaluator.index, evaluator.device = model, index, "cpu"
-        expected, _ = evaluator.evaluate(row["context"], row["input"], texts, committed=row["committed"])
-        encoded = [encode_candidate(row, text, index, 32) for text in texts]
-        x, y = (torch.tensor([p[i] for p in encoded]) for i in range(2))
-        logits = model(x)[0].detach().requires_grad_()
-        scores = candidate_scores(logits, y)
-        torch.testing.assert_close(scores, torch.tensor(expected))
-        scores.sum().backward()
-        self.assertEqual(logits.grad[y == 0].abs().sum().item(), 0)
-        self.assertEqual((y != 0).sum().item(), 4)  # neither anchor nor EOS
 
     def test_loss_includes_real_prior_and_prefers_correct_candidate(self):
         scores = torch.tensor([-.5, -.4], requires_grad=True)

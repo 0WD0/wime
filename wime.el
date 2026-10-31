@@ -329,8 +329,8 @@ composition back to the sentence list."
 
 (defcustom wime-confidence-temperature 3.0
   "Temperature turning per-character reranker scores into probabilities.
-3.0 is calibrated on development pools for the conditional model with the
-Qwen3.5-2B rescorer."
+3.0 was calibrated on development pools for the earlier 25M conditional
+model with the Qwen3.5-2B rescorer, not yet for the syllable transducer."
   :type 'number :group 'wime)
 
 (defcustom wime-span-alternatives 3

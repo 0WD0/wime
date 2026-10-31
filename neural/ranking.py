@@ -47,7 +47,7 @@ def encode_candidate(row, text, index, window):
     target = [index.get(c, 1) for c in text]
     if 1 in target or len(pre) + len(target) > window:
         raise ValueError("unknown or oversized ranking target")
-    # Match ConditionalEvaluator exactly: average NEW characters, no EOS.
+    # As the 25M verify scorer did: average NEW characters, no EOS.
     return pre + target[:-1], [0] * (len(pre)-1) + target
 
 

@@ -13,7 +13,6 @@ character embedding.
 """
 import dataclasses
 import json
-import math
 
 import torch
 from torch import nn
@@ -22,7 +21,7 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 from conditional import load_model
-from composition import OUTPUT
+from composition import OUTPUT, expand
 from model import CharLM, Config
 import syllables
 
@@ -145,20 +144,6 @@ def sequence(index, context, text, marker=True):
     return ids, len(context) + marker
 
 
-class Evaluator:
-    """The fields the decoder reads from an evaluator, for a trained transducer."""
-
-    def __init__(self, path, device="cuda"):
-        self.model, self.vocab, self.metadata = load(path)
-        self.model.to(device).eval()
-        self.index = {c: i for i, c in enumerate(self.vocab)}
-        self.device = device
-
-    def evaluate(self, *_, **__):
-        # Verification needs a conditional model; the editor keeps its lattice.
-        raise ValueError("the transducer only decodes")
-
-
 class Prompt:
     """Left context and syllable features; the encoder runs once per prompt."""
 
@@ -170,54 +155,73 @@ class Prompt:
         return 1 + self.marker + min(CONTEXT, len(self.context))
 
 
-def decoder_class(base):
-    """BASE (decoder.Decoder) with its conditional-model methods replaced."""
+class Evaluator:
+    """A trained transducer: prompts and joint scores for the decoder, and
+    lattice-draft verification for the worker's verify requests."""
 
-    class TransducerDecoder(base):
-        def model_prompt(self, context, code, tones=()):
-            if len(code) % 2:
-                raise ValueError("expected complete syllables")
-            return Prompt(context, syllables.typed(code, tones),
-                          self.evaluator.model.encoder_cfg.marker)
+    def __init__(self, path, device="cuda"):
+        self.model, self.vocab, self.metadata = load(path)
+        self.model.to(device).eval()
+        self.index = {c: i for i, c in enumerate(self.vocab)}
+        self.device = device
+        chinese = [i for i, c in enumerate(self.vocab) if len(c) == 1 and "\u3400" <= c <= "\u9fff"]
+        self.chinese = torch.tensor(chinese, device=device)
+        self.chinese_chars = [self.vocab[i] for i in chinese]
 
-        def encoded(self, prompt):
-            if prompt.encoded is None:
-                features = torch.tensor([prompt.features], device=self.device)
-                prompt.encoded = self.evaluator.model.encoder(
-                    features, torch.zeros(features.shape[:2], dtype=torch.bool, device=self.device))[0]
-            return prompt.encoded
+    def prompt(self, context, code, tones=()):
+        if len(code) % 2 or len(code) // 2 > self.model.encoder_cfg.positions:
+            raise ValueError("expected complete syllables within the encoder's positions")
+        return Prompt(context, syllables.typed(code, tones), self.model.encoder_cfg.marker)
 
-        def joint(self, prompts, texts, slots):
-            """Log probabilities at (text, slot) pairs SLOTS: [len(slots), V]."""
-            model, index = self.evaluator.model, self.evaluator.index
-            rows = [sequence(index, p.context, t, p.marker) for p, t in zip(prompts, texts)]
-            width = max(len(ids) for ids, _ in rows)
-            ids = torch.tensor([ids + [0] * (width - len(ids)) for ids, _ in rows], device=self.device)
-            # Prompts are few (one per segment); gather their slots in one index.
-            unique = list({id(p): p for p in prompts}.values())
-            which = {id(p): k for k, p in enumerate(unique)}
-            table = torch.nn.utils.rnn.pad_sequence([self.encoded(p) for p in unique], batch_first=True)
-            owner = torch.tensor([which[id(p)] for p in prompts], device=self.device)
-            lengths = torch.tensor([len(p.features) for p in unique], device=self.device)
-            padding = torch.arange(table.shape[1], device=self.device)[None] >= lengths[:, None]
-            states = model.states(ids, table[owner], padding[owner])
-            picked = states[[i for i, _ in slots], [rows[i][1] + j for i, j in slots]]
-            encoded = table[[which[id(prompts[i])] for i, _ in slots], [j for _, j in slots]]
-            return model.logits(picked, encoded).float().log_softmax(-1)
+    def encoded(self, prompt):
+        if prompt.encoded is None:
+            features = torch.tensor([prompt.features], device=self.device)
+            prompt.encoded = self.model.encoder(
+                features, torch.zeros(features.shape[:2], dtype=torch.bool, device=self.device))[0]
+        return prompt.encoded
 
-        @torch.inference_mode()
-        def model_next_each(self, prompts, texts):
-            return self.joint(prompts, texts, [(i, len(t)) for i, t in enumerate(texts)])
+    def joint(self, prompts, texts, slots):
+        """Log probabilities at (text, slot) pairs SLOTS: [len(slots), V]."""
+        model, index = self.model, self.index
+        rows = [sequence(index, p.context, t, p.marker) for p, t in zip(prompts, texts)]
+        width = max(len(ids) for ids, _ in rows)
+        ids = torch.tensor([ids + [0] * (width - len(ids)) for ids, _ in rows], device=self.device)
+        # Prompts are few (one per segment); gather their slots in one index.
+        unique = list({id(p): p for p in prompts}.values())
+        which = {id(p): k for k, p in enumerate(unique)}
+        table = torch.nn.utils.rnn.pad_sequence([self.encoded(p) for p in unique], batch_first=True)
+        owner = torch.tensor([which[id(p)] for p in prompts], device=self.device)
+        lengths = torch.tensor([len(p.features) for p in unique], device=self.device)
+        padding = torch.arange(table.shape[1], device=self.device)[None] >= lengths[:, None]
+        states = model.states(ids, table[owner], padding[owner])
+        picked = states[[i for i, _ in slots], [rows[i][1] + j for i, j in slots]]
+        encoded = table[[which[id(prompts[i])] for i, _ in slots], [j for _, j in slots]]
+        return model.logits(picked, encoded).float().log_softmax(-1)
 
-        @torch.inference_mode()
-        def model_score_each(self, prompts, texts):
-            slots = [(i, j) for i, t in enumerate(texts) for j in range(len(t))]
-            if not slots:
-                return [0.0] * len(texts)
-            values = self.joint(prompts, texts, slots)
-            targets = torch.tensor([self.evaluator.index.get(texts[i][j], 1) for i, j in slots], device=self.device)
-            picked = values[torch.arange(len(slots), device=self.device), targets]
-            rows = torch.tensor([i for i, _ in slots], device=self.device)
-            return torch.zeros(len(texts), device=self.device).index_add_(0, rows, picked).tolist()
+    @torch.inference_mode()
+    def evaluate(self, context, code, texts, committed=None):
+        """Mean log probability per character of each equally long draft in
+        TEXTS for CODE after COMMITTED, and the distributions at its characters."""
+        history, keys, fixed = expand(context, code, committed)
+        n = len(texts[0])
+        slots = [(i, len(fixed) + j) for i in range(len(texts)) for j in range(n)]
+        distributions = self.joint([self.prompt(history, keys)] * len(texts),
+                                   [fixed + t for t in texts], slots).view(len(texts), n, -1)
+        targets = torch.tensor([[self.index.get(c, 1) for c in t] for t in texts], device=self.device)
+        return distributions.gather(-1, targets[..., None])[..., 0].mean(-1).tolist(), distributions
 
-    return TransducerDecoder
+    def proposals(self, draft, distribution, margin):
+        """Draft prefixes ending in a character MARGIN nats likelier than the
+        draft's own at that position, for the editor's lattice to search."""
+        edits = []
+        values, indices = distribution[:len(draft), self.chinese].topk(4, dim=-1)
+        target = torch.tensor([self.index.get(c, 1) for c in draft], device=self.device)
+        current = distribution[torch.arange(len(draft), device=self.device), target]
+        # One transfer for probabilities and one for indices.
+        probabilities = torch.cat([current[:, None], values], dim=1).cpu().tolist()
+        for position, (row, tokens) in enumerate(zip(probabilities, indices.cpu().tolist())):
+            for score, token in zip(row[1:], tokens):
+                replacement = self.chinese_chars[token]
+                if score > row[0] + margin and replacement != draft[position]:
+                    edits.append(draft[:position] + replacement)
+        return edits[:16]

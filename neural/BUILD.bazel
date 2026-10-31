@@ -11,7 +11,6 @@ gpu_runtime(
     name = "cuda-runtime",
     srcs = [
         "gpu-worker.py",
-        "inference.py",
         "rescorer.py",
         "fusion.py",
         "decoding_model.py",

@@ -1,4 +1,4 @@
-"""The fused decoder: a conditional model or syllable transducer plus a weighted HF language model."""
+"""The fused decoder: the syllable transducer plus a weighted HF language model."""
 
 
 def add_fusion_arguments(parser):
@@ -12,21 +12,8 @@ def make_rescorer(args):
     return Rescorer(args.rescorer, args.rescorer_weight) if args.rescorer else None
 
 
-def make_evaluator(path, device="cuda"):
-    """The evaluator a checkpoint's metadata names: a transducer or a conditional model."""
-    from safetensors import safe_open
-    import transducer
-    with safe_open(str(path), "pt") as f:
-        if f.metadata().get("format") == transducer.FORMAT:
-            return transducer.Evaluator(path, device)
-    from inference import ConditionalEvaluator
-    return ConditionalEvaluator(path, device=device)
-
-
 def make_decoder(args, evaluator, rescorer):
     if rescorer is None or not args.database:
         return None
     from decoder import Decoder, Units
-    import transducer
-    kind = transducer.decoder_class(Decoder) if isinstance(evaluator, transducer.Evaluator) else Decoder
-    return kind(evaluator, rescorer, Units.from_database(rescorer.tokenizer, args.database))
+    return Decoder(evaluator, rescorer, Units.from_database(rescorer.tokenizer, args.database))

@@ -25,7 +25,7 @@
 
 (defcustom wime-neural-model-file
   (expand-file-name "wime-syllable-40m/model.safetensors" wime-data-directory)
-  "Syllable transducer or conditional model in safetensors format."
+  "Syllable transducer (wime-syllable-transducer-v1) in safetensors format."
   :type '(choice (const nil) file) :group 'wime)
 
 (defcustom wime-neural-interpreter (expand-file-name "python/bin/python" wime-data-directory)
@@ -36,11 +36,11 @@ The worker needs PyTorch with CUDA and transformers."
 (defcustom wime-neural-rescorer (expand-file-name "rescorers/Qwen3.5-2B-Base" wime-data-directory)
   "Directory of a general causal language model for the worker.
 Its log probability, times `wime-neural-rescorer-weight', joins the
-conditional model score.  Nil disables it."
+syllable model score.  Nil disables it."
   :type '(choice (const nil) directory) :group 'wime)
 
 (defcustom wime-neural-rescorer-weight 1.5
-  "Weight of `wime-neural-rescorer' relative to the conditional model score."
+  "Weight of `wime-neural-rescorer' relative to the syllable model score."
   :type 'number :group 'wime)
 
 (defcustom wime-neural-pool-width nil
@@ -75,8 +75,8 @@ use `wime-neural-timeout'."
   :type 'number :group 'wime)
 
 (defcustom wime-neural-search-method 'decode
-  "Use conditional draft verification or decoding.
-Both require a wime-ms-pinyin-v1 model and a Microsoft double-pinyin database.
+  "Use draft verification or decoding.
+Both require a Microsoft double-pinyin database.
 `verify' scores lattice drafts; auxiliary codes constrain the dictionary search.
 `decode' also needs `wime-neural-rescorer': the worker spells the keys without
 the lattice, including a trailing half syllable.  Readings, auxiliary codes
@@ -101,7 +101,7 @@ This avoids relying on single-character corrections to reach a better word."
   :type 'boolean :group 'wime)
 
 (defcustom wime-neural-prior-weight 0.1
-  "Weight of the traditional path score in conditional draft selection.
+  "Weight of the traditional path score in draft selection.
 Both model and traditional scores are normalized by syllable count.  Zero
 selects by the model alone.  Prefix proposals still come from the model;
 this weight selects among complete, verified drafts, including CUDA seeds."
