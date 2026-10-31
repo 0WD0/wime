@@ -4,7 +4,7 @@
 def add_fusion_arguments(parser):
     parser.add_argument("--rescorer", help="local HF language model weights")
     parser.add_argument("--rescorer-weight", type=float, default=1.5,
-                        help="language-model weight in verify and decode fusion")
+                        help="language-model weight in fused decoding")
 
 
 def make_rescorer(args):

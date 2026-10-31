@@ -29,14 +29,10 @@
 
 (defun wime-checkpoint-profile ()
   "Return the actual inference settings as a JSON-compatible recipe."
-  (list :width wime-search-width :budget wime-neural-inference-budget
-        :prior_weight wime-neural-prior-weight :prior_confidence wime-neural-prior-confidence
-        :encoding "wime-composition-v2"
+  (list :width wime-search-width :encoding "wime-composition-v2"
         :single_character (if wime-neural-single-character t :false)
-        :seed_draft (if wime-neural-seed-candidates "neural" "traditional")
         :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight
-        :pool_width (or wime-neural-pool-width :null) :beam wime-neural-beam
-        :search_method (symbol-name wime-neural-search-method)))
+        :beam wime-neural-beam))
 
 (defun wime-checkpoint--nullable (value)
   "Normalize JSON null VALUE in both serialized and in-memory recipes."
@@ -44,22 +40,13 @@
 
 (defun wime-checkpoint--settings (recipe)
   "Read RECIPE into runtime variable bindings before changing live state."
-  (let* ((profile (plist-get recipe :profile))
-         (method (plist-get profile :search_method)))
-    (unless (member method '("verify" "decode"))
-      (error "Unknown search method: %s" method))
+  (let ((profile (plist-get recipe :profile)))
     `((wime-neural-model-file . ,(plist-get recipe :path))
-      (wime-neural-search-method . ,(intern method))
       (wime-search-width . ,(plist-get profile :width))
-      (wime-neural-inference-budget . ,(plist-get profile :budget))
-      (wime-neural-prior-weight . ,(plist-get profile :prior_weight))
-      (wime-neural-prior-confidence . ,(plist-get profile :prior_confidence))
       (wime-neural-single-character . ,(eq (plist-get profile :single_character) t))
-      (wime-neural-seed-candidates . ,(equal (plist-get profile :seed_draft) "neural"))
       (wime-neural-rescorer . ,(wime-checkpoint--nullable (plist-get profile :rescorer)))
       (wime-neural-rescorer-weight . ,(or (plist-get profile :rescorer_weight) 1.5))
-      (wime-neural-beam . ,(or (plist-get profile :beam) 16))
-      (wime-neural-pool-width . ,(wime-checkpoint--nullable (plist-get profile :pool_width))))))
+      (wime-neural-beam . ,(or (plist-get profile :beam) 32)))))
 
 (defun wime-checkpoint--apply (recipe)
   "Install RECIPE variables; callers own the worker transition."
@@ -157,7 +144,9 @@ value.  Return cancellation that leaves the existing worker and input intact."
                          (condition-case error-data
                              (let ((reply (json-parse-string (substring partial 0 (match-beginning 0))
                                                             :object-type 'plist)))
-                               (unless (and (= (plist-get reply :id) 0) (numberp (plist-get reply :score)))
+                               (unless (and (= (plist-get reply :id) 0)
+                                            (let ((pair (aref (plist-get reply :candidates) 0)))
+                                              (and (stringp (aref pair 0)) (numberp (aref pair 1)))))
                                  (error "GPU prewarm did not return a valid inference result"))
                                (setq ready t)
                                (when (timerp deadline) (cancel-timer deadline))
@@ -166,8 +155,8 @@ value.  Return cancellation that leaves the existing worker and input intact."
             (setq deadline (run-at-time wime-neural-startup-timeout nil #'fail "GPU checkpoint prewarm timed out"))
             (process-send-string process
                                  (concat (json-serialize
-                                          '(:id 0 :operation "verify" :syllables 2 :context ""
-                                            :input "nihk" :draft "你好" :candidates [])) "\n")))
+                                          '(:id 0 :operation "decode" :syllables 2 :context ""
+                                            :input "nihk")) "\n")))
         (error (fail (error-message-string err))))
       (lambda () (unless done (setq done t) (cleanup))))))
 

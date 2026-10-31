@@ -1,4 +1,4 @@
-"""Verify scoring by the syllable transducer, on a small random model."""
+"""Batched decode scoring by the syllable transducer, on a small random model."""
 import sys
 from pathlib import Path
 import unittest
@@ -19,26 +19,20 @@ def evaluator():
         Config(vocab=len(vocab), n_layer=2, n_head=2, n_embd=16, context=128, dropout=0),
         transducer.EncoderConfig(n_layer=1, n_head=2, n_embd=16, cross_layers=1)).eval()
     ev.vocab, ev.index, ev.device = vocab, {c: i for i, c in enumerate(vocab)}, "cpu"
-    ev.chinese = torch.arange(4, len(vocab))
-    ev.chinese_chars = vocab[4:]
     return ev
 
 
-class Verify(unittest.TestCase):
-    def test_committed_prefix_keeps_its_syllables_and_scores_only_the_rest(self):
+class JointScores(unittest.TestCase):
+    def test_batched_prompts_match_independent_scoring_with_encoder_padding(self):
         ev = evaluator()
-        _, whole = ev.evaluate("前文", "bmyix;ui", ["便宜行事", "便宜甲乙"])
-        scores, tail = ev.evaluate("前文", "x;ui", ["行事", "甲乙"], dict(text="便宜", input="bmyi"))
-        torch.testing.assert_close(whole[:, 2:], tail)
-        expected = tail[0].gather(-1, torch.tensor([[ev.index["行"]], [ev.index["事"]]])).mean()
-        self.assertAlmostEqual(scores[0], expected.item(), places=5)
-
-    def test_proposals_replace_one_character_by_a_clearly_likelier_one(self):
-        ev = evaluator()
-        distribution = torch.full((2, len(ev.vocab)), -10.)
-        distribution[0, ev.index["甲"]], distribution[0, ev.index["乙"]] = -1., -.4
-        distribution[1, ev.index["甲"]], distribution[1, ev.index["丙"]] = -4., -.2
-        self.assertEqual(ev.proposals("甲甲", distribution, .5), ["乙", "甲丙"])
+        prompts = [ev.prompt("前文", "bmyi"), ev.prompt("前", "x;uijxyi", [(1, 4)])]
+        texts = ["便宜", "行事甲乙"]
+        slots = [(0, 0), (0, 1), (1, 0), (1, 3)]
+        with torch.inference_mode():
+            batch = ev.joint(prompts, texts, slots)
+            for row, (i, position) in enumerate(slots):
+                alone = ev.joint([prompts[i]], [texts[i]], [(0, position)])[0]
+                torch.testing.assert_close(batch[row], alone)
 
     def test_odd_or_overlong_keys_are_rejected(self):
         ev = evaluator()

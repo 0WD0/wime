@@ -39,7 +39,7 @@ worker process, and can check each asynchronous invalidation separately."
   (wime-edit-neural-test--composition
     (let ((wime-neural-model-file "model")
           (wime-neural--failed nil)
-          (wime-neural-search-method 'verify) scheduled)
+          (wime-neural-rescorer "/lm") scheduled)
       (cl-letf (((symbol-function 'wime--database) #'ignore)
                 ((symbol-function 'sqlite-select) (lambda (&rest _) '(("mspy"))))
                 ((symbol-function 'run-with-timer)
@@ -67,7 +67,7 @@ worker process, and can check each asynchronous invalidation separately."
   (wime-edit-neural-test--composition
     (let ((wime-neural-model-file "model")
           (wime-neural--failed nil)
-          (wime-neural-search-method 'verify) scheduled)
+          (wime-neural-rescorer "/lm") scheduled)
       (cl-letf (((symbol-function 'wime--database) #'ignore)
                 ((symbol-function 'sqlite-select) (lambda (&rest _) '(("mspy"))))
                 ((symbol-function 'run-with-timer)
@@ -109,23 +109,6 @@ worker process, and can check each asynchronous invalidation separately."
       (should-not (wime-neural--valid-p job))
       (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
       (should-not published))))
-
-(ert-deftest wime-edit-neural-verification-continuation-retains-generation ()
-  (wime-edit-neural-test--composition
-    (let ((wime-neural--pending nil)
-          (wime-neural-inference-budget 2))
-      (setf (wime-neural--job-method job) 'verify
-            (wime-neural--job-draft job) (car wime--candidate-records))
-      (cl-letf (((symbol-function 'wime--sentence-records)
-                 (lambda (&rest _)
-                   (list (wime--make-candidate :text "丙乙" :end 2 :score 0)))))
-        (backward-char)
-        (wime-neural--apply job '((score . -2.0) (prefixes . ["丙"])))
-        (should wime-neural--pending)
-        (should (= (wime-neural--job-edit-generation wime-neural--pending) 7))
-        (should (wime-neural--valid-p wime-neural--pending))
-        (cl-incf wime-edit--generation)
-        (should-not (wime-neural--valid-p wime-neural--pending))))))
 
 (ert-deftest wime-edit-neural-legacy-composition-still-requires-point ()
   (wime-edit-neural-test--composition
@@ -207,7 +190,7 @@ worker process, and can check each asynchronous invalidation separately."
   (wime-edit-neural-test--buffer
     (let ((wime-neural-model-file "model")
           (wime-neural--failed nil)
-          (wime-neural-search-method 'verify) scheduled)
+          (wime-neural-rescorer "/lm") scheduled)
       (cl-letf (((symbol-function 'wime--database) #'ignore)
                 ((symbol-function 'sqlite-select) (lambda (&rest _) '(("mspy"))))
                 ((symbol-function 'run-with-timer)

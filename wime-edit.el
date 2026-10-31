@@ -317,7 +317,7 @@ leaving the window at that moment would keep the guess."
                            (bound-and-true-p wime-neural-mode)
                            (not (bound-and-true-p wime-neural--failed))
                            (bound-and-true-p wime-neural-rescorer)
-                           (eq (bound-and-true-p wime-neural-search-method) 'decode)))
+                           (not wime-dictionary-mode)))
          (i -1))
     (cond
      ((not (wime-edit--decodable-p))

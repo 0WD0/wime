@@ -81,15 +81,14 @@ wdoom 的 =wdoom-input= 模块会配置好一切。单独使用时：
 停键 40 ms 后，wime 把输入发给常驻的 CUDA worker（=neural/gpu-worker.py=），
 结果回来时如果输入没变，就替换显示的候选。
 worker 出错或超时，词格候选照常可用。
-=wime-neural-search-method= 选择做法：
+=neural/decoder.py= 逐字做 beam 搜索（=wime-neural-beam=，默认 32），
+分数是音节模型（=neural/transducer.py=）加权上 Qwen 的概率；
+读音、辅助码、声调和固定字是硬约束，学到的读音有额外偏好。
+支持半音节和夹在句中的英文、标点。词格候选仍保留在神经候选之后。
 
-- =decode= :: 不经过词格。=neural/decoder.py= 逐字做 beam 搜索
-  （=wime-neural-beam=，默认 32），每步分数是音节模型（=neural/transducer.py=）
-  加权上 Qwen 的概率；读音、辅助码、声调、固定字和学到的读音都是约束。
-  支持半音节和夹在句中的英文、标点。
-- =verify= :: 词格给出候选池，音节模型（有大模型时加权上 Qwen）从中挑选，
-  并提出更可能的前缀交给词格重搜。候选都是词典里的词。
-  没有大模型或第一个音节只打了一个键时，=decode= 也改用它。
+=C-.= 切换 =wime-dictionary-mode= 后，只用词格排序，不请求神经模型。
+输入中途切换会立即更新候选；再按一次恢复神经解码。
+缺少通用语言模型、仅输入第一个音节的首键时，也只用词格。
 
 神经阶段目前只接微软双拼的词库；其他方案只用词格。
 
@@ -153,7 +152,7 @@ $D/python/bin/hf download 0WD0/wime-wanxiang-mspy wanxiang.db --repo-type datase
 wdoom 自己打包：=./wdoom/bin/wdoom-prepare --native= 打包 worker、Elisp、词库和
 音节模型（哈希固定在 =neural_model.bzl=，也可用 =WIME_SYLLABLE_MODEL= 指向同一文件），
 重启后生效；推理设置来自 =M-x wime-lab= 保存的启动配置。
-缺少大模型时 wdoom 用 =verify=；worker 出错时词格候选仍可用。
+缺少大模型或 worker 出错时，词格候选仍可用。
 
 * 日本語
 
@@ -289,7 +288,7 @@ cd emacs-packages/wime/test && python -m unittest
 - =prepare-trajectories.py= :: 冻结评测集；=evaluate-trajectories.py= 评测
   整句、前缀和上屏后的续写，=evaluate-regression.py= 跑回归集。
 
-=test/record-conditional.el= 经过真实的异步路径评测 =verify=，
+=test/record-conditional.el= 经过真实的异步路径评测解码结果，
 设置 =WIME_TYPING_INTERVAL= 时逐键输入。
 
 =test/*-measurements.json= 等文件记录了各项选型背后的测量。

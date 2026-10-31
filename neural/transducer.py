@@ -21,7 +21,7 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 from conditional import load_model
-from composition import OUTPUT, expand
+from composition import OUTPUT
 from charlm import CharLM, Config
 import syllables
 
@@ -156,17 +156,13 @@ class Prompt:
 
 
 class Evaluator:
-    """A trained transducer: prompts and joint scores for the decoder, and
-    lattice-draft verification for the worker's verify requests."""
+    """A trained transducer: syllable prompts and joint scores for decoding."""
 
     def __init__(self, path, device="cuda"):
         self.model, self.vocab, self.metadata = load(path)
         self.model.to(device).eval()
         self.index = {c: i for i, c in enumerate(self.vocab)}
         self.device = device
-        chinese = [i for i, c in enumerate(self.vocab) if len(c) == 1 and "\u3400" <= c <= "\u9fff"]
-        self.chinese = torch.tensor(chinese, device=device)
-        self.chinese_chars = [self.vocab[i] for i in chinese]
 
     def prompt(self, context, code, tones=()):
         if len(code) % 2 or len(code) // 2 > self.model.encoder_cfg.positions:
@@ -197,31 +193,3 @@ class Evaluator:
         picked = states[[i for i, _ in slots], [rows[i][1] + j for i, j in slots]]
         encoded = table[[which[id(prompts[i])] for i, _ in slots], [j for _, j in slots]]
         return model.logits(picked, encoded).float().log_softmax(-1)
-
-    @torch.inference_mode()
-    def evaluate(self, context, code, texts, committed=None):
-        """Mean log probability per character of each equally long draft in
-        TEXTS for CODE after COMMITTED, and the distributions at its characters."""
-        history, keys, fixed = expand(context, code, committed)
-        n = len(texts[0])
-        slots = [(i, len(fixed) + j) for i in range(len(texts)) for j in range(n)]
-        distributions = self.joint([self.prompt(history, keys)] * len(texts),
-                                   [fixed + t for t in texts], slots).view(len(texts), n, -1)
-        targets = torch.tensor([[self.index.get(c, 1) for c in t] for t in texts], device=self.device)
-        return distributions.gather(-1, targets[..., None])[..., 0].mean(-1).tolist(), distributions
-
-    def proposals(self, draft, distribution, margin):
-        """Draft prefixes ending in a character MARGIN nats likelier than the
-        draft's own at that position, for the editor's lattice to search."""
-        edits = []
-        values, indices = distribution[:len(draft), self.chinese].topk(4, dim=-1)
-        target = torch.tensor([self.index.get(c, 1) for c in draft], device=self.device)
-        current = distribution[torch.arange(len(draft), device=self.device), target]
-        # One transfer for probabilities and one for indices.
-        probabilities = torch.cat([current[:, None], values], dim=1).cpu().tolist()
-        for position, (row, tokens) in enumerate(zip(probabilities, indices.cpu().tolist())):
-            for score, token in zip(row[1:], tokens):
-                replacement = self.chinese_chars[token]
-                if score > row[0] + margin and replacement != draft[position]:
-                    edits.append(draft[:position] + replacement)
-        return edits[:16]

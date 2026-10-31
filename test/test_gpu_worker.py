@@ -4,7 +4,6 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 import unittest
-from unittest import mock
 
 directory = Path(__file__).resolve().parents[1] / "neural"
 sys.path.insert(0, str(directory))
@@ -15,27 +14,18 @@ spec.loader.exec_module(worker)
 
 class WorkerContract(unittest.TestCase):
     def request(self, **changes):
-        return dict(dict(id=1, context="", syllables=2, candidates=[], operation="verify",
-                         input="bmyi", draft="编译"), **changes)
-
-    def test_prior_gate_uses_full_candidate_probability_and_can_be_disabled(self):
-        self.assertEqual(worker.effective_prior_weight([-.1, -.2], 1, .1, .5), 0)
-        self.assertEqual(worker.effective_prior_weight([-.1, -.2], 8, .1, .5), .1)
-        self.assertEqual(worker.effective_prior_weight([0], 1, .1, 1), .1)
-        self.assertEqual(worker.effective_prior_weight([-1000], 100, .1, .5), .1)
+        return dict(dict(id=1, context="", syllables=2, operation="decode", input="bmyi"), **changes)
 
     def test_malformed_envelopes_are_rejected(self):
         for request in [None, [], {}, self.request(id=True), self.request(syllables=-1),
-                        self.request(context=[]), self.request(candidates=[{}]),
+                        self.request(context=[]), self.request(operation="verify"),
                         self.request(context_anchor=-1), self.request(context_anchor=9),
                         self.request(context_anchor=True),
-                        self.request(prior_confidence=0), self.request(prior_confidence=True),
-                        self.request(prior_confidence=float("nan")),
+                        self.request(input=None), self.request(input=[]),
                         self.request(context_reading=dict(text="便宜", input="bm")),
                         self.request(context_reading=dict(text="便宜", input="bmyi"))]:
             with self.assertRaises(ValueError):
                 worker.validate(request)
-
     def test_decode_tones_are_syllable_tone_pairs(self):
         decode = self.request(operation="decode", input="bmyi", tones=[[0, 1], [1, 5]])
         worker.validate(decode)
@@ -43,146 +33,21 @@ class WorkerContract(unittest.TestCase):
             with self.subTest(tones=tones), self.assertRaises(ValueError):
                 worker.validate(dict(decode, tones=tones))
 
-    def test_wrong_operation_or_coverage_never_calls_the_model(self):
-        for changes in [dict(operation="rerank"), dict(syllables=0),
-                        dict(draft="编"), dict(input="bmA")]:
-            result = worker.respond(None, self.request(**changes))
-            self.assertNotIn("score", result)
-
-    def test_verify_preserves_history_keys_and_visible_rescorer_context(self):
-        fixed = dict(text="便宜", input="bmyi", aux=[[0, "a"]])
-        request = self.request(context="允许", input="x;ui", draft="行事", committed=fixed)
-        evaluator = mock.Mock()
-        evaluator.evaluate.return_value = ([-.2], [None])
-        evaluator.proposals.return_value = []
-        rescorer = mock.Mock()
-        rescorer.combine.return_value = [-.2]
-        rescorer.proposals.return_value = []
-        worker.validate(request)
-        worker.respond(evaluator, request, rescorer)
-        evaluator.evaluate.assert_called_once_with("允许", "x;ui", ["行事"], committed=fixed)
-        rescorer.combine.assert_called_once_with("允许便宜", ["行事"], [-.2])
-        rescorer.proposals.assert_called_once_with("允许便宜", "行事")
-        for fixed in (dict(text="便宜", input="bm"), dict(text="便宜", input="pmy!")):
-            with self.assertRaises(ValueError):
-                worker.validate(dict(request, committed=fixed))
-
-    def test_invalid_keyboard_or_window_retains_the_traditional_draft(self):
-        class OutOfRange:
-            def evaluate(self, *_, **kwargs):
-                raise ValueError("unencodable composition")
-        result = worker.respond(OutOfRange(), self.request())
-        self.assertNotIn("score", result)
-        self.assertEqual(result["prefixes"], [])
-
-    def test_seed_uses_joint_scores_and_original_complete_candidate_indices(self):
-        class Evaluator:
-            def evaluate(self, context, code, texts, committed=None):
-                self.texts = texts
-                return [-1, -1.1], ["first", "second"]
-
-            def proposals(self, draft, distribution, margin):
-                self.proposed = (draft, distribution)
-                return []
-
-        evaluator = Evaluator()
-        request = self.request(seed_candidates=True, prior_weight=.1, candidates=[
-            dict(text="编译", end=2, dictionary=True, score=-10),
-            dict(text="编", end=1, dictionary=True, score=100),
-            dict(text="便宜", end=2, dictionary=True, score=-1)])
-        response = worker.respond(evaluator, request)
-        self.assertEqual(evaluator.texts, ["编译", "便宜"])
-        self.assertEqual(response["verified_index"], 2)
-        self.assertEqual(response["score"], -1.1)
-        self.assertEqual(response["evaluated"], 2)
-        self.assertEqual(response["candidate_scores"], [[0, -1], [2, -1.1]])
-        self.assertEqual(evaluator.proposed, ("便宜", "second"))
-        for change in (dict(prior_weight=float("nan")), dict(prior_weight=-1),
-                       dict(seed_candidates=1), dict(candidates=[dict(request["candidates"][0], score=None)])):
-            with self.assertRaises(ValueError):
-                worker.validate(dict(request, **change))
-
-    def test_confident_seed_reports_the_weight_used_for_later_rounds(self):
-        class Evaluator:
-            def evaluate(self, context, code, texts, committed=None):
-                return [-.05, -.2], [None, None]
-
-            def proposals(self, draft, distribution, margin):
-                return []
-
-        request = self.request(seed_candidates=True, prior_weight=.1, candidates=[
-            dict(text="编译", end=2, dictionary=True, score=-10),
-            dict(text="便宜", end=2, dictionary=True, score=-1)])
-        default = worker.respond(Evaluator(), request)
-        self.assertEqual(default["verified_index"], 1)
-        self.assertEqual(default["effective_prior_weight"], .1)
-        confident = worker.respond(Evaluator(), dict(request, prior_confidence=.5))
-        self.assertEqual(confident["verified_index"], 0)
-        self.assertEqual(confident["effective_prior_weight"], 0)
-
-    def test_rescorer_joins_seed_selection_but_not_the_confidence_gate(self):
-        class Evaluator:
-            def evaluate(self, context, code, texts, committed=None):
-                return [-.05, -.2], ["first", "second"]
-
-            def proposals(self, draft, distribution, margin):
-                self.proposed = distribution
-                return ["便利", "便"]
-
-        class Rescorer:
-            def combine(self, context, texts, scores):
-                self.seen = (context, texts)
-                return [s + r for s, r in zip(scores, [-2, 0])]
-
-            def proposals(self, context, draft):
-                return ["变", "便"]
-
-        evaluator, rescorer = Evaluator(), Rescorer()
-        request = self.request(context="上文", seed_candidates=True, prior_weight=.1,
-                               prior_confidence=.5, candidates=[
-                                   dict(text="编译", end=2, dictionary=True, score=-1),
-                                   dict(text="便宜", end=2, dictionary=True, score=-1)])
-        response = worker.respond(evaluator, request, rescorer)
-        self.assertEqual(rescorer.seen, ("上文", ["编译", "便宜"]))
-        self.assertEqual(response["effective_prior_weight"], 0)
-        self.assertEqual(response["verified_index"], 1)
-        self.assertEqual(response["score"], -.2)
-        self.assertEqual(evaluator.proposed, "second")
-        self.assertEqual(response["prefixes"], ["变", "便利", "便"])
-
-    def test_learned_reading_bonus_chooses_the_seed_without_changing_its_score(self):
-        class Evaluator:
-            def evaluate(self, context, code, texts, committed=None):
-                return [-1, -3], [None, None]
-
-            def proposals(self, draft, distribution, margin):
-                return []
-
-        request = self.request(seed_candidates=True, prior_weight=.1, candidates=[
-            dict(text="编译", end=2, dictionary=True, score=-1),
-            dict(text="便宜", end=2, dictionary=True, score=-1, bonus=10.0)])
-        response = worker.respond(Evaluator(), request)
-        self.assertEqual(response["verified_index"], 1)
-        self.assertEqual(response["score"], -3)
-        for bonus in (float("nan"), "10", None):
-            with self.assertRaises(ValueError):
-                worker.validate(dict(request, candidates=[dict(request["candidates"][1], bonus=bonus)]))
-
     def test_decode_passes_pins_and_learned_readings_and_needs_a_decoder(self):
         class Decoder:
             def decode(self, *args, **kwargs):
                 self.args, self.kwargs = args, kwargs
                 return [("便宜", -.5)]
 
-        request = self.request(operation="decode", input="bmy", syllables=2, draft="",
+        request = self.request(operation="decode", input="bmy", syllables=2,
                                pins=[[0, "便"]], learned=[[0, "便宜"]], memory_weight=10.0,
                                literals=[[1, "GPU "]], tones=[[1, 2]])
         decoder = Decoder()
-        self.assertEqual(worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), request, None, decoder)["candidates"], [["便宜", -.5]])
+        self.assertEqual(worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), request, decoder)["candidates"], [["便宜", -.5]])
         self.assertEqual(decoder.args, ("", "bmy"))
         self.assertEqual(decoder.kwargs, dict(pins=[(0,"便")], learned=[(0,"便宜")], weight=10., aux=[],
                                               literals=[(1, "GPU ")], tones=[(1, 2)]))
-        worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), dict(request, aux=[[1, "kp"]]), None, decoder)
+        worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), dict(request, aux=[[1, "kp"]]), decoder)
         self.assertEqual(decoder.kwargs["aux"], [(1,"kp")])
         self.assertEqual(worker.respond(None, request)["candidates"], [])
         for change in (dict(input="bmA"), dict(pins=[[0, "便宜"]]), dict(pins=[["0", "便"]]),
@@ -192,7 +57,6 @@ class WorkerContract(unittest.TestCase):
                        dict(literals=[[1, ""]]), dict(literals=[[1, "\ue2e1"]])):
             with self.assertRaises(ValueError):
                 worker.validate(dict(request, **change))
-
     def test_japanese_passes_kana_and_pending_starts_and_needs_a_decoder(self):
         class Japanese:
             def decode(self, *args):
@@ -200,7 +64,7 @@ class WorkerContract(unittest.TestCase):
                 return [("日本語", -1.0)]
 
         request = dict(id=1, operation="japanese", context="前", kana="にほん", pending=["ご"],
-                       syllables=3, candidates=[])
+                       syllables=3)
         japanese = Japanese()
         self.assertEqual(worker.respond(None, request, japanese=japanese)["candidates"], [["日本語", -1.0]])
         self.assertEqual(japanese.args, ("前", "にほん", ["ご"], None, False, False))

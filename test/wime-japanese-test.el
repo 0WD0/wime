@@ -172,12 +172,12 @@
 (ert-deftest wime-japanese-worker-loads-the-japanese-models ()
   ;; Bind what the Wime Lab startup recipe would otherwise set in wdoom.
   (let ((wime-neural-program "/bin/true") (wime-neural-interpreter nil) (wime-neural-rescorer "/lm")
-        (wime-neural-rescorer-weight 1.5)
-        (wime-neural-search-method 'verify) (wime-japanese-model-file "/ja.safetensors")
+        (wime-neural-rescorer-weight 1.5) (wime-neural-beam 32) (wime-database-file "/w.db")
+        (wime-japanese-model-file "/ja.safetensors")
         (wime-japanese-table-file "/ja.json") (wime-japanese-zenz-directory nil))
     (should (equal (wime-neural--command "/m.safetensors")
                    '("/bin/true" "--rescorer" "/lm" "--rescorer-weight" "1.5"
-                     "--japanese-model" "/ja.safetensors" "--japanese-table" "/ja.json" "/m.safetensors")))
+                     "--database" "/w.db" "--beam" "32" "--japanese-model" "/ja.safetensors" "--japanese-table" "/ja.json" "/m.safetensors")))
     (let ((wime-japanese-zenz-directory "/zenz"))
       (should (equal (last (wime-neural--command "/m.safetensors") 3)
                      '("--japanese-zenz" "/zenz" "/m.safetensors"))))))

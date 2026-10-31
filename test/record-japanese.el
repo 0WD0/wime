@@ -15,7 +15,7 @@
       wime-japanese-model-file (getenv "WIME_JAPANESE_MODEL")
       wime-japanese-table-file (getenv "WIME_JAPANESE_TABLE")
       wime-japanese-zenz-directory (getenv "WIME_JAPANESE_ZENZ")
-      wime-neural-search-method 'verify wime-neural-delay 0 wime-neural-startup-timeout 120)
+      wime-neural-delay 0 wime-neural-startup-timeout 120)
 
 (when (getenv "WIME_JAPANESE_SCHEME")
   (setq-default wime-japanese--scheme (intern (getenv "WIME_JAPANESE_SCHEME"))))
