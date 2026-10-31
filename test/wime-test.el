@@ -685,4 +685,6 @@
                         (seq-filter (lambda (text) (= (length text) 2)) yao3))))
     ;; Words record sandhi (一个 yí gè); the typed dictionary tone still reads them.
     (should (member "一个" (wime--candidates "yi1ge4")))
-    (should (equal (wime--candidates "vozi5") (wime--candidates "vozi")))))
+    (should (equal (wime--candidates "vozi5") (wime--candidates "vozi")))
+    ;; No jiu character is read in tone 2: nothing, not the unfiltered list.
+    (should-not (wime--candidates "jq2"))))

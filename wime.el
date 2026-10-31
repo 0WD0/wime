@@ -852,7 +852,8 @@ Rime completes partial pinyin."
       ((null units) nil)
       (wime--candidate-records (mapcar #'wime-candidate-text wime--candidate-records))
       ((and last (not complete)) (wime--prefix-candidates units))
-      (t (wime--unit-words (car units))))
+      (t (seq-filter (lambda (word) (wime--tones-allow-p word 0 units))
+                     (wime--unit-words (car units)))))
      wime-candidates-max)))
 
 (defun wime--candidates-for (code aux)
