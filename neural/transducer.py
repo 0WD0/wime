@@ -34,6 +34,8 @@ class EncoderConfig:
     n_head: int = 4
     n_embd: int = 256
     positions: int = 64
+    # Without the marker the context runs straight into the composition.
+    marker: bool = True
 
 
 class SyllableEncoder(nn.Module):
@@ -110,14 +112,14 @@ def load(path):
     return model, json.loads(metadata["vocab"]), metadata
 
 
-def sequence(index, context, text):
-    """Character-network ids: BOS, the last context characters, OUTPUT, TEXT.
-
-    The state before composition character i sits at offset + i."""
-    room = min(CONTEXT, 126 - len(text))
+def sequence(index, context, text, marker=True):
+    """Character-network ids: BOS, the last context characters, OUTPUT unless
+    MARKER is false, TEXT. The state before composition character i sits at
+    offset + i."""
+    room = min(CONTEXT, 127 - marker - len(text))
     context = "".join(c for c in context if not 0xE000 <= ord(c) <= 0xF8FF)[-room:] if room > 0 else ""
-    ids = [2] + [index.get(c, 1) for c in context] + [index[OUTPUT]] + [index.get(c, 1) for c in text]
-    return ids, len(context) + 1
+    ids = [2] + [index.get(c, 1) for c in context] + [index[OUTPUT]] * marker + [index.get(c, 1) for c in text]
+    return ids, len(context) + marker
 
 
 class Evaluator:
@@ -133,12 +135,12 @@ class Evaluator:
 class Prompt:
     """Left context and syllable features; the encoder runs once per prompt."""
 
-    def __init__(self, context, features):
-        self.context, self.features, self.encoded = context, features, None
+    def __init__(self, context, features, marker):
+        self.context, self.features, self.marker, self.encoded = context, features, marker, None
 
     def __len__(self):
         # BOS, context, OUTPUT: the decoder adds characters against the window.
-        return 2 + min(CONTEXT, len(self.context))
+        return 1 + self.marker + min(CONTEXT, len(self.context))
 
 
 def decoder_class(base):
@@ -152,7 +154,8 @@ def decoder_class(base):
         def model_prompt(self, context, code):
             if len(code) % 2:
                 raise ValueError("expected complete syllables")
-            return Prompt(context, syllables.typed(code, self.tones.get(code, ())))
+            return Prompt(context, syllables.typed(code, self.tones.get(code, ())),
+                          self.evaluator.model.encoder_cfg.marker)
 
         def encoded(self, prompt):
             if prompt.encoded is None:
@@ -164,7 +167,7 @@ def decoder_class(base):
         def joint(self, prompts, texts, slots):
             """Log probabilities at (text, slot) pairs SLOTS: [len(slots), V]."""
             model, index = self.evaluator.model, self.evaluator.index
-            rows = [sequence(index, p.context, t) for p, t in zip(prompts, texts)]
+            rows = [sequence(index, p.context, t, p.marker) for p, t in zip(prompts, texts)]
             width = max(len(ids) for ids, _ in rows)
             ids = torch.tensor([ids + [0] * (width - len(ids)) for ids, _ in rows], device=self.device)
             states = model.states(ids)

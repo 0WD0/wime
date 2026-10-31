@@ -83,18 +83,18 @@ def tones_for(citation, spoken, committed, policy, rng):
             for j, (c, s) in enumerate(zip(citation, spoken))]
 
 
-def collate(corpus, picks, index, policy, rng, device):
+def collate(corpus, picks, index, policy, rng, device, marker):
     """Tensors for (sentence, state) PICKS: ids, encoder features, label positions."""
-    output = index[transducer.OUTPUT]
+    output = [index[transducer.OUTPUT]] * marker
     sequences, features, targets = [], [], []
     for i, state in picks:
         context, text, committed, keys, citation, spoken = corpus.state(i, state)
-        room = max(0, min(transducer.CONTEXT, 126 - len(text)))
+        room = max(0, min(transducer.CONTEXT, 127 - marker - len(text)))
         context = context[len(context) - room:] if room else []
-        sequences.append([2] + context + [output] + text)
+        sequences.append([2] + context + output + text)
         tones = tones_for(citation, spoken, committed, policy, rng)
         features.append([(a, b, t) for (a, b), t in zip(keys, tones)])
-        offset = len(context) + 1
+        offset = len(context) + marker
         targets.append([(offset + j, j, text[j]) for j in range(committed, len(text))])
     width, syllable_width = max(map(len, sequences)), max(map(len, features))
     ids = torch.zeros(len(picks), width, dtype=torch.long)
@@ -136,6 +136,10 @@ def main():
     p.add_argument("--tone-keep", type=float, default=0.5)
     p.add_argument("--spoken", type=float, default=0.15)
     p.add_argument("--save-every", type=int, default=2000)
+    p.add_argument("--no-marker", action="store_true", help="run the context straight into the composition")
+    p.add_argument("--encoder-layers", type=int, default=4)
+    p.add_argument("--encoder-width", type=int, default=256)
+    p.add_argument("--encoder-heads", type=int, default=4)
     p.add_argument("--seed", type=int, default=20261031)
     args = p.parse_args()
     if (args.out / "model.safetensors").exists():
@@ -148,7 +152,10 @@ def main():
     directory, excluded, snapshot = Registry().training(args.dataset)
     protection = Protection(excluded)
     additions = training_characters([directory], protection)
-    model, vocab = transducer.from_conditional(str(args.base), additions)
+    encoder = transducer.EncoderConfig(n_layer=args.encoder_layers, n_head=args.encoder_heads,
+                                       n_embd=args.encoder_width, marker=not args.no_marker)
+    model, vocab = transducer.from_conditional(str(args.base), additions, encoder)
+    marker = encoder.marker
     model.cuda()
     index = {c: i for i, c in enumerate(vocab)}
     started = time.monotonic()
@@ -173,7 +180,7 @@ def main():
                 for name, state, weight, pool in dev_sampler.strata():
                     total, count = 0., 0
                     for chunk in pool.split(128):
-                        value, n = loss(model, collate(dev, [(i, state) for i in chunk.tolist()], index, tones, rng, "cuda"))
+                        value, n = loss(model, collate(dev, [(i, state) for i in chunk.tolist()], index, tones, rng, "cuda", marker))
                         total, count = total + value.item(), count + n
                     report[f"{'toneless' if tones is None else 'toned'}/{name}/{STATES[state - 1]}"] = total / count
                     weighted += weight * total / count
@@ -191,7 +198,7 @@ def main():
         indices, states = sampler.draw(args.batch)
         picks = list(zip(indices.tolist(), states.tolist()))
         seen.update(STATES[s - 1] for _, s in picks)
-        value, n = loss(model, collate(train, picks, index, policy, rng, "cuda"))
+        value, n = loss(model, collate(train, picks, index, policy, rng, "cuda", marker))
         optimizer.zero_grad(set_to_none=True)
         (value / n).backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
