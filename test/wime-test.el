@@ -688,13 +688,3 @@
     (should (equal (wime--candidates "vozi5") (wime--candidates "vozi")))
     ;; No jiu character is read in tone 2: nothing, not the unfiltered list.
     (should-not (wime--candidates "jq2"))))
-
-(ert-deftest wime-dictionary-mode-is-bound-and-shown ()
-  (with-temp-buffer
-    (let ((current-input-method "wime"))
-      (wime-mode 1)
-      (should (eq (key-binding (kbd "C-.")) #'wime-dictionary-mode))
-      (wime-dictionary-mode 1)
-      (should (equal (substring-no-properties (wime-lighter)) wime-dictionary-title))
-      (wime-dictionary-mode -1)
-      (should (equal (substring-no-properties (wime-lighter)) wime-title)))))

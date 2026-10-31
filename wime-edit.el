@@ -278,7 +278,6 @@ of truth.  Widen only for display; confirmation still respects narrowing."
               (eq (point) wime-edit--paused-point)
               (memq this-command '(wime-edit-pause wime-edit-escape wime-edit-finish
                                    wime-edit-return toggle-input-method wime-toggle-english
-                                   wime-dictionary-mode
                                    undo undo-only undo-redo)))
     (wime-edit--sync))
   (when (and (wime-edit--active-p)
@@ -316,8 +315,7 @@ leaving the window at that moment would keep the guess."
          (provisional (and (not wime--model-ranked)
                            (bound-and-true-p wime-neural-mode)
                            (not (bound-and-true-p wime-neural--failed))
-                           (bound-and-true-p wime-neural-rescorer)
-                           (not wime-dictionary-mode)))
+                           (bound-and-true-p wime-neural-rescorer)))
          (i -1))
     (cond
      ((not (wime-edit--decodable-p))

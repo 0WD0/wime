@@ -92,9 +92,6 @@
 (defvar wime-english-title "英"
   "The title shown while `wime-english-mode' inserts keys literally.")
 
-(defvar wime-dictionary-title "词"
-  "The title shown while `wime-dictionary-mode' ranks by the dictionary.")
-
 (defcustom wime-candidates-max 10
   "Maximum number of candidates shown at once."
   :type 'natnum
@@ -1134,15 +1131,6 @@ back confirms everything."
   :lighter nil
   (force-mode-line-update))
 
-(define-minor-mode wime-dictionary-mode
-  "Rank candidates by the dictionary lattice alone, skipping the neural stage.
-The syllable model knows some 12,400 characters and the dictionary some
-43,000; characters outside the model, such as 〇 or 莿, rank here as the
-lattice ranks them.  Toggling during a composition searches it again."
-  :lighter nil
-  (when (wime--active-p) (wime--refresh))
-  (force-mode-line-update))
-
 (defun wime-toggle-english (&optional arg)
   "Switch between Chinese and literal English without leaving composition.
 Outside wime, or with prefix ARG, run `toggle-input-method' instead."
@@ -1279,7 +1267,7 @@ commits its selected candidate first."
   "Minor mode enabled while the wime input method is active."
   :lighter nil
   :init-value nil
-  :keymap (list (cons (kbd "C-.") #'wime-dictionary-mode)))
+  :keymap nil)
 
 (defun wime-activate (_name)
   "Activate the wime input method."
@@ -1306,15 +1294,12 @@ commits its selected candidate first."
 Bright while wime handles input, dim while the buffer is read-only and
 keys pass through."
   (if (and (equal current-input-method "wime") (bound-and-true-p wime-mode))
-      (propertize (cond (wime-english-mode wime-english-title)
-                        (wime-dictionary-mode wime-dictionary-title)
-                        (t wime-title))
+      (propertize (if wime-english-mode wime-english-title wime-title)
                   'face (if (wime--text-read-only-p)
                             'wime-indicator-dim-face
                           'wime-indicator-face)
-                  'help-echo (cond (wime-english-mode "wime: 英文，C-\\ 切回中文")
-                                   (wime-dictionary-mode "wime: 词库排序，C-. 切回模型")
-                                   (t "wime: 中文双拼")))
+                  'help-echo (if wime-english-mode "wime: 英文，C-\\ 切回中文"
+                               "wime: 中文双拼"))
     ""))
 
 (register-input-method "wime" "euc-cn" #'wime-activate wime-title

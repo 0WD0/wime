@@ -108,8 +108,7 @@ When disabled, single-character input retains dictionary ranking."
                   (= (wime-neural--job-memory-tick job) wime--memory-tick))
               (if (eq (wime-neural--job-method job) 'japanese)
                   (wime-japanese--current-p job)
-                (and (not wime-dictionary-mode)
-                     (wime--active-p) (= wime--selected 0)
+                (and (wime--active-p) (= wime--selected 0)
                      (equal wime--input (wime-neural--job-input job))
                      (eq wime--candidate-records (wime-neural--job-records job))))
               (if (and (not (eq (wime-neural--job-method job) 'japanese))
@@ -148,7 +147,7 @@ When disabled, single-character input retains dictionary ranking."
 (defun wime-neural--schedule ()
   "Decode after typing pauses, keeping the dictionary usable immediately."
   (wime-neural--reset)
-  (when (and wime-neural-mode (not wime-dictionary-mode)
+  (when (and wime-neural-mode
              (not wime-neural--failed) wime-neural-model-file
              (or (not (bound-and-true-p wime-edit-mode))
                  (wime-edit--decodable-p)))

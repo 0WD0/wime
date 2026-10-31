@@ -409,26 +409,3 @@
     (let ((request (json-parse-string (wime-neural--request job) :object-type 'alist)))
       (should (equal (alist-get 'input request) "aabb"))
       (should (equal (alist-get 'tones request) [[0 3]])))))
-
-
-(ert-deftest wime-neural-dictionary-mode-skips-the-neural-stage ()
-  (wime-neural-test--composition
-    (let ((wime-neural-model-file "model.safetensors") (wime-neural--failed nil) scheduled)
-      (cl-letf (((symbol-function 'run-with-timer) (lambda (&rest _) (setq scheduled t)))
-                ((symbol-function 'wime--refresh) #'ignore))
-        (wime-dictionary-mode 1)
-        (wime-neural--schedule)
-        (should-not scheduled)
-        (wime-dictionary-mode -1)
-        (wime-neural--schedule)
-        (should scheduled)))))
-
-(ert-deftest wime-neural-dictionary-mode-rejects-in-flight-results ()
-  (wime-neural-test--composition
-    (let ((wime-neural--pending job))
-      ;; Even an unchanged cached candidate list must not accept a late reply.
-      (cl-letf (((symbol-function 'wime--refresh) #'ignore))
-        (wime-dictionary-mode 1))
-      (should-not (wime-neural--valid-p job))
-      (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
-      (should (equal wime--candidates '("甲乙" "丙丁" "甲"))))))
