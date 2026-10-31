@@ -2119,6 +2119,106 @@
         "prior_evaluation_releases_audited": 18,
         "remaining_source_or_text_matches": 0
       }
+    },
+    "sentence-trajectories-dialogue-dev-v1": {
+      "kind": "evaluation",
+      "status": "development",
+      "annotation": "gpt-sovits-mandarin-v1+agent-review-dialogue-v1",
+      "parents": [],
+      "exclude_from_training": true,
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-dialogue-dev-v1"
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-dialogue-dev-v1.dvc",
+        "sha256": "e8bae782b5e5b4196e40de34259779b889646b8f4b4e9b72737d6421e0b5b287"
+      },
+      "description": "Dialogue development release: 202 reply clauses, one per conversation, from KdConv (Apache-2.0) and LCCC-base (MIT); context is the draft before the clause, turns the earlier messages with speakers; strata far/near/none by rare repeated spans. No IME outputs used in construction.",
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "cases": {
+          "path": "cases.json",
+          "format": "json-array",
+          "rows": 202
+        },
+        "reading_review": {
+          "path": "reading-review.json"
+        },
+        "selection_ledger": {
+          "path": "selection-ledger.json",
+          "format": "json-array",
+          "rows": 291
+        },
+        "agent_review": {
+          "path": "agent-review.json",
+          "format": "json-array",
+          "rows": 291
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "reading_accuracy": "not independently estimated",
+        "human_verified_gold": false,
+        "content_review": "Every candidate read by agent; explicit accept/exclude reasons before IME inference.",
+        "training_releases_audited": 16,
+        "prior_evaluation_releases_audited": 20,
+        "remaining_source_or_text_matches": 0
+      }
+    },
+    "sentence-trajectories-dialogue-test-v1": {
+      "kind": "evaluation",
+      "status": "heldout",
+      "annotation": "gpt-sovits-mandarin-v1+agent-review-dialogue-v1",
+      "parents": [],
+      "exclude_from_training": true,
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-dialogue-test-v1"
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-dialogue-test-v1.dvc",
+        "sha256": "2bf3091caa42cacad6e0663575f8b5ed3101aa3b6378e1a59d7047f02cc7f570"
+      },
+      "description": "Dialogue sealed release: 203 reply clauses, one per conversation, from KdConv (Apache-2.0) and LCCC-base (MIT); context is the draft before the clause, turns the earlier messages with speakers; strata far/near/none by rare repeated spans. No IME outputs used in construction.",
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "cases": {
+          "path": "cases.json",
+          "format": "json-array",
+          "rows": 203
+        },
+        "reading_review": {
+          "path": "reading-review.json"
+        },
+        "selection_ledger": {
+          "path": "selection-ledger.json",
+          "format": "json-array",
+          "rows": 309
+        },
+        "agent_review": {
+          "path": "agent-review.json",
+          "format": "json-array",
+          "rows": 309
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "reading_accuracy": "not independently estimated",
+        "human_verified_gold": false,
+        "content_review": "Every candidate read by agent; explicit accept/exclude reasons before IME inference.",
+        "training_releases_audited": 16,
+        "prior_evaluation_releases_audited": 20,
+        "remaining_source_or_text_matches": 0
+      }
     }
   }
 }

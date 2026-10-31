@@ -1,0 +1,6 @@
+outs:
+- md5: 7dcc4a6c81e166b67b59d627ca183abf.dir
+  size: 918279
+  nfiles: 28
+  hash: md5
+  path: sentence-trajectories-dialogue-test-v1

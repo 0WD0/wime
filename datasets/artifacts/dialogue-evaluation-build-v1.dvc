@@ -1,0 +1,6 @@
+outs:
+- md5: 5428079a69226daa8ee83a62085c0bfc.dir
+  size: 5552193
+  nfiles: 34
+  hash: md5
+  path: dialogue-evaluation-build-v1
