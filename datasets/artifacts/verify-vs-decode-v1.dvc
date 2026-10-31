@@ -1,0 +1,6 @@
+outs:
+- md5: 9f2b9fe5fd1635dffc2e8fdb4ccf1879.dir
+  size: 775140
+  nfiles: 10
+  hash: md5
+  path: verify-vs-decode-v1
