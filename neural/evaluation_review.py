@@ -7,7 +7,7 @@ matches the reference or any accepted variant at the same span.
 import json
 from pathlib import Path
 
-REVIEW = Path(__file__).resolve().parent.parent / "datasets/artifacts/evaluation-review-v1/decisions.json"
+REVIEW = Path(__file__).resolve().parent.parent / "datasets/artifacts/evaluation-review-v2/decisions.json"
 
 
 def overlay(dataset, path=REVIEW):
