@@ -129,7 +129,7 @@
 (defmacro wime-test--memory (entries &rest body)
   "Run BODY with dictionary ENTRIES and an empty user database file."
   (declare (indent 1))
-  `(let* ((wime-user-database (make-temp-file "wime-user" nil ".sqlite3"))
+  `(let* ((wime-user-database (make-temp-file "wime-user" nil ".sqlite3")) (wime-learn t)
           (wime--user-db nil) (wime--memory (make-hash-table :test #'equal)))
      (unwind-protect
          (cl-letf (((symbol-function 'wime--database-entries)
@@ -143,6 +143,14 @@
   '(("dl" ("代" "a" 100) ("待" "b" 50)) ("xr" ("选" "d" 100)) ("xd" ("项" "e" 100))
     ("dlxr" ("代选" "a/d" 30) ("待选" "b/d" 20)) ("xrxd" ("选项" "d/e" 1000))))
 
+(ert-deftest wime-learning-is-off-unless-enabled ()
+  (wime-test--memory wime-test--homophones
+    (let ((units (wime--parse "dlxrxd")) (wime-learn nil))
+      (wime--learn "待选项" units "代选项")
+      (should (zerop (hash-table-count wime--memory)))
+      (should-not (wime--memory-entries "dlxr"))
+      (should (equal (car (wime--sentence-candidates units)) "代选项")))))
+
 (ert-deftest wime-correction-learns-the-covering-word-until-contradicted ()
   (wime-test--memory wime-test--homophones
     (let ((units (wime--parse "dlxrxd")) (tick wime--memory-tick))
@@ -153,8 +161,6 @@
       (should-not (gethash "dl" wime--memory))
       (should (> wime--memory-tick tick))
       (should (equal (car (wime--sentence-candidates units)) "待选项"))
-      (should (= (wime--memory-coverage "待选项" units) (/ 2.0 3)))
-      (should (= (wime--memory-coverage "代选项" units) 0.0))
       ;; Persisted across sessions.
       (sqlite-close (cdr wime--user-db))
       (setq wime--user-db nil)

@@ -576,11 +576,18 @@ prefix of one of its comma-separated groups."
 (defcustom wime-user-database nil
   "SQLite file of this user's commit log and learned readings, or nil.
 Each committed complete reading records its raw input, keys, text, the
-reading wime offered first and the context before it.  Where the text
-differs from that default, the differing span, widened to the shortest
-dictionary word under the same keys, becomes a learned reading.  Committing
-another reading for those keys forgets it."
+reading wime offered first and the context before it.  With `wime-learn',
+corrections also become learned readings kept here."
   :type '(choice (const nil) file) :group 'wime)
+
+(defcustom wime-learn nil
+  "Learn readings from corrections in `wime-user-database'.
+Where committed text differs from the reading wime offered first, the
+differing span, widened to the shortest dictionary word under the same keys,
+becomes a learned reading that the lattice and the decoder strongly prefer.
+Committing another reading for those keys forgets it.  Off by default: a
+learned reading also wins where the context wants another word."
+  :type 'boolean :group 'wime)
 
 (defcustom wime-user-weight 1e7
   "Dictionary weight of a learned reading, above any wanxiang entry."
@@ -620,25 +627,19 @@ another reading for those keys forgets it."
         (wime--reload-memory db)))
     (cdr wime--user-db)))
 
+(defun wime--learned-db ()
+  "The user database when `wime-learn' applies its learned readings."
+  (and wime-learn (wime--user-db)))
+
 (defun wime--memory-entries (code)
   "Learned readings for CODE, as database entries."
-  (when (wime--user-db)
+  (when (wime--learned-db)
     (mapcar (lambda (m) (list (car m) (cdr m) wime-user-weight)) (gethash code wime--memory))))
-
-(defun wime--memory-coverage (text units)
-  "Fraction of TEXT's syllables covered by learned readings for UNITS."
-  (let* ((n (min (length text) (length units))) (covered (make-bool-vector n nil)))
-    (when (and (> n 1) (wime--user-db) (> (hash-table-count wime--memory) 0))
-      (dotimes (s n)
-        (cl-loop for e from (+ s 2) to (min n (+ s 16))
-                 when (assoc (substring text s e) (gethash (wime--span-code units s e) wime--memory))
-                 do (cl-loop for i from s below e do (aset covered i t)))))
-    (if (zerop n) 0.0 (/ (float (cl-count t covered)) n))))
 
 (defun wime--memory-spans (units)
   "Learned readings within UNITS' leading complete syllables, as (START . TEXT)."
   (let ((n (cl-loop for unit in units while (= (length (car unit)) 2) count t)) spans)
-    (when (and (> n 1) (wime--user-db) (> (hash-table-count wime--memory) 0))
+    (when (and (> n 1) (wime--learned-db) (> (hash-table-count wime--memory) 0))
       (dotimes (s n)
         (cl-loop for e from (+ s 2) to (min n (+ s 16)) do
                  (dolist (m (gethash (wime--span-code units s e) wime--memory))
@@ -676,34 +677,35 @@ for that syllable everywhere."
 
 (defun wime--learn (text units default)
   "Forget readings TEXT contradicts under UNITS, then learn where it left DEFAULT."
-  (let ((db (wime--user-db)) (n (length text)) (changed nil))
-    (dotimes (s n)
-      (cl-loop for e from (+ s 2) to (min n (+ s 16)) do
-               (let ((code (wime--span-code units s e)) (span (substring text s e)))
-                 (dolist (m (copy-sequence (gethash code wime--memory)))
-                   (unless (equal (car m) span)
-                     (sqlite-execute db "DELETE FROM memory WHERE code = ? AND text = ?" (list code (car m)))
-                     (setf (gethash code wime--memory) (delete m (gethash code wime--memory))
-                           changed t))))))
-    (when (and default (> n 1) (>= (length default) n) (not (equal (substring default 0 n) text)))
-      (let ((i 0))
-        (while (< i n)
-          (if (eq (aref text i) (aref default i))
-              (cl-incf i)
-            (let ((j i))
-              (while (and (< j n) (not (eq (aref text j) (aref default j))))
-                (cl-incf j))
-              (pcase-let* ((`(,s . ,e) (wime--learned-span text units i j))
-                           (word (substring text s e)) (code (wime--span-code units s e))
-                           (aux (wime--learned-aux word (seq-subseq units s e))))
-                (sqlite-execute db (concat "INSERT INTO memory VALUES (?, ?, ?, 1, ?) ON CONFLICT (code, text) "
-                                           "DO UPDATE SET count = count + 1, updated = excluded.updated")
-                                (list code word aux (float-time)))
-                (unless (assoc word (gethash code wime--memory))
-                  (push (cons word aux) (gethash code wime--memory)))
-                (setq changed t))
-              (setq i j))))))
-    (when changed (cl-incf wime--memory-tick))))
+  (when-let* ((db (wime--learned-db)))
+    (let ((n (length text)) (changed nil))
+      (dotimes (s n)
+        (cl-loop for e from (+ s 2) to (min n (+ s 16)) do
+                 (let ((code (wime--span-code units s e)) (span (substring text s e)))
+                   (dolist (m (copy-sequence (gethash code wime--memory)))
+                     (unless (equal (car m) span)
+                       (sqlite-execute db "DELETE FROM memory WHERE code = ? AND text = ?" (list code (car m)))
+                       (setf (gethash code wime--memory) (delete m (gethash code wime--memory))
+                             changed t))))))
+      (when (and default (> n 1) (>= (length default) n) (not (equal (substring default 0 n) text)))
+        (let ((i 0))
+          (while (< i n)
+            (if (eq (aref text i) (aref default i))
+                (cl-incf i)
+              (let ((j i))
+                (while (and (< j n) (not (eq (aref text j) (aref default j))))
+                  (cl-incf j))
+                (pcase-let* ((`(,s . ,e) (wime--learned-span text units i j))
+                             (word (substring text s e)) (code (wime--span-code units s e))
+                             (aux (wime--learned-aux word (seq-subseq units s e))))
+                  (sqlite-execute db (concat "INSERT INTO memory VALUES (?, ?, ?, 1, ?) ON CONFLICT (code, text) "
+                                             "DO UPDATE SET count = count + 1, updated = excluded.updated")
+                                  (list code word aux (float-time)))
+                  (unless (assoc word (gethash code wime--memory))
+                    (push (cons word aux) (gethash code wime--memory)))
+                  (setq changed t))
+                (setq i j))))))
+      (when changed (cl-incf wime--memory-tick)))))
 
 (defun wime--entries-for (code)
   "Return the learned and dictionary word entries for CODE."

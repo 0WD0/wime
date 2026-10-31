@@ -4,7 +4,7 @@
 wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
 输入方式是双拼（默认微软双拼）加大写的墨奇辅助码。
 打字时先由词典词格给出候选；
-停键后，本地神经模型在后台重新解码，并从你的纠正中学习。
+停键后，本地神经模型在后台重新解码。
 同一个后台也提供日文输入法 =wime-japanese= （AZIK 输入，见[[*日本語][日本語]]）。
 
 * 安装
@@ -48,13 +48,14 @@ uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
 没有设置 =XDG_DATA_HOME= 时为 =~/.local/share/wime/wanxiang.db=。
 放在其他位置时，设置 =wime-database-file=。按 =C-\\= 启用中文输入。
 
-纠错学习需主动启用：
+上屏记录需主动启用：
 
 #+begin_src emacs-lisp
 (setq wime-user-database (expand-file-name "user.sqlite3" wime-data-directory))
 #+end_src
 
 启用后，每次上屏会在本地保存按键、文字、初始候选和最多 64 字的光标前文。
+从纠正中学习读音另需 =(setq wime-learn t)=，见[[*纠错学习][纠错学习]]。
 设 =wime-user-database= 为 nil 可停止记录和学习；
 =M-x wime-history= 可删除历史而保留学习偏好。
 要清空两者，退出 Emacs 后删除这个数据库文件。
@@ -135,9 +136,11 @@ worker 出错或超时，词格候选照常可用。
 每次上屏完整读音都记录按键、上屏文本、wime 首先给出的读音和光标前文。
 这份日志只存本机，也是真实使用的评测数据。
 
-上屏的文本与首选不同时，不同的片段会被扩展成同键下最短的词典词
-（至少两字），记为学到的读音；同样的按键再上屏别的读音，就忘掉它。
-学到的读音在词格和神经阶段都有强偏好，模型不会推翻你的纠正。
+=wime-learn= 默认关闭。设为 t 后，上屏的文本与首选不同时，
+不同的片段会被扩展成同键下最短的词典词（至少两字），记为学到的读音；
+同样的按键再上屏别的读音，就忘掉它。
+学到的读音在词格和神经阶段都有强偏好，上下文需要别的词时也会压过模型，
+所以默认不启用。
 
 =M-x wime-memory= 管理学习偏好，=M-x wime-history= 查看上屏历史；
 =/= 搜索，=RET= 查看详情，=e= 修改词语和编码，

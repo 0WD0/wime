@@ -9,6 +9,7 @@
   (declare (indent 0))
   `(let* ((directory (make-temp-file "wime-memory-test-" t))
           (wime-user-database (expand-file-name "user.db" directory))
+          (wime-learn t)
           (wime-database-file (expand-file-name "words.db" directory))
           (wime--user-db nil) (wime--db (sqlite-open wime-database-file))
           (wime--memory (make-hash-table :test #'equal)) (wime--memory-tick 0)

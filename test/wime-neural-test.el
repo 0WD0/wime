@@ -338,7 +338,7 @@
     (let* ((wime-neural-mode t) (wime-neural--failed nil) (wime-neural-model-file "model")
            (wime-neural-rescorer "/lm")
            (wime-neural-memory-weight 10.0)
-           (wime-user-database (make-temp-file "wime-user" nil ".sqlite3")) (wime--user-db nil)
+           (wime-user-database (make-temp-file "wime-user" nil ".sqlite3")) (wime--user-db nil) (wime-learn t)
            (wime--memory (make-hash-table :test #'equal)) scheduled)
       (unwind-protect
           (progn
