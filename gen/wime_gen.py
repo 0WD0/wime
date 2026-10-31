@@ -3,8 +3,8 @@
 
 By default the database is keyed by the Microsoft double-pinyin code, a
 faithful port of the `pro/微软双拼` rules in `wanxiang_algebra.yaml`.  With
-``--scheme`` the code comes from a JSON table that assigns every initial and
-final to one key (see ``schemes/``).
+``--scheme`` selects a JSON definition: either an upstream algebra dialect or
+an initial/final key table (see ``schemes/``).
 
 Either way a ``meta`` table records which keys occur in the initial and final
 position of a syllable, so the engine can tell a code key from punctuation.
@@ -17,6 +17,8 @@ import re
 import sqlite3
 import unicodedata
 from pathlib import Path
+
+SYLLABLE_ENCODING = "wime-syllable-features-v1"
 
 
 def load_rules(algebra_path, dialect="微软双拼"):
@@ -47,7 +49,30 @@ def load_rules(algebra_path, dialect="微软双拼"):
         if in_append and stripped.startswith("- "):
             rule = re.split(r"\s+#", stripped[2:], maxsplit=1)[0].strip()
             rules.append(compile_rule(rule))
+    if not rules:
+        raise ValueError(f"no pro/{dialect} spelling rules in {algebra_path}")
     return rules
+
+
+def load_scheme(path, rime_data):
+    """Return a converter and identifier from a build-time JSON definition."""
+    scheme = json.loads(path.read_text(encoding="utf-8"))
+    if (not isinstance(scheme, dict) or not isinstance(scheme.get("name"), str)
+            or not re.fullmatch(r"[a-z][a-z0-9-]*", scheme["name"])):
+        raise ValueError("scheme needs an ASCII name")
+    if "algebra" in scheme:
+        if not isinstance(scheme["algebra"], str) or "initials" in scheme or "finals" in scheme:
+            raise ValueError("choose an algebra dialect or initial/final tables")
+        converter = Converter(load_rules(rime_data / "wanxiang_algebra.yaml", scheme["algebra"]))
+    else:
+        for field in ("initials", "finals"):
+            table = scheme.get(field)
+            if not isinstance(table, dict) or not table or any(
+                    not isinstance(k, str) or not isinstance(v, str) or len(v) != 1
+                    or v not in "abcdefghijklmnopqrstuvwxyz;,./" for k, v in table.items()):
+                raise ValueError(f"{field} must map sounds to single code keys")
+        converter = Converter(scheme=scheme)
+    return converter, scheme["name"]
 
 
 def compile_rule(rule):
@@ -273,11 +298,18 @@ def build_database(dict_paths, converter, output, name):
         [(code, word, aux, weight, "/".join("".join(sorted(seen)) for seen in tones[key]))
          for key, weight in best.items() for code, word, aux in [key]])
     connection.execute("CREATE INDEX entry_code ON entry(code, weight DESC)")
+    # Layout-independent phonetic features for the syllable model.  Keep all
+    # pronunciations when multiple syllables share the same pair of keys.
+    connection.execute("CREATE TABLE syllable (code TEXT, initial TEXT, final TEXT, "
+                       "PRIMARY KEY (code, initial, final))")
+    connection.executemany("INSERT INTO syllable VALUES (?, ?, ?)", sorted({
+        (code, *parts) for pinyin, codes in converter.cache.items()
+        if (parts := split_pinyin(pinyin)) is not None for code in codes if len(code) == 2}))
     initial_keys, final_keys = converter.position_keys()
     connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     connection.executemany("INSERT INTO meta VALUES (?, ?)",
                            [("scheme", name), ("initial_keys", initial_keys),
-                            ("final_keys", final_keys)])
+                            ("final_keys", final_keys), ("syllable_encoding", SYLLABLE_ENCODING)])
     connection.commit()
     connection.close()
     return total, len(best)
@@ -288,11 +320,10 @@ def main():
     parser.add_argument("--rime-data", type=Path, required=True)
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--scheme", type=Path,
-                        help="JSON scheme table; default: wanxiang 微软双拼 rules")
+                        help="JSON scheme definition; default: wanxiang 微软双拼 rules")
     args = parser.parse_args()
     if args.scheme:
-        scheme = json.loads(args.scheme.read_text(encoding="utf-8"))
-        converter, name = Converter(scheme=scheme), scheme["name"]
+        converter, name = load_scheme(args.scheme, args.rime_data)
     else:
         converter = Converter(load_rules(args.rime_data / "wanxiang_algebra.yaml"))
         name = "mspy"

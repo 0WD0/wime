@@ -82,3 +82,63 @@ genrule(
     tools = [":generator"],
     visibility = ["//wdoom/bazel/native:__pkg__"],
 )
+
+genrule(
+    name = "database_ziranma",
+    srcs = [
+        "schemes/ziranma.json",
+        "@rime_wanxiang//:sources",
+        "@rime_wanxiang//:wanxiang_algebra.yaml",
+        "@rime_wanxiang//:wanxiang_pro.dict.yaml",
+    ],
+    outs = ["wanxiang-ziranma.db"],
+    cmd = "RIME=$$(dirname $(location @rime_wanxiang//:wanxiang_pro.dict.yaml)); " +
+          "$(location :generator) --rime-data $$RIME --database $@ " +
+          "--scheme $(location schemes/ziranma.json)",
+    tools = [":generator"],
+    visibility = ["//wdoom/bazel/native:__pkg__"],
+)
+
+genrule(
+    name = "database_flypy",
+    srcs = [
+        "schemes/flypy.json",
+        "@rime_wanxiang//:sources",
+        "@rime_wanxiang//:wanxiang_algebra.yaml",
+        "@rime_wanxiang//:wanxiang_pro.dict.yaml",
+    ],
+    outs = ["wanxiang-flypy.db"],
+    cmd = "RIME=$$(dirname $(location @rime_wanxiang//:wanxiang_pro.dict.yaml)); " +
+          "$(location :generator) --rime-data $$RIME --database $@ " +
+          "--scheme $(location schemes/flypy.json)",
+    tools = [":generator"],
+    visibility = ["//wdoom/bazel/native:__pkg__"],
+)
+
+genrule(
+    name = "database_sogou",
+    srcs = [
+        "schemes/sogou.json",
+        "@rime_wanxiang//:sources",
+        "@rime_wanxiang//:wanxiang_algebra.yaml",
+        "@rime_wanxiang//:wanxiang_pro.dict.yaml",
+    ],
+    outs = ["wanxiang-sogou.db"],
+    cmd = "RIME=$$(dirname $(location @rime_wanxiang//:wanxiang_pro.dict.yaml)); " +
+          "$(location :generator) --rime-data $$RIME --database $@ " +
+          "--scheme $(location schemes/sogou.json)",
+    tools = [":generator"],
+    visibility = ["//wdoom/bazel/native:__pkg__"],
+)
+
+filegroup(
+    name = "databases",
+    srcs = [
+        ":database",
+        ":database_flypy",
+        ":database_liangti",
+        ":database_liangti_fast",
+        ":database_sogou",
+        ":database_ziranma",
+    ],
+)
