@@ -132,10 +132,6 @@ A readable database and Emacs SQLite support are required for candidates."
   :type '(integer :tag "Paths (at least 1)")
   :group 'wime)
 
-;; Preserve settings from when editable context was neural-only.
-(defvaralias 'wime-neural-context-paragraph-only 'wime-context-paragraph-only)
-(defvaralias 'wime-neural-context-start-function 'wime-context-start-function)
-
 (defcustom wime-context-paragraph-only nil
   "When non-nil, stop context at a blank line or form feed.
 By default paragraph separators are preserved within the editable input

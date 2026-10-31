@@ -23,11 +23,8 @@ class WorkerContract(unittest.TestCase):
     def test_malformed_envelopes_are_rejected(self):
         for request in [None, [], {}, self.request(id=True), self.request(syllables=-1),
                         self.request(context=[]), self.request(operation="verify"),
-                        self.request(context_anchor=-1), self.request(context_anchor=9),
-                        self.request(context_anchor=True),
-                        self.request(input=None), self.request(input=[]),
-                        self.request(context_reading=dict(text="便宜", input="bm")),
-                        self.request(context_reading=dict(text="便宜", input="bmyi"))]:
+                        self.request(encoding="wime-composition-v1"),
+                        self.request(input=None), self.request(input=[])]:
             with self.assertRaises(ValueError):
                 worker.validate(request)
     def test_decode_tones_are_syllable_tone_pairs(self):

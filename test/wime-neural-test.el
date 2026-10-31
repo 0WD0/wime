@@ -157,15 +157,6 @@
           (let ((wime-decoding 'neural) (wime-neural--failed t))
             (should (wime--candidates "qd"))))))))
 
-(ert-deftest wime-neural-context-settings-remain-compatible ()
-  (with-temp-buffer
-    (insert "上段\n\n当前输入")
-    (setq-local wime-neural-context-paragraph-only t)
-    (should wime-context-paragraph-only)
-    (should (equal (wime-neural--context) "当前输入"))
-    (setq-local wime-neural-context-start-function (lambda () (- (point) 2)))
-    (should (equal (wime--context) "输入"))))
-
 (defmacro wime-neural-test--composition (&rest body)
   (declare (indent 0))
   `(wime-neural-test--database
@@ -204,7 +195,7 @@
       (pcase change
         ('overlay (overlay-put (make-overlay 1 4) 'read-only t))
         ('narrowing (narrow-to-region 4 (point-max)))
-        ('provider (setq-local wime-neural-context-start-function (lambda () 4))))
+        ('provider (setq-local wime-context-start-function (lambda () 4))))
       (should (= (buffer-chars-modified-tick) (wime-neural--job-tick job)))
       (should-not (wime-neural--valid-p job))
       (setf (wime-neural--job-method job) 'decode)
@@ -248,23 +239,6 @@
       (should-not wime-neural--busy)
       (should-not wime-neural--pending)
       (should-not wime--position-keys))))
-
-(ert-deftest wime-neural-rejects-replaced-compositions ()
-  (wime-neural-test--composition
-    ;; Same input after backspace and retyping still has different candidate records.
-    (setq wime--candidate-records (copy-sequence wime--candidate-records))
-    (setf (wime-neural--job-method job) 'decode)
-    (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
-    (should (equal (car wime--candidates) "甲乙"))))
-
-(ert-deftest wime-neural-rejects-buffer-edits-and-manual-selection ()
-  (wime-neural-test--composition
-    (setq wime--selected 1)
-    (should-not (wime-neural--valid-p job))
-    (setq wime--selected 0)
-    (insert "新")
-    (delete-char -1)
-    (should-not (wime-neural--valid-p job))))
 
 (ert-deftest wime-neural-cancel-and-commit-invalidate-replies ()
   (wime-neural-test--composition

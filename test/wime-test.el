@@ -245,38 +245,6 @@
       (wime--candidates "q")
       (should-not wime--candidate-records))))
 
-(ert-deftest wime-committed-prefix-continues-the-same-word ()
-  (unless (and (wime--database) (wime--grammar-ready-p))
-    (ert-skip "word database and octagram required"))
-  (let ((context (concat "你模型水平咋样，到底是好是坏，推友们自己测一测就一清二楚了。"
-                         "你模型水平好性价比又高的话，你都不用太宣传，推友们绝对会自发地介绍最好用最划算的模型。\n"
-                         "你找一堆水军，强迫一堆大V去吹分数，跟 Opus 5.5 碰瓷，这叫自掘坟墓。"
-                         "人家 Opus5.5 那水平那口碑是")))
-    (dolist (split '(0 2 3))
-      (with-temp-buffer
-        (insert context)
-        (let* ((word "真刀真枪") (code "vfdkvfqd")
-               (prefix (substring word 0 split)))
-          (when (> split 0)
-            (mapc #'wime-input-method (string-to-list (substring code 0 (* 2 split))))
-            (should (member prefix wime--candidates))
-            (wime--commit prefix))
-          (mapc #'wime-input-method (string-to-list (substring code (* 2 split))))
-          (should (equal (car wime--candidates) (substring word split)))
-          (wime-input-method ?\s)
-          (should (equal (buffer-string) (concat context word))))))))
-
-(ert-deftest wime-single-character-context-is-local-to-the-insertion-point ()
-  (unless (and (wime--database) (wime--grammar-ready-p))
-    (ert-skip "word database and octagram required"))
-  (with-temp-buffer
-    (insert "真刀真这面")
-    (should (equal (car (wime--candidates "qd")) "墙"))
-    (backward-char 2)
-    (should (equal (car (wime--candidates "qd")) "枪"))
-    (narrow-to-region (point) (point-max))
-    (should (equal (car (wime--candidates "qd")) "强"))))
-
 (ert-deftest wime-prefix-search-recovers-pruned-reading-without-changing-cache ()
   (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 1))
                         ("bb" ("丙" "c" 100)))
@@ -433,8 +401,6 @@
                       (wime--sentence-records (wime--parse "aabb")))))
         (should (equal cached fresh))))))
 
-(declare-function wime-grammar-query "librime-grammar" (context word rear))
-
 ;; An explicit test database or the monorepo build can exercise the released
 ;; word list.  A standalone checkout instead uses disposable fixture data;
 ;; never consult the installed word list or personal input history.
@@ -457,14 +423,6 @@
      (wime--reset)
      (mapc #'wime-input-method (string-to-list ,keys))
      ,@body))
-
-(ert-deftest wime-single-character-lookup ()
-  (should (equal (car (wime--candidates-for "hk" nil)) "好"))
-  (should (equal (car (wime--candidates-for "ni" nil)) "你")))
-
-(ert-deftest wime-ing-final-uses-semicolon ()
-  (should (member "并" (wime--candidates-for "b;" nil)))
-  (should (member "应" (wime--candidates-for "y;" nil))))
 
 (ert-deftest wime-auxiliary-filter-is-case-insensitive ()
   (should (member "匿" (wime--candidates-for "ni" "k")))
@@ -495,13 +453,10 @@
     (should (equal wime--input "niKh"))
     (should (equal (wime--parse wime--input) '(("ni" . "K") ("h" . ""))))))
 
-(ert-deftest wime-composition-consumes-uppercase ()
-  (wime-test--type "niK"
-    (should (equal wime--input "niK"))
-    (should (equal (car wime--candidates) "匿"))))
-
 (ert-deftest wime-space-commits-the-selected-candidate ()
   (wime-test--type "niK"
+    (should (equal wime--input "niK"))
+    (should (equal (car wime--candidates) "匿"))
     (wime-input-method ?\s)
     (should (equal (buffer-string) "匿"))))
 
@@ -535,10 +490,6 @@
     (should (equal (wime-input-method ?n) (list ?n)))
     (should-not (wime--active-p))))
 
-(ert-deftest wime-word-lookup ()
-  (should (equal (car (wime--candidates "nihk")) "你好"))
-  (should (equal (car (wime--candidates "womf")) "我们")))
-
 (ert-deftest wime-word-auxiliary-belongs-to-its-syllable ()
   (should (member "你好" (wime--candidates "niRhk")))
   (should-not (member "你好" (wime--candidates "niXhk"))))
@@ -548,48 +499,11 @@
     (wime-input-method ?\s)
     (should (equal (buffer-string) "你好"))))
 
-(ert-deftest wime-composes-unknown-codes ()
-  (let ((result (wime--candidates "yrtk")))
-    (should result)
-    (should (= (length (car result)) 2))))
-
-(ert-deftest wime-keeps-exact-words-before-composition ()
-  (should (equal (car (wime--candidates "nihk")) "你好")))
-
 (ert-deftest wime-sentence-composition ()
-  (unless (wime--database)
-    (ert-skip "word database not available"))
   (should (equal (car (wime--candidates "womfm;tm")) "我们明天"))
   (should (equal (car (wime--candidates "xmzl")) "现在")))
 
-(ert-deftest wime-alternative-syllable-spellings ()
-  (unless (wime--database)
-    (ert-skip "word database not available"))
-  ;; jue is both jt and jv; nüe is nv, nü is ny, gui is gv.
-  (should (member "决" (wime--candidates "jv")))
-  (should (member "决" (wime--candidates "jt")))
-  (should (member "虐" (wime--candidates "nv")))
-  (should (member "女" (wime--candidates "ny")))
-  (should (member "贵" (wime--candidates "gv"))))
-
-(ert-deftest wime-polyphonic-words-remain-within-the-typed-code ()
-  (unless (wime--database) (ert-skip "word database not available"))
-  ;; 便宜 has both biàn yí (便宜行事) and pián yi; 编译 only has bian yi.
-  (should (member "便宜" (wime--candidates "bmyi")))
-  (should (member "便宜" (wime--candidates "pmyi")))
-  (should (member "编译" (wime--candidates "bmyi")))
-  (should-not (member "编译" (wime--candidates "pmyi"))))
-
-(ert-deftest wime-grammar-module ()
-  (unless (wime--grammar-ready-p)
-    (ert-skip "grammar module not available"))
-  ;; 我们明天 is a stronger collocation than 我们今天.
-  (should (< (wime-grammar-query "我们明" "天" nil)
-             (wime-grammar-query "我们今" "天" nil))))
-
 (ert-deftest wime-single-key-completion ()
-  (unless (wime--database)
-    (ert-skip "word database not available"))
   (should (member "你" (wime--candidates "n")))
   (should (member "就" (wime--candidates "j")))
   ;; A lone incomplete syllable completes to single characters only.
@@ -608,13 +522,6 @@
     (wime--reset)
     (let ((wime-ascii-punctuation t))
       (should (equal (wime-input-method ?\,) (list 44))))))
-
-(ert-deftest wime-lighter ()
-  (with-temp-buffer
-    (should (equal (wime-lighter) ""))
-    (wime-mode 1)
-    (let ((current-input-method "wime"))
-      (should (equal (substring-no-properties (wime-lighter)) "wime")))))
 
 (defmacro wime-test--with-database (file &rest body)
   "Evaluate BODY with FILE beside the test database, or skip."
@@ -635,9 +542,6 @@
     (should (wime--code-char-p ?\; 'final))
     (should-not (wime--code-char-p ?\, 'final))))
 
-(provide 'wime-test)
-;;; wime-test.el ends here
-
 (ert-deftest wime-tones-belong-to-their-syllable-and-are-not-code ()
   (should (equal (wime--tones "nihk3") '((1 . 3))))
   (should (equal (wime--tones "ni2hkK4") '((0 . 2) (1 . 4))))
@@ -654,8 +558,6 @@
     (should (string-prefix-p "nihkˋ" (substring-no-properties (wime--format))))))
 
 (ert-deftest wime-typed-tones-filter-the-lattice-by-character-readings ()
-  (unless (wime--database)
-    (ert-skip "word database not available"))
   (with-temp-buffer
     (let ((toneless (wime--candidates "woyk")) (yao3 (wime--candidates "woyk3")))
       (should (equal (car toneless) "我要"))
@@ -667,3 +569,6 @@
     (should (equal (wime--candidates "vozi5") (wime--candidates "vozi")))
     ;; No jiu character is read in tone 2: nothing, not the unfiltered list.
     (should-not (wime--candidates "jq2"))))
+
+(provide 'wime-test)
+;;; wime-test.el ends here

@@ -29,8 +29,7 @@ def validate(request):
     if (not isinstance(request.get("context"), str)
             or request.get("operation") not in ("decode", "japanese")):
         raise ValueError("invalid request")
-    if request.get("encoding", ENCODING) != ENCODING or any(
-            key in request for key in ("context_anchor", "context_reading")):
+    if request.get("encoding", ENCODING) != ENCODING:
         raise ValueError("obsolete composition encoding")
     validate_committed(request.get("committed"))
     if request.get("operation") == "decode":
