@@ -629,43 +629,6 @@
     (should (wime--code-char-p ?\; 'final))
     (should-not (wime--code-char-p ?\, 'final))))
 
-(defun wime-test--liangti (&rest syllables)
-  "Return the 量体双拼 code of SYLLABLES, each (INITIAL . FINAL)."
-  (let ((table (with-temp-buffer
-                 (insert-file-contents
-                  (expand-file-name "schemes/liangti.json"
-                                    (file-name-directory (locate-library "wime"))))
-                 (json-parse-buffer :object-type 'hash-table))))
-    (mapconcat (lambda (s)
-                 (concat (gethash (car s) (gethash "initials" table))
-                         (gethash (cdr s) (gethash "finals" table))))
-               syllables "")))
-
-(ert-deftest wime-liangti-scheme-lookup ()
-  (wime-test--with-database "wanxiang-liangti.db"
-    (should (equal (car (wime--candidates (wime-test--liangti '("n" . "i") '("h" . "ao"))))
-                   "你好"))
-    (should (equal (car (wime--candidates (wime-test--liangti '("w" . "o") '("m" . "en"))))
-                   "我们"))
-    (should (member "人" (wime--candidates (wime-test--liangti '("r" . "en")))))))
-
-(ert-deftest wime-liangti-punctuation-depends-on-position ()
-  (wime-test--with-database "wanxiang-liangti.db"
-    ;; A punctuation key that only carries finals is a code key after an
-    ;; initial and full-width punctuation where a syllable would start.
-    (let* ((keys (wime--position-keys))
-           (punct (seq-find (lambda (c) (and (not (string-search (string c) (car keys)))
-                                             (string-search (string c) (cdr keys))))
-                            '(?, ?.)))
-           (nihao (wime-test--liangti '("n" . "i") '("h" . "ao"))))
-      (unless punct (ert-skip "no final-only punctuation key"))
-      (wime-test--type (concat (substring nihao 0 1) (string punct))
-        (should (equal wime--input (concat (substring nihao 0 1) (string punct)))))
-      (wime-test--type (concat nihao (string punct))
-        (should (equal (buffer-string) (concat "你好" (wime--punctuation-for punct)))))
-      (wime-test--type (string punct)
-        (should (equal (buffer-string) (wime--punctuation-for punct)))))))
-
 (provide 'wime-test)
 ;;; wime-test.el ends here
 

@@ -95,12 +95,7 @@ class Schemes(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "rebuild the database"):
                 syllables.database_layout(database)
 
-    def test_table_definitions_remain_supported_and_invalid_keys_fail_early(self):
-        root = Path(__file__).resolve().parents[1]
-        for name in ("liangti", "liangti-fast"):
-            converter, selected = load_scheme(root / "schemes" / f"{name}.json")
-            self.assertEqual(selected, name)
-            self.assertEqual(len(converter.codes("nǐ")[0]), 2)
+    def test_invalid_keys_fail_early(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "invalid.json"
             path.write_text(json.dumps(dict(name="bad", initials={"n": "N"}, finals={"i": "i"})))

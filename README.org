@@ -20,9 +20,13 @@ wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
 
 #+begin_src sh
 D="${XDG_DATA_HOME:-$HOME/.local/share}/wime"
-uvx --from huggingface-hub hf download 0WD0/wime-wanxiang-mspy wanxiang.db \
+uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
     --repo-type dataset --local-dir "$D"
 #+end_src
+
+=wanxiang.db= 是微软双拼；小鹤、搜狗、自然码双拼分别下载
+=wanxiang-flypy.db=、=wanxiang-sogou.db=、=wanxiang-ziranma.db=，
+并把 =wime-database-file= 指向它。
 
 将以下配置加入 init 文件，把源码路径换成实际位置：
 
@@ -147,7 +151,7 @@ worker 出错或超时，词格候选照常可用。
 | 内容 | 位置 | 来源 |
 |------+------+------|
 | Python 环境 | =python/= | =neural/pyproject.toml= 和 =uv.lock= |
-| 词库 | =wanxiang.db= | HF 数据集 =0WD0/wime-wanxiang-mspy=（万象拼音，CC-BY-4.0） |
+| 词库 | =wanxiang.db= | HF 数据集 =0WD0/wime-wanxiang=（万象拼音，CC-BY-4.0） |
 | 音节模型 | =wime-syllable-40m/= | HF =0WD0/wime-syllable-40m=（CC-BY-SA-4.0） |
 | 通用语言模型 | =rescorers/Qwen3.5-2B-Base/= | HF =Qwen/Qwen3.5-2B-Base=（Apache-2.0） |
 
@@ -273,8 +277,6 @@ monorepo 中运行 =bazel build //emacs-packages/wime:databases= 可生成全部
 | 自然码     | wanxiang-ziranma.db       |
 | 小鹤双拼   | wanxiang-flypy.db         |
 | 搜狗双拼   | wanxiang-sogou.db         |
-| 量体双拼   | wanxiang-liangti.db       |
-| 量体双拼·速 | wanxiang-liangti-fast.db |
 
 词库数据和转换前的方案规则来自 [[https://github.com/amzxyz/rime-wanxiang][amzxyz 的万象拼音]]，
 按 CC-BY-4.0 使用；转换后保留辅助码和声调。
