@@ -2005,6 +2005,120 @@
         "prior_evaluation_releases_audited": 17,
         "remaining_source_or_text_matches": 0
       }
+    },
+    "sentence-trajectories-context-dev-v1": {
+      "kind": "evaluation",
+      "status": "development",
+      "annotation": "gpt-sovits-mandarin-v1+agent-review-context-v1",
+      "parents": [
+        "cleaned-multisource-v4"
+      ],
+      "exclude_from_training": true,
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-context-dev-v1"
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-context-dev-v1.dvc",
+        "sha256": "1fbc330be44120fad20ea8c4873e90cfcb8d066c318623ce665ccd7196d4ae8a"
+      },
+      "description": "Long-context development release: 346 whole sentences, each with at least 256 characters of its document before it (context: the editor's 64; long_context: up to 1024), from zhwiki, Fineweb-Edu and Zhihu documents no corpus build had read; strata far/near/none by rare repeated spans. No IME outputs used in construction.",
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "cases": {
+          "path": "cases.json",
+          "format": "json-array",
+          "rows": 346
+        },
+        "documents": {
+          "path": "source-documents.jsonl",
+          "format": "jsonl",
+          "rows": 346
+        },
+        "reading_review": {
+          "path": "reading-review.json"
+        },
+        "selection_ledger": {
+          "path": "selection-ledger.json",
+          "format": "json-array",
+          "rows": 377
+        },
+        "agent_review": {
+          "path": "agent-review.json",
+          "format": "json-array",
+          "rows": 377
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "reading_accuracy": "not independently estimated",
+        "human_verified_gold": false,
+        "content_review": "Every candidate read by agent; explicit accept/exclude reasons before IME inference.",
+        "training_releases_audited": 16,
+        "prior_evaluation_releases_audited": 18,
+        "remaining_source_or_text_matches": 0
+      }
+    },
+    "sentence-trajectories-context-test-v1": {
+      "kind": "evaluation",
+      "status": "heldout",
+      "annotation": "gpt-sovits-mandarin-v1+agent-review-context-v1",
+      "parents": [
+        "cleaned-multisource-v4"
+      ],
+      "exclude_from_training": true,
+      "location": {
+        "root": "repo",
+        "path": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-context-test-v1"
+      },
+      "storage": {
+        "type": "dvc",
+        "metadata": "emacs-packages/wime/datasets/artifacts/sentence-trajectories-context-test-v1.dvc",
+        "sha256": "c84b6058ec721a3549fd45e2975248eccab2d938cf3a3defd8ffd035d68c7656"
+      },
+      "description": "Long-context sealed release: 401 whole sentences, each with at least 256 characters of its document before it (context: the editor's 64; long_context: up to 1024), from zhwiki, Fineweb-Edu and Zhihu documents no corpus build had read; strata far/near/none by rare repeated spans. No IME outputs used in construction.",
+      "files": {
+        "manifest": {
+          "path": "manifest.json"
+        },
+        "cases": {
+          "path": "cases.json",
+          "format": "json-array",
+          "rows": 401
+        },
+        "documents": {
+          "path": "source-documents.jsonl",
+          "format": "jsonl",
+          "rows": 401
+        },
+        "reading_review": {
+          "path": "reading-review.json"
+        },
+        "selection_ledger": {
+          "path": "selection-ledger.json",
+          "format": "json-array",
+          "rows": 433
+        },
+        "agent_review": {
+          "path": "agent-review.json",
+          "format": "json-array",
+          "rows": 433
+        }
+      },
+      "quality": {
+        "structural_audit": "passed",
+        "contextual_tones": true,
+        "reading_accuracy": "not independently estimated",
+        "human_verified_gold": false,
+        "content_review": "Every candidate read by agent; explicit accept/exclude reasons before IME inference.",
+        "training_releases_audited": 16,
+        "prior_evaluation_releases_audited": 18,
+        "remaining_source_or_text_matches": 0
+      }
     }
   }
 }

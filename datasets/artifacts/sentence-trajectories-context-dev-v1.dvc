@@ -1,0 +1,6 @@
+outs:
+- md5: 677cbabdc3569fd4d6d31688cde1fd89.dir
+  size: 4738856
+  nfiles: 39
+  hash: md5
+  path: sentence-trajectories-context-dev-v1
