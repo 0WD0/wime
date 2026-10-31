@@ -24,8 +24,8 @@
   :type 'string :group 'wime)
 
 (defcustom wime-neural-model-file
-  (expand-file-name "wime-syllable-mspy-25m/model.safetensors" wime-data-directory)
-  "Conditional model in safetensors format."
+  (expand-file-name "wime-syllable-40m/model.safetensors" wime-data-directory)
+  "Syllable transducer or conditional model in safetensors format."
   :type '(choice (const nil) file) :group 'wime)
 
 (defcustom wime-neural-interpreter (expand-file-name "python/bin/python" wime-data-directory)
@@ -39,7 +39,7 @@ Its log probability, times `wime-neural-rescorer-weight', joins the
 conditional model score.  Nil disables it."
   :type '(choice (const nil) directory) :group 'wime)
 
-(defcustom wime-neural-rescorer-weight 1.0
+(defcustom wime-neural-rescorer-weight 1.5
   "Weight of `wime-neural-rescorer' relative to the conditional model score."
   :type 'number :group 'wime)
 

@@ -83,12 +83,13 @@ worker 出错或超时，词格候选照常可用。
 =wime-neural-search-method= 选择做法：
 
 - =decode= :: 不经过词格。=neural/decoder.py= 逐字做 beam 搜索
-  （=wime-neural-beam=，wdoom 为 32），每步分数是 25M 条件模型加权上 Qwen 的概率；
-  读音、辅助码、固定字和学到的读音都是约束。支持半音节和夹在句中的英文、标点。
-- =verify= :: 词格给出候选池，25M 模型（可加通用模型重排）从中挑选，
-  并提出更可能的前缀交给词格重搜。缺少大模型时 wdoom 用它。
+  （=wime-neural-beam=，默认 32），每步分数是音节模型（=neural/transducer.py=）
+  加权上 Qwen 的概率；读音、辅助码、声调、固定字和学到的读音都是约束。
+  支持半音节和夹在句中的英文、标点。
+- =verify= :: 词格给出候选池，旧的 25M 条件模型从中挑选，
+  并提出更可能的前缀交给词格重搜。只有条件模型能用；缺少大模型时 wdoom 用它。
 
-条件模型只支持微软双拼；其他方案只用词格。
+神经阶段目前只接微软双拼的词库；其他方案只用词格。
 
 ** 纠错学习
 
@@ -130,13 +131,13 @@ wime-lab 中也可按 =l/H= 打开。=/= 搜索，=RET= 查看详情，=e= 修�
 |------+------+------|
 | Python 环境 | =python/= | =neural/pyproject.toml= 和 =uv.lock= |
 | 词库 | =wanxiang.db= | HF 数据集 =0WD0/wime-wanxiang-mspy=（万象拼音，CC-BY-4.0） |
-| 25M 音节模型 | =wime-syllable-mspy-25m/= | HF =0WD0/wime-syllable-mspy-25m=（CC-BY-SA-4.0） |
+| 音节模型 | =wime-syllable-40m/= | HF =0WD0/wime-syllable-40m=（CC-BY-SA-4.0） |
 | 通用语言模型 | =rescorers/Qwen3.5-2B-Base/= | HF =Qwen/Qwen3.5-2B-Base=（Apache-2.0） |
 
 #+begin_src sh
 D=~/.local/share/wime
 UV_PROJECT_ENVIRONMENT=$D/python uv sync --frozen --project emacs-packages/wime/neural
-$D/python/bin/hf download 0WD0/wime-syllable-mspy-25m --local-dir $D/wime-syllable-mspy-25m
+$D/python/bin/hf download 0WD0/wime-syllable-40m --local-dir $D/wime-syllable-40m
 $D/python/bin/hf download Qwen/Qwen3.5-2B-Base \
     --revision b1485b2fa6dfa1287294f269f5fb618e03d52d7c --local-dir $D/rescorers/Qwen3.5-2B-Base
 $D/python/bin/hf download 0WD0/wime-wanxiang-mspy wanxiang.db --repo-type dataset --local-dir $D
@@ -144,9 +145,8 @@ $D/python/bin/hf download 0WD0/wime-wanxiang-mspy wanxiang.db --repo-type datase
 
 =HF_ENDPOINT= 可指向 Hugging Face 镜像。Qwen 固定在评测用的版本；
 词库是 =gen/wime_gen.py= 由万象拼音 nightly 生成并评测过的版本。
-音节模型的输入是不带声调的音节（按微软双拼两键编码）和左文，不看辅助码；
-辅助码只在搜索里约束读音。
-没有大模型时把 =wime-neural-search-method= 设为 =verify=，只用 25M 模型。
+音节模型逐音节给出汉字：输入是声母、韵母和可选的声调（=C-1= … =C-5=）以及左文，
+不看辅助码；辅助码和声调在搜索里约束读音。
 
 wdoom 自己打包：=./wdoom/bin/wdoom-prepare --native= 打包 worker、Elisp、词库和
 25M 模型（哈希固定在 =neural_model.bzl=，也可用 =WIME_CONDITIONAL_MODEL= 指向同一文件），
