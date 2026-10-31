@@ -429,12 +429,21 @@
 
 (declare-function wime-grammar-query "librime-grammar" (context word rear))
 
-;; The database is a Bazel artifact.  Point at the build output when running
-;; from the repository root so the batch suite works without a snapshot, and
-;; never at an installed database.
+;; An explicit test database or the monorepo build can exercise the released
+;; word list.  A standalone checkout instead uses disposable fixture data;
+;; never consult the installed word list or personal input history.
 (setq wime-database-file
-      (let ((candidate (expand-file-name "bazel-bin/emacs-packages/wime/wanxiang.db")))
-        (and (file-readable-p candidate) candidate)))
+      (let ((requested (getenv "WIME_TEST_DATABASE"))
+            (candidate (expand-file-name "bazel-bin/emacs-packages/wime/wanxiang.db")))
+        (cond (requested
+               (unless (file-readable-p requested)
+                 (error "WIME_TEST_DATABASE is not readable: %s" requested))
+               (expand-file-name requested))
+              ((file-readable-p candidate) candidate)
+              (t
+               (load (expand-file-name "fixture.el"
+                                       (file-name-directory (or load-file-name buffer-file-name))) nil t)
+               (wime-test--fixture)))))
 
 (defmacro wime-test--type (keys &rest body)
   "Type KEYS into a temporary buffer and evaluate BODY."
@@ -602,9 +611,10 @@
       (should (equal (substring-no-properties (wime-lighter)) "wime")))))
 
 (defmacro wime-test--with-database (file &rest body)
-  "Evaluate BODY with the database FILE under bazel-bin, or skip."
+  "Evaluate BODY with FILE beside the test database, or skip."
   (declare (indent 1))
-  `(let ((path (expand-file-name (concat "bazel-bin/emacs-packages/wime/" ,file)))
+  `(let ((path (if (equal ,file "wanxiang.db") wime-database-file
+                 (expand-file-name ,file (file-name-directory wime-database-file))))
          (saved wime-database-file))
      (unless (file-readable-p path)
        (ert-skip (concat ,file " not built")))

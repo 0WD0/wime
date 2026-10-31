@@ -106,8 +106,8 @@
 (defcustom wime-database-file (expand-file-name "wanxiang.db" wime-data-directory)
   "SQLite database holding the full wanxiang word list, or nil.
 
-gen/wime_gen.py builds it; wdoom points this at its Bazel artifact.  When it
-is nil or unreadable, wime falls back to the committed Elisp tables."
+gen/wime_gen.py builds it; wdoom points this at its Bazel artifact.
+A readable database and Emacs SQLite support are required for candidates."
   :type '(choice (const nil) file)
   :group 'wime)
 
