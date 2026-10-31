@@ -1,21 +1,21 @@
-"""Pinned local conditional checkpoint and the CUDA worker's Python data."""
+"""Pinned local syllable transducer and the CUDA worker's Python data."""
 
-# Evaluated conditional checkpoint; never follow a mutable training output.
-_SHA256 = "1c9b9e780ea833639eab03ed331e5876ed0afd0b07514634f0f32306a4f4059e"
+# Evaluated wime-syllable-40m (transducer v3); never follow a mutable training output.
+_SHA256 = "f9b0d8aa2e7ed9d6d6406b5c78309c619240309c1a9b998f0787d63f0388f75a"
 
 def _model_impl(ctx):
     data = ctx.getenv("XDG_DATA_HOME") or (ctx.getenv("HOME") + "/.local/share")
-    source = ctx.getenv("WIME_CONDITIONAL_MODEL") or (data + "/wime/models/" + _SHA256 + ".safetensors")
+    source = ctx.getenv("WIME_SYLLABLE_MODEL") or (data + "/wime/models/" + _SHA256 + ".safetensors")
     path = ctx.path(source)
     if not path.exists:
-        fail("Install the evaluated Wime checkpoint at %s, or set WIME_CONDITIONAL_MODEL to its path. Required SHA256: %s" % (source, _SHA256))
+        fail("Install the evaluated Wime checkpoint at %s, or set WIME_SYLLABLE_MODEL to its path. Required SHA256: %s" % (source, _SHA256))
     ctx.watch(path)
     ctx.download(
         url = "file://" + str(path),
-        output = "conditional-model.safetensors",
+        output = "syllable-model.safetensors",
         sha256 = _SHA256,
     )
-    ctx.file("BUILD.bazel", 'exports_files(["conditional-model.safetensors"], visibility = ["//visibility:public"])\n')
+    ctx.file("BUILD.bazel", 'exports_files(["syllable-model.safetensors"], visibility = ["//visibility:public"])\n')
 
 _model = repository_rule(implementation = _model_impl, local = True, configure = True)
 

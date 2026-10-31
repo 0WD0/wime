@@ -86,8 +86,9 @@ worker 出错或超时，词格候选照常可用。
   （=wime-neural-beam=，默认 32），每步分数是音节模型（=neural/transducer.py=）
   加权上 Qwen 的概率；读音、辅助码、声调、固定字和学到的读音都是约束。
   支持半音节和夹在句中的英文、标点。
-- =verify= :: 词格给出候选池，旧的 25M 条件模型从中挑选，
-  并提出更可能的前缀交给词格重搜。只有条件模型能用；缺少大模型时 wdoom 用它。
+- =verify= :: 词格给出候选池，音节模型（有大模型时加权上 Qwen）从中挑选，
+  并提出更可能的前缀交给词格重搜。候选都是词典里的词。
+  没有大模型或第一个音节只打了一个键时，=decode= 也改用它。
 
 神经阶段目前只接微软双拼的词库；其他方案只用词格。
 
@@ -149,7 +150,7 @@ $D/python/bin/hf download 0WD0/wime-wanxiang-mspy wanxiang.db --repo-type datase
 不看辅助码；辅助码和声调在搜索里约束读音。
 
 wdoom 自己打包：=./wdoom/bin/wdoom-prepare --native= 打包 worker、Elisp、词库和
-25M 模型（哈希固定在 =neural_model.bzl=，也可用 =WIME_CONDITIONAL_MODEL= 指向同一文件），
+音节模型（哈希固定在 =neural_model.bzl=，也可用 =WIME_SYLLABLE_MODEL= 指向同一文件），
 重启后生效；推理设置来自 =M-x wime-lab= 保存的启动配置。
 缺少大模型时 wdoom 用 =verify=；worker 出错时词格候选仍可用。
 
@@ -279,14 +280,15 @@ cd emacs-packages/wime/test && python -m unittest
 
 模型训练与评测在 =neural/=：
 
-- =prepare-*.py= :: 准备语料：对话（LCCC）、技术文档、成语专名，
-  以及本地和 =domain-sources.json= 中固定版本的外部技术文档。
-  都按原始对话或文档划分训练、验证和测试集。
-- =train-conditional.py= :: 训练 25M 条件模型。
-- =evaluate-conditional.py= :: 用真实词库和 octagram 评测，
-  =--search-method decode= 评测 =decode=。
+- =prepare-corpus.py= :: 按 =corpus-v2-sources.json= 固定的来源清洗、注音，
+  =merge-corpus.py= 合并。=prepare-technical.py= 准备技术文档。
+- =prepare-sentence-training.py= :: 整句、前缀和上屏边界的训练集。
+- =train-transducer.py= :: 训练音节模型。字符网络从 =train-conditional.py=
+  训练的 25M 条件模型初始化，后者已不再用于推理。
+- =prepare-trajectories.py= :: 冻结评测集；=evaluate-trajectories.py= 评测
+  整句、前缀和上屏后的续写，=evaluate-regression.py= 跑回归集。
 
-=test/record-conditional.el= 经过真实的异步路径评测，
+=test/record-conditional.el= 经过真实的异步路径评测 =verify=，
 设置 =WIME_TYPING_INTERVAL= 时逐键输入。
 
 =test/*-measurements.json= 等文件记录了各项选型背后的测量。
@@ -295,5 +297,4 @@ cd emacs-packages/wime/test && python -m unittest
 * 尚未实现
 
 - 上屏后的后续预测
-- 声调输入
 - 按使用频率调频
