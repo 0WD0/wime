@@ -1,0 +1,6 @@
+outs:
+- md5: 34273388459197da76fd7621a0741deb.dir
+  size: 2756612
+  nfiles: 23
+  hash: md5
+  path: left-context-v1
