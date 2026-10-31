@@ -280,8 +280,8 @@ Shift used, first the shifted kana in katakana and the rest in hiragana."
              (not (string-empty-p (car (wime-japanese--convert wime-japanese--keys)))))
     (let ((job (wime-neural--make-job
                 :id (cl-incf wime-neural--serial) :buffer (current-buffer)
-                :input wime-japanese--keys :position (point) :tick (buffer-chars-modified-tick)
-                :context (wime--context) :records wime-japanese--candidates :method 'japanese
+                :input wime-japanese--keys :position (point-marker)
+                :context (wime-neural--context) :records wime-japanese--candidates :method 'japanese
                 :syllables (length (car (wime-japanese--convert wime-japanese--keys))))))
       (setq wime-neural--timer (run-with-timer wime-neural-delay nil #'wime-neural--enqueue job)))))
 

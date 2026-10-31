@@ -116,7 +116,7 @@
       (let ((wime-decoding 'hybrid))
         (setq wime--input "dlxr" wime--candidate-records (list (wime--make-candidate :text "待选" :end 2)))
         (let ((job (wime-neural--make-job :buffer (current-buffer) :input wime--input
-                                         :position (point) :tick (buffer-chars-modified-tick)
+                                         :position (point)
                                          :context "" :records wime--candidate-records)))
           (should (wime-neural--valid-p job))
           (wime-memory-delete-records 'memory (wime-memory-rows 'memory))

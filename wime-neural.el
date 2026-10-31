@@ -75,7 +75,7 @@ When disabled, single-character input retains dictionary ranking."
   :type 'boolean :group 'wime)
 
 (cl-defstruct (wime-neural--job (:constructor wime-neural--make-job))
-  id buffer input position tick context records syllables pins method
+  id buffer input position context records syllables pins method
   history committed literals
   edit-generation (memory-tick wime--memory-tick))
 
@@ -104,13 +104,23 @@ When disabled, single-character input retains dictionary ranking."
   "Characters of left context sent to the worker.
 The language model reads all of them; the syllable model its last 64.")
 
+(defvar-local wime-neural--prefix nil
+  "This composition's `wime-context-prefix-function' text, taken once.
+A chat timeline that changes while the user types must not void the decode.")
+
+(defun wime-neural--prefix ()
+  (or wime-neural--prefix (setq wime-neural--prefix (wime--context-prefix))))
+
+(defun wime-neural--forget-prefix ()
+  (setq wime-neural--prefix nil))
+
 (defun wime-neural--context ()
-  (concat (wime--context-prefix) (wime--context wime-neural-context-limit)))
+  (concat (wime-neural--prefix) (wime--context wime-neural-context-limit)))
 
 (defun wime-neural--state ()
   "The composition state, its history led by `wime-context-prefix-function' text."
   (let ((state (wime--composition-state wime-neural-context-limit)))
-    (cons (cons 'context (concat (wime--context-prefix) (alist-get 'context state)))
+    (cons (cons 'context (concat (wime-neural--prefix) (alist-get 'context state)))
           (assq-delete-all 'context state))))
 
 (defun wime-neural--valid-p (job)
@@ -133,9 +143,9 @@ The language model reads all of them; the syllable model its last 64.")
                        (= wime-edit--generation
                           (wime-neural--job-edit-generation job)))
                 (= (point) (wime-neural--job-position job)))
-              (= (buffer-chars-modified-tick) (wime-neural--job-tick job))
-              ;; Overlay properties and narrowing can change the context
-              ;; without advancing buffer-chars-modified-tick.
+              ;; The decode read only this context: edits after point or past
+              ;; its window, such as a chat timeline's new rows, keep it valid.
+              ;; Overlay properties and narrowing can change it without edits.
               (equal (wime-neural--context) (wime-neural--job-context job))
               (or (null (wime-neural--job-history job))
                   (let ((state (wime-neural--state)))
@@ -182,9 +192,9 @@ complete."
              (editing (wime--editing-p))
              (job (wime-neural--make-job
                    :id (cl-incf wime-neural--serial) :buffer (current-buffer)
-                   :input wime--input :position (point)
+                   :input wime--input :position (point-marker)
                    :edit-generation (and editing wime-edit--generation)
-                   :tick (buffer-chars-modified-tick) :context (wime-neural--context)
+                   :context (wime-neural--context)
                    :history (alist-get 'context state) :committed (alist-get 'committed state)
                    :literals (and editing (wime-edit--literals))
                    :records wime--candidate-records :syllables (length units)
@@ -399,6 +409,7 @@ words and completions stay after them, so a prefix can still be committed."
 (add-hook 'wime-lattice-inhibit-functions #'wime-neural--exclusive-p)
 (add-hook 'wime-settle-hook #'wime-neural--await)
 (add-hook 'wime-reset-hook #'wime-neural--reset)
+(add-hook 'wime-reset-hook #'wime-neural--forget-prefix)
 (add-hook 'kill-buffer-hook #'wime-neural--reset)
 
 (provide 'wime-neural)

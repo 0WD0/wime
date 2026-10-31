@@ -30,7 +30,7 @@ worker process, and can check each asynchronous invalidation separately."
                  ((symbol-function 'wime--display) (lambda () (setq published t))))
          (let ((job (wime-neural--make-job
                      :id 1 :buffer (current-buffer) :input wime--input
-                     :position (point) :tick (buffer-chars-modified-tick)
+                     :position (point)
                      :context context :records wime--candidate-records
                      :syllables 2 :method 'decode :edit-generation wime-edit--generation)))
            ,@body)))))
@@ -90,17 +90,17 @@ worker process, and can check each asynchronous invalidation separately."
         ('disabled (setq wime-edit-mode nil))
         ('protected (setq writable nil)))
       ;; The keys, candidates and buffer can all be unchanged here.
-      (should (= (buffer-chars-modified-tick) (wime-neural--job-tick job)))
       (should-not (wime-neural--valid-p job))
       (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
       (should-not published)
       (should (equal (car wime--candidates) "甲乙")))))
 
 (ert-deftest wime-edit-neural-retains-existing-staleness-checks ()
-  (dolist (change '(text input records context selected))
+  ;; Text edits reach validity through the real context; see
+  ;; `wime-neural-busy-chat-keeps-the-decode-until-the-composer-changes'.
+  (dolist (change '(input records context selected))
     (wime-edit-neural-test--composition
       (pcase change
-        ('text (insert "新"))
         ('input (setq wime--input "aabbA"))
         ('records (setq wime--candidate-records
                         (copy-sequence wime--candidate-records)))
@@ -148,7 +148,7 @@ worker process, and can check each asynchronous invalidation separately."
        (undo-boundary)
        (let ((job (wime-neural--make-job
                    :id 1 :buffer (current-buffer) :input wime--input
-                   :position (point) :tick (buffer-chars-modified-tick)
+                   :position (point)
                    :context (wime-neural--context) :records wime--candidate-records
                    :syllables 2 :method 'decode :edit-generation wime-edit--generation)))
          ,@body))))
@@ -242,10 +242,9 @@ worker process, and can check each asynchronous invalidation separately."
 (ert-deftest wime-edit-neural-span-choice-invalidates-reused-candidates ()
   (wime-edit-neural-test--buffer
     ;; A cache may return the same records and a correction may keep the
-    ;; displayed character.  Neither buffer tick nor record identity changes.
+    ;; displayed character.  Neither the text nor record identity changes.
     (cl-letf (((symbol-function 'wime--refresh) #'ignore))
       (wime--choose-span 0 1 "甲"))
-    (should (= (buffer-chars-modified-tick) (wime-neural--job-tick job)))
     (should (eq wime--candidate-records (wime-neural--job-records job)))
     (should (> wime-edit--generation (wime-neural--job-edit-generation job)))
     (should-not (wime-neural--valid-p job))))

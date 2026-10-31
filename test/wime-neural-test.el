@@ -72,6 +72,7 @@
     (should (equal (wime-neural--context) "对方：明天去哪\n我：我想"))
     (should (equal (alist-get 'context (wime-neural--state)) "对方：明天去哪\n我：我想"))
     (setq-local wime-context-prefix-function (lambda () (error "client failure")))
+    (wime-neural--forget-prefix)
     (should (equal (wime-neural--context) "我想"))))
 
 (ert-deftest wime-neural-request-snapshots-the-composition-state ()
@@ -189,7 +190,7 @@
              wime--candidates '("甲乙" "丙丁" "甲"))
        (let ((job (wime-neural--make-job
                    :id 1 :buffer (current-buffer) :input wime--input
-                   :position (point) :tick (buffer-chars-modified-tick)
+                   :position (point)
                    :context "" :records wime--candidate-records :syllables 2 :method 'decode)))
          (unwind-protect (progn ,@body) (wime--reset)))))))
 
@@ -207,18 +208,38 @@
     (wime-neural-test--composition
       (insert "之前 当前")
       (setf (wime-neural--job-position job) (point)
-            (wime-neural--job-tick job) (buffer-chars-modified-tick)
             (wime-neural--job-context job) (wime-neural--context))
       (should (wime-neural--valid-p job))
       (pcase change
         ('overlay (overlay-put (make-overlay 1 4) 'read-only t))
         ('narrowing (narrow-to-region 4 (point-max)))
         ('provider (setq-local wime-context-start-function (lambda () 4))))
-      (should (= (buffer-chars-modified-tick) (wime-neural--job-tick job)))
       (should-not (wime-neural--valid-p job))
       (setf (wime-neural--job-method job) 'decode)
       (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
       (should (equal (car wime--candidates) "甲乙")))))
+
+(ert-deftest wime-neural-busy-chat-keeps-the-decode-until-the-composer-changes ()
+  (wime-neural-test--composition
+    (insert (propertize "旧消息\n> " 'read-only t 'rear-nonsticky t) "我想")
+    (let ((wime-neural-model-file "model.safetensors") (wime-neural--failed nil)
+          (messages "对方：明天去哪\n我：") scheduled)
+      (setq-local wime-context-prefix-function (lambda () messages))
+      (cl-letf (((symbol-function 'run-with-timer)
+                 (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
+        (wime-neural--schedule))
+      (should (equal (wime-neural--job-context scheduled) "对方：明天去哪\n我：我想"))
+      ;; A new row lands above the composer and the timeline's context moves on.
+      (let ((inhibit-read-only t))
+        (save-excursion (goto-char (point-min)) (insert (propertize "新消息\n" 'read-only t))))
+      (setq messages "对方：新消息\n我：")
+      (should (wime-neural--valid-p scheduled))
+      ;; Editing the draft before point still voids it.
+      (save-excursion (goto-char (- (point) 1)) (insert "去"))
+      (should-not (wime-neural--valid-p scheduled))
+      ;; The next composition takes the newer messages.
+      (wime--reset)
+      (should (equal (wime-neural--context) "对方：新消息\n我：我去想")))))
 
 (ert-deftest wime-neural-scheduled-request-contains-only-bounded-editable-context ()
   (wime-neural-test--composition
