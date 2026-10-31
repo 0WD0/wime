@@ -1,0 +1,6 @@
+outs:
+- md5: eb453ae78d4375d64cd080dfc18d5747.dir
+  size: 482514
+  nfiles: 12
+  hash: md5
+  path: hybrid-decode-v1
