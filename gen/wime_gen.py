@@ -194,6 +194,16 @@ class Converter:
                 for combination in itertools.product(*choices)]
 
 
+TONE_MARKS = {"\u0304": "1", "\u0301": "2", "\u030c": "3", "\u0300": "4"}
+
+
+def syllable_tones(code_field):
+    """Tone digit of each syllable of CODE_FIELD; an unmarked one is neutral (5)."""
+    return [next((TONE_MARKS[c] for c in unicodedata.normalize("NFD", syllable.partition(";")[0])
+                  if c in TONE_MARKS), "5")
+            for syllable in code_field.split()]
+
+
 def iter_entries(path):
     """Yield ``(word, code_field, weight)`` from a Rime dictionary file."""
     with path.open(encoding="utf-8") as stream:
@@ -237,10 +247,11 @@ def build_database(dict_paths, converter, output, name):
     connection = sqlite3.connect(str(output))
     connection.execute("PRAGMA journal_mode=OFF")
     connection.execute("PRAGMA synchronous=OFF")
+    # TONES joins, per syllable, every tone digit the readings of a row use.
     connection.execute("CREATE TABLE entry (code TEXT NOT NULL, "
                        "word TEXT NOT NULL, aux TEXT NOT NULL, "
-                       "weight INTEGER NOT NULL)")
-    best = {}
+                       "weight INTEGER NOT NULL, tones TEXT NOT NULL)")
+    best, tones = {}, {}
     total = 0
     for path in dict_paths:
         for word, code_field, weight in iter_entries(path):
@@ -249,14 +260,18 @@ def build_database(dict_paths, converter, output, name):
             parsed = converter.word_codes(code_field)
             if not parsed:
                 continue
+            marks = syllable_tones(code_field)
             for code, aux in parsed:
                 key = (code, word, aux)
                 if weight > best.get(key, -1):
                     best[key] = weight
+                for seen, tone in zip(tones.setdefault(key, [set() for _ in marks]), marks):
+                    seen.add(tone)
                 total += 1
     connection.executemany(
-        "INSERT INTO entry VALUES (?, ?, ?, ?)",
-        [(code, word, aux, weight) for (code, word, aux), weight in best.items()])
+        "INSERT INTO entry VALUES (?, ?, ?, ?, ?)",
+        [(code, word, aux, weight, "/".join("".join(sorted(seen)) for seen in tones[key]))
+         for key, weight in best.items() for code, word, aux in [key]])
     connection.execute("CREATE INDEX entry_code ON entry(code, weight DESC)")
     initial_keys, final_keys = converter.position_keys()
     connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")

@@ -17,6 +17,16 @@ def readings(database):
     return dict(result)
 
 
+def tones(database):
+    """Single-character tones: character -> {two-key code: tone digits}."""
+    result = collections.defaultdict(lambda: collections.defaultdict(str))
+    with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as db:
+        for code, char, digits in db.execute("SELECT code, word, tones FROM entry "
+                                             "WHERE length(word) = 1 AND length(code) = 2"):
+            result[char][code] += digits
+    return {char: dict(codes) for char, codes in result.items()}
+
+
 def aux_match(groups, typed):
     """Typed auxiliary keys select a character when they begin one of its groups."""
     return any(group.startswith(typed) for group in groups)

@@ -30,7 +30,7 @@ import sqlite3
 
 import torch
 
-from decoding_model import DecodingModel, aux_match, readings
+from decoding_model import DecodingModel, aux_match, readings, tones
 
 BEAM, PER_HYPOTHESIS = 16, 24
 MEMO = 4096  # memoized LM rows, ~0.5 MB each
@@ -49,8 +49,8 @@ def chinese(text):
 class Units:
     """Keys -> allowed units [(text, ids)]; odd keys index half syllables."""
 
-    def __init__(self, tokenizer, readings, combinations=16):
-        self.readings = readings
+    def __init__(self, tokenizer, readings, tones=None, combinations=16):
+        self.readings, self.tones = readings, tones or {}
         self.index = collections.defaultdict(list)
         single, self.longest = set(), 1
         for i in range(len(tokenizer)):
@@ -72,6 +72,10 @@ class Units:
         for code, units in list(self.index.items()):
             self.partial[code[:-1]].extend(units)
 
+    @classmethod
+    def from_database(cls, tokenizer, database):
+        return cls(tokenizer, readings(database), tones(database))
+
     def get(self, keys):
         return (self.partial if len(keys) % 2 else self.index).get(keys, ())
 
@@ -79,6 +83,14 @@ class Units:
         """Whether TYPED auxiliary keys allow CHAR read as KEYS (one key: any reading starting with it)."""
         return any(aux_match(groups, typed) for code, groups in self.readings.get(char, {}).items()
                    if code == keys or len(keys) == 1 and code.startswith(keys))
+
+    def tone_allows(self, char, keys, tone):
+        """Whether CHAR read as KEYS has typed TONE; the neutral tone keeps every reading.
+
+        Character readings, not word ones, decide: a person types the
+        dictionary tone of 一 or 不, while words record their sandhi."""
+        return tone == 5 or any(str(tone) in digits for code, digits in self.tones.get(char, {}).items()
+                                if code == keys or len(keys) == 1 and code.startswith(keys))
 
 
 Hypothesis = collections.namedtuple("Hypothesis", "text ids q m")
@@ -100,8 +112,9 @@ class Decoder(DecodingModel):
         position to characters whose auxiliary codes start with the keys;
         LEARNED (start, text) readings earn WEIGHT per covered character.
         LITERALS (position, text) follow the first POSITION characters; the
-        returned texts omit them. TONES (position, tone) reach the model's
-        prompts but constrain no reading. An odd CODE ends in half a syllable.
+        returned texts omit them. TONES (position, tone) restrict a position
+        to characters with that tone and reach the model's prompts. An odd
+        CODE ends in half a syllable.
         """
         key = (context, tuple(learned), weight)
         constraints = {p: ("pin", c) for p, c in pins}
@@ -153,8 +166,9 @@ class Session:
         for i, char in enumerate(text):
             rule = self.constraints.get(start + i, ())
             for kind, value in zip(rule[::2], rule[1::2]):
-                if (char != value if kind == "pin" else kind == "aux" and not self.decoder.units.aux_allows(
-                        char, code[2 * (start + i):2 * (start + i) + 2], value)):
+                keys = code[2 * (start + i):2 * (start + i) + 2]
+                if (char != value if kind == "pin" else not self.decoder.units.aux_allows(char, keys, value)
+                        if kind == "aux" else not self.decoder.units.tone_allows(char, keys, value)):
                     return False
         return True
 

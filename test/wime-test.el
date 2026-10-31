@@ -673,3 +673,16 @@
       (let ((last-command-event ?\C-4)) (wime-tone)))
     (should (equal wime--input "nihk4"))
     (should (string-prefix-p "nihkˋ" (substring-no-properties (wime--format))))))
+
+(ert-deftest wime-typed-tones-filter-the-lattice-by-character-readings ()
+  (unless (wime--database)
+    (ert-skip "word database not available"))
+  (with-temp-buffer
+    (let ((toneless (wime--candidates "woyk")) (yao3 (wime--candidates "woyk3")))
+      (should (equal (car toneless) "我要"))
+      (should-not (member "我要" yao3))
+      (should (cl-every (lambda (text) (seq-contains-p (wime--char-tones (aref text 1) "yk") ?3))
+                        (seq-filter (lambda (text) (= (length text) 2)) yao3))))
+    ;; Words record sandhi (一个 yí gè); the typed dictionary tone still reads them.
+    (should (member "一个" (wime--candidates "yi1ge4")))
+    (should (equal (wime--candidates "vozi5") (wime--candidates "vozi")))))

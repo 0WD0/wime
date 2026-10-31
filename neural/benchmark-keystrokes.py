@@ -16,7 +16,6 @@ import torch
 from composition import decode as decode_composition
 from dataset_registry import Registry
 from decoder import Decoder, Units
-from decoding_model import readings
 from inference import ConditionalEvaluator
 from replay import fingerprint
 from rescorer import Rescorer
@@ -45,7 +44,7 @@ def main():
     rescorer = Rescorer(str(args.rescorer), args.rescorer_weight, device=args.device)
     torch.set_num_threads(args.threads)
     sync = torch.cuda.synchronize if args.device.startswith("cuda") else lambda: None
-    units = Units(rescorer.tokenizer, readings(args.database))
+    units = Units.from_database(rescorer.tokenizer, args.database)
     report = dict(dataset=snapshot, cases=len(cases), model_sha256=fingerprint(args.model),
                   rescorer_weight=args.rescorer_weight, device=args.device, threads=args.threads,
                   semantics=__doc__, beams={})

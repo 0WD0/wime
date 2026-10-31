@@ -64,7 +64,7 @@ def execute(args, parser, checkpoint):
             import transducer
             from decoder import Decoder, Units
             evaluator = transducer.Evaluator(args.model, device=args.device)
-            decoder = transducer.decoder_class(Decoder)(evaluator, rescorer, Units(rescorer.tokenizer, readings(args.database)))
+            decoder = transducer.decoder_class(Decoder)(evaluator, rescorer, Units.from_database(rescorer.tokenizer, args.database))
         else:
             from inference import ConditionalEvaluator
             from fusion import make_decoder

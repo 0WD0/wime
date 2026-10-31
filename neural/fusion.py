@@ -27,7 +27,6 @@ def make_decoder(args, evaluator, rescorer):
     if rescorer is None or not args.database:
         return None
     from decoder import Decoder, Units
-    from decoding_model import readings
     import transducer
     kind = transducer.decoder_class(Decoder) if isinstance(evaluator, transducer.Evaluator) else Decoder
-    return kind(evaluator, rescorer, Units(rescorer.tokenizer, readings(args.database)))
+    return kind(evaluator, rescorer, Units.from_database(rescorer.tokenizer, args.database))

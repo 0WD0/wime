@@ -228,6 +228,33 @@ Keep at most 64 characters, matching the neural model's training window."
   "Characters fixed by span selection, as (POSITION CHAR CODE) lists.
 Every search keeps them; a pin is dropped once the keys at POSITION change.")
 
+(defvar-local wime--typed-tones nil
+  "Typed tones of the input being searched, as `wime--tones' returns them.")
+
+(defvar wime--tone-cache nil
+  "(DATABASE . TABLE) of single-character tone digits by (CODE . CHAR).")
+
+(defun wime--char-tones (char code)
+  "Tone digits CHAR has when read as CODE, from the database."
+  (let ((db (wime--database)))
+    (unless (eq (car wime--tone-cache) db)
+      (setq wime--tone-cache (cons db (make-hash-table :test #'equal))))
+    (with-memoization (gethash (cons code char) (cdr wime--tone-cache))
+      (mapconcat #'car (sqlite-select db "SELECT tones FROM entry WHERE code = ? AND word = ?"
+                                      (list code (string char)))
+                 ""))))
+
+(defun wime--tones-allow-p (word start units)
+  "Whether WORD, read from syllable START of UNITS, has every typed tone it covers.
+Character readings decide, so a typed 一 yi1 still reads 一个; the neutral
+tone filters nothing."
+  (cl-every (lambda (tone)
+              (let ((offset (- (car tone) start)))
+                (or (< offset 0) (>= offset (length word)) (= (cdr tone) 5)
+                    (seq-contains-p (wime--char-tones (aref word offset) (car (nth (car tone) units)))
+                                    (+ ?0 (cdr tone))))))
+            wime--typed-tones))
+
 (defun wime--pins-allow-p (word start)
   "Whether WORD, read from syllable START, keeps every pin it covers."
   (cl-every (lambda (pin)
@@ -419,7 +446,7 @@ nil accepts either.  Elsewhere it stays punctuation."
 
 (defun wime-tone ()
   "Type the tone of the syllable just typed: C-1 to C-4, C-5 for the neutral tone.
-The syllable model reads typed tones; they filter no candidates."
+Tones 1 to 4 keep only characters with that reading; all reach the model."
   (interactive)
   (let ((tone (- (event-basic-type last-command-event) ?0)))
     (if (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
@@ -725,7 +752,8 @@ signature."
          (signature (list context wime-database-file wime--db wime-database-limit
                           wime-word-penalty wime-max-word-syllables wime-search-width
                           wime-grammar-module wime-grammar-shared-dir wime-grammar-language
-                          wime--grammar-ready wime--grammar-failed wime--pins wime--memory-tick
+                          wime--grammar-ready wime--grammar-failed wime--pins wime--typed-tones
+                          wime--memory-tick
                           (symbol-function 'wime--entries-for)
                           (symbol-function 'wime--grammar-score)))
          (cache (and (not required-prefix)
@@ -753,6 +781,7 @@ signature."
                                      (prefix (wime-candidate-text path))
                                      (text (concat prefix word)))
                                 (when (and (wime--pins-allow-p word start)
+                                           (wime--tones-allow-p word start units)
                                            (or (not required-prefix)
                                                (string-prefix-p required-prefix text)
                                                (and (< end n)
@@ -806,6 +835,7 @@ a complete syllable precedes it, longer words are allowed.
 Complete input, including a single syllable, uses contextual word scores.
 An incomplete trailing syllable falls back to a prefix search, the way
 Rime completes partial pinyin."
+  (setq wime--typed-tones (wime--tones input))
   (let* ((units (wime--parse input))
          (last (car (last units)))
          (complete (cl-every (lambda (unit) (= (length (car unit)) 2)) units)))
@@ -982,6 +1012,7 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
         wime--model-ranked nil
         wime--span-choices nil
         wime--pins nil
+        wime--typed-tones nil
         wime--list-view nil
         wime--default-reading nil
         wime--selected 0)

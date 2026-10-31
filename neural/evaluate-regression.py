@@ -56,11 +56,10 @@ def execute(args, parser, checkpoint):
 
     import torch
     from decoder import Decoder, Units
-    from decoding_model import readings
     from inference import ConditionalEvaluator
     from rescorer import Rescorer
     rescorer = Rescorer(str(args.rescorer),1.5)
-    units = Units(rescorer.tokenizer,readings(args.database))
+    units = Units.from_database(rescorer.tokenizer,args.database)
     import transducer
     from safetensors import safe_open
 
