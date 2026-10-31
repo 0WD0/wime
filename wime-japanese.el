@@ -135,20 +135,20 @@ This runs only at the input-method boundary; stored keys are logical romaji."
       (let* ((shifted '((?: . ?\;) (?< . ?,) (?> . ?.) (?? . ?/) (?_ . ?-)))
              (base (or (alist-get key shifted) (downcase key)))
              (mapped (alist-get base (wime-japanese--layout-keys))))
-        (if (not mapped) key
-          (if (= base key) mapped
-            (or (car (rassq mapped shifted)) (upcase mapped)))))
+        (cond ((not mapped) key)
+              ((= base key) mapped)
+              (t (or (car (rassq mapped shifted)) (upcase mapped)))))
     key))
 
 (defun wime-japanese--base (key)
   "KEY as typed without Shift."
-  (cond ((and (>= key ?A) (<= key ?Z)) (downcase key))
+  (cond ((<= ?A key ?Z) (downcase key))
         ((alist-get key wime-japanese-shifted-keys))
         (t key)))
 
 (defun wime-japanese--shifted-p (key)
   "Whether KEY was typed with Shift held."
-  (or (and (>= key ?A) (<= key ?Z)) (and (assq key wime-japanese-shifted-keys) t)))
+  (or (<= ?A key ?Z) (and (assq key wime-japanese-shifted-keys) t)))
 
 (defun wime-japanese--unshifted (keys)
   (concat (mapcar #'wime-japanese--base keys)))
@@ -224,10 +224,7 @@ keys as typed."
     (concat kana
             (propertize pending 'face 'wime-aux-face)
             (when wime-show-candidates
-              (concat " " (cl-loop for candidate in wime-japanese--candidates for i from 1
-                                   concat (propertize (format "%d.%s " i candidate)
-                                                      'face (if (= (1- i) wime-japanese--selected)
-                                                                'wime-selected-face 'wime-candidate-face))))))))
+              (concat " " (wime--format-list wime-japanese--candidates wime-japanese--selected))))))
 
 (defun wime-japanese--display ()
   (when (overlayp wime-japanese--overlay) (delete-overlay wime-japanese--overlay))

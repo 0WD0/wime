@@ -67,9 +67,7 @@
   "Return non-nil while any buffer has uncommitted input."
   (cl-some (lambda (buffer)
              (with-current-buffer buffer
-               (or (and (stringp wime--input) (> (length wime--input) 0))
-                   (and (bound-and-true-p wime-japanese--keys)
-                        (> (length wime-japanese--keys) 0)))))
+               (or (wime--active-p) (length> (bound-and-true-p wime-japanese--keys) 0))))
            (buffer-list)))
 
 (defun wime-checkpoint-runtime ()

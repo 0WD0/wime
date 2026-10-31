@@ -65,15 +65,21 @@ Literal text inside the run does not count."
            (equal (wime-edit--unit-database unit) wime-database-file) unit))))
 
 (defun wime-edit--editable-unit-at (position)
-  (and (wime-edit--unit-at position)
-       (not (get-char-property position 'read-only))
-       (not (invisible-p position))
-       (wime-edit--unit-at position)))
+  "The reading at accessible POSITION when the text there is editable and visible."
+  (when-let* ((unit (wime-edit--unit-at position)))
+    (and (not (get-char-property position 'read-only)) (not (invisible-p position)) unit)))
+
+(defun wime-edit--unit-code (unit)
+  "UNIT's double-pinyin code, without its auxiliary code and tone."
+  (caar (wime--parse (wime-edit--unit-keys unit))))
+
+(defun wime-edit--pin-text (unit)
+  "The character UNIT is pinned to, as a string, or nil."
+  (when-let* ((pin (wime-edit--unit-pin unit))) (string pin)))
 
 (defun wime-edit--active-p ()
   "Whether an editable Chinese run is currently selected."
-  (and wime-edit-mode (markerp wime-edit--start) (marker-buffer wime-edit--start)
-       (markerp wime-edit--end) (marker-buffer wime-edit--end)
+  (and wime-edit-mode (markerp wime-edit--start)
        (eq (marker-buffer wime-edit--start) (current-buffer))
        (eq (marker-buffer wime-edit--end) (current-buffer))
        (cl-every (lambda (u) (equal (wime-edit--unit-database u) wime-database-file))
@@ -83,11 +89,8 @@ Literal text inside the run does not count."
   "Whether the active run is accessible, visible and editable."
   (and (wime-edit--active-p) (not buffer-read-only)
        (<= (point-min) wime-edit--start wime-edit--end (point-max))
-       (let ((p (marker-position wime-edit--start)) (ok t))
-         (while (and ok (< p wime-edit--end))
-           (setq ok (not (or (get-char-property p 'read-only) (invisible-p p))))
-           (cl-incf p))
-         ok)))
+       (cl-loop for p from (marker-position wime-edit--start) below wime-edit--end
+                never (or (get-char-property p 'read-only) (invisible-p p)))))
 
 (defun wime-edit--clear-decoration ()
   (when (overlayp wime-edit--decoration) (delete-overlay wime-edit--decoration))
@@ -180,36 +183,35 @@ of truth.  Widen only for display; confirmation still respects narrowing."
 
 (defun wime-edit--bounds ()
   "Find the bounded Chinese run touching point, within the input area."
-  (let* ((p (cond ((wime-edit--editable-unit-at (point)) (point))
-                  ((wime-edit--editable-unit-at (1- (point))) (1- (point))))))
-    (when p
-      (let ((start p) (end (1+ p)) (floor (wime--input-start))
-            (field (get-char-property p 'field))
-            (limit (max 1 wime-edit-max-syllables)))
-        (while (and (> start floor) (wime-edit--editable-unit-at (1- start))
-                    (equal field (get-char-property (1- start) 'field)))
-          (cl-decf start))
-        (while (and (< end (point-max)) (wime-edit--editable-unit-at end)
-                    (equal field (get-char-property end 'field)))
-          (cl-incf end))
-        ;; A bounded window keeps idle decoding practical in long paragraphs.
-        (let ((p (min end (point))) (n 0))
-          (while (and (> p start)
-                      (or (wime-edit--unit-literal (wime-edit--unit-at (1- p))) (< n limit)))
-            (cl-decf p)
-            (unless (wime-edit--unit-literal (wime-edit--unit-at p)) (cl-incf n)))
-          (setq start p))
-        (let ((p start) (n 0))
-          (while (and (< p end)
-                      (or (wime-edit--unit-literal (wime-edit--unit-at p)) (< n limit)))
-            (unless (wime-edit--unit-literal (wime-edit--unit-at p)) (cl-incf n))
-            (cl-incf p))
-          (setq end p))
-        ;; A run starts with a syllable; earlier literal text is context.
-        (while (and (< start end) (wime-edit--unit-literal (wime-edit--unit-at start)))
-          (cl-incf start))
-        (when (and (< start end) (<= start (point)))
-          (cons start end))))))
+  (when-let* ((p (cond ((wime-edit--editable-unit-at (point)) (point))
+                       ((wime-edit--editable-unit-at (1- (point))) (1- (point))))))
+    (let ((start p) (end (1+ p)) (floor (wime--input-start))
+          (field (get-char-property p 'field))
+          (limit (max 1 wime-edit-max-syllables)))
+      (while (and (> start floor) (wime-edit--editable-unit-at (1- start))
+                  (equal field (get-char-property (1- start) 'field)))
+        (cl-decf start))
+      (while (and (< end (point-max)) (wime-edit--editable-unit-at end)
+                  (equal field (get-char-property end 'field)))
+        (cl-incf end))
+      ;; A bounded window keeps idle decoding practical in long paragraphs.
+      (let ((p (min end (point))) (n 0))
+        (while (and (> p start)
+                    (or (wime-edit--unit-literal (wime-edit--unit-at (1- p))) (< n limit)))
+          (cl-decf p)
+          (unless (wime-edit--unit-literal (wime-edit--unit-at p)) (cl-incf n)))
+        (setq start p))
+      (let ((p start) (n 0))
+        (while (and (< p end)
+                    (or (wime-edit--unit-literal (wime-edit--unit-at p)) (< n limit)))
+          (unless (wime-edit--unit-literal (wime-edit--unit-at p)) (cl-incf n))
+          (cl-incf p))
+        (setq end p))
+      ;; A run starts with a syllable; earlier literal text is context.
+      (while (and (< start end) (wime-edit--unit-literal (wime-edit--unit-at start)))
+        (cl-incf start))
+      (when (and (< start end) (<= start (point)))
+        (cons start end)))))
 
 (defun wime-edit--read-units (start end)
   (cl-loop for p from start below end collect (wime-edit--unit-at p)))
@@ -249,7 +251,7 @@ of truth.  Widen only for display; confirmation still respects narrowing."
           (cl-loop for unit in syllables for i from 0
                    when (wime-edit--unit-pin unit)
                    collect (list i (wime-edit--unit-pin unit)
-                                 (caar (wime--parse (wime-edit--unit-keys unit))))))))
+                                 (wime-edit--unit-code unit))))))
 
 (defun wime-edit--adopt (start end)
   "Select the reading-bearing buffer run START..END."
@@ -325,19 +327,16 @@ leaving the window at that moment would keep the guess."
       (let (wime--candidate-records wime--search-cache wime--pins)
         (mapconcat (lambda (unit)
                      (cl-incf i)
-                     (or (and (wime-edit--unit-pin unit)
-                              (char-to-string (wime-edit--unit-pin unit)))
+                     (or (wime-edit--pin-text unit)
                          (and provisional (wime-edit--shown unit))
                          (and guess (substring guess i (1+ i)))
-                         (car (wime--candidates-for
-                               (caar (wime--parse (wime-edit--unit-keys unit)))
-                               (cdar (wime--parse (wime-edit--unit-keys unit)))))
+                         (car (wime--candidates (wime-edit--unit-keys unit)))
                          (substring (wime-edit--unit-keys unit) 0 1)))
                    syllables ""))))))
 
 (defun wime-edit--decodable-p ()
   "Whether flattening this run preserves its syllable boundaries."
-  (cl-every (lambda (u) (= (length (caar (wime--parse (wime-edit--unit-keys u)))) 2))
+  (cl-every (lambda (u) (= (length (wime-edit--unit-code u)) 2))
             (butlast (wime-edit--syllables wime-edit--units))))
 
 (defun wime-edit--pending-refresh ()
@@ -356,7 +355,7 @@ leaving the window at that moment would keep the guess."
 (defun wime-edit--unit-text (unit)
   "Keep an existing UNIT's displayed text while an interior key is pending."
   (or (wime-edit--shown unit)
-      (and (wime-edit--unit-pin unit) (char-to-string (wime-edit--unit-pin unit)))
+      (wime-edit--pin-text unit)
       (substring (wime-edit--unit-keys unit) 0 1)))
 
 (defun wime-edit--replace (text units &optional cursor)
@@ -596,7 +595,7 @@ fonts use the same units as the source-text alignment."
 
 (defun wime-edit--render ()
   "Publish a reading in the buffer and show non-textual conversion details."
-  (when (and (wime-edit--active-p) (wime-edit--writable-p))
+  (when (wime-edit--writable-p)
     (let* ((text (wime-edit--candidate-text))
            (i -1)
            (units (mapcar
@@ -641,7 +640,7 @@ fonts use the same units as the source-text alignment."
   (let* ((offset (- (point) wime-edit--start))
          (previous (and (> offset 0) (nth (1- offset) wime-edit--units)))
          (partial (and previous (not (wime-edit--unit-literal previous))
-                       (= (length (caar (wime--parse (wime-edit--unit-keys previous)))) 1)))
+                       (= (length (wime-edit--unit-code previous)) 1)))
          (index (if partial (1- offset) offset))
          (unit (wime-edit--make-unit
                 :keys (concat (and partial (wime-edit--unit-keys previous)) (char-to-string key))))
@@ -656,7 +655,7 @@ fonts use the same units as the source-text alignment."
     (let* ((index (1- (- (point) wime-edit--start)))
            (unit (nth index wime-edit--units)))
       (when (and (not (wime-edit--unit-literal unit))
-                 (= (length (caar (wime--parse (wime-edit--unit-keys unit)))) 2))
+                 (= (length (wime-edit--unit-code unit)) 2))
         (wime-edit--refresh
          (append (seq-take wime-edit--units index)
                  (list (wime-edit--make-unit
@@ -700,7 +699,7 @@ Return nil without a run; text before its first syllable is context."
     (cl-incf wime-edit--generation)
     (setq wime--pins
           (cl-loop for unit in (wime-edit--syllables wime-edit--units) for i from 0
-                   collect (list i (aref text i) (caar (wime--parse (wime-edit--unit-keys unit))))))
+                   collect (list i (aref text i) (wime-edit--unit-code unit))))
     (wime--refresh)))
 
 (defun wime-edit--input-method (key)
@@ -709,16 +708,17 @@ Return nil without a run; text before its first syllable is context."
    ((wime--code-char-p
      key (if (let ((unit (wime-edit--unit-at (1- (point)))))
                (and unit (not (wime-edit--unit-literal unit))
-                    (= (length (caar (wime--parse (wime-edit--unit-keys unit)))) 1)))
+                    (= (length (wime-edit--unit-code unit)) 1)))
              'final 'initial))
     (wime-edit--type-code key) nil)
    ((and (wime--aux-char-p key) (wime-edit--type-aux key)) nil)
    ((and (wime-edit--active-p) (wime--digit-p key))
-    (run-hooks 'wime-settle-hook)
     (when wime-show-candidates
       (if (wime--spans-p) (wime--select-digit key)
-        (let ((text (nth (if (= key ?0) 9 (- key ?1)) wime--candidates)))
-          (when text (wime-edit--choose text))))) nil)
+        (run-hooks 'wime-settle-hook)
+        (when-let* ((text (nth (wime--digit-index key) wime--candidates)))
+          (wime-edit--choose text))))
+    nil)
    ((and (= key ?\s)
          (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil))
     (wime-edit-finish) nil)
@@ -747,7 +747,7 @@ Return nil without a run; text before its first syllable is context."
 (defun wime-edit-finish ()
   "Confirm pending readings in the accessible buffer, retaining its text."
   (interactive)
-  (when (wime-edit--active-p) (run-hooks 'wime-settle-hook))
+  (run-hooks 'wime-settle-hook)
   (wime-edit-pause)
   (let ((wime-edit--internal t) (inhibit-read-only t) (position (point-min)))
     ;; Literal units become ordinary text; the Chinese around them is
@@ -796,10 +796,8 @@ Return nil without a run; text before its first syllable is context."
                 ;; pinned/aux-filtered choices teach the reading preference.
                 (let ((baseline
                        (concat
-                        (cl-loop for u in units for i from 0
-                                 collect (if (or (wime-edit--unit-pin u)
-                                                 (not (string-empty-p
-                                                       (cdar (wime--parse (wime-edit--unit-keys u))))))
+                        (cl-loop for u in units for (_code . aux) in parsed for i from 0
+                                 collect (if (or (wime-edit--unit-pin u) (not (string-empty-p aux)))
                                              (aref original i) (aref text i))))))
                   (unless (equal text baseline)
                     (wime--learn text parsed baseline)))))))))

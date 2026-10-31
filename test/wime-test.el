@@ -139,6 +139,10 @@
        (when wime--user-db (sqlite-close (cdr wime--user-db)))
        (delete-file wime-user-database))))
 
+(defun wime-test--best (units)
+  "The lattice's best reading of UNITS."
+  (wime-candidate-text (car (wime--sentence-records units))))
+
 (defconst wime-test--homophones
   '(("dl" ("代" "a" 100) ("待" "b" 50)) ("xr" ("选" "d" 100)) ("xd" ("项" "e" 100))
     ("dlxr" ("代选" "a/d" 30) ("待选" "b/d" 20)) ("xrxd" ("选项" "d/e" 1000))))
@@ -149,23 +153,23 @@
       (wime--learn "待选项" units "代选项")
       (should (zerop (hash-table-count wime--memory)))
       (should-not (wime--memory-entries "dlxr"))
-      (should (equal (car (wime--sentence-candidates units)) "代选项")))))
+      (should (equal (wime-test--best units) "代选项")))))
 
 (ert-deftest wime-correction-learns-the-covering-word-until-contradicted ()
   (wime-test--memory wime-test--homophones
     (let ((units (wime--parse "dlxrxd")) (tick wime--memory-tick))
-      (should (equal (car (wime--sentence-candidates units)) "代选项"))
+      (should (equal (wime-test--best units) "代选项"))
       (wime--learn "待选项" units "代选项")
       ;; One differing character becomes the dictionary word, never a lone 待.
       (should (equal (gethash "dlxr" wime--memory) '(("待选" . "b/d"))))
       (should-not (gethash "dl" wime--memory))
       (should (> wime--memory-tick tick))
-      (should (equal (car (wime--sentence-candidates units)) "待选项"))
+      (should (equal (wime-test--best units) "待选项"))
       ;; Persisted across sessions.
       (sqlite-close (cdr wime--user-db))
       (setq wime--user-db nil)
       (clrhash wime--memory)
-      (should (equal (car (wime--sentence-candidates units)) "待选项"))
+      (should (equal (wime-test--best units) "待选项"))
       ;; Committing another reading for the same keys replaces the preference.
       (wime--learn "代选项" units "待选项")
       (should (equal (gethash "dlxr" wime--memory) '(("代选" . "a/d"))))
@@ -345,7 +349,7 @@
   (wime-test--entries '(("aa" ("甲" "a" 100) ("乙" "b" 90))
                         ("bb" ("丙" "c" 100) ("丁" "d" 90)))
     (let ((wime-search-width 1))
-      (should (equal (car (wime--sentence-candidates (wime--parse "aaBbbD")))
+      (should (equal (wime-test--best (wime--parse "aaBbbD"))
                      "乙丁"))
       (should (= 1 (length (seq-filter
                             (lambda (c) (= (wime-candidate-end c) 2))
@@ -357,7 +361,7 @@
     (cl-letf (((symbol-function 'wime--grammar-score)
                (lambda (context _word _rear) (if (equal context "乙") 10.0 0.0))))
       (let ((wime-search-width 2))
-        (should (equal (car (wime--sentence-candidates (wime--parse "aabb")))
+        (should (equal (wime-test--best (wime--parse "aabb"))
                        "乙丙"))))))
 
 (ert-deftest wime-beam-deduplicates-and-retains-dictionary-provenance ()
@@ -423,11 +427,6 @@
      (wime--reset)
      (mapc #'wime-input-method (string-to-list ,keys))
      ,@body))
-
-(ert-deftest wime-auxiliary-filter-is-case-insensitive ()
-  (should (member "匿" (wime--candidates-for "ni" "k")))
-  (should (equal (wime--candidates-for "ni" "k")
-                 (wime--candidates-for "ni" "K"))))
 
 (ert-deftest wime-uppercase-without-code-passes-through ()
   (with-temp-buffer

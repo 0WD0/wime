@@ -132,17 +132,16 @@
 
 (ert-deftest wime-japanese-typing-offers-kana-and-commits ()
   (with-temp-buffer
-    (progn
-      (mapc #'wime-japanese-input-method (string-to-list "kz"))
-      (should (equal wime-japanese--candidates '("かん" "カン")))
-      (should (string-prefix-p "かん" (overlay-get wime-japanese--overlay 'after-string)))
-      (wime-japanese-input-method ?2)
-      (should (equal (buffer-string) "カン"))
-      (should-not (wime-japanese--active-p))
-      (mapc #'wime-japanese-input-method (string-to-list "kzk"))
-      (wime-japanese-delete-backward)
-      (wime-japanese-commit-kana)
-      (should (equal (buffer-string) "カンかん")))))
+    (mapc #'wime-japanese-input-method (string-to-list "kz"))
+    (should (equal wime-japanese--candidates '("かん" "カン")))
+    (should (string-prefix-p "かん" (overlay-get wime-japanese--overlay 'after-string)))
+    (wime-japanese-input-method ?2)
+    (should (equal (buffer-string) "カン"))
+    (should-not (wime-japanese--active-p))
+    (mapc #'wime-japanese-input-method (string-to-list "kzk"))
+    (wime-japanese-delete-backward)
+    (wime-japanese-commit-kana)
+    (should (equal (buffer-string) "カンかん"))))
 
 (ert-deftest wime-japanese-request-carries-kana-and-pending-starts ()
   (with-temp-buffer

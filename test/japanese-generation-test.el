@@ -32,25 +32,24 @@
           (plist-get scheme :layout-rows) '("qwertyuiop" "asdfkhjgl;" "zxcvbnm,./" "-"))
     (wime-japanese-gen-test--with-generated source
       (with-temp-buffer
-        (progn
-          (unwind-protect
-              (progn
-                (activate-input-method "wime-japanese")
-                (mapc input-method-function (string-to-list "gl"))
-                (wime-japanese-commit-kana)
-                (should (equal (buffer-string) "こう"))
-                (should (equal (wime-japanese--convert "kp") '("こん" . "")))
-                ;; Both extra and overridden long-vowel rules move with ou.
-                (should (equal (wime-japanese--convert "dcltglflvlwl") '("どぅーとぅーふぉーゔぉーうぉー" . "")))
-                (dolist (old '("dcp" "tgp"))
-                  (should-not (gethash old (car (wime-japanese--rules)))))
-                ;; Word shortcuts are independent of the vowel suffix recipes.
-                (should (equal (wime-japanese--convert "mndsrykst") '("ものですりょくした" . "")))
-                (should (= (wime-japanese--translate-key ?G) ?K))
-                (activate-input-method "wime-japanese-onishi-azik")
-                (should (equal (wime-japanese--convert "kc") '("こう" . "")))
-                (should (= (wime-japanese--translate-key ?g) ?-)))
-            (deactivate-input-method)))))))
+        (unwind-protect
+            (progn
+              (activate-input-method "wime-japanese")
+              (mapc input-method-function (string-to-list "gl"))
+              (wime-japanese-commit-kana)
+              (should (equal (buffer-string) "こう"))
+              (should (equal (wime-japanese--convert "kp") '("こん" . "")))
+              ;; Both extra and overridden long-vowel rules move with ou.
+              (should (equal (wime-japanese--convert "dcltglflvlwl") '("どぅーとぅーふぉーゔぉーうぉー" . "")))
+              (dolist (old '("dcp" "tgp"))
+                (should-not (gethash old (car (wime-japanese--rules)))))
+              ;; Word shortcuts are independent of the vowel suffix recipes.
+              (should (equal (wime-japanese--convert "mndsrykst") '("ものですりょくした" . "")))
+              (should (= (wime-japanese--translate-key ?G) ?K))
+              (activate-input-method "wime-japanese-onishi-azik")
+              (should (equal (wime-japanese--convert "kc") '("こう" . "")))
+              (should (= (wime-japanese--translate-key ?g) ?-)))
+          (deactivate-input-method))))))
 
 (ert-deftest wime-japanese-generation-changing-suffixes-moves-whole-families ()
   (let* ((source (wime-japanese-gen-test--source))
@@ -60,20 +59,19 @@
           (plist-get scheme :nasal-keys) '("x"))
     (wime-japanese-gen-test--with-generated source
       (with-temp-buffer
-        (progn
-          (unwind-protect
-              (progn
-                (activate-input-method "wime-japanese-onishi-azik")
-                ;; Physical hq -> kq; lnd -> sga.
-                (mapc input-method-function (string-to-list "hqlnd"))
-                (wime-japanese-commit-kana)
-                (should (equal (buffer-string) "けいしゃ"))
-                (should (equal (wime-japanese--convert "kdgyd") '("かんぎゃん" . "")))
-                (should (equal (wime-japanese--convert "lyq") '("ぇい" . "")))
-                (should (equal (wime-japanese--convert "x") '("ん" . "")))
-                (dolist (old '("kv" "lyv" "kn" "gyn" "c"))
-                  (should-not (gethash old (car (wime-japanese--rules))))))
-            (deactivate-input-method)))))))
+        (unwind-protect
+            (progn
+              (activate-input-method "wime-japanese-onishi-azik")
+              ;; Physical hq -> kq; lnd -> sga.
+              (mapc input-method-function (string-to-list "hqlnd"))
+              (wime-japanese-commit-kana)
+              (should (equal (buffer-string) "けいしゃ"))
+              (should (equal (wime-japanese--convert "kdgyd") '("かんぎゃん" . "")))
+              (should (equal (wime-japanese--convert "lyq") '("ぇい" . "")))
+              (should (equal (wime-japanese--convert "x") '("ん" . "")))
+              (dolist (old '("kv" "lyv" "kn" "gyn" "c"))
+                (should-not (gethash old (car (wime-japanese--rules))))))
+          (deactivate-input-method))))))
 
 (ert-deftest wime-japanese-generation-layouts-can-be-edited-independently ()
   (let* ((source (wime-japanese-gen-test--source))

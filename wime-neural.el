@@ -118,8 +118,7 @@ When disabled, single-character input retains dictionary ranking."
                   ;; Moving within an editable run changes neither its keys
                   ;; nor its context.  Re-adoption and edits do, even when
                   ;; they happen to restore identical text and candidates.
-                  (and (bound-and-true-p wime-edit-mode)
-                       (wime-edit--active-p) (wime-edit--writable-p)
+                  (and (wime--editing-p) (wime-edit--writable-p)
                        (= wime-edit--generation
                           (wime-neural--job-edit-generation job)))
                 (= (point) (wime-neural--job-position job)))
@@ -140,12 +139,6 @@ When disabled, single-character input retains dictionary ranking."
              (eq (current-buffer) (wime-neural--job-buffer wime-neural--pending)))
     (setq wime-neural--pending nil)))
 
-(defun wime-neural--decodable-p (units)
-  "Whether `decode' reads UNITS: one complete syllable or more."
-  (and wime-neural-rescorer
-       (= (length (caar units)) 2)
-       (or (> (length units) 1) wime-neural-single-character)))
-
 (defun wime-neural--features-p ()
   "Whether the database records the syllable features the model reads."
   (condition-case nil
@@ -154,40 +147,40 @@ When disabled, single-character input retains dictionary ranking."
              "wime-syllable-features-v1")
     (error nil)))
 
-(defun wime-neural--exclusive-p (units)
-  "Whether `neural' decoding leaves UNITS to the model, without the lattice.
-An unfinished first syllable shows its keys too: the model decodes it once
-complete."
-  (and (eq wime-decoding 'neural) (not wime-neural--failed)
+(defun wime-neural--model-p (units)
+  "Whether `wime-decoding' gives UNITS to a usable model.
+Single characters go to it only with `wime-neural-single-character'."
+  (and (not (eq wime-decoding 'lattice)) (not wime-neural--failed)
        wime-neural-model-file wime-neural-rescorer
        (or (cdr units) wime-neural-single-character)
        (wime-neural--features-p)))
 
+(defun wime-neural--exclusive-p (units)
+  "Whether `neural' decoding leaves UNITS to the model, without the lattice.
+An unfinished first syllable shows its keys too: the model decodes it once
+complete."
+  (and (eq wime-decoding 'neural) (wime-neural--model-p units)))
+
 (defun wime-neural--schedule ()
   "Decode after typing pauses, keeping the dictionary usable immediately."
   (wime-neural--reset)
-  (when (and (not (eq wime-decoding 'lattice))
-             (not wime-neural--failed) wime-neural-model-file
-             (or (not (bound-and-true-p wime-edit-mode))
-                 (wime-edit--decodable-p)))
-    (let ((units (wime--parse wime--input)))
-      (when (and (wime-neural--decodable-p units) (wime-neural--features-p))
-        (let* ((state (wime--composition-state))
-               (job (wime-neural--make-job
-                     :id (cl-incf wime-neural--serial) :buffer (current-buffer)
-                     :input wime--input :position (point)
-                     :edit-generation (and (bound-and-true-p wime-edit-mode)
-                                           (wime-edit--active-p)
-                                           wime-edit--generation)
-                     :tick (buffer-chars-modified-tick) :context (wime-neural--context)
-                     :history (alist-get 'context state) :committed (alist-get 'committed state)
-                     :literals (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p)
-                                    (wime-edit--literals))
-                     :records wime--candidate-records :syllables (length units)
-                     :method 'decode :pins wime--pins)))
-          (setq wime-neural--job job
-                wime-neural--timer
-                (run-with-timer wime-neural-delay nil #'wime-neural--enqueue job)))))))
+  (let ((units (wime--parse wime--input)))
+    (when (and (= (length (caar units)) 2) (wime-neural--model-p units)
+               (or (not (bound-and-true-p wime-edit-mode)) (wime-edit--decodable-p)))
+      (let* ((state (wime--composition-state))
+             (editing (wime--editing-p))
+             (job (wime-neural--make-job
+                   :id (cl-incf wime-neural--serial) :buffer (current-buffer)
+                   :input wime--input :position (point)
+                   :edit-generation (and editing wime-edit--generation)
+                   :tick (buffer-chars-modified-tick) :context (wime-neural--context)
+                   :history (alist-get 'context state) :committed (alist-get 'committed state)
+                   :literals (and editing (wime-edit--literals))
+                   :records wime--candidate-records :syllables (length units)
+                   :method 'decode :pins wime--pins)))
+        (setq wime-neural--job job
+              wime-neural--timer
+              (run-with-timer wime-neural-delay nil #'wime-neural--enqueue job))))))
 
 (defun wime-neural--await ()
   "Under `neural' decoding, finish this composition's decode before a choice.

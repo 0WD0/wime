@@ -39,17 +39,17 @@ With WITHIN, also find learned words contained in QUERY."
       ('memory
        (sqlite-select db
                       (concat "SELECT code, text, aux, count, updated FROM memory "
-                              "WHERE instr(code, ?) > 0 OR instr(text, ?) > 0 "
-                              "OR (? AND instr(?, text) > 0) "
-                              "ORDER BY updated DESC, code, text LIMIT ?")
-                      (list query query (if within 1 0) query limit)))
+                              "WHERE instr(code, ?1) > 0 OR instr(text, ?1) > 0 "
+                              "OR (?2 AND instr(?1, text) > 0) "
+                              "ORDER BY updated DESC, code, text LIMIT ?3")
+                      (list query (if within 1 0) limit)))
       ('history
        (sqlite-select db
                       (concat "SELECT rowid, time, input, keys, text, default_reading, context FROM commits "
-                              "WHERE instr(input, ?) > 0 OR instr(keys, ?) > 0 OR instr(text, ?) > 0 "
-                              "OR instr(default_reading, ?) > 0 OR instr(context, ?) > 0 "
-                              "ORDER BY time DESC, rowid DESC LIMIT ?")
-                      (list query query query query query limit)))
+                              "WHERE instr(input, ?1) > 0 OR instr(keys, ?1) > 0 OR instr(text, ?1) > 0 "
+                              "OR instr(default_reading, ?1) > 0 OR instr(context, ?1) > 0 "
+                              "ORDER BY time DESC, rowid DESC LIMIT ?2")
+                      (list query limit)))
       (_ (error "Unknown record kind: %S" kind)))))
 
 (defun wime-memory--id (kind row)
@@ -129,16 +129,14 @@ Reject stale records and occupied destinations, including during undo."
                                                (string-empty-p (cdr unit)))) units))
       (user-error "请输入 2–16 个汉字及其完整双拼编码（不含辅助码）"))
     (unless db (user-error "当前词库不可用，无法校验读音"))
-    (let ((word (car (sqlite-select db "SELECT aux FROM entry WHERE code = ? AND word = ? ORDER BY weight DESC LIMIT 1"
-                                    (list code text)))))
-      (if word (car word)
-        (mapconcat
-         (lambda (i)
-           (let ((entry (car (sqlite-select db "SELECT aux FROM entry WHERE code = ? AND word = ? ORDER BY weight DESC LIMIT 1"
-                                           (list (car (nth i units)) (substring text i (1+ i)))))))
-             (unless entry (user-error "词库中没有 %s 对应 %s 的读音" (car (nth i units)) (substring text i (1+ i))))
-             (car entry)))
-         (number-sequence 0 (1- (length text))) "/")))))
+    (cl-flet ((aux (code word)
+                (caar (sqlite-select db "SELECT aux FROM entry WHERE code = ? AND word = ? ORDER BY weight DESC LIMIT 1"
+                                     (list code word)))))
+      (or (aux code text)
+          (mapconcat (lambda (i)
+                       (let ((code (car (nth i units))) (char (substring text i (1+ i))))
+                         (or (aux code char) (user-error "词库中没有 %s 对应 %s 的读音" code char))))
+                     (number-sequence 0 (1- (length text))) "/")))))
 
 (defun wime-memory-update-record (row code text)
   "Replace learned ROW with validated CODE/TEXT and newly derived auxiliary keys.

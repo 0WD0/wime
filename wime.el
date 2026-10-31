@@ -13,10 +13,9 @@
 ;;
 ;; The typed string is parsed into syllables: two code keys (letters, plus
 ;; whichever of ``;,./'' the scheme uses) optionally followed by uppercase
-;; auxiliary keys.  The
-;; auxiliary code belongs to the syllable it follows, so a lowercase key after
-;; it starts the next syllable.  This keeps the typed order intact and never
-;; has to guess where an auxiliary code ends.
+;; auxiliary keys.  The auxiliary code belongs to the syllable it follows, so
+;; a lowercase key after it starts the next syllable.  This keeps the typed
+;; order intact and never has to guess where an auxiliary code ends.
 ;;
 ;; Candidate lookup is plain Elisp over the generated single-character and
 ;; word tables, so the whole input path is testable in batch.
@@ -178,10 +177,14 @@ Return point to disable context.  Errors or invalid markers also yield none.")
 (declare-function wime-edit--type-tone "wime-edit" (tone))
 (declare-function wime-edit--type-literal "wime-edit" (key))
 
+(defun wime--editing-p ()
+  "Whether an editable run of `wime-edit-mode' holds the composition."
+  (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p)))
+
 (defun wime--context (&optional limit)
   "Return committed context before the current composition."
   (save-excursion
-    (when (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
+    (when (wime--editing-p)
       (goto-char wime-edit--start))
     (wime--context-at-point limit)))
 
@@ -417,7 +420,7 @@ Letters always are.  A punctuation key such as ``;'' or ``,'' is a code
 key only where the scheme uses it: POSITION is `initial' or `final', and
 nil accepts either.  Elsewhere it stays punctuation."
   (and (integerp key)
-       (or (and (>= key ?a) (<= key ?z))
+       (or (<= ?a key ?z)
            (let ((keys (wime--position-keys)))
              (string-search (char-to-string key)
                             (pcase position
@@ -427,18 +430,22 @@ nil accepts either.  Elsewhere it stays punctuation."
 
 (defun wime--aux-char-p (key)
   "Return non-nil if KEY is an uppercase auxiliary code character."
-  (and (integerp key) (>= key ?A) (<= key ?Z)))
+  (and (integerp key) (<= ?A key ?Z)))
 
 (defun wime--digit-p (key)
   "Return non-nil if KEY is a digit."
-  (and (integerp key) (>= key ?0) (<= key ?9)))
+  (and (integerp key) (<= ?0 key ?9)))
+
+(defun wime--digit-index (key)
+  "The candidate index digit KEY selects: 1 is the first, 0 the tenth."
+  (if (= key ?0) 9 (- key ?1)))
 
 (defconst wime--tone-marks "ˉˊˇˋ·"
   "Marks shown for typed tones 1 to 4 and the neutral tone 5.")
 
 (defun wime--tone-key-p (key)
   "Return non-nil if KEY is a tone `wime-tone' typed; `wime--parse' skips it."
-  (and (integerp key) (>= key ?1) (<= key ?5)))
+  (and (integerp key) (<= ?1 key ?5)))
 
 (defun wime--tones (input)
   "Typed tones of INPUT as (SYLLABLE . TONE) pairs, in syllable order."
@@ -466,7 +473,7 @@ nil accepts either.  Elsewhere it stays punctuation."
 Tones 1 to 4 keep only characters with that reading; all reach the model."
   (interactive)
   (let ((tone (- (event-basic-type last-command-event) ?0)))
-    (if (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
+    (if (wime--editing-p)
         (wime-edit--type-tone tone)
       (when (wime--parse wime--input)
         (setq wime--input (wime--retone wime--input tone))
@@ -660,16 +667,16 @@ learned reading also wins where the context wants another word."
                    (push (cons s (car m)) spans)))))
     (nreverse spans)))
 
-(defun wime--dictionary-word-p (word units)
-  "Whether WORD is a dictionary entry for the keys of UNITS."
+(defun wime--dictionary-entry (word units)
+  "WORD's dictionary entry under the keys of UNITS, or nil."
   (seq-find (lambda (entry) (equal (car entry) word))
             (wime--database-entries (wime--span-code units 0 (length units)))))
 
 (defun wime--learned-aux (word units)
   "Auxiliary codes of WORD read as UNITS, from the dictionary."
-  (or (nth 1 (wime--dictionary-word-p word units))
+  (or (nth 1 (wime--dictionary-entry word units))
       (mapconcat (lambda (i)
-                   (or (nth 1 (wime--dictionary-word-p (string (aref word i)) (list (nth i units)))) ""))
+                   (or (nth 1 (wime--dictionary-entry (string (aref word i)) (list (nth i units)))) ""))
                  (number-sequence 0 (1- (length word))) "/")))
 
 (defun wime--learned-span (text units start end)
@@ -681,7 +688,7 @@ for that syllable everywhere."
   (let ((n (length text)))
     (or (cl-loop for size from (max 2 (- end start)) to (min n wime-max-word-syllables)
                  thereis (cdr (car (sort (cl-loop for s from (max 0 (- end size)) to (min start (- n size))
-                                                  for entry = (wime--dictionary-word-p
+                                                  for entry = (wime--dictionary-entry
                                                                (substring text s (+ s size))
                                                                (seq-subseq units s (+ s size)))
                                                   when entry collect (cons (nth 2 entry) (cons s (+ s size))))
@@ -732,23 +739,13 @@ for that syllable everywhere."
                 (wime--entry-match-p (nth 1 entry) units))
               entries))
 
-(defun wime--filter (entries units)
-  "Return the words of ENTRIES whose auxiliary codes match UNITS."
-  (mapcar #'car (wime--matching-entries entries units)))
-
-(defun wime--unit-entries (unit)
-  "Return the auxiliary-filtered entries for one UNIT."
-  (seq-filter (lambda (entry)
-                (wime--syllable-match-p (nth 1 entry) (cdr unit)))
-              (wime--entries-for (car unit))))
-
 (defun wime--unit-words (unit)
-  "Return the single-character words for one UNIT."
-  (mapcar #'car (wime--unit-entries unit)))
+  "Return the words for one UNIT that match its auxiliary code."
+  (mapcar #'car (wime--matching-entries (wime--entries-for (car unit)) (list unit))))
 
 (defun wime--span-code (units start end)
   "Return the concatenated code of UNITS from START to END."
-  (mapconcat (lambda (unit) (car unit)) (seq-subseq units start end) ""))
+  (wime--full-code (seq-subseq units start end)))
 
 (defun wime--best-paths (paths)
   "Deduplicate PATHS by surface, preserving dictionary evidence, then prune."
@@ -826,10 +823,6 @@ signature."
                    (push path result))))
       (nreverse result))))
 
-(defun wime--sentence-candidates (units)
-  "Return sentence candidate strings for UNITS."
-  (mapcar #'wime-candidate-text (wime--sentence-records units)))
-
 (defun wime--prefix-entries (code)
   "Return completion entries whose code starts with CODE."
   (when-let* ((db (wime--database)))
@@ -842,8 +835,7 @@ signature."
   "Return completion candidates for an incomplete UNITS input.
 
 A lone incomplete syllable can only complete to single characters; once
-a complete syllable precedes it, longer words are allowed.
- "
+a complete syllable precedes it, longer words are allowed."
   (let ((entries (wime--prefix-entries (wime--full-code units))))
     (when (= (length units) 1)
       (setq entries (seq-filter (lambda (entry) (= (length (car entry)) 1))
@@ -877,10 +869,6 @@ Rime completes partial pinyin."
       (t (seq-filter (lambda (word) (wime--tones-allow-p word 0 units))
                      (wime--unit-words (car units)))))
      wime-candidates-max)))
-
-(defun wime--candidates-for (code aux)
-  "Return candidates for a single-syllable CODE filtered by AUX."
-  (wime--candidates (concat code (upcase (or aux "")))))
 
 (defun wime--active-p ()
   "Return non-nil when a composition is in progress."
@@ -968,43 +956,38 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
   "Return the preedit string, including candidates when enabled."
   (setq wime--span-choices nil)
   (concat
-   (apply #'concat
-          (mapcar (lambda (key)
-                    (cond ((wime--tone-key-p key)
-                           (propertize (string (aref wime--tone-marks (- key ?1))) 'face 'wime-aux-face))
-                          (t (propertize (char-to-string key)
-                                         'face (if (wime--aux-char-p key)
-                                                   'wime-aux-face
-                                                 'wime-preedit-face)))))
-                  (string-to-list (or wime--input ""))))
+   (mapconcat (lambda (key)
+                (if (wime--tone-key-p key)
+                    (propertize (string (aref wime--tone-marks (- key ?1))) 'face 'wime-aux-face)
+                  (propertize (string key) 'face (if (wime--aux-char-p key)
+                                                     'wime-aux-face
+                                                   'wime-preedit-face))))
+              (or wime--input "") "")
    (cond
     ((not (and wime-show-candidates wime--candidates)) nil)
     ((wime--spans-p) (concat " " (wime--format-spans (car wime--candidates))))
-    (t
-     (concat
-      " "
-      (cl-loop for candidate in wime--candidates
-               for index from 1
-               concat (propertize (format "%d.%s " index candidate)
-                                  'face (if (= (1- index) wime--selected)
-                                            'wime-selected-face
-                                          'wime-candidate-face))))))))
+    (t (concat " " (wime--format-list wime--candidates wime--selected))))))
+
+(defun wime--format-list (candidates selected)
+  "CANDIDATES numbered from 1, the one at index SELECTED highlighted."
+  (cl-loop for candidate in candidates for i from 0
+           concat (propertize (format "%d.%s " (1+ i) candidate)
+                              'face (if (= i selected) 'wime-selected-face 'wime-candidate-face))))
 
 (defun wime--display ()
   "Render the preedit and candidate list at point."
   (wime--clear-overlay)
-  (if (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
+  (if (wime--editing-p)
       (wime-edit--render)
     (when (wime--active-p)
-    (let ((text (wime--format)))
-      (unless (string-empty-p text)
-        (setq wime--overlay (make-overlay (point) (point)))
-        (overlay-put wime--overlay 'after-string text))))))
+      (let ((text (wime--format)))
+        (unless (string-empty-p text)
+          (setq wime--overlay (make-overlay (point) (point)))
+          (overlay-put wime--overlay 'after-string text))))))
 
 (defun wime--refresh ()
   "Recompute candidates from the raw input and refresh the display."
-  (if (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p)
-           (not (wime-edit--decodable-p)))
+  (if (and (wime--editing-p) (not (wime-edit--decodable-p)))
       (wime-edit--pending-refresh)
     (wime--refresh-keys)))
 
@@ -1066,19 +1049,18 @@ The segment keeps actual keys and auxiliary input; ordinary history is text.")
   "Commit TEXT, or the raw typed input when TEXT is nil."
   (let* ((fallback (or wime--input ""))
          (units (wime--parse fallback))
+         (typed (seq-take units (length text)))
          (record (seq-find (lambda (c) (equal text (wime-candidate-text c)))
                            wime--candidate-records))
          (old (alist-get 'committed (wime--composition-state)))
          (code (when (and record (string-match-p "\\`[一-鿿]+\\'" text)
-                          (= (length text) (wime-candidate-end record))
-                          (>= (length units) (length text))
-                          (cl-every (lambda (u) (= (length (car u)) 2))
-                                    (seq-take units (length text))))
-                 (wime--full-code (seq-take units (length text))))))
+                          (= (length text) (wime-candidate-end record) (length typed))
+                          (cl-every (lambda (u) (= (length (car u)) 2)) typed))
+                 (wime--full-code typed))))
     (when (and code (wime--user-db))
       (sqlite-execute (wime--user-db) "INSERT INTO commits VALUES (?, ?, ?, ?, ?, ?)"
                       (list (float-time) fallback code text (or wime--default-reading "") (wime--context)))
-      (wime--learn text (seq-take units (length text)) wime--default-reading))
+      (wime--learn text typed wime--default-reading))
     (wime--reset)
     (insert (or text fallback))
     (setq wime--committed-state
@@ -1087,11 +1069,10 @@ The segment keeps actual keys and auxiliary input; ordinary history is text.")
             ;; rather than saving an arbitrary suffix of its keys.
             (when (> (+ (length (alist-get 'text old)) (length text)) 64)
               (setq old nil))
-            (let* ((offset (length (alist-get 'text old)))
-                   (aux (append (alist-get 'aux old) nil)))
-              (cl-loop for unit in (seq-take units (length text)) for i from offset
-                       unless (string-empty-p (cdr unit))
-                       do (setq aux (append aux (list (vector i (downcase (cdr unit)))))))
+            (let ((aux (append (alist-get 'aux old)
+                               (cl-loop for unit in typed for i from (length (alist-get 'text old))
+                                        unless (string-empty-p (cdr unit))
+                                        collect (vector i (downcase (cdr unit)))))))
               (list `((text . ,(concat (alist-get 'text old) text))
                       (input . ,(concat (alist-get 'input old) code))
                       (aux . ,(vconcat aux)))
@@ -1106,16 +1087,16 @@ The segment keeps actual keys and auxiliary input; ordinary history is text.")
   "Apply the span alternative or commit the candidate numbered KEY.
 In the span view only numbered alternatives respond; others do nothing."
   (run-hooks 'wime-settle-hook)
-  (let ((index (if (= key ?0) 9 (- key ?1))))
+  (let ((index (wime--digit-index key)))
     (if (wime--spans-p)
         (when-let* ((choice (nth index wime--span-choices)))
           (apply #'wime--choose-span choice))
-      (when (< index (length wime--candidates))
-        (wime--commit (nth index wime--candidates))))))
+      (when-let* ((text (nth index wime--candidates)))
+        (wime--commit text)))))
 
 (defun wime--choose-span (start end text)
   "Fix TEXT at syllables START..END and decode the rest of the input again."
-  (when (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
+  (when (wime--editing-p)
     (cl-incf wime-edit--generation))
   (let ((units (wime--parse wime--input)))
     (setq wime--pins
@@ -1188,40 +1169,32 @@ commits its selected candidate first."
 
 (defun wime--legacy-input-method (key)
   "Process KEY with the floating composition interface."
-  (if (wime--text-read-only-p)
-      (list key)
-    (cond
-     ((wime--code-char-p key (wime--next-position))
-      (setq wime--input (concat wime--input (char-to-string key)))
-      (wime--refresh)
-      nil)
-     ((wime--aux-char-p key)
-      (if (wime--active-p)
-          (progn
-            (setq wime--input (concat wime--input (char-to-string key)))
-            (wime--refresh)
-            nil)
-        (list key)))
-     ((and (wime--active-p) (wime--digit-p key))
-      (wime--select-digit key)
-      nil)
-     ((and (wime--active-p) (= key ?\s))
-      (wime--commit-selected)
-      nil)
-     ((wime--punctuation-for key)
-      (when (wime--active-p)
-        (wime--commit-selected))
-      (insert (wime--punctuation-for key))
-      nil)
-     (t
-      (when (wime--active-p)
-        (wime--reset))
-      (list key)))))
+  (cond
+   ((or (wime--code-char-p key (wime--next-position))
+        (and (wime--aux-char-p key) (wime--active-p)))
+    (setq wime--input (concat wime--input (char-to-string key)))
+    (wime--refresh)
+    nil)
+   ((and (wime--active-p) (wime--digit-p key))
+    (wime--select-digit key)
+    nil)
+   ((and (wime--active-p) (= key ?\s))
+    (wime--commit-selected)
+    nil)
+   ((wime--punctuation-for key)
+    (when (wime--active-p)
+      (wime--commit-selected))
+    (insert (wime--punctuation-for key))
+    nil)
+   (t
+    (when (wime--active-p)
+      (wime--reset))
+    (list key))))
 
 (defun wime-delete-backward ()
   "Delete the last typed key."
   (interactive)
-  (if (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
+  (if (wime--editing-p)
       (wime-edit-delete-backward)
   (when (and wime--input (not (string-empty-p wime--input)))
     (setq wime--input (substring wime--input 0 -1)))
