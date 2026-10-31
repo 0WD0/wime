@@ -42,7 +42,8 @@ def expand(context, code, committed=None, window=128):
         return context, code, ""
     text, keys = committed["text"], committed["input"]
     if len(text) + (len(code) + 1) // 2 > (window - 4) // 2:
-        return (context + text)[-64:], code, ""
+        # Each model keeps its own suffix of the history.
+        return context + text, code, ""
     return context, keys + code, text
 
 

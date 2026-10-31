@@ -193,7 +193,8 @@ Return point to disable context.  Errors or invalid markers also yield none.")
 Honor narrowing, input-area and field boundaries; stop at protected or
 hidden characters instead of joining text across them.  Paragraph limits
 are optional; punctuation and single newlines are retained.
-Keep at most 64 characters, matching the neural model's training window."
+Keep at most LIMIT characters, 64 by default: the lattice and the syllable
+model read no more."
   (save-excursion
     (save-match-data
       (if (or buffer-read-only (get-pos-property (point) 'read-only)
@@ -203,7 +204,7 @@ Keep at most 64 characters, matching the neural model's training window."
                (start (max (- end (or limit 64)) (wime--input-start)))
                (start (max start (field-beginning end nil start)))
                (position end))
-          ;; At most 64 characters, including overlay properties.  A read-only
+          ;; At most LIMIT characters, including overlay properties.  A read-only
           ;; prompt can abut an editable insertion point via rear-nonsticky.
           (while (and (> position start)
                       (not (get-char-property (1- position) 'read-only))
@@ -1030,8 +1031,9 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
   "Confirmed input segment, endpoint, modification tick and dictionary.
 The segment keeps actual keys and auxiliary input; ordinary history is text.")
 
-(defun wime--composition-state ()
-  "Return original history and any still-valid confirmed input segment."
+(defun wime--composition-state (&optional limit)
+  "Return original history and any still-valid confirmed input segment.
+History keeps at most LIMIT characters, as `wime--context'."
   (or
    (pcase wime--committed-state
      (`(,segment ,end ,tick ,database)
@@ -1039,11 +1041,11 @@ The segment keeps actual keys and auxiliary input; ordinary history is text.")
                  (equal database wime-database-file))
         (let* ((text (alist-get 'text segment))
                ;; Read past the confirmed segment so it cannot evict history.
-               (visible (wime--context (+ 64 (length text)))))
+               (visible (wime--context (+ (or limit 64) (length text)))))
           (when (string-suffix-p text visible)
             `((context . ,(substring visible 0 (- (length visible) (length text))))
               (committed . ,segment)))))))
-   `((context . ,(wime--context)))))
+   `((context . ,(wime--context limit)))))
 
 (defun wime--commit (text)
   "Commit TEXT, or the raw typed input when TEXT is nil."

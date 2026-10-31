@@ -56,6 +56,14 @@
       (delete-char -1)
       (should-not (alist-get 'committed (wime--composition-state))))))
 
+(ert-deftest wime-neural-reads-a-longer-history-than-the-lattice ()
+  (with-temp-buffer
+    (insert (make-string 2000 ?史))
+    (should (= (length (wime--context)) 64))
+    (should (= (length (wime-neural--context)) wime-neural-context-limit))
+    (should (= (length (alist-get 'context (wime--composition-state wime-neural-context-limit)))
+               wime-neural-context-limit))))
+
 (ert-deftest wime-neural-request-snapshots-the-composition-state ()
   (let ((wime-user-database nil))
     (with-temp-buffer
@@ -90,7 +98,7 @@
 (ert-deftest wime-neural-job-notices-history-changes-beyond-visible-tail ()
   (let ((wime-user-database nil))
     (with-temp-buffer
-      (insert (make-string 64 ?史))
+      (insert (make-string wime-neural-context-limit ?史))
       (setq wime--input "bmyi"
             wime--candidate-records (list (wime--make-candidate :text "便宜" :end 2)))
       (wime--commit "便宜")
@@ -104,7 +112,7 @@
            (wime-neural--schedule))
          (should (wime-neural--valid-p scheduled))
          (narrow-to-region 2 (point-max))
-         (should (equal (wime-neural--job-context scheduled) (wime--context)))
+         (should (equal (wime-neural--job-context scheduled) (wime-neural--context)))
          (should-not (wime-neural--valid-p scheduled)))))))
 
 (ert-deftest wime-neural-single-syllable-retains-contextual-grammar-ranking ()

@@ -100,7 +100,12 @@ When disabled, single-character input retains dictionary ranking."
 (defvar-local wime-neural-last-latency nil
   "Milliseconds spent in the most recently accepted model evaluation.")
 
-(defalias 'wime-neural--context #'wime--context)
+(defconst wime-neural-context-limit 1024
+  "Characters of left context sent to the worker.
+The language model reads all of them; the syllable model its last 64.")
+
+(defun wime-neural--context ()
+  (wime--context wime-neural-context-limit))
 
 (defun wime-neural--valid-p (job)
   "Whether JOB still belongs to the current unselected composition."
@@ -127,7 +132,7 @@ When disabled, single-character input retains dictionary ranking."
               ;; without advancing buffer-chars-modified-tick.
               (equal (wime-neural--context) (wime-neural--job-context job))
               (or (null (wime-neural--job-history job))
-                  (let ((state (wime--composition-state)))
+                  (let ((state (wime--composition-state wime-neural-context-limit)))
                     (and (equal (alist-get 'context state) (wime-neural--job-history job))
                          (equal (alist-get 'committed state) (wime-neural--job-committed job)))))))))
 
@@ -167,7 +172,7 @@ complete."
   (let ((units (wime--parse wime--input)))
     (when (and (= (length (caar units)) 2) (wime-neural--model-p units)
                (or (not (bound-and-true-p wime-edit-mode)) (wime-edit--decodable-p)))
-      (let* ((state (wime--composition-state))
+      (let* ((state (wime--composition-state wime-neural-context-limit))
              (editing (wime--editing-p))
              (job (wime-neural--make-job
                    :id (cl-incf wime-neural--serial) :buffer (current-buffer)
