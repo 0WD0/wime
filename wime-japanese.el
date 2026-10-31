@@ -1,5 +1,7 @@
 ;;; wime-japanese.el --- Japanese input decoded by the CUDA worker -*- lexical-binding: t; -*-
 
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
 ;;; Commentary:
 ;; Keys convert to kana by editable romaji tables in japanese/:
 ;; a key sequence that may still grow waits, and

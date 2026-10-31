@@ -1,5 +1,7 @@
 ;;; wime-neural.el --- Local asynchronous neural verification and decoding -*- lexical-binding: t; -*-
 
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
 ;; Package-Requires: ((emacs "29.1"))
 
 ;;; Commentary:

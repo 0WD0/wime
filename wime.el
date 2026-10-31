@@ -1,5 +1,7 @@
 ;;; wime.el --- Wime double-pinyin input method -*- lexical-binding: t; -*-
 
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "29.1"))
 

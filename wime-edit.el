@@ -1,5 +1,7 @@
 ;;; wime-edit.el --- Editable Chinese compositions -*- lexical-binding: t; -*-
 
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
 ;;; Commentary:
 ;; Buffer characters carry immutable reading records, so ordinary edits and
 ;; undo retain the readings of untouched characters.  Literal text separates

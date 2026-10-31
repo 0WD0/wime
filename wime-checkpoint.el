@@ -1,4 +1,7 @@
 ;;; wime-checkpoint.el --- Verified runtime checkpoint switching -*- lexical-binding: t; -*-
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
 ;;; Code:
 (require 'wime-neural)
 (require 'json)

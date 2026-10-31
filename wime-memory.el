@@ -1,5 +1,7 @@
 ;;; wime-memory.el --- Manage Wime learned readings and history -*- lexical-binding: t; -*-
 
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
 ;;; Commentary:
 ;; Manage the live input method's user database.  Every mutation checks the
 ;; displayed row, runs in a transaction, and returns an inverse-operation
