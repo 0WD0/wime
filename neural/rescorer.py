@@ -1,7 +1,7 @@
 """Optional final-stage rescoring with a general pretrained causal LM.
 
 It scores complete, dictionary-verified candidates and proposes alternative
-tokens as prefixes, interleaved with the conditional model's proposals; the
+tokens as prefixes, interleaved with the syllable model's proposals; the
 dictionary still checks every prefix against the typed keys, so the LM needs
 no pinyin. Requires transformers with the model's architecture.
 """
