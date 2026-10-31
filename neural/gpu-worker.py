@@ -129,8 +129,7 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
                 window=evaluator.model.cfg.context,
                 pins=request.get("pins", []), learned=request.get("learned", []),
                 weight=request.get("memory_weight", 0), aux=request.get("aux", []),
-                literals=request.get("literals", []), tones=request.get("tones", []),
-                candidates=[c["text"] for c in request["candidates"]])]
+                literals=request.get("literals", []), tones=request.get("tones", []))]
         result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
         return result
     if request.get("operation") != "verify":

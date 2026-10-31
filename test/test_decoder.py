@@ -121,36 +121,12 @@ class Literal(Toy):
         return [5.0 if {2, 9} & set(p) else -5.0 for p in prefixes]
 
 
-class Merge(Toy):
-    """A one-hypothesis beam; the LM finds every whole lattice reading certain."""
-
-    def __init__(self):
-        super().__init__()
-        self.beam = self.per_hypothesis = 1
-
-    def literal_ids(self, text):
-        return (1,) * len(text)
-
-    def lm_tails(self, context, prefixes, tails):
-        return [0.0] * len(tails)
-
-
 class Decoding(unittest.TestCase):
     def test_the_language_model_spells_the_keys(self):
         texts = [t for t, _ in Toy().decode("", "vgjuuuru")]
         self.assertEqual(texts[0], "证据输入")
         self.assertTrue(all(len(t) == 4 and t[2:] == "输入" for t in texts))
         self.assertIn("整句输入", texts)
-
-    def test_lattice_readings_the_beam_missed_join_its_ranking(self):
-        alone = Merge().decode("", "vgjuuuru")
-        self.assertEqual([t for t, _ in alone], ["证据输入"])
-        merged = Merge().decode("", "vgjuuuru", candidates=["整句输入", "证据输入", "整句", "整句输入"])
-        self.assertEqual([t for t, _ in merged], ["整句输入", "证据输入"])
-        pinned = Merge().decode("", "vgjuuuru", pins=[(0, "证")], candidates=["整句输入"])
-        self.assertEqual([t for t, _ in pinned], ["证据输入"])
-        self.assertEqual([t for t, _ in Merge().decode("", "vgjuuur", candidates=["整句输入"])],
-                         [t for t, _ in Merge().decode("", "vgjuuur")])
 
     def test_learned_readings_and_pins_steer_the_beam(self):
         self.assertEqual(Toy().decode("", "vgjuuuru", learned=[(0, "整句")], weight=10.0)[0][0], "整句输入")

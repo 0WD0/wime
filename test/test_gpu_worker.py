@@ -176,13 +176,12 @@ class WorkerContract(unittest.TestCase):
 
         request = self.request(operation="decode", input="bmy", syllables=2, draft="",
                                pins=[[0, "便"]], learned=[[0, "便宜"]], memory_weight=10.0,
-                               literals=[[1, "GPU "]], tones=[[1, 2]],
-                               candidates=[dict(text="便宜", end=2, dictionary=True)])
+                               literals=[[1, "GPU "]], tones=[[1, 2]])
         decoder = Decoder()
         self.assertEqual(worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), request, None, decoder)["candidates"], [["便宜", -.5]])
         self.assertEqual(decoder.args, ("", "bmy"))
         self.assertEqual(decoder.kwargs, dict(pins=[(0,"便")], learned=[(0,"便宜")], weight=10., aux=[],
-                                              literals=[(1, "GPU ")], tones=[(1, 2)], candidates=["便宜"]))
+                                              literals=[(1, "GPU ")], tones=[(1, 2)]))
         worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), dict(request, aux=[[1, "kp"]]), None, decoder)
         self.assertEqual(decoder.kwargs["aux"], [(1,"kp")])
         self.assertEqual(worker.respond(None, request)["candidates"], [])

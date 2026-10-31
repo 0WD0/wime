@@ -105,7 +105,7 @@ class Decoder(DecodingModel):
 
     # --- search -----------------------------------------------------------
 
-    def decode(self, context, code, pins=(), learned=(), weight=0.0, aux=(), literals=(), tones=(), candidates=()):
+    def decode(self, context, code, pins=(), learned=(), weight=0.0, aux=(), literals=(), tones=()):
         """Best complete readings of CODE as [(text, per-character score)].
 
         PINS fix characters by position and AUX (position, keys) restricts a
@@ -114,8 +114,7 @@ class Decoder(DecodingModel):
         LITERALS (position, text) follow the first POSITION characters; the
         returned texts omit them. TONES (position, tone) restrict a position
         to characters with that tone and reach the model's prompts. An odd
-        CODE ends in half a syllable. CANDIDATES, the lattice's complete
-        readings, join the ranking when the beam missed them.
+        CODE ends in half a syllable.
         """
         key = (context, tuple(learned), weight)
         constraints = {p: ("pin", c) for p, c in pins}
@@ -138,8 +137,7 @@ class Decoder(DecodingModel):
             session.kept = session.kept[:max(cut, 1)]
             session.constraints, session.literals = constraints, literals
         session.texts = texts
-        result = session.decode(code)
-        return session.merge(result, code, candidates) if candidates and not literals and len(code) % 2 == 0 else result
+        return session.decode(code)
 
 
 class Session:
@@ -329,21 +327,6 @@ class Session:
         if self.lm_context is None:
             self.lm_context = decoder.lm_ids(self.context)
         return prompt if prompt is not None and len(prompt) + characters <= decoder.window() else None
-
-    def merge(self, result, code, candidates):
-        """RESULT with the CANDIDATES it lacks, ranked alike: a dictionary
-        word reaches the LM whole even when its first character was pruned."""
-        n = len(code) // 2
-        seen = {text for text, _ in result}
-        texts = [t for t in dict.fromkeys(candidates) if len(t) == n and t not in seen and self.allowed(code, 0, t)]
-        prompt = self.prompt(code, n) if texts else None
-        if prompt is None:
-            return result
-        ids = [self.decoder.literal_ids(t) for t in texts]
-        q = self.lm_tails([()] * len(texts), ids)
-        m = self.decoder.model_score(prompt, texts)
-        extra = [(t, self.rank(Hypothesis(t, i, a, b)) / n) for t, i, a, b in zip(texts, ids, q, m)]
-        return sorted(result + extra, key=lambda e: e[1], reverse=True)
 
     def decode(self, code):
         syllables, half = len(code) // 2, len(code) % 2
