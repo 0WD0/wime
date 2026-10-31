@@ -9,7 +9,7 @@ wime 是纯 Elisp 的中文双拼输入法。
   有 NVIDIA GPU 时，停键后由本地神经模型重新整句解码。
 - 待上屏的文字直接写在 buffer 里，可以移动光标修改、补辅助码，
   拿不准的字就地给出替代写法。
-- 同一个后台还提供日文输入法，见[[*日本語][日本語]]。
+- 同一个后台还提供日文输入法，见 [[file:japanese/README.org][japanese/README.org]]。
 
 * 安装
 
@@ -162,41 +162,6 @@ worker 在后台常驻，首次启动要加载模型。
 在这两个 buffer 里按 =C-h m= 查看按键。
 要全部清除，退出 Emacs 后删掉数据库文件。
 
-* 日本語
-
-#+begin_src emacs-lisp
-(require 'wime-japanese)
-#+end_src
-
-=M-x set-input-method= 选择方案，各 buffer 独立：
-
-| 名称                        | 键位与规则                                                         |
-|-----------------------------+--------------------------------------------------------------------|
-| =wime-japanese-base=        | QWERTY + 普通罗马字：=shi= し、=chi= ち、=tsu= つ                  |
-| =wime-japanese=             | QWERTY + AZIK：=kz= かん、=kp= こう、=ds= です                     |
-| =wime-japanese-onishi=      | [[https://o24.works/layout/][大西配列]] + 普通罗马字               |
-| =wime-japanese-onishi-azik= | [[https://zenn.dev/maki10645/articles/68f7c10a018691][文章版大西 AZIK]] |
-
-大西配列只在日文输入时由 wime 重排，系统和键盘固件保持 QWERTY。
-促音都是逻辑键 =;=。
-
-按住 Shift 敲的假名要转成汉字或片假名，
-如 =KAku= 書く、=TAKq= 高い、=GA:KOU= 学校（Shift 下的 =;= 是 =:= ，仍打 っ）。
-用过 Shift 的输入里，没按 Shift 的假名保持平假名；
-完全不用 Shift 时由模型决定写法。
-数字选候选，空格上屏，=RET= 上屏假名，=DEL= 删键，=ESC= 取消。
-
-假名到汉字的神经转换需要假名模型和读音表，目前不随安装提供；
-已有这两个文件时设置 =wime-japanese-model-file= 和 =wime-japanese-table-file=，
-可选的 =wime-japanese-zenz-directory= 指向转换后的 zenz-v3.2-small，增加整句重排。
-
-规则统一写在 =japanese/rules.eld=，各方案可以继承、覆盖键位、
-假名行、后缀和例外，字段说明见文件开头。修改后重新生成规则表：
-
-#+begin_src sh
-emacs -Q --batch -l gen/japanese.el -f wime-japanese-generate
-#+end_src
-
 * 词库与方案
 
 =schemes/*.json= 定义每个方案的声母键、韵母键、零声母和整音节别名。
@@ -235,9 +200,6 @@ octagram 打分模块（=grammar.cc=）和 =BUILD.bazel= 等文件也只在 mono
 - 词库：万象拼音（amzxyz），CC-BY-4.0。
 - 音节模型：CC-BY-SA-4.0。
 - Qwen3.5-2B-Base：Apache-2.0。
-- 日文读音表用到的 JMdict、KANJIDIC2 和 JMnedict 来自 James William Breen 与 EDRDG，
-  按 [[https://www.edrdg.org/edrdg/licence.html][EDRDG 许可]]（CC-BY-SA-4.0）使用；
-  来源记录在 =neural/japanese-sources.json=。
 
 * 尚未实现
 

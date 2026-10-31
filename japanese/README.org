@@ -1,0 +1,45 @@
+#+title: wime-japanese
+#+options: toc:nil num:nil
+
+wime 的日文输入法，与中文输入共用同一个神经 worker。
+安装 wime 后加载：
+
+#+begin_src emacs-lisp
+(require 'wime-japanese)
+#+end_src
+
+=M-x set-input-method= 选择方案，各 buffer 独立：
+
+| 名称                        | 键位与规则                                                         |
+|-----------------------------+--------------------------------------------------------------------|
+| =wime-japanese-base=        | QWERTY + 普通罗马字：=shi= し、=chi= ち、=tsu= つ                  |
+| =wime-japanese=             | QWERTY + AZIK：=kz= かん、=kp= こう、=ds= です                     |
+| =wime-japanese-onishi=      | [[https://o24.works/layout/][大西配列]] + 普通罗马字               |
+| =wime-japanese-onishi-azik= | [[https://zenn.dev/maki10645/articles/68f7c10a018691][文章版大西 AZIK]] |
+
+大西配列只在日文输入时由 wime 重排，系统和键盘固件保持 QWERTY。
+促音都是逻辑键 =;=。
+
+按住 Shift 敲的假名要转成汉字或片假名，
+如 =KAku= 書く、=TAKq= 高い、=GA:KOU= 学校（Shift 下的 =;= 是 =:= ，仍打 っ）。
+用过 Shift 的输入里，没按 Shift 的假名保持平假名；
+完全不用 Shift 时由模型决定写法。
+数字选候选，空格上屏，=RET= 上屏假名，=DEL= 删键，=ESC= 取消。
+
+假名到汉字的神经转换需要假名模型和读音表，目前不随安装提供；
+已有这两个文件时设置 =wime-japanese-model-file= 和 =wime-japanese-table-file=，
+可选的 =wime-japanese-zenz-directory= 指向转换后的 zenz-v3.2-small，增加整句重排。
+
+规则统一写在本目录的 =rules.eld=，各方案可以继承、覆盖键位、
+假名行、后缀和例外，字段说明见文件开头。
+修改后在 wime 目录重新生成规则表：
+
+#+begin_src sh
+emacs -Q --batch -l gen/japanese.el -f wime-japanese-generate
+#+end_src
+
+* 许可
+
+日文读音表用到的 JMdict、KANJIDIC2 和 JMnedict 来自 James William Breen 与 EDRDG，
+按 [[https://www.edrdg.org/edrdg/licence.html][EDRDG 许可]]（CC-BY-SA-4.0）使用；
+来源记录在 =neural/japanese-sources.json=。
