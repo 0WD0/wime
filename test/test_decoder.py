@@ -121,7 +121,35 @@ class Literal(Toy):
         return [5.0 if {2, 9} & set(p) else -5.0 for p in prefixes]
 
 
+class Healing(Toy):
+    """The context ends in the token 整. The LM expects the merged token 整句;
+    after a separate 整 it prefers 据 to 句."""
+
+    def prompts(self, context, code, tones=()):
+        return [0], [1, VOCAB.index("整")]
+
+    def lm_next(self, context, sequences):
+        self.contexts = getattr(self, "contexts", []) + [list(context)]
+        rows = torch.full((len(sequences), len(VOCAB)), -6.0)
+        for row, s in zip(rows, sequences):
+            # Rows depend on the text after the newline, wherever the context ends.
+            s = tuple(context[1:]) + s
+            if s == ():
+                row[VOCAB.index("整")], row[VOCAB.index("整句")] = -1.0, -1.5
+            elif s == (VOCAB.index("整"),):
+                row[VOCAB.index("据")] = -2.0
+        return rows
+
+
 class Decoding(unittest.TestCase):
+    def test_the_context_token_heals_into_the_composition(self):
+        decoder = Healing()
+        self.assertEqual(decoder.decode("整", "ju")[0][0], "句")
+        self.assertTrue(all(c == [1] for c in decoder.contexts))
+        unhealed = Healing()
+        unhealed.heal = False
+        self.assertEqual(unhealed.decode("整", "ju")[0][0], "据")
+
     def test_the_language_model_spells_the_keys(self):
         texts = [t for t, _ in Toy().decode("", "vgjuuuru")]
         self.assertEqual(texts[0], "证据输入")

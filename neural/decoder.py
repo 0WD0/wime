@@ -17,6 +17,12 @@ character's reading must start with the typed key. Pinned characters and
 typed auxiliary codes are hard constraints at their position; changing one
 keeps the frontiers before it when the complete input is unchanged.
 
+The context's last LM token is healed: the composition may start inside it,
+with a token that begins with that token's text and spells the first keys
+(context …不错 + keys de… → the token 不错的). Tokenized apart, 不错 then 的 is
+a sequence the LM almost never saw, and 的 loses to readings without a
+merged token. Both paths are scored relative to the backed-off token.
+
 Literal text typed inside the composition (English, punctuation) sits
 between syllables. The LM's token path includes it, so the LM scores the
 sentence as typed. The transducer never saw literals among syllables;
@@ -50,8 +56,10 @@ class Units:
     """Keys -> allowed units [(text, ids)]; odd keys index half syllables."""
 
     def __init__(self, tokenizer, readings, tones=None, combinations=16):
-        self.readings, self.tones = readings, tones or {}
+        self.readings, self.tones, self.combinations = readings, tones or {}, combinations
         self.index = collections.defaultdict(list)
+        # Chinese token texts by id, and multi-character tokens by each proper prefix.
+        self.texts, self.heads, self.healed = {}, collections.defaultdict(list), {}
         single, self.longest = set(), 1
         for i in range(len(tokenizer)):
             text = tokenizer.decode([i])
@@ -59,6 +67,9 @@ class Units:
                 continue
             single.update(text if len(text) == 1 else ())
             self.longest = max(self.longest, len(text))
+            self.texts[i] = text
+            for k in range(1, len(text)):
+                self.heads[text[:k]].append((text[k:], i))
             for codes in itertools.islice(itertools.product(*(readings[c] for c in text)), combinations):
                 self.index["".join(codes)].append((text, (i,)))
         for char, codes in readings.items():
@@ -68,16 +79,35 @@ class Units:
                 ids = tuple(tokenizer(char, add_special_tokens=False)["input_ids"])
                 for code in codes:
                     self.index[code].append((char, ids))
-        self.partial = collections.defaultdict(list)
-        for code, units in list(self.index.items()):
-            self.partial[code[:-1]].extend(units)
+        self.partial = self.partials(self.index)
 
     @classmethod
     def from_database(cls, tokenizer, database):
         return cls(tokenizer, readings(database), tones(database))
 
-    def get(self, keys):
-        return (self.partial if len(keys) % 2 else self.index).get(keys, ())
+    @staticmethod
+    def partials(index):
+        partial = collections.defaultdict(list)
+        for code, units in list(index.items()):
+            partial[code[:-1]].extend(units)
+        return partial
+
+    def get(self, keys, table=None):
+        index, partial = table or (self.index, self.partial)
+        return (partial if len(keys) % 2 else index).get(keys, ())
+
+    def healing(self, token):
+        """(index, partial) of units that start inside context token id TOKEN:
+        tokens beginning with its text, read from their remaining characters.
+        None when TOKEN is not Chinese or no token extends it."""
+        head = self.texts.get(token)
+        if head not in self.healed:
+            index = collections.defaultdict(list)
+            for rest, i in self.heads.get(head, ()):
+                for codes in itertools.islice(itertools.product(*(self.readings[c] for c in rest)), self.combinations):
+                    index["".join(codes)].append((rest, (i,)))
+            self.healed[head] = (index, self.partials(index)) if index else None
+        return self.healed[head]
 
     def aux_allows(self, char, keys, typed):
         """Whether TYPED auxiliary keys allow CHAR read as KEYS (one key: any reading starting with it)."""
@@ -98,6 +128,8 @@ Hypothesis = collections.namedtuple("Hypothesis", "text ids q m")
 
 class Decoder(DecodingModel):
     """Model-facing methods are separate so tests can replace the models."""
+
+    heal = True
 
     def __init__(self, evaluator, rescorer, units, beam=BEAM, per_hypothesis=PER_HYPOTHESIS):
         super().__init__(evaluator, rescorer, beam, per_hypothesis)
@@ -148,7 +180,7 @@ class Session:
         self.literals, self.texts, self.segment_prompts = literals, {}, {}
         self.code, self.kept = "", [[Hypothesis("", (), 0.0, 0.0)]]
         self.memo, self.tails = {}, {}
-        self.lm_context = None
+        self.lm_context, self.healing = None, None
 
     def bonus(self, text):
         covered = set()
@@ -232,16 +264,23 @@ class Session:
         # A unit never spans a literal.
         segment = self.segment(end - 1)
         for start in range(max(segment, end - decoder.units.longest), end):
-            units = decoder.units.get(code[2 * start:])
-            if self.constraints:
-                units = [u for u in units if self.allowed(code, start, u[0])]
-            if units and self.kept[start]:
-                first = len(hypotheses)
-                hypotheses += self.kept[start]
-                for unit in units:
-                    choices.append(unit), owners.append((first, len(hypotheses)))
-                    forced.append(all("pin" in self.constraints.get(start+i, ())[::2]
-                                      for i in range(len(unit[0]))))
+            keys = code[2 * start:]
+            groups = [(self.kept[start], decoder.units.get(keys))]
+            if start == 0 and self.healing:
+                # The plain start carries the backed-off token; the healed one
+                # continues inside it.
+                groups = [([h for h in self.kept[0] if h.ids], groups[0][1]),
+                          ([h for h in self.kept[0] if not h.ids], decoder.units.get(keys, self.healing))]
+            for kept, units in groups:
+                if self.constraints:
+                    units = [u for u in units if self.allowed(code, start, u[0])]
+                if units and kept:
+                    first = len(hypotheses)
+                    hypotheses += kept
+                    for unit in units:
+                        choices.append(unit), owners.append((first, len(hypotheses)))
+                        forced.append(all("pin" in self.constraints.get(start+i, ())[::2]
+                                          for i in range(len(unit[0]))))
         if not choices:
             return []
         q = self.lm_next([h.ids for h in hypotheses])[:, torch.tensor([u[1][0] for u in choices], device=decoder.device)]
@@ -321,12 +360,22 @@ class Session:
         characters, or None past its window: then the LM alone ranks."""
         decoder = self.decoder
         try:
-            prompt, self.lm_context = decoder.prompts(self.context, code, self.tones(0, len(code) // 2))
+            prompt, lm_context = decoder.prompts(self.context, code, self.tones(0, len(code) // 2))
         except ValueError:
-            prompt = None
+            prompt, lm_context = None, decoder.lm_ids(self.context)
         if self.lm_context is None:
-            self.lm_context = decoder.lm_ids(self.context)
+            self.start(lm_context)
         return prompt if prompt is not None and len(prompt) + characters <= decoder.window() else None
+
+    def start(self, ids):
+        """Read the LM context IDS, backing off its last token when units can continue it."""
+        self.healing = len(ids) > 1 and self.decoder.heal and self.decoder.units.healing(ids[-1])
+        if not self.healing:
+            self.lm_context = ids
+            return
+        self.lm_context, tail = ids[:-1], ids[-1]
+        q = self.lm_next([()])[0, tail].item()
+        self.kept[0] = [Hypothesis("", (tail,), 0.0, 0.0), Hypothesis("", (), -q, 0.0)]
 
     def decode(self, code):
         syllables, half = len(code) // 2, len(code) % 2
