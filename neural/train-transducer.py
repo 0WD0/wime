@@ -114,9 +114,9 @@ def collate(corpus, picks, index, policy, rng, device, marker):
 def loss(model, batch):
     ids, feats, padding, rows_, positions, slots, labels = batch
     with torch.autocast("cuda", dtype=torch.bfloat16):
-        states = model.states(ids)[rows_, positions]
-        encoded = model.encoder(feats, padding)[rows_, slots]
-        logits = model.logits(states, encoded)
+        memory = model.encoder(feats, padding)
+        states = model.states(ids, memory, padding)[rows_, positions]
+        logits = model.logits(states, memory[rows_, slots])
     return F.cross_entropy(logits.float(), labels, reduction="sum"), len(labels)
 
 
@@ -140,6 +140,7 @@ def main():
     p.add_argument("--encoder-layers", type=int, default=4)
     p.add_argument("--encoder-width", type=int, default=256)
     p.add_argument("--encoder-heads", type=int, default=4)
+    p.add_argument("--cross-layers", type=int, default=0, help="top character blocks attending to syllables")
     p.add_argument("--seed", type=int, default=20261031)
     args = p.parse_args()
     if (args.out / "model.safetensors").exists():
@@ -153,7 +154,8 @@ def main():
     protection = Protection(excluded)
     additions = training_characters([directory], protection)
     encoder = transducer.EncoderConfig(n_layer=args.encoder_layers, n_head=args.encoder_heads,
-                                       n_embd=args.encoder_width, marker=not args.no_marker)
+                                       n_embd=args.encoder_width, marker=not args.no_marker,
+                                       cross_layers=args.cross_layers)
     model, vocab = transducer.from_conditional(str(args.base), additions, encoder)
     marker = encoder.marker
     model.cuda()

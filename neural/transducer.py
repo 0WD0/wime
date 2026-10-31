@@ -5,9 +5,11 @@ from a conditional checkpoint) reads the left context, an OUTPUT marker and
 the characters so far; it never sees keys, so its states survive keystrokes.
 A small bidirectional encoder reads every syllable of the composition as
 initial + final + tone embeddings, each possibly unknown: toneless, toned and
-half-typed input share one model. A joint head combines the character state
-before position i with the syllable state at i and scores characters through
-the tied character embedding.
+half-typed input share one model. Optionally the top cross_layers blocks of
+the character network also attend to the encoder; the blocks below stay
+key-independent. A joint head combines the character state before position i
+with the syllable state at i and scores characters through the tied
+character embedding.
 """
 import dataclasses
 import json
@@ -36,6 +38,8 @@ class EncoderConfig:
     positions: int = 64
     # Without the marker the context runs straight into the composition.
     marker: bool = True
+    # Top character-network blocks followed by cross-attention to the encoder.
+    cross_layers: int = 0
 
 
 class SyllableEncoder(nn.Module):
@@ -58,6 +62,20 @@ class SyllableEncoder(nn.Module):
         return self.out(self.norm(self.blocks(x, src_key_padding_mask=padding)))
 
 
+class CrossAttention(nn.Module):
+    """Residual attention from character states to syllable states; starts as identity."""
+
+    def __init__(self, n, heads):
+        super().__init__()
+        self.norm = nn.LayerNorm(n)
+        self.attention = nn.MultiheadAttention(n, heads, batch_first=True)
+        nn.init.zeros_(self.attention.out_proj.weight)
+        nn.init.zeros_(self.attention.out_proj.bias)
+
+    def forward(self, x, memory, padding):
+        return x + self.attention(self.norm(x), memory, memory, key_padding_mask=padding, need_weights=False)[0]
+
+
 class Transducer(nn.Module):
     def __init__(self, predictor_cfg, encoder_cfg):
         super().__init__()
@@ -67,14 +85,19 @@ class Transducer(nn.Module):
         self.from_predictor = nn.Linear(n, n)
         self.from_encoder = nn.Linear(n, n, bias=False)
         self.joint = nn.Linear(n, n)
+        self.cross = nn.ModuleList(CrossAttention(n, predictor_cfg.n_head) for _ in range(encoder_cfg.cross_layers))
         self.cfg, self.encoder_cfg = predictor_cfg, encoder_cfg
 
-    def states(self, ids):
-        """Character-network states [B, T, C] for token IDS [B, T]."""
+    def states(self, ids, encoded=None, padding=None):
+        """Character-network states [B, T, C] for token IDS [B, T]; the top
+        blocks attend to ENCODED [B, S, C] (PADDING [B, S]) when coupled."""
         p = self.predictor
         x = p.tok(ids) + p.pos(torch.arange(ids.shape[1], device=ids.device))
-        for block in p.blocks:
+        first = len(p.blocks) - len(self.cross)
+        for i, block in enumerate(p.blocks):
             x = block(x)
+            if i >= first:
+                x = self.cross[i - first](x, encoded, padding)
         return p.ln_f(x)
 
     def logits(self, states, encoded):
@@ -170,12 +193,15 @@ def decoder_class(base):
             rows = [sequence(index, p.context, t, p.marker) for p, t in zip(prompts, texts)]
             width = max(len(ids) for ids, _ in rows)
             ids = torch.tensor([ids + [0] * (width - len(ids)) for ids, _ in rows], device=self.device)
-            states = model.states(ids)
-            picked = states[[i for i, _ in slots], [rows[i][1] + j for i, j in slots]]
             # Prompts are few (one per segment); gather their slots in one index.
             unique = list({id(p): p for p in prompts}.values())
             which = {id(p): k for k, p in enumerate(unique)}
             table = torch.nn.utils.rnn.pad_sequence([self.encoded(p) for p in unique], batch_first=True)
+            owner = torch.tensor([which[id(p)] for p in prompts], device=self.device)
+            lengths = torch.tensor([len(p.features) for p in unique], device=self.device)
+            padding = torch.arange(table.shape[1], device=self.device)[None] >= lengths[:, None]
+            states = model.states(ids, table[owner], padding[owner])
+            picked = states[[i for i, _ in slots], [rows[i][1] + j for i, j in slots]]
             encoded = table[[which[id(prompts[i])] for i, _ in slots], [j for _, j in slots]]
             return model.logits(picked, encoded).float().log_softmax(-1)
 
