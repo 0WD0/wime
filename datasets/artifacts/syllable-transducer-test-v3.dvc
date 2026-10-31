@@ -1,0 +1,6 @@
+outs:
+- md5: f18f8bc75a261dcf6aa615868cba605e.dir
+  size: 5417018
+  nfiles: 16
+  hash: md5
+  path: syllable-transducer-test-v3
