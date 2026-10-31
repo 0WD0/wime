@@ -297,7 +297,9 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
     (_ (wime-neural--verify-request job))))
 
 (defun wime-neural--decode-request (job)
-  "Encode JOB's whole input, pins and learned readings for decoding."
+  "Encode JOB's whole input, pins and learned readings for decoding.
+The lattice's complete readings go along: the worker ranks those its beam
+missed with its own score, so a dictionary word is judged whole."
   (let ((units (wime--parse (wime-neural--job-input job))))
     (json-serialize
      `(:id ,(wime-neural--job-id job) :operation "decode" :context ,(or (wime-neural--job-history job) (wime-neural--job-context job))
@@ -315,7 +317,13 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                                    (wime-neural--job-literals job)))
        :tones ,(vconcat (mapcar (lambda (tone) (vector (car tone) (cdr tone)))
                                 (wime--tones (wime-neural--job-input job))))
-       :memory_weight ,wime-neural-memory-weight :candidates []))))
+       :memory_weight ,wime-neural-memory-weight
+       :candidates ,(vconcat
+                     (cl-loop for c in (wime-neural--job-records job)
+                              when (and (= (wime-candidate-end c) (length units))
+                                        (= (length (wime-candidate-text c)) (length units)))
+                              collect `(:text ,(wime-candidate-text c) :end ,(wime-candidate-end c)
+                                        :dictionary ,(if (wime-candidate-dictionary c) t :false))))))))
 
 (defun wime-neural--verify-request (job)
   "Encode JOB's candidates and draft for verification."

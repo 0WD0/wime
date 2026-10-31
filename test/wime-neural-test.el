@@ -629,3 +629,10 @@
     (let ((request (json-parse-string (wime-neural--request job) :object-type 'alist)))
       (should (equal (alist-get 'input request) "aabb"))
       (should (equal (alist-get 'tones request) [[0 3]])))))
+
+(ert-deftest wime-neural-decode-request-carries-complete-lattice-readings ()
+  (wime-neural-test--composition
+    (setf (wime-neural--job-method job) 'decode)
+    (let ((request (json-parse-string (wime-neural--request job) :object-type 'alist :array-type 'list)))
+      (should (equal (mapcar (lambda (c) (alist-get 'text c)) (alist-get 'candidates request))
+                     '("甲乙" "丙丁"))))))
