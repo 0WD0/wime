@@ -150,6 +150,28 @@
         (should scheduled)
         (should (equal (wime-neural--job-input scheduled) "aaccbbD"))))))
 
+(ert-deftest wime-edit-neural-decoding-shows-keys-until-the-model-answers ()
+  (wime-edit-test--buffer
+    (let ((wime-neural-mode t) (wime-decoding 'neural)
+          (wime-neural-model-file "unused-model") (wime-neural-rescorer "unused-rescorer")
+          (wime-neural-single-character t) (wime-neural--failed nil)
+          (wime-candidates-updated-hook '(wime-neural--schedule))
+          (wime-lattice-inhibit-functions '(wime-neural--exclusive-p))
+          scheduled)
+      (cl-letf (((symbol-function 'run-with-timer)
+                 (lambda (_delay _repeat _function job) (setq scheduled job) nil))
+                ((symbol-function 'wime--database) (lambda () nil))
+                ((symbol-function 'sqlite-select) (lambda (&rest _) '(("wime-syllable-features-v1")))))
+        (wime-edit-test--type "aabb")
+        (should (equal (buffer-substring-no-properties 1 (point-max)) "ab"))
+        (should-not wime--candidates)
+        (wime-neural--apply scheduled '((candidates . [["乙丁" -1.0]])))
+        (should (equal (buffer-substring-no-properties 1 (point-max)) "乙丁"))
+        (should (equal wime--candidates '("乙丁")))
+        ;; Decoded characters stay while the next syllable waits.
+        (wime-edit-test--type "cc")
+        (should (equal (buffer-substring-no-properties 1 (point-max)) "乙丁c"))))))
+
 (ert-deftest wime-edit-space-confirms-and-next-space-is-literal ()
   (wime-edit-test--buffer
     (wime-edit-test--type "aa ")

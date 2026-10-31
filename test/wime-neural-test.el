@@ -140,6 +140,23 @@
             (wime-neural--schedule)
             (should-not scheduled)))))))
 
+(ert-deftest wime-decoding-chooses-the-lattice-the-model-or-both ()
+  (with-temp-buffer
+    (let ((wime-neural-mode t) (wime-neural--failed nil) (wime-neural-single-character t)
+          (wime-neural-model-file "model.safetensors") (wime-neural-rescorer "/lm")
+          (wime-lattice-inhibit-functions '(wime-neural--exclusive-p)))
+      (wime-neural-test--single-syllable
+        (cl-letf (((symbol-function 'run-with-timer) (lambda (&rest _) nil)))
+          (pcase-dolist (`(,decoding ,lattice ,decoded) '((lattice t nil) (hybrid t t) (neural nil t)))
+            (let ((wime-decoding decoding))
+              (setq wime--input "qd" wime--candidates (wime--candidates "qd"))
+              (should (eq (and wime--candidates wime--candidate-records t) lattice))
+              (wime-neural--schedule)
+              (should (eq (and wime-neural--job t) decoded))))
+          ;; Without a worker, neural decoding converts with the lattice.
+          (let ((wime-decoding 'neural) (wime-neural--failed t))
+            (should (wime--candidates "qd"))))))))
+
 (ert-deftest wime-neural-context-settings-remain-compatible ()
   (with-temp-buffer
     (insert "上段\n\n当前输入")
@@ -291,6 +308,40 @@
       (should wime-neural--failed)
       (should-not wime-neural--pending)
       (should (equal (car wime--candidates) "甲乙")))))
+
+(ert-deftest wime-neural-decoding-choices-wait-for-the-model ()
+  (wime-neural-test--composition
+    (let* ((wime-decoding 'neural) (wime-settle-hook '(wime-neural--await))
+           (process (make-pipe-process :name "wime-await-test" :noquery t))
+           (wime-neural--process process) (wime-neural--busy nil) (wime-neural--pending nil)
+           (wime-neural--failed nil) (wime-neural--timeout-timer nil) sent)
+      (setq wime--candidate-records nil wime--candidates nil
+            wime-neural--job job wime-neural--timer (run-with-timer 60 nil #'ignore))
+      (setf (wime-neural--job-records job) nil)
+      (unwind-protect
+          (cl-letf (((symbol-function 'wime-neural--start) (lambda () process))
+                    ((symbol-function 'process-send-string) (lambda (_ request) (push request sent)))
+                    ((symbol-function 'accept-process-output)
+                     (lambda (&rest _) (wime-neural--reply '((id . 1) (candidates . [["丙丁" -1.0]]))))))
+            (wime--commit-selected)
+            (should sent)
+            (should (equal (buffer-string) "丙丁")))
+        (delete-process process)))))
+
+(ert-deftest wime-neural-decoding-failure-returns-to-the-lattice ()
+  (wime-neural-test--composition
+    (let ((wime-neural--process nil) (wime-neural--pending nil) refreshed)
+      (cl-letf (((symbol-function 'wime--refresh) (lambda () (setq refreshed t))))
+        (dolist (decoding '(hybrid neural))
+          (let ((wime-decoding decoding) (wime-neural--busy job) (wime-neural--failed nil))
+            (wime-neural--fail "test failure")
+            (should (eq refreshed (eq decoding 'neural)))))
+        ;; A worker lost between requests leaves keys shown until a choice.
+        (let ((wime-decoding 'neural) (wime-settle-hook '(wime-neural--await))
+              (wime-neural--busy nil) (wime-neural--failed t))
+          (setq refreshed nil wime-neural--job job wime--model-ranked nil)
+          (run-hooks 'wime-settle-hook)
+          (should refreshed))))))
 
 (ert-deftest wime-neural-only-initialization-gets-the-longer-timeout ()
   (wime-neural-test--composition

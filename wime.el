@@ -272,6 +272,24 @@ tone filters nothing."
 (defvar wime-reset-hook nil
   "Hook run when a composition is discarded or committed.")
 
+(defcustom wime-decoding 'hybrid
+  "How Chinese compositions are converted while `wime-neural-mode' runs.
+`lattice': the dictionary lattice alone.
+`hybrid': the lattice answers at once; after a typing pause the model's
+  whole-input readings come first, then the lattice's words.
+`neural': the model's readings alone.  New syllables show their keys until
+  it answers, and SPC or a digit waits for it.  Characters the model does
+  not know cannot be typed.
+Without `wime-neural-mode', or while its worker is unavailable, the lattice
+converts."
+  :type '(choice (const lattice) (const hybrid) (const neural)) :group 'wime)
+
+(defvar wime-lattice-inhibit-functions nil
+  "Functions of the parsed units; if one returns non-nil, skip the lattice.")
+
+(defvar wime-settle-hook nil
+  "Hook run before a key commits or chooses from the candidates.")
+
 (defcustom wime-grammar-module nil
   "Path to the librime-grammar module, or nil to disable the language model."
   :type '(choice (const nil) file)
@@ -845,9 +863,10 @@ Rime completes partial pinyin."
   (setq wime--typed-tones (wime--tones input))
   (let* ((units (wime--parse input))
          (last (car (last units)))
-         (complete (cl-every (lambda (unit) (= (length (car unit)) 2)) units)))
+         (complete (cl-every (lambda (unit) (= (length (car unit)) 2)) units))
+         (skip (run-hook-with-args-until-success 'wime-lattice-inhibit-functions units)))
     (setq wime--candidate-records
-          (when (and units complete)
+          (when (and units complete (not skip))
             ;; Preserve all display slots for single characters even with a
             ;; narrower sentence beam (e.g. width 1 or the default width 8).
             (let ((wime-search-width (if (= (length units) 1)
@@ -856,7 +875,7 @@ Rime completes partial pinyin."
               (wime--sentence-records units))))
     (seq-take
      (cond
-      ((null units) nil)
+      ((or (null units) skip) nil)
       (wime--candidate-records (mapcar #'wime-candidate-text wime--candidate-records))
       ((and last (not complete)) (wime--prefix-candidates units))
       (t (seq-filter (lambda (word) (wime--tones-allow-p word 0 units))
@@ -1082,9 +1101,15 @@ The segment keeps actual keys and auxiliary input; ordinary history is text.")
                       (aux . ,(vconcat aux)))
                     (point) (buffer-chars-modified-tick) wime-database-file))))))
 
+(defun wime--commit-selected ()
+  "Commit the selected candidate once pending work has settled."
+  (run-hooks 'wime-settle-hook)
+  (wime--commit (nth wime--selected wime--candidates)))
+
 (defun wime--select-digit (key)
   "Apply the span alternative or commit the candidate numbered KEY.
 In the span view only numbered alternatives respond; others do nothing."
+  (run-hooks 'wime-settle-hook)
   (let ((index (if (= key ?0) 9 (- key ?1))))
     (if (wime--spans-p)
         (when-let* ((choice (nth index wime--span-choices)))
@@ -1154,7 +1179,7 @@ commits its selected candidate first."
     (unless (wime-edit--type-literal key) (list key)))
    (t
     (when (wime--active-p)
-      (wime--commit (nth wime--selected wime--candidates)))
+      (wime--commit-selected))
     (list key))))
 
 (defun wime-input-method (key)
@@ -1185,11 +1210,11 @@ commits its selected candidate first."
       (wime--select-digit key)
       nil)
      ((and (wime--active-p) (= key ?\s))
-      (wime--commit (nth wime--selected wime--candidates))
+      (wime--commit-selected)
       nil)
      ((wime--punctuation-for key)
       (when (wime--active-p)
-        (wime--commit (nth wime--selected wime--candidates)))
+        (wime--commit-selected))
       (insert (wime--punctuation-for key))
       nil)
      (t

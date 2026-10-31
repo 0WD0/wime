@@ -314,6 +314,7 @@ leaving the window at that moment would keep the guess."
          (guess (and candidate (wime-candidate-text candidate)))
          (provisional (and (not wime--model-ranked)
                            (bound-and-true-p wime-neural-mode)
+                           (not (eq wime-decoding 'lattice))
                            (not (bound-and-true-p wime-neural--failed))
                            (bound-and-true-p wime-neural-rescorer)))
          (i -1))
@@ -714,6 +715,7 @@ Return nil without a run; text before its first syllable is context."
     (wime-edit--type-code key) nil)
    ((and (wime--aux-char-p key) (wime-edit--type-aux key)) nil)
    ((and (wime-edit--active-p) (wime--digit-p key))
+    (run-hooks 'wime-settle-hook)
     (when wime-show-candidates
       (if (wime--spans-p) (wime--select-digit key)
         (let ((text (nth (if (= key ?0) 9 (- key ?1)) wime--candidates)))
@@ -746,6 +748,7 @@ Return nil without a run; text before its first syllable is context."
 (defun wime-edit-finish ()
   "Confirm pending readings in the accessible buffer, retaining its text."
   (interactive)
+  (when (wime-edit--active-p) (run-hooks 'wime-settle-hook))
   (wime-edit-pause)
   (let ((wime-edit--internal t) (inhibit-read-only t) (position (point-min)))
     ;; Literal units become ordinary text; the Chinese around them is

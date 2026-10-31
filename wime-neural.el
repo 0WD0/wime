@@ -7,7 +7,8 @@
 ;;; Commentary:
 ;; A persistent worker loads the character model once.  There is at most one
 ;; running request and one pending request; typing replaces pending work.
-;; Decoded readings precede dictionary candidates while the input stays current.
+;; Decoded readings precede or replace dictionary candidates, per
+;; `wime-decoding', while the input stays current.
 
 ;;; Code:
 
@@ -95,6 +96,8 @@ When disabled, single-character input retains dictionary ranking."
 (defvar wime-neural--serial 0)
 (defvar wime-neural--failed nil)
 (defvar-local wime-neural--timer nil)
+(defvar-local wime-neural--job nil
+  "This buffer's latest scheduled decode, which a choice may wait for.")
 (defvar-local wime-neural-last-latency nil
   "Milliseconds spent in the most recently accepted model evaluation.")
 
@@ -133,7 +136,7 @@ When disabled, single-character input retains dictionary ranking."
 (defun wime-neural--reset ()
   "Cancel this buffer's scheduled work.  In-flight replies become stale."
   (when (timerp wime-neural--timer) (cancel-timer wime-neural--timer))
-  (setq wime-neural--timer nil)
+  (setq wime-neural--timer nil wime-neural--job nil)
   (when (and wime-neural--pending
              (eq (current-buffer) (wime-neural--job-buffer wime-neural--pending)))
     (setq wime-neural--pending nil)))
@@ -144,20 +147,32 @@ When disabled, single-character input retains dictionary ranking."
        (= (length (caar units)) 2)
        (or (> (length units) 1) wime-neural-single-character)))
 
+(defun wime-neural--features-p ()
+  "Whether the database records the syllable features the model reads."
+  (condition-case nil
+      (equal (caar (sqlite-select (wime--database)
+                                  "SELECT value FROM meta WHERE key = 'syllable_encoding'"))
+             "wime-syllable-features-v1")
+    (error nil)))
+
+(defun wime-neural--exclusive-p (units)
+  "Whether `neural' decoding leaves UNITS to the model, without the lattice.
+An unfinished first syllable shows its keys too: the model decodes it once
+complete."
+  (and (eq wime-decoding 'neural) (not wime-neural--failed)
+       wime-neural-model-file wime-neural-rescorer
+       (or (cdr units) wime-neural-single-character)
+       (wime-neural--features-p)))
+
 (defun wime-neural--schedule ()
   "Decode after typing pauses, keeping the dictionary usable immediately."
   (wime-neural--reset)
-  (when (and wime-neural-mode
+  (when (and wime-neural-mode (not (eq wime-decoding 'lattice))
              (not wime-neural--failed) wime-neural-model-file
              (or (not (bound-and-true-p wime-edit-mode))
                  (wime-edit--decodable-p)))
     (let ((units (wime--parse wime--input)))
-      (when (and (wime-neural--decodable-p units)
-                 (condition-case nil
-                     (equal (caar (sqlite-select (wime--database)
-                                                "SELECT value FROM meta WHERE key = 'syllable_encoding'"))
-                            "wime-syllable-features-v1")
-                   (error nil)))
+      (when (and (wime-neural--decodable-p units) (wime-neural--features-p))
         (let* ((state (wime--composition-state))
                (job (wime-neural--make-job
                      :id (cl-incf wime-neural--serial) :buffer (current-buffer)
@@ -171,8 +186,22 @@ When disabled, single-character input retains dictionary ranking."
                                     (wime-edit--literals))
                      :records wime--candidate-records :syllables (length units)
                      :method 'decode :pins wime--pins)))
-          (setq wime-neural--timer
+          (setq wime-neural--job job
+                wime-neural--timer
                 (run-with-timer wime-neural-delay nil #'wime-neural--enqueue job)))))))
+
+(defun wime-neural--await ()
+  "Under `neural' decoding, finish this composition's decode before a choice.
+A scheduled request goes out at once.  If the worker has failed, even
+between requests, the lattice converts instead of committing keys."
+  (when-let* ((job (and (eq wime-decoding 'neural) (not wime--model-ranked) wime-neural--job)))
+    (when (memq wime-neural--timer timer-list)
+      (cancel-timer wime-neural--timer)
+      (wime-neural--enqueue job))
+    (while (and (not wime--model-ranked)
+                (memq job (list wime-neural--busy wime-neural--pending)))
+      (accept-process-output wime-neural--process 0.05))
+    (when wime-neural--failed (wime--refresh))))
 
 (defun wime-neural--stop ()
   "Stop the worker and clear global work without changing candidates."
@@ -185,12 +214,18 @@ When disabled, single-character input retains dictionary ranking."
     (delete-process wime-neural--process))
   (setq wime-neural--process nil))
 
-(defun wime-neural--fail (reason)
-  "Disable failed worker attempts, retaining traditional results, with REASON."
-  (wime-neural--stop)
-  (unless wime-neural--failed
-    (message "wime neural unavailable: %s (toggle wime-neural-mode to retry)" reason))
-  (setq wime-neural--failed t))
+(defun wime-neural--fail (reason &optional job)
+  "Disable failed worker attempts, retaining traditional results, with REASON.
+Under `neural' decoding, JOB's composition (by default the busy one's),
+which showed its keys while waiting, converts with the lattice instead."
+  (let ((job (or job wime-neural--busy)))
+    (wime-neural--stop)
+    (unless wime-neural--failed
+      (message "wime neural unavailable: %s (toggle wime-neural-mode to retry)" reason))
+    (setq wime-neural--failed t)
+    (when (and job (eq wime-decoding 'neural) (buffer-live-p (wime-neural--job-buffer job)))
+      (with-current-buffer (wime-neural--job-buffer job)
+        (when (wime--active-p) (wime--refresh))))))
 
 (defun wime-neural--sentinel (process _event)
   "Handle PROCESS exiting without logging any typed text."
@@ -275,7 +310,7 @@ When disabled, single-character input retains dictionary ranking."
                                      (* 0.1 (wime-neural--job-syllables job)))
                                   nil #'wime-neural--fail "worker timed out"))
             (process-send-string process (concat (wime-neural--request job) "\n")))
-        (error (wime-neural--fail "worker could not start or receive input"))))))
+        (error (wime-neural--fail "worker could not start or receive input" job))))))
 
 (defun wime-neural--apply (job response)
   "Apply RESPONSE only if JOB is still current."
@@ -338,15 +373,19 @@ words and completions stay after them, so a prefix can still be committed."
 
 ;;;###autoload
 (define-minor-mode wime-neural-mode
-  "Decode wime compositions locally after a short typing pause."
+  "Run the local neural worker; `wime-decoding' says how Chinese uses it."
   :global t :group 'wime
   (if wime-neural-mode
       (progn
         (setq wime-neural--failed nil)
         (add-hook 'wime-candidates-updated-hook #'wime-neural--schedule)
+        (add-hook 'wime-lattice-inhibit-functions #'wime-neural--exclusive-p)
+        (add-hook 'wime-settle-hook #'wime-neural--await)
         (add-hook 'wime-reset-hook #'wime-neural--reset)
         (add-hook 'kill-buffer-hook #'wime-neural--reset))
     (remove-hook 'wime-candidates-updated-hook #'wime-neural--schedule)
+    (remove-hook 'wime-lattice-inhibit-functions #'wime-neural--exclusive-p)
+    (remove-hook 'wime-settle-hook #'wime-neural--await)
     (remove-hook 'wime-reset-hook #'wime-neural--reset)
     (remove-hook 'kill-buffer-hook #'wime-neural--reset)
     (dolist (buffer (buffer-list))
