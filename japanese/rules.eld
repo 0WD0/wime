@@ -1,5 +1,5 @@
 ;;; Source definitions for all four Japanese schemes.  Read as data, never evaluated.
-;; Generate: emacs -Q --batch -l emacs-packages/wime/gen/japanese.el -f wime-japanese-generate
+;; Generate, in the wime directory: emacs -Q --batch -l gen/japanese.el -f wime-japanese-generate
 ;; https://o24.works/layout/
 ;; https://zenn.dev/maki10645/articles/68f7c10a018691 (2025-01-09 article)
 ;;
@@ -10,6 +10,9 @@
 ;; :extension-extras and :extension-overrides use recipe IDs, so they move too.
 ;; :extra-rules adds individual rules; :remove and :overrides are explicit exceptions.
 ;; Duplicate keys are errors unless changed through :overrides.
+;; A scheme's :inherits names its parent; its own fields replace the parent's
+;; whole, and () clears one.  :layout-rows remaps physical keys per scheme,
+;; :nasal-keys binds ん and :literal-rules keeps punctuation and Shift aliases.
 
 (
  :physical-rows ("qwertyuiop" "asdfghjkl;" "zxcvbnm,./" "-")

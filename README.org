@@ -1,28 +1,26 @@
 #+title: wime
 #+options: toc:nil num:nil
 
-wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
-输入方式是双拼（默认微软双拼）加大写的墨奇辅助码。
-打字时先由词典词格给出候选；
-停键后，本地神经模型在后台重新解码。
-同一个后台也提供日文输入法 =wime-japanese= （AZIK 输入，见[[*日本語][日本語]]）。
+wime 是纯 Elisp 的中文双拼输入法。
+
+- 支持微软、小鹤、搜狗、自然码双拼，大写字母输入墨奇辅助码，
+  =C-1= … =C-5= 输入声调。
+- 候选来自万象拼音词库的词格搜索；
+  有 NVIDIA GPU 时，停键后由本地神经模型重新整句解码。
+- 待上屏的文字直接写在 buffer 里，可以移动光标修改、补辅助码，
+  拿不准的字就地给出替代写法。
+- 同一个后台还提供日文输入法，见[[*日本語][日本語]]。
 
 * 安装
 
-需要 Emacs 29.1 或更新版本，并带有 SQLite 支持。
-在 Emacs 中执行 =(sqlite-available-p)= 应返回非 nil。
-中文词库输入可以直接使用；神经推理另外需要 NVIDIA GPU，见[[*配置神经环境][配置神经环境]]。
-
-源码在 [[https://github.com/0WD0/wime][github.com/0WD0/wime]]，克隆整个仓库：
+需要 Emacs 29.1 或更新版本，并带 SQLite 支持：
+=(sqlite-available-p)= 应返回非 nil。
 
 #+begin_src sh
 git clone https://github.com/0WD0/wime
-cd wime
 #+end_src
 
-下面的 shell 命令均在这个目录执行。
-
-先安装 [[https://docs.astral.sh/uv/][uv]] 并下载词库：
+用 [[https://docs.astral.sh/uv/][uv]] 下载自己方案的词库：
 
 #+begin_src sh
 D="${XDG_DATA_HOME:-$HOME/.local/share}/wime"
@@ -30,298 +28,216 @@ uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
     --repo-type dataset --local-dir "$D"
 #+end_src
 
-=wanxiang.db= 是微软双拼；小鹤、搜狗、自然码双拼分别下载
-=wanxiang-flypy.db=、=wanxiang-sogou.db=、=wanxiang-ziranma.db=，
-并把 =wime-database-file= 指向它。
+| 方案     | 文件                  |
+|----------+-----------------------|
+| 微软双拼 | =wanxiang.db=         |
+| 小鹤双拼 | =wanxiang-flypy.db=   |
+| 搜狗双拼 | =wanxiang-sogou.db=   |
+| 自然码   | =wanxiang-ziranma.db= |
 
-将以下配置加入 init 文件，把源码路径换成实际位置：
+在 init 文件中加入：
 
 #+begin_src emacs-lisp
 (add-to-list 'load-path "/path/to/wime")
 (require 'wime)
 (setq wime-editable-preedit t
       wime-candidate-style 'spans)
+;; 不是微软双拼时：
+;; (setq wime-database-file (expand-file-name "wanxiang-flypy.db" wime-data-directory))
+(global-set-key (kbd "C-\\") #'wime-toggle-english)
 (wime-setup)
 #+end_src
 
-词库默认位于 =$XDG_DATA_HOME/wime/wanxiang.db=，
-没有设置 =XDG_DATA_HOME= 时为 =~/.local/share/wime/wanxiang.db=。
-放在其他位置时，设置 =wime-database-file=。按 =C-\\= 启用中文输入。
-
-上屏记录需主动启用：
-
-#+begin_src emacs-lisp
-(setq wime-user-database (expand-file-name "user.sqlite3" wime-data-directory))
-#+end_src
-
-启用后，每次上屏会在本地保存按键、文字、初始候选和最多 64 字的光标前文。
-从纠正中学习读音另需 =(setq wime-learn t)=，见[[*纠错学习][纠错学习]]。
-设 =wime-user-database= 为 nil 可停止记录和学习；
-=M-x wime-history= 可删除历史而保留学习偏好。
-要清空两者，退出 Emacs 后删除这个数据库文件。
-神经推理通过本地子进程处理输入。
+=C-\\= 启用中文输入；中文输入时再按切到英文，原样输入字母，
+=C-u C-\\= 关闭输入法。
+=wime-data-directory= 默认是 =~/.local/share/wime/=
+（设置了 =XDG_DATA_HOME= 时在它下面）。
 
 * 使用
 
-** 按键
+| 按键                | 作用                                         |
+|---------------------+----------------------------------------------|
+| 小写字母            | 双拼编码，两键一个音节                       |
+| 大写字母            | 前一个音节的辅助码，如 =niK=                 |
+| =C-1= … =C-5=       | 前一个音节的声调；=C-5= 是轻声，不筛选候选   |
+| 数字                | 选候选；分段视图里选那一段的替代写法         |
+| 空格                | 确认文字                                     |
+| =RET=               | 按原始按键上屏英文                           |
+| =DEL=               | 删掉最后一个键                               |
+| =ESC=               | 暂存待上屏的文字                             |
+| =TAB=               | 在分段视图和整句列表之间切换                 |
+| =C-\\=              | 切换中文与英文                               |
 
-| 按键                          | 作用                               |
-|-------------------------------+------------------------------------|
-| 小写字母，及方案用到的 =;,./= | 双拼编码，两键一个音节             |
-| 大写字母                      | 前一个音节的辅助码，如 =niK=       |
-| =C-1= … =C-5=                 | 前一个音节的声调（=C-5= 为轻声，只供模型参考） |
-| 数字                          | 选候选；分段视图里选该段的替代写法 |
-| 空格                          | 确认文字，结束自动选字             |
-| =RET=                         | 当前输入按原始英文按键上屏；没有活动输入时执行原来的回车命令 |
-| =DEL=                         | 删掉最后一个键                     |
-| =ESC=                         | 半上屏模式暂存；旧模式取消           |
-| =TAB=                         | 在分段视图和整句列表之间切换       |
-| =C-\\= (=wime-toggle-english=) | 切到英文原样输入，待上屏中文保留；再按切回 |
+声调只保留带这个调的字；词里的变调不影响筛选，打字典里的本调即可。
+方案用到 =;,./= 时，它们只在编码位置算键，别处仍是标点。
+标点默认全角，=M-x wime-toggle-punctuation= 切换半角。
 
-=;,./= 只在方案用到的位置（声母位或韵母位）算编码，别处仍是标点。
-标点默认上屏全角，=M-x wime-toggle-punctuation= 切换为半角。
-只读缓冲区里按键原样透传。
+** 半上屏
 
-启用 =wime-editable-preedit= 后，候选是 buffer 中的真实文字，
-读音作为不写入文件的属性保存。可直接移动光标，在待转换字后补大写辅助码；
-待上屏中文里键入的标点，以及 =C-\\= 切到英文后键入的字母、空格和数字，都原样成为这段的一部分：
-继续输入仍是同一句，前后中文联合转换（通用模型连同这些文字一起打分），空格一并确认。
-英文模式下 wime 仍是输入法，旧浮动模式先上屏当前候选；
-=C-u C-\\= 或其他输入法下仍是 =toggle-input-method= 。
-普通插入和粘贴作为原样文字，把相邻中文段分开；明确选定的字保持固定。
-未确认中文按最多 =wime-edit-max-syllables=（默认 24）字的窗口重新转换，
-后输入的音节可改变前面的选字。普通插入或粘贴的文字两侧分别转换。
-=ESC= 暂存并进入 Evil normal，用背景色和下划线标记；
-回到 insert 后可继续修改。未启用 Evil 时只暂存。
-中文输入状态下，空格确认可访问区域内的待转换文字（包括已暂存的），
-再按空格正常输入空格。=C-c C-c= 保留原编辑模式的功能。
-设 =wime-editable-preedit= 为 nil，或在 buffer 中关闭 =wime-edit-mode= 可用旧界面。
+=wime-editable-preedit= 打开时，待上屏的中文就是 buffer 里的文字，
+读音作为属性保存，不写进文件。
+
+- 光标可以移回去，在字后补大写辅助码，或删改其中的字。
+- 继续输入时，最近 =wime-edit-max-syllables= （默认 24）个字一起重新转换，
+  后打的音节可以改变前面的选字。
+- 中间敲的标点，以及切到英文后打的字母、数字和空格，都成为这句的一部分，
+  前后的中文一起转换。
+- 选定的字保持固定；粘贴的文字会把两边分成两段。
+- 空格确认全部待上屏文字，再按一次空格才输入空格。
+- =ESC= 暂存，回来后可以继续改；启用 Evil 时同时进入 normal 状态。
 
 ** 分段视图
 
-=wime-candidate-style= 为 =spans= 时，
-半上屏隐藏双拼串，大写辅助码以小号上标贴在对应汉字旁，暂存后仍保留。
-模型拿不准的字加波浪线，替代写法在对应字词下方竖排，整段统一编号。
-双拼和辅助码仍保存在读音记录中，可继续补码纠错。
-按数字把那一段固定下来，其余部分重新解码；
-固定的字在它的按键改变前一直有效。
+=wime-candidate-style= 为 =spans= 时不显示双拼串，
+模型拿不准的字加波浪线，替代写法竖排在下方，整段统一编号。
+按数字固定那一段，其余部分重新解码。
 
-* 工作方式
+* 神经解码
 
-** 词格
+需要 NVIDIA GPU（CUDA 13 驱动，约 6 GB 显存）。
+下表的文件放在 =wime-data-directory= 下，各选项默认就指向这些位置。
 
-词库是按双拼码索引的 SQLite。
-多音节输入在词格上做 beam 搜索，每个音节边界保留 =wime-search-width= 条读法，
-打分是词频对数、每词罚项 =wime-word-penalty= 和可选的 octagram 分数。
-追加、退格、改辅助码时复用仍然有效的前缀。
-辅助码在词格里是硬约束。
+| 内容         | 位置                         | 来源                                     |
+|--------------+------------------------------+------------------------------------------|
+| Python 环境  | =python/=                    | =neural/pyproject.toml= 和 =uv.lock=     |
+| 音节模型     | =wime-syllable-40m/=         | HF =0WD0/wime-syllable-40m=              |
+| 通用语言模型 | =rescorers/Qwen3.5-2B-Base/= | HF =Qwen/Qwen3.5-2B-Base=，固定版本      |
 
-** 神经阶段
-
-停键 40 ms 后，wime 把输入发给常驻的 CUDA worker（=neural/gpu-worker.py=），
-结果回来时如果输入没变，就替换显示的候选。
-worker 出错或超时，词格候选照常可用。
-=neural/decoder.py= 逐字做 beam 搜索（=wime-neural-beam=，默认 32），
-分数是音节模型（=neural/transducer.py=）加权上 Qwen 的概率；
-读音、辅助码、声调和固定字是硬约束，学到的读音有额外偏好。
-支持半音节和夹在句中的英文、标点。词格候选仍保留在神经候选之后。
-
-缺少通用语言模型、仅输入第一个音节的首键时，也只用词格。
-
-神经阶段读取所选词库中的音节特征，各方案共用同一个模型。旧词库需要重新生成。
-
-** 纠错学习
-
-设置 =wime-user-database= 后，
-每次上屏完整读音都记录按键、上屏文本、wime 首先给出的读音和光标前文。
-这份日志只存本机，也是真实使用的评测数据。
-
-=wime-learn= 默认关闭。设为 t 后，上屏的文本与首选不同时，
-不同的片段会被扩展成同键下最短的词典词（至少两字），记为学到的读音；
-同样的按键再上屏别的读音，就忘掉它。
-学到的读音在词格和神经阶段都有强偏好，上下文需要别的词时也会压过模型，
-所以默认不启用。
-
-=M-x wime-memory= 管理学习偏好，=M-x wime-history= 查看上屏历史；
-=/= 搜索，=RET= 查看详情，=e= 修改词语和编码，
-=m/u= 标记或取消标记，=d= 删除标记记录（无标记时删除当前行），=U= 撤销。
-撤销记录保留到管理 buffer 被关闭；=+= 加载更多，=g= 刷新。
-启用 Evil 时进入普通状态，保留移动与搜索键；=s= 筛选，=H/L= 切换历史与学习偏好，
-=m/M= 标记或取消标记，=u= 撤销，=gr= 刷新，=g?= 查看当前按键；详情、修改、删除仍用 =RET/e/d=。
-删除上屏历史保留学习偏好，删除偏好也保留历史。修改读音会按当前词库校验。
-=M-x wime-memory-at-point= 查找选区、当前候选或光标处文字中的学习词语。
-
-* 配置神经环境
-
-=decode= 需要 NVIDIA GPU（CUDA 13 驱动，约 6 GB 显存）。
-文件都放在 =wime-data-directory=（默认 =~/.local/share/wime/=），
-各选项的默认值就指向下表位置。
-
-| 内容 | 位置 | 来源 |
-|------+------+------|
-| Python 环境 | =python/= | =neural/pyproject.toml= 和 =uv.lock= |
-| 词库 | =wanxiang.db= | HF 数据集 =0WD0/wime-wanxiang=（万象拼音，CC-BY-4.0） |
-| 音节模型 | =wime-syllable-40m/= | HF =0WD0/wime-syllable-40m=（CC-BY-SA-4.0） |
-| 通用语言模型 | =rescorers/Qwen3.5-2B-Base/= | HF =Qwen/Qwen3.5-2B-Base=（Apache-2.0） |
+在 wime 目录执行：
 
 #+begin_src sh
 D="${XDG_DATA_HOME:-$HOME/.local/share}/wime"
 UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural
-"$D/python/bin/hf" download 0WD0/wime-syllable-40m --local-dir "$D/wime-syllable-40m"
+"$D/python/bin/hf" download 0WD0/wime-syllable-40m \
+    --local-dir "$D/wime-syllable-40m"
 "$D/python/bin/hf" download Qwen/Qwen3.5-2B-Base \
-    --revision b1485b2fa6dfa1287294f269f5fb618e03d52d7c --local-dir "$D/rescorers/Qwen3.5-2B-Base"
+    --revision b1485b2fa6dfa1287294f269f5fb618e03d52d7c \
+    --local-dir "$D/rescorers/Qwen3.5-2B-Base"
 #+end_src
 
-然后在 Emacs 中启用：
+=HF_ENDPOINT= 可指向 Hugging Face 镜像。然后启用：
 
 #+begin_src emacs-lisp
 (require 'wime-neural)
 (wime-neural-mode 1)
 #+end_src
 
-=HF_ENDPOINT= 可指向 Hugging Face 镜像。Qwen 使用上面固定的版本。
-音节模型逐音节给出汉字：输入是声母、韵母和可选的声调（=C-1= … =C-5=）以及左文，
-不看辅助码；辅助码和声调在搜索里约束读音。
+worker 在后台常驻，首次启动要加载模型。
+它出错、超时或缺少文件时，词格候选照常可用。
 
-缺少大模型或 worker 出错时，词格候选仍可用。
+* 工作方式
+
+打字时，wime 在词库上做词格搜索：
+按双拼码查词，按词频、每词罚项和可选的 octagram 搭配分打分，
+辅助码和声调是硬约束。追加、退格时复用仍然有效的前缀。
+
+停键 40 ms 后，输入发给本地的 CUDA worker（=neural/gpu-worker.py=）。
+它逐字做 beam 搜索：音节模型（=neural/transducer.py=）根据左文和
+每个音节的声母、韵母、声调给出汉字概率，加权上 Qwen 的概率；
+词库的读音、辅助码、声调和已选定的字是约束。
+结果回来时输入没变，就排在词格候选前面。
+词库里记录了各方案按键对应的声母和韵母，所以各方案共用同一个模型。
+
+音节模型只认识约 12,400 个汉字。
+词库里更生僻的字仍在词格候选中，用辅助码筛出来最快。
+
+* 上屏记录与学习
+
+两者都默认关闭。
+
+#+begin_src emacs-lisp
+(setq wime-user-database (expand-file-name "user.sqlite3" wime-data-directory))
+#+end_src
+
+设置后，每次上屏在本地记录按键、文字、wime 最初给的读音
+和最多 64 字的光标前文，可用来检查输入法的实际表现。
+
+再设 =(setq wime-learn t)=，与首选不同的上屏会被记成学到的读音：
+不同的片段扩展到同键下最短的词典词（至少两字），
+以后同样的按键优先给出它；同键上屏了别的读音就忘掉。
+学到的读音在上下文需要别的词时也会胜出，所以默认不启用。
+
+=M-x wime-history= 查看上屏记录，=M-x wime-memory= 管理学到的读音，
+=M-x wime-memory-at-point= 查找光标处的学习词语；
+在这两个 buffer 里按 =C-h m= 查看按键。
+要全部清除，退出 Emacs 后删掉数据库文件。
 
 * 日本語
-
-先加载日文输入法：
 
 #+begin_src emacs-lisp
 (require 'wime-japanese)
 #+end_src
 
-=M-x set-input-method= 可选择四个方案；假名转换随源码提供：
+=M-x set-input-method= 选择方案，各 buffer 独立：
 
-| 名称 | 键位与规则 | 运行时规则表 |
-|------+------------+--------------|
-| =wime-japanese-base= | QWERTY + 普通罗马字：=shi= し、=chi= ち、=tsu= つ | =japanese/base.eld= |
-| =wime-japanese= | QWERTY + AZIK：=kz= かん、=kp= こう、=ds= です | =japanese/azik.eld= |
-| =wime-japanese-onishi= | [[https://o24.works/layout/][原版大西配列]] + 普通罗马字 | =japanese/romaji.eld= |
-| =wime-japanese-onishi-azik= | [[https://zenn.dev/maki10645/articles/68f7c10a018691][文章版大西 AZIK]]，包括 J/Z 交换 | =japanese/onishi-azik.eld= |
+| 名称                        | 键位与规则                                                         |
+|-----------------------------+--------------------------------------------------------------------|
+| =wime-japanese-base=        | QWERTY + 普通罗马字：=shi= し、=chi= ち、=tsu= つ                  |
+| =wime-japanese=             | QWERTY + AZIK：=kz= かん、=kp= こう、=ds= です                     |
+| =wime-japanese-onishi=      | [[https://o24.works/layout/][大西配列]] + 普通罗马字               |
+| =wime-japanese-onishi-azik= | [[https://zenn.dev/maki10645/articles/68f7c10a018691][文章版大西 AZIK]] |
 
-大西键位只在日文输入时由 wime 重排，系统和键盘固件保持 QWERTY。
-四套方案的促音都用逻辑键 =;=，在大西配列中是 QWERTY 的 =B= 位置。
-文章版用 =c= 输入 ん；子音后 =n/s/r/h/t= 对应 an/in/un/en/on，
-=c/,/v/l= 对应 ou/ai/ei/uu，小假名用 =l= 前缀。
-它不沿用普通 AZIK 的 =ds= です、=ms= ます等词级简写。
-四个方案统一编辑 =japanese/rules.eld= 后生成，分别位于 =:base=、=:azik=、=:onishi=、=:onishi-azik=：
+大西配列只在日文输入时由 wime 重排，系统和键盘固件保持 QWERTY。
+促音都是逻辑键 =;=。
 
-- =:inherits= 继承另一个方案。=:onishi= 默认继承 =:base= 的普通罗马字规则，只覆盖键位。
-  子方案可以覆盖字段；列表整体替换，显式空列表会清空父方案的同名字段。
-- =:layout-rows= 是物理键位重排，四个方案各自配置；base 和原版 AZIK 默认保持 QWERTY。
-- =:rows= 绑定假名行，如 =("hg" "hy")= 表示用 hg 输入 hy 行。
-  行内可用 =:vowels= 和 =:extensions= 限定参与生成的元音、后缀，空列表表示禁用。
-- =:extensions= 定义后缀，如 =(ei "v" "e" "い")= 表示子音 + v 输出 e 段假名 + い；
-  将 v 改成 q，就会把 =kv= けい、=gyv= ぎぇい等整组改到 q。
-- =:extension-extras=、=:extension-overrides= 按后缀 ID 定义例外，修改后缀键时也会一起移动。
-- =:nasal-keys= 配置独立的 ん，=:sokuon-key= 配置促音。
-  单条增补、删除、覆盖分别用 =:extra-rules=、=:remove=、=:overrides=；重复绑定会报错。
-  原版 AZIK 的词级简写也在这里维护；=:literal-rules= 保留历史标点和 Shift 别名。
+按住 Shift 敲的假名要转成汉字或片假名，
+如 =KAku= 書く、=TAKq= 高い、=GA:KOU= 学校（Shift 下的 =;= 是 =:= ，仍打 っ）。
+用过 Shift 的输入里，没按 Shift 的假名保持平假名；
+完全不用 Shift 时由模型决定写法。
+数字选候选，空格上屏，=RET= 上屏假名，=DEL= 删键，=ESC= 取消。
 
-在仓库根目录执行：
+假名到汉字的神经转换需要假名模型和读音表，目前不随安装提供；
+已有这两个文件时设置 =wime-japanese-model-file= 和 =wime-japanese-table-file=，
+可选的 =wime-japanese-zenz-directory= 指向转换后的 zenz-v3.2-small，增加整句重排。
+
+规则统一写在 =japanese/rules.eld=，各方案可以继承、覆盖键位、
+假名行、后缀和例外，字段说明见文件开头。修改后重新生成规则表：
 
 #+begin_src sh
 emacs -Q --batch -l gen/japanese.el -f wime-japanese-generate
 #+end_src
 
-生成 =base.eld=、=azik.eld=、=romaji.eld=、=onishi-azik.eld= 和 =layouts.eld=，不访问 ddskk 或网络。
-将命令最后一项换成 =wime-japanese-check= 可以只检查产物是否过期。
-重新启用输入法会重读规则和键位。
-规则表每行一条 =(按键 假名 [剩余按键])=，行尾注释是等效普通罗马字。
-表里的按键是重排后的逻辑键；换方案用 =M-x set-input-method=，各缓冲区独立。
-预编辑区显示已转换的假名和还在等待的键；
-数字选候选，空格上屏当前候选， =RET= 上屏假名， =DEL= 删键， =ESC= 取消。
+* 词库与方案
 
-按住 Shift 敲的假名要写成汉字或片假名（加下划线显示），
-如 =KAku= 書く、 =TAKq= 高い、 =GA:KOU= 学校（Shift 下的 =;= 是 =:= ，仍打 っ）。
-一段输入里只要用过 Shift，没按 Shift 的假名就保持平假名；
-完全不用 Shift 时由模型决定写法。
-AZIK 双键出两个假名时，第一个假名跟第一个键，其余跟最后一个键（ =Yq= ＝ 焼い）。
+=schemes/*.json= 定义每个方案的声母键、韵母键、零声母和整音节别名。
+=gen/wime_gen.py= 只用 Python 标准库，从万象拼音的
+[[https://github.com/amzxyz/rime-wanxiang/releases/tag/dict-nightly][=rime-wanxiang-moqi-fuzhu.zip=]]
+生成按双拼码索引的 SQLite 词库，保留辅助码和声调：
 
-停键后 worker 解码假名：Qwen 的 token 在读音表约束下拼出假名，
-每个假名位置与 23M 假名条件模型融合（ =neural/japanese.py= ）。
-还在等待的键只允许它们能开头的假名作为暂定的最后一个字。
-没有待定键时，azooKey 的 zenz 模型自己生成的候选也加入，
-但只留读音表能从所敲假名拼出的（自由生成可能漏字），
-全部按 zenz 与 Qwen 的整句概率重排。
-平假名和片假名始终在候选里。尚无纠错学习。
-
-神经汉字转换另外需要假名模型和读音表。
-上面的下载步骤目前只提供中文模型；已有日文产物时，可在启用神经模式前配置：
-
-#+begin_src emacs-lisp
-(setq wime-japanese-model-file
-      (expand-file-name "japanese/kana-model.safetensors" wime-data-directory)
-      wime-japanese-table-file
-      (expand-file-name "japanese/readings.json" wime-data-directory))
+#+begin_src sh
+python3 gen/wime_gen.py --rime-data /path/to/unzipped \
+    --scheme schemes/flypy.json --database wanxiang-flypy.db
 #+end_src
 
-- =kana-model.safetensors= :: =neural/train-japanese.py= 训练的假名模型。
-- =readings.json= :: Qwen 词表的日文读音表。
-
-读音来自 JMdict 和 KANJIDIC2（Tagaini Jisho 软件包里的数据库），
-加上训练语料里出现过的 UniDic 词和 JMnedict 专有名词，
-每个读音只留语料里最常见的 4 个新写法。
-数据来源和许可记录在 =neural/japanese-sources.json=。
-JMdict、KANJIDIC2 和 JMnedict 来自 James William Breen 与 EDRDG，
-按 [[https://www.edrdg.org/edrdg/licence.html][EDRDG 的 CC BY-SA 4.0 许可声明]]使用。
-
-可选的 =wime-japanese-zenz-directory= 指向 zenz-v3.2-small（Apache-2.0）
-转换后的目录，为完整候选增加重排。
-
-* 词库
-
-=schemes/*.json= 直接定义各方案的声母、韵母、零声母和整音节别名。
-=gen/wime_gen.py= 按所选方案生成一份 SQLite 词库，同时写入按键和音节特征。
-使用时将 =wime-database-file= 指向自己方案的词库即可。
-
-monorepo 中运行 =bazel build //emacs-packages/wime:databases= 可生成全部方案：
-
-| 方案       | 文件名                   |
-|------------+--------------------------|
-| 微软双拼   | wanxiang.db              |
-| 自然码     | wanxiang-ziranma.db       |
-| 小鹤双拼   | wanxiang-flypy.db         |
-| 搜狗双拼   | wanxiang-sogou.db         |
-
-词库数据和转换前的方案规则来自 [[https://github.com/amzxyz/rime-wanxiang][amzxyz 的万象拼音]]，
-按 CC-BY-4.0 使用；转换后保留辅助码和声调。
-可选的 octagram 搭配评分需要 =wime-grammar-module= 和 =wime-grammar-shared-dir=，
-其本地模块构建属于 monorepo 集成。
+=--rime-data= 是含 =wanxiang_pro.dict.yaml= 的目录。
+自定义方案时复制一份 JSON 修改。词库记录每组键对应的声母和韵母，
+神经解码据此读取新方案；两个音节共用一组键时，模型只看到其中一个。
 
 * 开发
 
-在 wime 目录运行输入、编辑、学习和异步协议的 ERT 测试：
-
 #+begin_src sh
 make test-elisp
-#+end_src
-
-测试使用临时的小词库，禁用个人输入记录，不需要 wdoom、模型或网络。
-=WIME_TEST_DATABASE=/path/to/wanxiang.db make test-elisp= 可改用已下载的完整词库。
-Evil、octagram 和其他可选集成在未安装时跳过。
-
-Python 运行时测试只需 PyTorch 和 safetensors，在 CPU 上使用小模型测试解码逻辑和 worker 协议：
-
-#+begin_src sh
 make test-python PYTHON=/path/to/python
 #+end_src
 
-训练、语料处理和模型评测脚本保留在 =neural/= 和 =test/=，
-属于内部研发工具，依赖 monorepo 中的其他项目及本地数据；不提供外部复现支持。
-它们不属于安装步骤和运行时测试。
+ERT 测试使用临时的小词库，不读个人记录，不需要模型或网络；
+=WIME_TEST_DATABASE=/path/to/wanxiang.db= 改用完整词库。
+Python 测试只需 PyTorch 和 safetensors，在 CPU 上用小模型检查解码和 worker 协议。
 
-wdoom 使用者仍由 =wdoom-input= 配置输入法；
-=./wdoom/bin/wdoom-prepare --native= 打包源码、词库和模型。
-推理配置由 =wime-lab= 保存，音节模型哈希固定在 =neural_model.bzl=。
+=neural/= 和 =test/= 里的训练、语料和评测脚本是开发者的研究工具，
+依赖作者 monorepo 中的其他部分和本地数据，不提供外部复现支持。
+octagram 打分模块（=grammar.cc=）和 =BUILD.bazel= 等文件也只在 monorepo 中构建；
+没有它时 wime 不使用 octagram。
 
 * 许可
 
-wime 的代码以 GPL-3.0-or-later 发布，全文见 =LICENSE=。
-模型和词库另有许可，见「配置神经环境」的表。
+- 代码：GPL-3.0-or-later，见 =LICENSE=。
+- 词库：万象拼音（amzxyz），CC-BY-4.0。
+- 音节模型：CC-BY-SA-4.0。
+- Qwen3.5-2B-Base：Apache-2.0。
+- 日文读音表用到的 JMdict、KANJIDIC2 和 JMnedict 来自 James William Breen 与 EDRDG，
+  按 [[https://www.edrdg.org/edrdg/licence.html][EDRDG 许可]]（CC-BY-SA-4.0）使用；
+  来源记录在 =neural/japanese-sources.json=。
 
 * 尚未实现
 
