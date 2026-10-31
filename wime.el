@@ -3,6 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; Version: 0.1.0
+;; URL: https://github.com/0WD0/wime
 ;; Package-Requires: ((emacs "29.1"))
 
 ;;; Commentary:

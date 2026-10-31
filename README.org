@@ -13,8 +13,14 @@ wime 是纯 Elisp 的中文输入法，用来取代 emacs-rime。
 在 Emacs 中执行 =(sqlite-available-p)= 应返回非 nil。
 中文词库输入可以直接使用；神经推理另外需要 NVIDIA GPU，见[[*配置神经环境][配置神经环境]]。
 
-保留下载的完整源码目录。下面的 shell 命令均在 wime 目录执行，
-也就是包含 =wime.el=、=neural/= 和 =japanese/= 的目录。
+源码在 [[https://github.com/0WD0/wime][github.com/0WD0/wime]]，克隆整个仓库：
+
+#+begin_src sh
+git clone https://github.com/0WD0/wime
+cd wime
+#+end_src
+
+下面的 shell 命令均在这个目录执行。
 
 先安装 [[https://docs.astral.sh/uv/][uv]] 并下载词库：
 
