@@ -1,5 +1,5 @@
 #!/usr/bin/env -S python3 -B
-"""Persistent CUDA worker for wime's JSON-lines protocol (wime-neural-program).
+"""Persistent GPU worker for wime's JSON-lines protocol (wime-neural-program).
 
 It loads a syllable transducer and a general language model for Chinese
 beam decoding. Stdout is exclusively the protocol; typed text is omitted
@@ -112,17 +112,17 @@ def parse_args(argv=None):
 
 def main():
     args = parse_args()
-    evaluator = Evaluator(args.model)
+    evaluator = Evaluator(args.model, args.device)
     rescorer = make_rescorer(args)
     decoder = make_decoder(args, evaluator, rescorer)
     decoder.beam = args.beam
-    # Pay model and CUDA initialization before the first interactive request.
+    # Pay model and device initialization before the first interactive request.
     japanese = None
     if rescorer and args.japanese_model and args.japanese_table:
         import japanese as ja
         japanese = ja.Decoder(ja.Table(args.japanese_table, rescorer.tokenizer), rescorer,
-                              ja.KanaModel(args.japanese_model),
-                              zenz=ja.Zenz(args.japanese_zenz) if args.japanese_zenz else None)
+                              ja.KanaModel(args.japanese_model, args.device),
+                              zenz=ja.Zenz(args.japanese_zenz, args.device) if args.japanese_zenz else None)
         japanese.decode("", "にほんご")
     decoder.decode("", "nihk")
     for line in sys.stdin:
@@ -134,5 +134,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as error:
-        print(f"wime CUDA worker failed ({type(error).__name__})", file=sys.stderr)
+        print(f"wime worker failed ({type(error).__name__})", file=sys.stderr)
         sys.exit(1)

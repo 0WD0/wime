@@ -1,4 +1,4 @@
-;;; wime-japanese.el --- Japanese input decoded by the CUDA worker -*- lexical-binding: t; -*-
+;;; wime-japanese.el --- Japanese input decoded by the GPU worker -*- lexical-binding: t; -*-
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 

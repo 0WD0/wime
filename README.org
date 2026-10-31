@@ -6,7 +6,7 @@ wime 是纯 Elisp 的中文双拼输入法。
 - 支持微软、小鹤、搜狗、自然码双拼，大写字母输入墨奇辅助码，
   =C-1= … =C-5= 输入声调。
 - 候选来自万象拼音词库的词格搜索；
-  有 NVIDIA GPU 时，停键后由本地神经模型重新整句解码。
+  有 GPU 时，停键后由本地神经模型重新整句解码。
 - 待上屏的文字直接写在 buffer 里，可以移动光标修改、补辅助码，
   拿不准的字就地给出替代写法。
 - 同一个后台还提供日文输入法，见 [[file:japanese/README.org][japanese/README.org]]。
@@ -94,7 +94,7 @@ uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
 
 * 神经解码
 
-需要 NVIDIA GPU（CUDA 13 驱动，约 6 GB 显存）。
+需要约 6 GB 显存的 GPU。CPU 太慢（一句要十几秒），不适用。
 下表的文件放在 =wime-data-directory= 下，各选项默认就指向这些位置。
 
 | 内容         | 位置                         | 来源                                     |
@@ -107,7 +107,7 @@ uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
 
 #+begin_src sh
 D="${XDG_DATA_HOME:-$HOME/.local/share}/wime"
-UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural
+UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural --extra cuda
 "$D/python/bin/hf" download 0WD0/wime-syllable-40m \
     --local-dir "$D/wime-syllable-40m"
 "$D/python/bin/hf" download Qwen/Qwen3.5-2B-Base \
@@ -115,6 +115,16 @@ UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural
     --local-dir "$D/rescorers/Qwen3.5-2B-Base"
 #+end_src
 
+=--extra= 按显卡选择 PyTorch：
+
+| 显卡                   | =--extra= |
+|------------------------+-----------|
+| NVIDIA（CUDA 13 驱动） | =cuda=    |
+| AMD（ROCm 7.2）        | =rocm=    |
+| Intel                  | =xpu=     |
+| Apple 芯片             | =mps=     |
+
+worker 自动使用找到的第一块 GPU。只在 NVIDIA 上测过。
 =HF_ENDPOINT= 可指向 Hugging Face 镜像。然后启用：
 
 #+begin_src emacs-lisp
@@ -131,7 +141,7 @@ worker 在后台常驻，首次启动要加载模型。
 按双拼码查词，按词频、每词罚项和可选的 octagram 搭配分打分，
 辅助码和声调是硬约束。追加、退格时复用仍然有效的前缀。
 
-停键 40 ms 后，输入发给本地的 CUDA worker（=neural/gpu-worker.py=）。
+停键 40 ms 后，输入发给本地的 GPU worker（=neural/gpu-worker.py=）。
 它逐字做 beam 搜索：音节模型（=neural/transducer.py=）根据左文和
 每个音节的声母、韵母、声调给出汉字概率，加权上 Qwen 的概率；
 词库的读音、辅助码、声调和已选定的字是约束。

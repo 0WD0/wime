@@ -31,7 +31,7 @@
 
 (defcustom wime-neural-interpreter (expand-file-name "python/bin/python" wime-data-directory)
   "Interpreter that runs `wime-neural-program', or nil to execute it directly.
-The worker needs PyTorch with CUDA and transformers."
+The worker needs PyTorch with GPU support and transformers."
   :type '(choice (const nil) file) :group 'wime)
 
 (defcustom wime-neural-rescorer (expand-file-name "rescorers/Qwen3.5-2B-Base" wime-data-directory)
@@ -63,7 +63,7 @@ The bonus keeps corrections preferred for the same keys; see
   :type 'number :group 'wime)
 
 (defcustom wime-neural-startup-timeout 30.0
-  "Seconds allowed for the first response, including model and CUDA setup.
+  "Seconds allowed for the first response, including model and GPU setup.
 Traditional candidates remain usable during initialization.  Later requests
 use `wime-neural-timeout'."
   :type 'number :group 'wime)
