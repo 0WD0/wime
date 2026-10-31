@@ -79,7 +79,6 @@ When disabled, single-character input retains dictionary ranking."
   history committed literals
   edit-generation (memory-tick wime--memory-tick))
 
-(defvar wime-neural-mode)
 (declare-function wime-japanese--current-p "wime-japanese" (job))
 (declare-function wime-japanese--request "wime-japanese" (job))
 (declare-function wime-japanese--apply "wime-japanese" (job response))
@@ -105,7 +104,7 @@ When disabled, single-character input retains dictionary ranking."
 
 (defun wime-neural--valid-p (job)
   "Whether JOB still belongs to the current unselected composition."
-  (and wime-neural-mode (buffer-live-p (wime-neural--job-buffer job))
+  (and (buffer-live-p (wime-neural--job-buffer job))
        (with-current-buffer (wime-neural--job-buffer job)
          (and (or (eq (wime-neural--job-method job) 'japanese)
                   (= (wime-neural--job-memory-tick job) wime--memory-tick))
@@ -167,7 +166,7 @@ complete."
 (defun wime-neural--schedule ()
   "Decode after typing pauses, keeping the dictionary usable immediately."
   (wime-neural--reset)
-  (when (and wime-neural-mode (not (eq wime-decoding 'lattice))
+  (when (and (not (eq wime-decoding 'lattice))
              (not wime-neural--failed) wime-neural-model-file
              (or (not (bound-and-true-p wime-edit-mode))
                  (wime-edit--decodable-p)))
@@ -216,12 +215,13 @@ between requests, the lattice converts instead of committing keys."
 
 (defun wime-neural--fail (reason &optional job)
   "Disable failed worker attempts, retaining traditional results, with REASON.
-Under `neural' decoding, JOB's composition (by default the busy one's),
-which showed its keys while waiting, converts with the lattice instead."
+A nil REASON fails quietly.  Under `neural' decoding, JOB's composition (by
+default the busy one's), which showed its keys while waiting, converts with
+the lattice instead."
   (let ((job (or job wime-neural--busy)))
     (wime-neural--stop)
-    (unless wime-neural--failed
-      (message "wime neural unavailable: %s (toggle wime-neural-mode to retry)" reason))
+    (unless (or wime-neural--failed (null reason))
+      (message "wime neural unavailable: %s (M-x wime-neural-restart retries)" reason))
     (setq wime-neural--failed t)
     (when (and job (eq wime-decoding 'neural) (buffer-live-p (wime-neural--job-buffer job)))
       (with-current-buffer (wime-neural--job-buffer job)
@@ -294,11 +294,22 @@ which showed its keys while waiting, converts with the lattice instead."
                                 (wime--tones (wime-neural--job-input job))))
        :memory_weight ,wime-neural-memory-weight))))
 
+(defun wime-neural--installed-p ()
+  "Whether the model, language model and interpreter are where the options say."
+  (and wime-neural-model-file (file-readable-p wime-neural-model-file)
+       (file-directory-p wime-neural-rescorer)
+       (or (null wime-neural-interpreter) (file-executable-p wime-neural-interpreter))))
+
 (defun wime-neural--enqueue (job)
-  "Send JOB or replace pending work while the worker is busy."
+  "Send JOB or replace pending work while the worker is busy.
+Without the model files, the default `hybrid' decoding stays on the lattice
+without a message."
   (when (and (not wime-neural--failed) (wime-neural--valid-p job))
-    (if wime-neural--busy
-        (setq wime-neural--pending job)
+    (cond
+     (wime-neural--busy (setq wime-neural--pending job))
+     ((not (or (process-live-p wime-neural--process) (wime-neural--installed-p)))
+      (wime-neural--fail (unless (eq wime-decoding 'hybrid) "model files are missing") job))
+     (t
       (condition-case nil
           (let ((process (wime-neural--start)))
             (setq wime-neural--busy job
@@ -310,7 +321,7 @@ which showed its keys while waiting, converts with the lattice instead."
                                      (* 0.1 (wime-neural--job-syllables job)))
                                   nil #'wime-neural--fail "worker timed out"))
             (process-send-string process (concat (wime-neural--request job) "\n")))
-        (error (wime-neural--fail "worker could not start or receive input" job))))))
+        (error (wime-neural--fail "worker could not start or receive input" job)))))))
 
 (defun wime-neural--apply (job response)
   "Apply RESPONSE only if JOB is still current."
@@ -371,26 +382,20 @@ words and completions stay after them, so a prefix can still be committed."
             (wime-neural--reply (json-parse-string line :object-type 'alist :null-object nil)))
         (error (wime-neural--fail "invalid worker response"))))))
 
-;;;###autoload
-(define-minor-mode wime-neural-mode
-  "Run the local neural worker; `wime-decoding' says how Chinese uses it."
-  :global t :group 'wime
-  (if wime-neural-mode
-      (progn
-        (setq wime-neural--failed nil)
-        (add-hook 'wime-candidates-updated-hook #'wime-neural--schedule)
-        (add-hook 'wime-lattice-inhibit-functions #'wime-neural--exclusive-p)
-        (add-hook 'wime-settle-hook #'wime-neural--await)
-        (add-hook 'wime-reset-hook #'wime-neural--reset)
-        (add-hook 'kill-buffer-hook #'wime-neural--reset))
-    (remove-hook 'wime-candidates-updated-hook #'wime-neural--schedule)
-    (remove-hook 'wime-lattice-inhibit-functions #'wime-neural--exclusive-p)
-    (remove-hook 'wime-settle-hook #'wime-neural--await)
-    (remove-hook 'wime-reset-hook #'wime-neural--reset)
-    (remove-hook 'kill-buffer-hook #'wime-neural--reset)
-    (dolist (buffer (buffer-list))
-      (with-current-buffer buffer (wime-neural--reset)))
-    (wime-neural--stop)))
+(defun wime-neural-restart ()
+  "Stop the worker and forget a failure; the next decode starts it again."
+  (interactive)
+  (dolist (buffer (buffer-list))
+    (with-current-buffer buffer (wime-neural--reset)))
+  (wime-neural--stop)
+  (setq wime-neural--failed nil))
+
+;; `wime-decoding' decides, at each composition, whether these do anything.
+(add-hook 'wime-candidates-updated-hook #'wime-neural--schedule)
+(add-hook 'wime-lattice-inhibit-functions #'wime-neural--exclusive-p)
+(add-hook 'wime-settle-hook #'wime-neural--await)
+(add-hook 'wime-reset-hook #'wime-neural--reset)
+(add-hook 'kill-buffer-hook #'wime-neural--reset)
 
 (provide 'wime-neural)
 ;;; wime-neural.el ends here

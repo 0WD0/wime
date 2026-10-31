@@ -32,7 +32,7 @@
           (plist-get scheme :layout-rows) '("qwertyuiop" "asdfkhjgl;" "zxcvbnm,./" "-"))
     (wime-japanese-gen-test--with-generated source
       (with-temp-buffer
-        (let ((wime-neural-mode nil))
+        (progn
           (unwind-protect
               (progn
                 (activate-input-method "wime-japanese")
@@ -60,7 +60,7 @@
           (plist-get scheme :nasal-keys) '("x"))
     (wime-japanese-gen-test--with-generated source
       (with-temp-buffer
-        (let ((wime-neural-mode nil))
+        (progn
           (unwind-protect
               (progn
                 (activate-input-method "wime-japanese-onishi-azik")

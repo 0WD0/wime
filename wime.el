@@ -269,15 +269,15 @@ tone filters nothing."
   "Hook run when a composition is discarded or committed.")
 
 (defcustom wime-decoding 'hybrid
-  "How Chinese compositions are converted while `wime-neural-mode' runs.
+  "How Chinese compositions are converted.
 `lattice': the dictionary lattice alone.
 `hybrid': the lattice answers at once; after a typing pause the model's
   whole-input readings come first, then the lattice's words.
 `neural': the model's readings alone.  New syllables show their keys until
   it answers, and SPC or a digit waits for it.  Characters the model does
   not know cannot be typed.
-Without `wime-neural-mode', or while its worker is unavailable, the lattice
-converts."
+The last two load `wime-neural' and its local worker; while the worker or
+its model files are unavailable, the lattice converts."
   :type '(choice (const lattice) (const hybrid) (const neural)) :group 'wime)
 
 (defvar wime-lattice-inhibit-functions nil
@@ -1298,6 +1298,7 @@ commits its selected candidate first."
 (defun wime-activate (_name)
   "Activate the wime input method."
   (when wime-editable-preedit (wime-edit-mode 1))
+  (unless (eq wime-decoding 'lattice) (require 'wime-neural))
   (setq-local input-method-function #'wime-input-method)
   (setq-local deactivate-current-input-method-function #'wime-deactivate)
   (wime-english-mode -1)

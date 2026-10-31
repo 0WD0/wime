@@ -16,7 +16,7 @@
   `(let ((wime-editable-preedit t)
          ;; Batch wdoom may configure model decoding; these tests drive the
          ;; editor with dictionary results alone.
-         (wime-neural-mode nil)
+         (wime-decoding 'lattice)
          (wime-candidates-updated-hook nil)
          (wime-candidate-style 'list)
          (wime-show-candidates t)
@@ -131,7 +131,7 @@
       (should (equal (mapcar #'wime-edit-test--keys '(1 2 3)) '("aa" "c" "bbD")))
       (should-not (member "aacbbD" candidate-calls))
       (should-not wime--candidate-records))
-    (let ((wime-neural-mode t)
+    (let ((wime-decoding 'hybrid)
           (wime-neural-model-file "unused-model")
           (wime-neural-rescorer "unused-rescorer")
           (wime-neural-single-character t)
@@ -152,7 +152,7 @@
 
 (ert-deftest wime-edit-neural-decoding-shows-keys-until-the-model-answers ()
   (wime-edit-test--buffer
-    (let ((wime-neural-mode t) (wime-decoding 'neural)
+    (let ((wime-decoding 'neural)
           (wime-neural-model-file "unused-model") (wime-neural-rescorer "unused-rescorer")
           (wime-neural-single-character t) (wime-neural--failed nil)
           (wime-candidates-updated-hook '(wime-neural--schedule))
@@ -378,7 +378,7 @@
 ;; decode is pending; otherwise a character leaving the window keeps the guess.
 (ert-deftest wime-edit-pending-decode-keeps-decoded-characters ()
   (wime-edit-test--buffer
-    (let ((wime-neural-mode t) (wime-neural--failed nil)
+    (let ((wime-decoding 'hybrid) (wime-neural--failed nil)
           (wime-neural-rescorer "lm") (wime-neural-single-character t))
       (wime-edit-test--type "aa")
       (should (equal (buffer-substring-no-properties 1 (point-max)) "甲"))

@@ -14,7 +14,7 @@
           (wime--user-db nil) (wime--db (sqlite-open wime-database-file))
           (wime--memory (make-hash-table :test #'equal)) (wime--memory-tick 0)
           (wime--position-keys (cons wime--default-keys wime--default-keys))
-          (wime-neural-mode nil) (wime-grammar-module nil))
+          (wime-grammar-module nil))
      (unwind-protect
          (progn
            (sqlite-execute wime--db "CREATE TABLE entry (code TEXT, word TEXT, aux TEXT, weight REAL)")
@@ -113,7 +113,7 @@
 (ert-deftest wime-memory-change-invalidates-in-flight-neural-results ()
   (wime-memory-test--database
     (with-temp-buffer
-      (let ((wime-neural-mode t))
+      (let ((wime-decoding 'hybrid))
         (setq wime--input "dlxr" wime--candidate-records (list (wime--make-candidate :text "待选" :end 2)))
         (let ((job (wime-neural--make-job :buffer (current-buffer) :input wime--input
                                          :position (point) :tick (buffer-chars-modified-tick)

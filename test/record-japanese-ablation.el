@@ -31,7 +31,7 @@
             record-japanese-ablation--events))))
 
 ;; Load models and kernels through exactly the same protocol, outside measurements.
-(wime-neural-mode 1)
+(setq wime-decoding 'hybrid)
 (with-temp-buffer
   (mapc #'wime-japanese-input-method (string-to-list (record-japanese--keys "にほんご")))
   (record-japanese--wait (+ (float-time) 120))

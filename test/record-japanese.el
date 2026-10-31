@@ -75,7 +75,7 @@ per kana) says, or nil when no key sequence converts back to exactly that."
 	 (skipped 0) (processed 0) completed current-id results)
     (unwind-protect
 	(progn
-          (wime-neural-mode 1)
+          (setq wime-decoding 'hybrid)
           (dolist (case (seq-take cases limit))
             (setq current-id (alist-get 'id case))
             (let ((keys (record-japanese--keys (alist-get 'input case)
@@ -108,7 +108,7 @@ per kana) says, or nil when no key sequence converts back to exactly that."
             (when (zerop (% processed 25))
               (message "Japanese recording: %d cases, %d skipped" processed skipped)))
           (setq completed t current-id nil))
-      (wime-neural-mode -1)
+      (wime-neural-restart)
       ;; Keep completed measurements when a later case fails.  Consumers can
       ;; distinguish a full run from a partial result without parsing a backtrace.
       (with-temp-file (getenv "WIME_RECORDING")

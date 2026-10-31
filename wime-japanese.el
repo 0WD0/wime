@@ -278,7 +278,7 @@ Shift used, first the shifted kana in katakana and the rest in hiragana."
 (defun wime-japanese--schedule ()
   "Ask the worker for readings after a pause, as wime does for Chinese."
   (wime-neural--reset)
-  (when (and wime-neural-mode (not wime-neural--failed) wime-neural-rescorer
+  (when (and (not wime-neural--failed) wime-neural-rescorer
              wime-japanese-model-file wime-japanese-table-file (wime-japanese--active-p)
              (not (string-empty-p (car (wime-japanese--convert wime-japanese--keys)))))
     (let ((job (wime-neural--make-job

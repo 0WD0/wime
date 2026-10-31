@@ -78,7 +78,7 @@
         :loaded (and (process-live-p wime-neural--process)
                      (car (last (process-command wime-neural--process))))
         :pid (and (process-live-p wime-neural--process) (process-id wime-neural--process))
-        :enabled (if wime-neural-mode t :false)
+        :enabled (if (eq wime-decoding 'lattice) :false t)
         :failed (if wime-neural--failed t :false) :profile (wime-checkpoint-profile)))
 
 (defun wime-checkpoint-switch (recipe persist resolve reject)
@@ -113,9 +113,8 @@ value.  Return cancellation that leaves the existing worker and input intact."
                               :profile (plist-get recipe :profile))))
                      (setq wime-checkpoint-previous
                            (list :path wime-neural-model-file :profile (wime-checkpoint-profile)))
-                     (wime-neural-mode -1)
+                     (wime-neural-restart)
                      (wime-checkpoint--apply recipe)
-                     (wime-neural-mode 1)
                      (setq wime-neural--process process done t)
                      (process-put process 'partial "")
                      (process-put process 'wime-initialized t)

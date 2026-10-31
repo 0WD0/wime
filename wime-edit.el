@@ -313,7 +313,6 @@ leaving the window at that moment would keep the guess."
                      wime--candidate-records))
          (guess (and candidate (wime-candidate-text candidate)))
          (provisional (and (not wime--model-ranked)
-                           (bound-and-true-p wime-neural-mode)
                            (not (eq wime-decoding 'lattice))
                            (not (bound-and-true-p wime-neural--failed))
                            (bound-and-true-p wime-neural-rescorer)))

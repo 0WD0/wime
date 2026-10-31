@@ -31,7 +31,7 @@
                (json-parse-buffer :object-type 'alist :array-type 'list))) results (count 0))
   (unwind-protect
       (progn
-        (wime-neural-mode 1)
+        (setq wime-decoding 'hybrid)
         (dolist (case cases)
           (with-temp-buffer
             (insert (alist-get 'context case))
@@ -73,4 +73,4 @@
               (wime--reset))))
         (with-temp-file (getenv "WIME_RECORDING")
           (insert (json-serialize (vconcat (nreverse results))))))
-    (wime-neural-mode -1)))
+    (wime-neural-restart)))

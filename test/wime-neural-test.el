@@ -65,7 +65,7 @@
       (wime--commit "便宜")
       (setq wime--input "x;ui"
             wime--candidate-records (list (wime--make-candidate :text "行事" :end 2 :score 0)))
-      (let ((wime-neural-mode t) (wime-neural-model-file "model") (wime-neural--failed nil)
+      (let ((wime-decoding 'hybrid) (wime-neural-model-file "model") (wime-neural--failed nil)
             (wime-neural-rescorer "/lm") scheduled)
         (wime-neural-test--database
          (cl-letf (((symbol-function 'run-with-timer)
@@ -96,7 +96,7 @@
       (wime--commit "便宜")
       (setq wime--input "x;ui"
             wime--candidate-records (list (wime--make-candidate :text "行事" :end 2 :score 0)))
-      (let ((wime-neural-mode t) (wime-neural-model-file "model") (wime-neural--failed nil)
+      (let ((wime-decoding 'hybrid) (wime-neural-model-file "model") (wime-neural--failed nil)
             (wime-neural-rescorer "/lm") scheduled)
         (wime-neural-test--database
          (cl-letf (((symbol-function 'run-with-timer)
@@ -109,7 +109,7 @@
 
 (ert-deftest wime-neural-single-syllable-retains-contextual-grammar-ranking ()
   (with-temp-buffer
-    (let ((wime-neural-mode t) (wime-neural--failed nil) (wime-neural-single-character nil)
+    (let ((wime-decoding 'hybrid) (wime-neural--failed nil) (wime-neural-single-character nil)
           (wime-neural-model-file "model.safetensors") scheduled)
       (wime-neural-test--single-syllable
         (insert "真刀真")
@@ -124,7 +124,7 @@
 
 (ert-deftest wime-neural-single-character-is-opt-in ()
   (with-temp-buffer
-    (let ((wime-neural-mode t) (wime-neural--failed nil)
+    (let ((wime-decoding 'hybrid) (wime-neural--failed nil)
           (wime-neural-single-character t)
           (wime-neural-model-file "model.safetensors") scheduled)
       (wime-neural-test--single-syllable
@@ -142,7 +142,7 @@
 
 (ert-deftest wime-decoding-chooses-the-lattice-the-model-or-both ()
   (with-temp-buffer
-    (let ((wime-neural-mode t) (wime-neural--failed nil) (wime-neural-single-character t)
+    (let ((wime-decoding 'hybrid) (wime-neural--failed nil) (wime-neural-single-character t)
           (wime-neural-model-file "model.safetensors") (wime-neural-rescorer "/lm")
           (wime-lattice-inhibit-functions '(wime-neural--exclusive-p)))
       (wime-neural-test--single-syllable
@@ -161,7 +161,7 @@
   (declare (indent 0))
   `(wime-neural-test--database
      (with-temp-buffer
-     (let ((wime-neural-mode t) (wime-user-database nil))
+     (let ((wime-decoding 'hybrid) (wime-user-database nil))
        (setq wime--input "aabb"
              wime--selected 0
              wime--candidate-records
@@ -317,6 +317,19 @@
           (run-hooks 'wime-settle-hook)
           (should refreshed))))))
 
+(ert-deftest wime-neural-missing-model-files-are-quiet-only-for-hybrid ()
+  (wime-neural-test--composition
+    (dolist (decoding '(hybrid neural))
+      (let ((wime-decoding decoding) (wime-neural-model-file "/missing/model.safetensors")
+            (wime-neural-rescorer "/missing") (wime-neural--process nil)
+            (wime-neural--busy nil) (wime-neural--pending nil) (wime-neural--failed nil) messages)
+        (cl-letf (((symbol-function 'message) (lambda (&rest args) (push args messages)))
+                  ((symbol-function 'wime--refresh) #'ignore)
+                  ((symbol-function 'wime-neural--start) (lambda () (error "Started"))))
+          (wime-neural--enqueue job))
+        (should wime-neural--failed)
+        (should (eq (and messages t) (eq decoding 'neural)))))))
+
 (ert-deftest wime-neural-only-initialization-gets-the-longer-timeout ()
   (wime-neural-test--composition
     (let* ((process (make-pipe-process :name "wime-timeout-test" :noquery t))
@@ -360,7 +373,7 @@
 
 (ert-deftest wime-neural-decode-sends-the-whole-input-with-pins-and-learned-readings ()
   (with-temp-buffer
-    (let* ((wime-neural-mode t) (wime-neural--failed nil) (wime-neural-model-file "model")
+    (let* ((wime-decoding 'hybrid) (wime-neural--failed nil) (wime-neural-model-file "model")
            (wime-neural-rescorer "/lm")
            (wime-neural-memory-weight 10.0)
            (wime-user-database (make-temp-file "wime-user" nil ".sqlite3")) (wime--user-db nil) (wime-learn t)

@@ -46,10 +46,9 @@
   "Run BODY in a buffer using the input method NAME."
   (declare (indent 1))
   `(with-temp-buffer
-     (let ((wime-neural-mode nil))
-       (unwind-protect
-           (progn (activate-input-method ,name) ,@body)
-         (deactivate-input-method)))))
+     (unwind-protect
+         (progn (activate-input-method ,name) ,@body)
+       (deactivate-input-method))))
 
 (ert-deftest wime-japanese-base-types-ordinary-romaji ()
   (dolist (case '(("nihongo" "にほんご") ("shichitsu" "しちつ") ("ga;kou" "がっこう")
@@ -133,7 +132,7 @@
 
 (ert-deftest wime-japanese-typing-offers-kana-and-commits ()
   (with-temp-buffer
-    (let ((wime-neural-mode nil))
+    (progn
       (mapc #'wime-japanese-input-method (string-to-list "kz"))
       (should (equal wime-japanese--candidates '("かん" "カン")))
       (should (string-prefix-p "かん" (overlay-get wime-japanese--overlay 'after-string)))
@@ -148,7 +147,7 @@
 (ert-deftest wime-japanese-request-carries-kana-and-pending-starts ()
   (with-temp-buffer
     (insert "前")
-    (let ((wime-neural-mode t) (wime-neural--failed nil) (wime-neural-rescorer "/lm")
+    (let ((wime-neural--failed nil) (wime-neural-rescorer "/lm")
           (wime-japanese-model-file "/m") (wime-japanese-table-file "/t") scheduled)
       (cl-letf (((symbol-function 'run-with-timer)
                  (lambda (_delay _repeat _function job) (setq scheduled job) nil)))
@@ -202,7 +201,7 @@
 
 (ert-deftest wime-japanese-shift-spans-reach-the-worker-and-the-preedit ()
   (with-temp-buffer
-    (let ((wime-neural-mode t) (wime-neural--failed nil) (wime-neural-rescorer "/lm")
+    (let ((wime-neural--failed nil) (wime-neural-rescorer "/lm")
           (wime-japanese-model-file "/m") (wime-japanese-table-file "/t") scheduled)
       (cl-letf (((symbol-function 'run-with-timer)
                  (lambda (_delay _repeat _function job) (setq scheduled job) nil)))

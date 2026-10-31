@@ -35,7 +35,7 @@
       (keys 0) (checks 0) (requests 0))
   (unwind-protect
       (progn
-        (wime-neural-mode 1)
+        (setq wime-decoding 'hybrid)
         (dolist (case cases)
           (with-temp-buffer
             (insert (alist-get 'context case))
@@ -91,4 +91,4 @@
           (insert (json-serialize `(:cases ,(length cases) :typed_keys ,keys
                                    :checks ,checks :invalidated_inflight_requests ,requests
                                    :failures 0)))))
-    (wime-neural-mode -1)))
+    (wime-neural-restart)))

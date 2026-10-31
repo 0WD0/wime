@@ -125,24 +125,20 @@ UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural --extra cud
 | Apple 芯片             | =mps=     |
 
 worker 自动使用找到的第一块 GPU。只在 NVIDIA 上测过。
-=HF_ENDPOINT= 可指向 Hugging Face 镜像。然后启用：
+=HF_ENDPOINT= 可指向 Hugging Face 镜像。
+文件就位后，默认的 =hybrid= 就会用上模型；
+=(setq wime-decoding 'neural)= 等可以换一种转换方式：
 
-#+begin_src emacs-lisp
-(require 'wime-neural)
-(wime-neural-mode 1)
-#+end_src
-
-worker 在后台常驻，首次启动要加载模型。
-=wime-decoding= 选择中文的转换方式：
-
-| 值               | 转换                                               |
+| =wime-decoding=  | 转换                                               |
 |------------------+----------------------------------------------------|
 | =hybrid=（默认） | 词格立即给出结果，停键后模型的整句结果排在前面     |
 | =neural=         | 只用模型；回来前新音节显示按键，空格和数字等它回来 |
 | =lattice=        | 只用词格                                           |
 
 =neural= 打不出模型不认识的字。
-worker 出错、超时或缺少文件时，三种方式都由词格转换。
+worker 在后台常驻，首次启动要加载模型。
+它出错、超时或缺少文件时由词格转换（=hybrid= 缺少文件时不提示），
+=M-x wime-neural-restart= 重试。
 
 * 工作方式
 

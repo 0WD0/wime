@@ -13,7 +13,7 @@ worker process, and can check each asynchronous invalidation separately."
   (declare (indent 0))
   `(with-temp-buffer
      (insert "前文甲乙")
-     (let ((wime-neural-mode t)
+     (let ((wime-decoding 'hybrid)
            (wime-edit-mode t)
            (wime-edit--generation 7)
            (active t) (writable t) (decodable t) (context "前文") published)
@@ -136,7 +136,7 @@ worker process, and can check each asynchronous invalidation separately."
                          (wime-edit--make-unit :keys "aa" :original ?甲))
              (propertize "乙" 'wime-edit-unit
                          (wime-edit--make-unit :keys "bb" :original ?乙)))
-     (let ((wime-neural-mode t) (wime-candidate-style 'list)
+     (let ((wime-decoding 'hybrid) (wime-candidate-style 'list)
            (wime-user-database nil))
        (wime-edit-mode 1)
        (wime-edit--adopt 3 5)
