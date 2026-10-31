@@ -28,6 +28,8 @@ cc_binary(
     ],
 )
 
+exports_files(["gen/wime_gen.py"], visibility = ["//emacs-packages/wime/neural:__pkg__"])
+
 py_binary(
     name = "generator",
     srcs = ["gen/wime_gen.py"],

@@ -545,7 +545,7 @@
   (unless (wime--database)
     (ert-skip "word database not available"))
   (should (equal (car (wime--candidates "womfm;tm")) "我们明天"))
-  (should (equal (car (wime--candidates "yrtk")) "袁涛")))
+  (should (equal (car (wime--candidates "xmzl")) "现在")))
 
 (ert-deftest wime-alternative-syllable-spellings ()
   (unless (wime--database)

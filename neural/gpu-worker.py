@@ -19,10 +19,10 @@ import math
 import sys
 import time
 
-from inference import ConditionalEvaluator, effective_prior_weight
+from inference import effective_prior_weight
 from composition import ENCODING, validate_committed, decode as decode_composition
 from rescorer import interleave
-from fusion import add_fusion_arguments, make_rescorer, make_decoder
+from fusion import add_fusion_arguments, make_evaluator, make_rescorer, make_decoder
 
 LETTERS = set("abcdefghijklmnopqrstuvwxyz")
 KEYS = LETTERS | {";"}
@@ -175,13 +175,15 @@ def parse_args(argv=None):
 
 def main():
     args = parse_args()
-    evaluator = ConditionalEvaluator(args.model, device="cuda")
+    evaluator = make_evaluator(args.model)
     rescorer = make_rescorer(args)
     decoder = make_decoder(args, evaluator, rescorer)
     if decoder:
         decoder.beam = args.beam
-    # Pay CUDA/kernel initialization once, before the first interactive request.
-    evaluator.evaluate("", "aaaa", ["中文"])
+    # Pay CUDA/kernel initialization once, before the first interactive request;
+    # the decoder's warm-up below covers its model too.
+    if decoder is None:
+        evaluator.evaluate("", "aaaa", ["中文"])
     if rescorer:
         rescorer.score("", ["中文"])
     japanese = None

@@ -10,7 +10,9 @@ import json
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gen"))
+# The worker bundle ships the generator beside this file.
+if not Path(__file__).with_name("wime_gen.py").is_file():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gen"))
 from wime_gen import split_pinyin  # noqa: E402
 
 CODES = json.loads(Path(__file__).with_name("context-pinyin.json").read_text())["syllables"]

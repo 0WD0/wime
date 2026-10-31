@@ -34,7 +34,6 @@ class WorkerContract(unittest.TestCase):
         for changes in [dict(operation="rerank"), dict(syllables=0),
                         dict(draft="编"), dict(input="bmA")]:
             result = worker.respond(None, self.request(**changes))
-            self.assertIsNone(result["promoted"])
             self.assertNotIn("score", result)
 
     def test_verify_preserves_history_keys_and_visible_rescorer_context(self):

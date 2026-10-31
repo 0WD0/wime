@@ -154,6 +154,10 @@ class Evaluator:
         self.index = {c: i for i, c in enumerate(self.vocab)}
         self.device = device
 
+    def evaluate(self, *_, **__):
+        # Verification needs a conditional model; the editor keeps its lattice.
+        raise ValueError("the transducer only decodes")
+
 
 class Prompt:
     """Left context and syllable features; the encoder runs once per prompt."""
