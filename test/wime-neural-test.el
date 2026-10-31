@@ -636,3 +636,15 @@
     (let ((request (json-parse-string (wime-neural--request job) :object-type 'alist :array-type 'list)))
       (should (equal (mapcar (lambda (c) (alist-get 'text c)) (alist-get 'candidates request))
                      '("甲乙" "丙丁"))))))
+
+(ert-deftest wime-neural-dictionary-mode-skips-the-neural-stage ()
+  (wime-neural-test--composition
+    (let ((wime-neural-model-file "model.safetensors") (wime-neural--failed nil) scheduled)
+      (cl-letf (((symbol-function 'run-with-timer) (lambda (&rest _) (setq scheduled t)))
+                ((symbol-function 'wime--refresh) #'ignore))
+        (wime-dictionary-mode 1)
+        (wime-neural--schedule)
+        (should-not scheduled)
+        (wime-dictionary-mode -1)
+        (wime-neural--schedule)
+        (should scheduled)))))

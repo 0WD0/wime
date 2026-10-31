@@ -278,6 +278,7 @@ of truth.  Widen only for display; confirmation still respects narrowing."
               (eq (point) wime-edit--paused-point)
               (memq this-command '(wime-edit-pause wime-edit-escape wime-edit-finish
                                    wime-edit-return toggle-input-method wime-toggle-english
+                                   wime-dictionary-mode
                                    undo undo-only undo-redo)))
     (wime-edit--sync))
   (when (and (wime-edit--active-p)

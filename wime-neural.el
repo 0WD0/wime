@@ -196,7 +196,7 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
 (defun wime-neural--schedule ()
   "Schedule a bounded comparison after the traditional candidates appear."
   (wime-neural--reset)
-  (when (and wime-neural-mode (not wime-neural--failed) wime-neural-model-file
+  (when (and wime-neural-mode (not wime-dictionary-mode) (not wime-neural--failed) wime-neural-model-file
              ;; Flattened keys cannot express an incomplete middle syllable.
              ;; Wait for its second key before asking the worker to decode.
              (or (not (bound-and-true-p wime-edit-mode))
