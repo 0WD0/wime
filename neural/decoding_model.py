@@ -31,11 +31,12 @@ class DecodingModel:
         self.weight = rescorer.weight if rescorer else 1.0
         self.device = evaluator.device if evaluator else "cpu"
 
-    def prompts(self, context, code):
+    def prompts(self, context, code, tones=()):
         """Conditional-model prompt ids and LM context ids."""
-        return self.model_prompt(context, code), self.lm_ids(context)
+        return self.model_prompt(context, code, tones), self.lm_ids(context)
 
-    def model_prompt(self, context, code):
+    def model_prompt(self, context, code, tones=()):
+        """The conditional model reads no tones; a syllable transducer's does."""
         ev = self.evaluator
         return [2] + [ev.index.get(c, 1) for c in prompt(context, code, ev.model.cfg.context)]
 

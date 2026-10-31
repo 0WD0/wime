@@ -30,6 +30,13 @@ class WorkerContract(unittest.TestCase):
             with self.assertRaises(ValueError):
                 worker.validate(request)
 
+    def test_decode_tones_are_syllable_tone_pairs(self):
+        decode = self.request(operation="decode", input="bmyi", tones=[[0, 1], [1, 5]])
+        worker.validate(decode)
+        for tones in ([[0, 0]], [[0, 6]], [[0, "1"]], [[-1, 1]], [[0]], "1"):
+            with self.subTest(tones=tones), self.assertRaises(ValueError):
+                worker.validate(dict(decode, tones=tones))
+
     def test_wrong_operation_or_coverage_never_calls_the_model(self):
         for changes in [dict(operation="rerank"), dict(syllables=0),
                         dict(draft="编"), dict(input="bmA")]:
@@ -163,12 +170,12 @@ class WorkerContract(unittest.TestCase):
 
         request = self.request(operation="decode", input="bmy", syllables=2, draft="",
                                pins=[[0, "便"]], learned=[[0, "便宜"]], memory_weight=10.0,
-                               literals=[[1, "GPU "]])
+                               literals=[[1, "GPU "]], tones=[[1, 2]])
         decoder = Decoder()
         self.assertEqual(worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), request, None, decoder)["candidates"], [["便宜", -.5]])
         self.assertEqual(decoder.args, ("", "bmy"))
         self.assertEqual(decoder.kwargs, dict(pins=[(0,"便")], learned=[(0,"便宜")], weight=10., aux=[],
-                                              literals=[(1, "GPU ")]))
+                                              literals=[(1, "GPU ")], tones=[(1, 2)]))
         worker.respond(SimpleNamespace(model=SimpleNamespace(cfg=SimpleNamespace(context=128))), dict(request, aux=[[1, "kp"]]), None, decoder)
         self.assertEqual(decoder.kwargs["aux"], [(1,"kp")])
         self.assertEqual(worker.respond(None, request)["candidates"], [])

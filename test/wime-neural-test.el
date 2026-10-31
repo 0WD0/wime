@@ -620,3 +620,12 @@
     (wime-checkpoint--apply '(:path "/m.safetensors" :profile (:search_method "verify" :width 16 :budget 4 :rescorer "/lm")))
     (should (eq wime-neural-search-method 'verify))
     (should-not (member "--database" (wime-neural--command wime-neural-model-file)))))
+
+(ert-deftest wime-neural-decode-request-carries-typed-tones ()
+  (wime-neural-test--composition
+    (setq wime--input "aa3bb")
+    (setf (wime-neural--job-input job) wime--input
+          (wime-neural--job-method job) 'decode)
+    (let ((request (json-parse-string (wime-neural--request job) :object-type 'alist)))
+      (should (equal (alist-get 'input request) "aabb"))
+      (should (equal (alist-get 'tones request) [[0 3]])))))

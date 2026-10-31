@@ -93,19 +93,22 @@ class Decoder(DecodingModel):
 
     # --- search -----------------------------------------------------------
 
-    def decode(self, context, code, pins=(), learned=(), weight=0.0, aux=(), literals=()):
+    def decode(self, context, code, pins=(), learned=(), weight=0.0, aux=(), literals=(), tones=()):
         """Best complete readings of CODE as [(text, per-character score)].
 
         PINS fix characters by position and AUX (position, keys) restricts a
         position to characters whose auxiliary codes start with the keys;
         LEARNED (start, text) readings earn WEIGHT per covered character.
         LITERALS (position, text) follow the first POSITION characters; the
-        returned texts omit them. An odd CODE ends in half a syllable.
+        returned texts omit them. TONES (position, tone) reach the model's
+        prompts but constrain no reading. An odd CODE ends in half a syllable.
         """
         key = (context, tuple(learned), weight)
         constraints = {p: ("pin", c) for p, c in pins}
         for p, typed in aux:
             constraints[p] = constraints.get(p, ()) + ("aux", typed)
+        for p, tone in tones:
+            constraints[p] = constraints.get(p, ()) + ("tone", tone)
         texts = dict(literals)
         literals = {p: self.literal_ids(text) for p, text in texts.items()}
         session = self.session
@@ -150,10 +153,15 @@ class Session:
         for i, char in enumerate(text):
             rule = self.constraints.get(start + i, ())
             for kind, value in zip(rule[::2], rule[1::2]):
-                if (char != value if kind == "pin" else not self.decoder.units.aux_allows(
+                if (char != value if kind == "pin" else kind == "aux" and not self.decoder.units.aux_allows(
                         char, code[2 * (start + i):2 * (start + i) + 2], value)):
                     return False
         return True
+
+    def tones(self, start, stop):
+        """Typed tones of positions START..STOP, relative to START."""
+        return tuple((p - start, rule[rule.index("tone") + 1]) for p, rule in sorted(self.constraints.items())
+                     if start <= p < stop and "tone" in rule[::2])
 
     def lm_next(self, sequences):
         decoder = self.decoder
@@ -189,11 +197,12 @@ class Session:
         characters = stop - start + (self.half and stop == syllables)
         result = []
         for text in texts:
-            key = (text[:start], code, characters)
+            tones = self.tones(start, stop)
+            key = (text[:start], code, characters, tones)
             if key not in self.segment_prompts:
                 surface = "".join(self.texts.get(i, "") + c for i, c in enumerate(text[:start]))
                 try:
-                    prompt = decoder.model_prompt(self.context + surface + self.texts[start], code)
+                    prompt = decoder.model_prompt(self.context + surface + self.texts[start], code, tones)
                 except ValueError:
                     prompt = None
                 self.segment_prompts[key] = (prompt if prompt is not None
@@ -298,7 +307,7 @@ class Session:
         characters, or None past its window: then the LM alone ranks."""
         decoder = self.decoder
         try:
-            prompt, self.lm_context = decoder.prompts(self.context, code)
+            prompt, self.lm_context = decoder.prompts(self.context, code, self.tones(0, len(code) // 2))
         except ValueError:
             prompt = None
         if self.lm_context is None:

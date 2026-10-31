@@ -311,6 +311,8 @@ of one composition; dictionary and auxiliary constraints remain mandatory."
                                collect (vector i (downcase (cdr unit)))))
        :literals ,(vconcat (mapcar (lambda (literal) (vector (car literal) (cdr literal)))
                                    (wime-neural--job-literals job)))
+       :tones ,(vconcat (mapcar (lambda (tone) (vector (car tone) (cdr tone)))
+                                (wime--tones (wime-neural--job-input job))))
        :memory_weight ,wime-neural-memory-weight :candidates []))))
 
 (defun wime-neural--verify-request (job)

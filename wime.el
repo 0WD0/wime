@@ -176,6 +176,7 @@ Return point to disable context.  Errors or invalid markers also yield none.")
 
 (defvar wime-edit--start)
 (declare-function wime-edit--active-p "wime-edit")
+(declare-function wime-edit--type-tone "wime-edit" (tone))
 (declare-function wime-edit--type-literal "wime-edit" (key))
 
 (defun wime--context (&optional limit)
@@ -387,6 +388,45 @@ nil accepts either.  Elsewhere it stays punctuation."
 (defun wime--digit-p (key)
   "Return non-nil if KEY is a digit."
   (and (integerp key) (>= key ?0) (<= key ?9)))
+
+(defconst wime--tone-marks "ˉˊˇˋ·"
+  "Marks shown for typed tones 1 to 4 and the neutral tone 5.")
+
+(defun wime--tone-key-p (key)
+  "Return non-nil if KEY is a tone `wime-tone' typed; `wime--parse' skips it."
+  (and (integerp key) (>= key ?1) (<= key ?5)))
+
+(defun wime--tones (input)
+  "Typed tones of INPUT as (SYLLABLE . TONE) pairs, in syllable order."
+  (let ((index -1) (code 2) tones)
+    (dolist (key (string-to-list (or input "")) (nreverse tones))
+      (cond ((wime--code-char-p key)
+             (when (= code 2) (setq index (1+ index) code 0))
+             (setq code (1+ code)))
+            ((and (wime--tone-key-p key) (>= index 0))
+             (setq tones (cons (cons index (- key ?0)) (assq-delete-all index tones))))))))
+
+(defun wime--retone (input tone)
+  "INPUT with TONE typed for its last syllable in place of an earlier one."
+  (let ((start 0) (code 2))
+    (dotimes (i (length input))
+      (when (wime--code-char-p (aref input i))
+        (when (= code 2) (setq start i code 0))
+        (setq code (1+ code))))
+    (concat (substring input 0 start)
+            (seq-remove #'wime--tone-key-p (substring input start))
+            (number-to-string tone))))
+
+(defun wime-tone ()
+  "Type the tone of the syllable just typed: C-1 to C-4, C-5 for the neutral tone.
+The syllable model reads typed tones; they filter no candidates."
+  (interactive)
+  (let ((tone (- (event-basic-type last-command-event) ?0)))
+    (if (and (bound-and-true-p wime-edit-mode) (wime-edit--active-p))
+        (wime-edit--type-tone tone)
+      (when (wime--parse wime--input)
+        (setq wime--input (wime--retone wime--input tone))
+        (wime--refresh)))))
 
 (defun wime--parse (input)
   "Split INPUT into a list of (CODE . AUX) syllables.
@@ -877,10 +917,12 @@ Set `wime--span-choices' to the labeled alternatives, in label order."
   (concat
    (apply #'concat
           (mapcar (lambda (key)
-                    (propertize (char-to-string key)
-                                'face (if (wime--aux-char-p key)
-                                          'wime-aux-face
-                                        'wime-preedit-face)))
+                    (cond ((wime--tone-key-p key)
+                           (propertize (string (aref wime--tone-marks (- key ?1))) 'face 'wime-aux-face))
+                          (t (propertize (char-to-string key)
+                                         'face (if (wime--aux-char-p key)
+                                                   'wime-aux-face
+                                                 'wime-preedit-face)))))
                   (string-to-list (or wime--input ""))))
    (cond
     ((not (and wime-show-candidates wime--candidates)) nil)
@@ -1153,6 +1195,8 @@ commits its selected candidate first."
     (define-key map (kbd "<return>") #'wime-commit-raw)
     (define-key map (kbd "<escape>") #'wime-cancel)
     (define-key map (kbd "TAB") #'wime-toggle-candidate-list)
+    (dotimes (i 5)
+      (define-key map (kbd (format "C-%d" (1+ i))) #'wime-tone))
     map)
   "Keymap installed while a wime composition is active.")
 

@@ -74,6 +74,9 @@ def execute(args, parser, checkpoint):
         decoder.beam = args.beam
     legal = readings(args.database)
 
+    # Citation tones of the current case, by syllable of its whole input.
+    typed = []
+
     def predict(state):
         if args.device.startswith("cuda"):
             torch.cuda.synchronize()
@@ -83,7 +86,10 @@ def execute(args, parser, checkpoint):
             if args.backend == "conditional":
                 candidates = decoder.decode(state["context"], state["input"], state.get("committed"))
             else:
-                candidates = decode_composition(decoder, state["context"], state["input"], state.get("committed"), window=evaluator.model.cfg.context)
+                offset = len((state.get("committed") or {}).get("text", ""))
+                tones = [(i - offset, t) for i, t in typed if offset <= i < offset + len(state["input"]) // 2]
+                candidates = decode_composition(decoder, state["context"], state["input"], state.get("committed"),
+                                                window=evaluator.model.cfg.context, tones=tones)
         except ValueError as failure:
             error = str(failure)
         if args.device.startswith("cuda"):
@@ -113,9 +119,7 @@ def execute(args, parser, checkpoint):
             full, pairs = states(row)
             if args.tones != "none":
                 from syllables import citation_tones
-                typed = [(i, t) for i, t in enumerate(citation_tones(row)) if args.tones == "citation" or i % 2 == 0]
-                decoder.tones = {row["input"][:2 * k]: [(i, t) for i, t in typed if i < k]
-                                 for k in range(1, len(row["input"]) // 2 + 1)}
+                typed[:] = [(i, t) for i, t in enumerate(citation_tones(row)) if args.tones == "citation" or i % 2 == 0]
             # Prefix is evaluated before the extra keystrokes are supplied.
             prefixes = [dict(end=pair["end"], reason=pair["reason"], prefix=predict(pair["prefix"]))
                         for pair in pairs]

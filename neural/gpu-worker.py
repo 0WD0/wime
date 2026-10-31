@@ -64,12 +64,17 @@ def validate(request):
                 or not isinstance(request.get("learned", []), list)
                 or not isinstance(request.get("aux", []), list)
                 or not isinstance(request.get("literals", []), list)
+                or not isinstance(request.get("tones", []), list)
                 or type(weight) not in (int, float) or not math.isfinite(weight) or weight < 0):
             raise ValueError("invalid request")
         for pair in (request.get("pins", []) + request.get("learned", []) + request.get("aux", [])
                      + request.get("literals", [])):
             if (not isinstance(pair, list) or len(pair) != 2 or type(pair[0]) is not int
                     or not 0 <= pair[0] < 256 or not isinstance(pair[1], str) or not pair[1]):
+                raise ValueError("invalid request")
+        for pair in request.get("tones", []):
+            if (not isinstance(pair, list) or len(pair) != 2 or type(pair[0]) is not int or not 0 <= pair[0] < 256
+                    or type(pair[1]) is not int or not 1 <= pair[1] <= 5):
                 raise ValueError("invalid request")
         if (any(len(text) != 1 for _, text in request.get("pins", []))
                 or any(position < 1 or any(0xE000 <= ord(c) <= 0xF8FF for c in text)
@@ -116,7 +121,7 @@ def respond(evaluator, request, rescorer=None, decoder=None, japanese=None):
                 window=evaluator.model.cfg.context,
                 pins=request.get("pins", []), learned=request.get("learned", []),
                 weight=request.get("memory_weight", 0), aux=request.get("aux", []),
-                literals=request.get("literals", []))]
+                literals=request.get("literals", []), tones=request.get("tones", []))]
         result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
         return result
     if request.get("operation") != "verify":

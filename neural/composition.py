@@ -59,7 +59,7 @@ def composition_prompt(context, code, window=128, committed=None):
 
 
 def decode(decoder, context, code, committed=None, *, window=128,
-           pins=(), learned=(), weight=0.0, aux=(), literals=()):
+           pins=(), learned=(), weight=0.0, aux=(), literals=(), tones=()):
     """Decode under fixed confirmed output, returning only uncommitted text.
 
     Existing search sees the original full input with confirmed characters
@@ -75,6 +75,7 @@ def decode(decoder, context, code, committed=None, *, window=128,
         pins=list(enumerate(fixed)) + [(p + offset, c) for p, c in pins],
         learned=[(p + offset, text) for p, text in learned], weight=weight,
         aux=[(p + offset, typed) for p, typed in aux],
-        literals=[(p + offset, text) for p, text in literals])
+        literals=[(p + offset, text) for p, text in literals],
+        tones=[(p + offset, tone) for p, tone in tones])
     return [(text[offset:], score * len(text) / (len(text) - offset))
             for text, score in result if text.startswith(fixed) and len(text) > offset]

@@ -1022,3 +1022,14 @@
 
 (provide 'wime-edit-test)
 ;;; wime-edit-test.el ends here
+
+(ert-deftest wime-edit-tone-attaches-to-the-character-before-point ()
+  (wime-edit-test--buffer
+    (wime-edit-test--type "aaBbb")
+    (wime-edit-test--command #'backward-char 1)
+    (let ((last-command-event ?\C-2)) (wime-edit-test--command #'wime-tone))
+    (should (equal (wime-edit-test--keys 1) "aaB2"))
+    (should (equal (wime-edit-test--aux-text) "Bˊ"))
+    (should (equal (wime--tones wime--input) '((0 . 2))))
+    (wime-edit-test--command #'wime-edit-delete-backward)
+    (should (equal (wime-edit-test--keys 1) "aaB"))))

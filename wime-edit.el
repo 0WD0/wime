@@ -94,7 +94,7 @@ Literal text inside the run does not count."
         wime-edit--correction-layout nil wime--span-choices nil))
 
 (defun wime-edit--refresh-aux-decorations ()
-  "Show only uppercase auxiliary keys beside each reading-bearing character."
+  "Show auxiliary keys and typed tones beside each reading-bearing character."
   (mapc #'delete-overlay wime-edit--aux-decorations)
   (setq wime-edit--aux-decorations nil)
   (when wime-edit-mode
@@ -104,8 +104,11 @@ Literal text inside the run does not count."
         (while (< position (point-max))
           (let* ((unit (get-text-property position 'wime-edit-unit))
                  (end (next-single-property-change position 'wime-edit-unit nil (point-max)))
-                 (aux (and (wime-edit--unit-p unit) (not (wime-edit--unit-literal unit))
-                           (upcase (cdar (wime--parse (wime-edit--unit-keys unit)))))))
+                 (keys (and (wime-edit--unit-p unit) (not (wime-edit--unit-literal unit))
+                            (wime-edit--unit-keys unit)))
+                 (aux (and keys (concat (upcase (cdar (wime--parse keys)))
+                                        (mapconcat (lambda (tone) (string (aref wime--tone-marks (1- (cdr tone)))))
+                                                   (wime--tones keys) "")))))
             (when (and aux (not (string-empty-p aux)))
               (cl-loop for p from position below end
                        do (let ((overlay (make-overlay p (1+ p))))
@@ -661,6 +664,20 @@ fonts use the same units as the source-text alignment."
                  (nthcdr (1+ index) wime-edit--units)) (1+ index))
         t))))
 
+(defun wime-edit--type-tone (tone)
+  "Type TONE for the syllable immediately before point."
+  (wime-edit--sync)
+  (when (and (wime-edit--active-p) (> (point) wime-edit--start))
+    (let* ((index (1- (- (point) wime-edit--start)))
+           (unit (nth index wime-edit--units)))
+      (unless (wime-edit--unit-literal unit)
+        (wime-edit--refresh
+         (append (seq-take wime-edit--units index)
+                 (list (wime-edit--make-unit :keys (wime--retone (wime-edit--unit-keys unit) tone)
+                                             :original (wime-edit--unit-original unit)))
+                 (nthcdr (1+ index) wime-edit--units))
+         (1+ index))))))
+
 (defun wime-edit--type-literal (text)
   "Insert TEXT, a string or one key, as literal units of the run at point.
 Return nil without a run; text before its first syllable is context."
@@ -821,6 +838,8 @@ Return nil without a run; text before its first syllable is context."
     (define-key map (kbd "<return>") #'wime-edit-return)
     (define-key map (kbd "TAB") #'wime-toggle-candidate-list)
     (define-key map (kbd "<escape>") #'wime-edit-escape)
+    (dotimes (i 5)
+      (define-key map (kbd (format "C-%d" (1+ i))) #'wime-tone))
     map))
 
 (defvar wime-edit-mode-map

@@ -171,17 +171,13 @@ class Prompt:
 
 
 def decoder_class(base):
-    """BASE (decoder.Decoder) with its conditional-model methods replaced.
-
-    TONES maps a typed key string to (syllable, tone) pairs for that input."""
+    """BASE (decoder.Decoder) with its conditional-model methods replaced."""
 
     class TransducerDecoder(base):
-        tones = {}
-
-        def model_prompt(self, context, code):
+        def model_prompt(self, context, code, tones=()):
             if len(code) % 2:
                 raise ValueError("expected complete syllables")
-            return Prompt(context, syllables.typed(code, self.tones.get(code, ())),
+            return Prompt(context, syllables.typed(code, tones),
                           self.evaluator.model.encoder_cfg.marker)
 
         def encoded(self, prompt):

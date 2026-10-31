@@ -31,7 +31,7 @@ class Toy(Decoder):
         super().__init__(None, None, Units(Tokenizer(), READINGS))
         self.forwards = 0
 
-    def prompts(self, context, code):
+    def prompts(self, context, code, tones=()):
         return [0], [1]
 
     def window(self):
@@ -67,7 +67,7 @@ class Lookahead(Toy):
         self.conditioned_on = []
         self.lm_prefixes = []
 
-    def prompts(self, context, code):
+    def prompts(self, context, code, tones=()):
         return [code], [1]
 
     def char_ids(self, texts):
@@ -103,7 +103,7 @@ class Literal(Toy):
     def literal_ids(self, text):
         return (1,) * len(text)
 
-    def model_prompt(self, context, code):
+    def model_prompt(self, context, code, tones=()):
         self.compositions.add((context, code))
         return [0]
 

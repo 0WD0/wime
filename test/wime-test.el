@@ -658,3 +658,18 @@
 
 (provide 'wime-test)
 ;;; wime-test.el ends here
+
+(ert-deftest wime-tones-belong-to-their-syllable-and-are-not-code ()
+  (should (equal (wime--tones "nihk3") '((1 . 3))))
+  (should (equal (wime--tones "ni2hkK4") '((0 . 2) (1 . 4))))
+  (should (equal (wime--parse "ni2hkK4") (wime--parse "nihkK")))
+  (should (equal (wime--retone "nihk3" 2) "nihk2"))
+  (should (equal (wime--retone "ni2hK" 4) "ni2hK4")))
+
+(ert-deftest wime-tone-key-retones-the-last-syllable-and-shows-its-mark ()
+  (wime-test--type "nihk"
+    (cl-letf (((symbol-function 'wime--refresh) #'ignore))
+      (let ((last-command-event ?\C-3)) (wime-tone))
+      (let ((last-command-event ?\C-4)) (wime-tone)))
+    (should (equal wime--input "nihk4"))
+    (should (string-prefix-p "nihkˋ" (substring-no-properties (wime--format))))))
