@@ -327,6 +327,7 @@ its model files are unavailable, the lattice converts."
 
 (defcustom wime-punctuation
   '((?\, . "，")
+    (?\\ . "、")
     (?. . "。")
     (?\? . "？")
     (?\! . "！")
