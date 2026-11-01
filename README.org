@@ -140,6 +140,20 @@ worker 在后台常驻，首次启动要加载模型。
 它出错、超时或缺少文件时由词格转换（=hybrid= 缺少文件时不提示），
 =M-x wime-neural-restart= 重试。
 
+** 跑基准
+
+装好 Python 环境后，在 wime 目录执行：
+
+#+begin_src sh
+"$D/python/bin/python" neural/benchmark-keystrokes.py --out benchmark.json
+#+end_src
+
+它逐键输入 =neural/benchmark-cases.json= 里的 100 句维基百科句子，
+把按键延迟分位数、显存或内存峰值、加载时间和机器信息写进 =benchmark.json=。
+缺少的模型和词库按上文的位置下载。
+=--device cpu --cases 5 --threads 8= 在 CPU 上用 8 线程只测五句，=--beam= 可以重复；
+=--rescorer Qwen/Qwen3.5-0.8B-Base@dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68= 换小模型。
+
 * 工作方式
 
 打字时，wime 在词库上做词格搜索：

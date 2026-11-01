@@ -1,0 +1,1252 @@
+{
+ "format": "wime-keystroke-benchmark-v1",
+ "source": {
+  "name": "Chinese Wikipedia",
+  "dump": "https://dumps.wikimedia.org/zhwiki/20261001/zhwiki-20261001-pages-articles.xml.bz2",
+  "dump_sha1": "04d5eec3c249fdf8604b97f4435e019c60a4ec94",
+  "license": "CC BY-SA 4.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "attribution": "Each case quotes the article revision https://zh.wikipedia.org/w/index.php?oldid=<revision>; its history lists the authors. Converted to simplified Chinese with OpenCC; wiki markup removed."
+ },
+ "selection": {
+  "skipped_articles": 3287,
+  "policy": "Draw the public keystroke benchmark from Chinese Wikipedia articles no corpus used.\n\nThe cleaned corpus took the dump's first articles in order, so later articles\nbelong to no training, development or sealed set; the registry's evaluation\ncases are excluded again by text. Each article gives one prose sentence of\n6–24 Han characters ending in 。！？, with earlier text as left context.\nReadings come from the evaluation sets' Mandarin frontend, automatic and\nunreviewed, so accuracy on this set is a sanity check.",
+  "buckets": {
+   "6-12": 50,
+   "13-24": 50
+  },
+  "excluded_suites": [
+   "programming-dev-v1",
+   "programming-test-v1",
+   "stress-v1",
+   "stress-failures-v1",
+   "wdoom-cuda-v1",
+   "committed-anchor-v1",
+   "protected-debug-v1",
+   "accuracy-expansion-dev-v1",
+   "residual-heldout-v1",
+   "pilot-dev-v1",
+   "pilot-test-v1",
+   "pilot-suffix-dev-v1",
+   "pilot-technical-v1",
+   "sentence-trajectories-dev-v1",
+   "sentence-trajectories-test-v1",
+   "sentence-trajectories-dev-v2",
+   "sentence-trajectories-test-v2",
+   "sentence-trajectories-test-v3",
+   "sentence-trajectories-context-dev-v1",
+   "sentence-trajectories-context-test-v1",
+   "sentence-trajectories-dialogue-dev-v1",
+   "sentence-trajectories-dialogue-test-v1"
+  ]
+ },
+ "reading": {
+  "pipeline": "gpt-sovits-mandarin-v1: one contextual Mandarin frontend, phrase correction, tone sandhi; no external annotator voting",
+  "model": "XXXXRT/GPT-SoVITS-Pretrained@0c47645e02a7bc3688d7b263b0042c81e3cd82cd/G2PWModel.zip",
+  "tokenizer": "hfl/chinese-roberta-wwm-ext-large@a25cc9e05974bd9687e528edd516f2cfdb3f5db9",
+  "scheme": "Microsoft double pinyin",
+  "database_sha256": "3dfc28ffe63b4e751b5b347097bbbc0ecd66acdc7f6c5e7fd4c274aa302ccc91"
+ },
+ "cases": [
+  {
+   "id": "f7bd463a59df6f1415a0",
+   "title": "1867年",
+   "page": 12001,
+   "revision": 92860367,
+   "offset": 22,
+   "context": "大事记 \n阿尔弗雷德·诺贝尔发明达那炸药。\n",
+   "gold": [
+    "雀巢公司成立"
+   ],
+   "input": "qtikgssiigli"
+  },
+  {
+   "id": "c425a1d27026ea74cb07",
+   "title": "数据链路层",
+   "page": 12020,
+   "revision": 93512100,
+   "offset": 750,
+   "context": "网（IEEE 802.3）\nWi-Fi（IEEE 802.11）\n常见数据链路层的设备\n网卡（物理层和数据链路层的MAC子层）\n",
+   "gold": [
+    "交换机是本层设备"
+   ],
+   "input": "jchrjiuibfcguebz"
+  },
+  {
+   "id": "6482d8be8c01ab106271",
+   "title": "前476年",
+   "page": 12039,
+   "revision": 92694879,
+   "offset": 104,
+   "context": "智氏之后，又打败并合并代国，赵国在今冀南和豫北的疆域大致形成。\n申包胥出使越国，向勾践提出了「智为始，仁次之，勇次之」的建言。\n",
+   "gold": [
+    "中国有司南的记载"
+   ],
+   "input": "vsgoybsinjdejizl"
+  },
+  {
+   "id": "025486af1313dfc40bc8",
+   "title": "死亡",
+   "page": 12046,
+   "revision": 92921052,
+   "offset": 4557,
+   "context": "尸是对人尸体的彻底检验，以求确定一个人死亡的原因和方式，并评估任何可能存在的疾病或创伤。验尸通常由专门的医生（病理学家）进行。\n",
+   "gold": [
+    "验尸用作法律或医学目的"
+   ],
+   "input": "yjuiyszofalyhoyixtmudi"
+  },
+  {
+   "id": "b679f1c45efbb311f1d0",
+   "title": "嚴吳嬋霞",
+   "page": 12059,
+   "revision": 85381877,
+   "offset": 47,
+   "context": "严吴婵霞，香港儿童文学作家，也是新雅文化事业有限公司董事总经理兼总编辑及香港亲子阅读书会会长。",
+   "gold": [
+    "七十年代时游学英美"
+   ],
+   "input": "qiuinmdluiybxty;mz"
+  },
+  {
+   "id": "103fb1e74dcfecaf2ae0",
+   "title": "天心阁",
+   "page": 12076,
+   "revision": 92282232,
+   "offset": 1340,
+   "context": "工，12月1日举行落成仪式。重建的天心阁主体建筑面积846平方米。其中主阁仍沿旧制，均为三层。栗瓦石栏，檐牙高啄，高14.6米。",
+   "gold": [
+    "左右增建游廊连接二副阁"
+   ],
+   "input": "zoybzgjmyblhlmjxorfuge"
+  },
+  {
+   "id": "50c00af373c9b14c4b51",
+   "title": "会话层",
+   "page": 12077,
+   "revision": 58570681,
+   "offset": 629,
+   "context": "间或过度重叠。\n 会话层的主要功能 \n 为会话实体间建立连接：为给两个对等会话服务用户建立一个会话连接，应该做如下几项工作。\n ",
+   "gold": [
+    "将会话地址映射为运输地址"
+   ],
+   "input": "jdhvhwdiviy;uewzypuudivi"
+  },
+  {
+   "id": "9bf6541042b471d71773",
+   "title": "表字",
+   "page": 12088,
+   "revision": 94025053,
+   "offset": 253,
+   "context": "）或许嫁时取字。例如项籍字羽，孔丘字仲尼，司马迁字子长，李白字太白。最常见的字是两言字，但也有一言字（如项籍字羽，屈平字原）。\n",
+   "gold": [
+    "字与名通常有关"
+   ],
+   "input": "ziyum;tsihybgr"
+  },
+  {
+   "id": "2dfd5b3cb10bbf399987",
+   "title": "称谓",
+   "page": 12099,
+   "revision": 94659832,
+   "offset": 578,
+   "context": "己年长者，例兄、姊或比自己年长的同辈姻亲)。在对父母的兄弟姐妹及配偶的各种称谓中，父系男性血亲更为亲密，依年龄细化出伯父和叔父。",
+   "gold": [
+    "其他血亲并无这种细化"
+   ],
+   "input": "qitaxtqnb;wuvevsxihw"
+  },
+  {
+   "id": "4040249b68678334b0e0",
+   "title": "网络游戏",
+   "page": 12102,
+   "revision": 92959838,
+   "offset": 1399,
+   "context": "韩）、《枫之谷》（韩）等等。\n 以游戏人数区分 \n 单人网络游戏：大多数是对网速和硬件要求不高的各种网页游戏，单人在线休闲游戏。",
+   "gold": [
+    "不过可能有排行榜的设定"
+   ],
+   "input": "bugokengybplhhbhdeued;"
+  },
+  {
+   "id": "094d29f928519b2631eb",
+   "title": "Visual Basic for Applications",
+   "page": 12108,
+   "revision": 86096935,
+   "offset": 1137,
+   "context": "。来自VB库的常量则以“vb”开头。来自Access的常量以“ac”开头。可以使用对象浏览器来查看所有对象库中的固有常量列表。\n",
+   "gold": [
+    "可以自行定义常量"
+   ],
+   "input": "keyizix;d;yiihld"
+  },
+  {
+   "id": "2bef359356898679eb49",
+   "title": "中国同盟会",
+   "page": 12117,
+   "revision": 94571696,
+   "offset": 3926,
+   "context": "在华南起义可以说是正确的，必须结合历史来看待。\n学者陈锡祺指出，华兴会的人数在兴中会之上，有人认为华兴会在同盟会中起了主导作用。",
+   "gold": [
+    "但事实并非如此"
+   ],
+   "input": "djuiuib;fzruci"
+  },
+  {
+   "id": "0095450f6f313ab43c02",
+   "title": "西安电子科技大学",
+   "page": 12121,
+   "revision": 94520050,
+   "offset": 3680,
+   "context": "已经是1948年8月18日。很快就参加了陆空通讯班的教学工作，张乃召担任了四队队长。学习内容转成以气象课为主，同时巩固通讯课程。",
+   "gold": [
+    "改称为陆空通讯气象专业班"
+   ],
+   "input": "gligwzlukstsxpqixdvryebj"
+  },
+  {
+   "id": "11645d4635e9f4a76ebe",
+   "title": "电子游戏",
+   "page": 12144,
+   "revision": 93330039,
+   "offset": 8418,
+   "context": "内容部份，以机会取得报酬为主。有代表的游戏，如扑克、宾果游戏机、麻雀游戏等。在台湾很流行的弹珠台，也可以算是另一种的有奖游戏机。",
+   "gold": [
+    "另外像是大小玛莉机台也是"
+   ],
+   "input": "l;wlxduidaxcmalijitlyeui"
+  },
+  {
+   "id": "082a8c08dc4535d6e793",
+   "title": "乾眼症",
+   "page": 12153,
+   "revision": 88042649,
+   "offset": 459,
+   "context": "用环孢素或类固醇眼药水治疗。另有一种观点是，可以利用泪管塞，来防止泪水从眼球表面蒸发。偶发性的干眼症会让患者无法配戴隐形眼镜。\n",
+   "gold": [
+    "干眼症是种常见"
+   ],
+   "input": "gjyjvguivsihjm"
+  },
+  {
+   "id": "b4962d49dc7f39df6bd7",
+   "title": "鮑勃·霍克",
+   "page": 12154,
+   "revision": 93415536,
+   "offset": 2132,
+   "context": "。然而10年后（1997年3月26日），霍克改变初衷，形容马哈迪“无论从任何标准来看，应该被列为当今世界的其中一名杰出领袖”。\n",
+   "gold": [
+    "霍克的性格成为下台的原因"
+   ],
+   "input": "hokedex;geigwzxwtldeyryn"
+  },
+  {
+   "id": "0bf660e6cb6b6efcf347",
+   "title": "人民日报",
+   "page": 12158,
+   "revision": 92239971,
+   "offset": 9529,
+   "context": "体创作，署名多为“本报评论员”，但涉及重大社会事件的评论员文章，则使用专有的笔名进行署名，如“钟声”、“郑青原”、“钟轩理”等。",
+   "gold": [
+    "具体使用情况见此列表"
+   ],
+   "input": "jutiuiysq;kdjmcilxbc"
+  },
+  {
+   "id": "4df2a9a0dcefe43a2132",
+   "title": "陳慧嫻",
+   "page": 12166,
+   "revision": 94349956,
+   "offset": 2881,
+   "context": "宝丽金签约，成为宝丽金合约歌手。经过重新包装，5月30日推出《反叛》，以日式少女形像及《跳舞街》等金曲令陈慧娴踏上一线歌手之路。",
+   "gold": [
+    "销量达三白金"
+   ],
+   "input": "xclddasjbljn"
+  },
+  {
+   "id": "1fa21b1eda1c65b936a1",
+   "title": "翼状胬肉手术",
+   "page": 12200,
+   "revision": 16673278,
+   "offset": 163,
+   "context": "者是患者强烈要求\n禁忌症\n手术分类\n单纯切除术\n转头术\n切除术合并干细胞移植术\n手术过程\n以单纯切除术为例：\n角膜表面点局麻药\n",
+   "gold": [
+    "开睑器撑开眼睑"
+   ],
+   "input": "kljmqiigklyjjm"
+  },
+  {
+   "id": "b2c71244ad1f008f4308",
+   "title": "1901年",
+   "page": 12208,
+   "revision": 92860457,
+   "offset": 570,
+   "context": "租界协议书。\n 12月10日——第一届诺贝尔奖颁发。\n 12月12日——古列尔莫·马可尼完成跨大西洋无线电传送“S”．．．。\n ",
+   "gold": [
+    "纽约洋基队成立"
+   ],
+   "input": "nqytyhjidvigli"
+  },
+  {
+   "id": "b870ec9d4eef9adea48d",
+   "title": "街机",
+   "page": 12217,
+   "revision": 93181898,
+   "offset": 323,
+   "context": "的商业性大型游戏机”，而该词典中的“游戏机”是指电子游戏机。这一概念对应英语中的arcade video game。\n 历史 \n",
+   "gold": [
+    "街机诞生于美国和日本"
+   ],
+   "input": "jxjidjugyumzgoheribf"
+  },
+  {
+   "id": "2cd41e14f00a0e41cbd9",
+   "title": "程序错误",
+   "page": 12218,
+   "revision": 94395151,
+   "offset": 669,
+   "context": "efore commercial success or failure is certainly reached.\n中译如下：\n",
+   "gold": [
+    "在我所有发明都如此"
+   ],
+   "input": "zlwosoybfam;dbruci"
+  },
+  {
+   "id": "0bf5f85abc836e71487b",
+   "title": "秘技",
+   "page": 12223,
+   "revision": 90623648,
+   "offset": 1262,
+   "context": "游戏外挂。（严格来说，由于「非法的」特别效果不是利用实力、不费吹灰之力就能使用，加上往往使用这些效果并不能享受游戏的真正乐趣，\n",
+   "gold": [
+    "故此一般不当作秘技"
+   ],
+   "input": "guciyibjbudhzomiji"
+  },
+  {
+   "id": "17d1e83543a4aea833e0",
+   "title": "54年",
+   "page": 12261,
+   "revision": 92634183,
+   "offset": 10,
+   "context": "大事记 \n罗马帝国\n",
+   "gold": [
+    "尼禄登基为罗马皇帝"
+   ],
+   "input": "niludgjiwzlomahddi"
+  },
+  {
+   "id": "3f5ed907e984497d08f2",
+   "title": "中国历史地理学",
+   "page": 12274,
+   "revision": 92092493,
+   "offset": 588,
+   "context": "革。沿革地理主要研究历代疆域、政区制度、地名方位、河流演变等内容。\n东汉班固于1世纪撰写《汉书·地理志》，被视为沿革地理的开端。",
+   "gold": [
+    "其内容并不限于西汉一朝"
+   ],
+   "input": "qinzrsb;buxmyuxihjyivk"
+  },
+  {
+   "id": "f4e075952a933ad1b69d",
+   "title": "启明",
+   "page": 12294,
+   "revision": 92966549,
+   "offset": 16,
+   "context": "启明可能指：\n 金星的别名。\n ",
+   "gold": [
+    "启明信息公司"
+   ],
+   "input": "qim;xnxigssi"
+  },
+  {
+   "id": "6057f32b713b30d3c222",
+   "title": "章子怡",
+   "page": 12318,
+   "revision": 94020766,
+   "offset": 4980,
+   "context": "亲是一位幼儿园老师。章有一个哥哥章子男，和一位同样是演员的嫂子殷旭。\n章子怡在2007年透过优秀人才入境计划，领取香港身份证。\n",
+   "gold": [
+    "章子怡为中国致公党党员"
+   ],
+   "input": "vhziyiwzvsgovigsdhdhyr"
+  },
+  {
+   "id": "25df8fab4a9b8a96bc12",
+   "title": "622年",
+   "page": 12321,
+   "revision": 92716789,
+   "offset": 119,
+   "context": "此），唐军遣人决洺水堰，水淹汉东军，刘黑闼等奔突厥。\n七月，唐高祖召杜伏威入朝。\n吴王李子通灭亡。\n岭南高州豪酋冯盎向唐内附。\n",
+   "gold": [
+    "林士弘建立的楚灭亡"
+   ],
+   "input": "lnuihsjmlideiumxwh"
+  },
+  {
+   "id": "27fa5e3bad5ea1fa1156",
+   "title": "天堂 (遊戲)",
+   "page": 12336,
+   "revision": 93693260,
+   "offset": 6180,
+   "context": "\n香港\n香港地区天堂游戏在2000年正式推出，由当时人气女歌手梁咏琪出任代言人，因其简单完善的介面及操作，旋即热爆网上游戏世界。",
+   "gold": [
+    "全盛期有五千人同时在缐"
+   ],
+   "input": "qrugqiybwuqmrftsuizlxm"
+  },
+  {
+   "id": "9cbcdc56880d37df3a01",
+   "title": "651年",
+   "page": 12364,
+   "revision": 92718167,
+   "offset": 42,
+   "context": "大事记 \n中国\n唐高宗的孝服已满，迎娶武氏入宫，即后来的武则天，次年生下太子李弘。\n",
+   "gold": [
+    "大食使者到达中国"
+   ],
+   "input": "dauiuivedkdavsgo"
+  },
+  {
+   "id": "850f9ab95161def3c15b",
+   "title": "Windows Messenger",
+   "page": 12383,
+   "revision": 87578298,
+   "offset": 229,
+   "context": "ws Messenger与Windows Live Messenger（前称MSN Messenger）是不同的，纵使名称相似。",
+   "gold": [
+    "后者可以从微软的网站下载"
+   ],
+   "input": "hbvekeyicswzrrdewhvjxwzl"
+  },
+  {
+   "id": "c2e08d86b94d7195b1cd",
+   "title": "雕塑",
+   "page": 12388,
+   "revision": 94051542,
+   "offset": 3075,
+   "context": "当做花园摆饰、门口标志、或是陵寝建筑装饰等，基于石头厚重（不易被偷窃）、雕刻细节不易因风吹雨打而破坏，石雕作品多以户外环境为主。",
+   "gold": [
+    "常见的石雕材料是大理石"
+   ],
+   "input": "ihjmdeuidccllcuidaliui"
+  },
+  {
+   "id": "19c64830a8faa22bf261",
+   "title": "布达佩斯",
+   "page": 12391,
+   "revision": 94300070,
+   "offset": 4021,
+   "context": "出去的。区号使用罗马数字标志。\n布达佩斯一区是位于布达城中心偏西的一小块区域，包括历史上著名的城堡。二区同样在布达，位于西北面。",
+   "gold": [
+    "布达的最北面是三区的所在"
+   ],
+   "input": "budadezvbzmmuisjqudesozl"
+  },
+  {
+   "id": "5b770f76a2aea1265674",
+   "title": "阿莫西林",
+   "page": 12405,
+   "revision": 93585330,
+   "offset": 1570,
+   "context": "林产生不同程度的抗药性。\n不良反应\n阿莫西林产生的不良反应与其他β-内醯胺抗生素相似，包括恶心、呕吐、皮疹及抗生素相关的结肠炎。",
+   "gold": [
+    "也可能出现腹泻"
+   ],
+   "input": "yekengiuxmfuxx"
+  },
+  {
+   "id": "285989fa1f18b8733c02",
+   "title": "1301年",
+   "page": 12406,
+   "revision": 92832448,
+   "offset": 272,
+   "context": "3岁）\n 逝世 \n1月14日——安德烈三世，匈牙利王国阿尔帕德王朝末任君主\n8月25日——海都，蒙古帝国窝阔台汗之孙，合失之子。",
+   "gold": [
+    "窝阔台汗国的实际创立者"
+   ],
+   "input": "wokotlhjgodeuijiidlive"
+  },
+  {
+   "id": "228194a788c97eaa0a6d",
+   "title": "粉嶺公立學校",
+   "page": 12426,
+   "revision": 91747741,
+   "offset": 1320,
+   "context": "乐室、舞蹈室和教员休息室。\n不过主权移交之后，由于出生人口大减，加上政府要求释法，使合资格来港的移民大减，令北区的适龄学童大减。",
+   "gold": [
+    "不少学校都面临停办的危机"
+   ],
+   "input": "buukxtxcdbmmlnt;bjdewzji"
+  },
+  {
+   "id": "4c84fa220ee495a981c3",
+   "title": "印度人口",
+   "page": 12428,
+   "revision": 91463270,
+   "offset": 536,
+   "context": "西孟加拉邦、比哈尔邦和奥里萨邦等，说孟加拉语，大多数人信印度教。\n 马拉地族：占印度总人口的7.6%，主要分布在马哈拉施特拉邦。",
+   "gold": [
+    "主要信奉印度教和佛教"
+   ],
+   "input": "vuykxnfgyndujchefojc"
+  },
+  {
+   "id": "5eaf8dd53f870b36f36d",
+   "title": "新加坡教育",
+   "page": 12434,
+   "revision": 90982564,
+   "offset": 698,
+   "context": "学阶段及中学的低年级阶段一般采用半天制教学，和中国多数大城市相比，课业强度略低。 而初级学院、大专和理工学院则沿用开放全日制。\n",
+   "gold": [
+    "新加坡教育制度以严格著称"
+   ],
+   "input": "xnjwpojcyuviduyiyjgevuig"
+  },
+  {
+   "id": "4a202a087bf50fcb2b39",
+   "title": "腾讯QQ",
+   "page": 12439,
+   "revision": 93429313,
+   "offset": 4144,
+   "context": "的QQ秀移动至手机端，2016年1月26号，随着手Q6.2.2版本的更新，手Q官方发放了12000个安卓版手Q厘米秀的内测资格。",
+   "gold": [
+    "目前版本已移除"
+   ],
+   "input": "muqmbjbfyiyiiu"
+  },
+  {
+   "id": "7c65faf56613361ba198",
+   "title": "图形用户界面",
+   "page": 12441,
+   "revision": 92623850,
+   "offset": 3649,
+   "context": "鼠标）进行指示操作，然后使用设备上的按钮（通常为两到三个）进行动作的激活。因此“位置”和“指示”都非常明了，从而实现可视操作。\n",
+   "gold": [
+    "指示的内容根据位置而不同"
+   ],
+   "input": "viuidenzrsgfjuwzviorbuts"
+  },
+  {
+   "id": "fbe6e7217934ef260cad",
+   "title": "GNOME",
+   "page": 12445,
+   "revision": 94261589,
+   "offset": 1287,
+   "context": "面都在「活动」画面中进行。此外，因为Mutter取代了Metacity成为预设的窗口管理器，最小化及放大按钮不再预设在名称列中。",
+   "gold": [
+    "取代了成为预设主题"
+   ],
+   "input": "qudlleigwzyuuevuti"
+  },
+  {
+   "id": "23674097d5e08d9a2b5e",
+   "title": "哈希表",
+   "page": 12452,
+   "revision": 94358889,
+   "offset": 2149,
+   "context": "用该次冲突的散列函数地址产生新的散列函数地址，直到冲突不再发生。这种方法不易产生“聚集”（Cluster），但增加了计算时间。\n",
+   "gold": [
+    "建立一个公共溢出区"
+   ],
+   "input": "jmliyigegsgsyiiuqu"
+  },
+  {
+   "id": "02ff5701239b1b702846",
+   "title": "堆積",
+   "page": 12455,
+   "revision": 88945598,
+   "offset": 1718,
+   "context": "= LastElement;\n return MinElement;\n}\n\n 应用 \n 堆排序 \n堆（通常是二叉堆）常用于排序。",
+   "gold": [
+    "这种算法称作堆排序"
+   ],
+   "input": "vevssrfaigzodvplxu"
+  },
+  {
+   "id": "de90643d14618675a607",
+   "title": "唐骏",
+   "page": 12457,
+   "revision": 79145554,
+   "offset": 234,
+   "context": "12年6月19日，唐骏在北京大学的演讲中正式为学历造假而道歉，称“不要学我”。\n 生平 \n1980年毕业于江苏省常州高级中学。 ",
+   "gold": [
+    "同年考入北京邮电学院"
+   ],
+   "input": "tsnmkkrubzj;ybdmxtyr"
+  },
+  {
+   "id": "10398f3012c2e093b9c1",
+   "title": "八卦",
+   "page": 12458,
+   "revision": 94021691,
+   "offset": 2502,
+   "context": "概念（类似于西学中之维度），如清人张潮《幽梦影》中即有「先天八卦，竖看者也；后天八卦，横看者也」之句。\n卦象运用\n 八卦涵义 \n",
+   "gold": [
+    "先天八卦相传是伏羲所造"
+   ],
+   "input": "xmtmbagwxdiruifuxisozk"
+  },
+  {
+   "id": "8218242669184eb4fea1",
+   "title": "1389年",
+   "page": 12461,
+   "revision": 93059849,
+   "offset": 200,
+   "context": "特一世扶植的继承人波美拉尼亚的埃里克加冕成为挪威国王。\n11月2日——教宗博尼法斯九世接替教宗乌尔班六世，成为第203位教宗。\n",
+   "gold": [
+    "明朝设置朵颜三卫"
+   ],
+   "input": "m;ikuevidoyjsjwz"
+  },
+  {
+   "id": "00198d16e77f96c5ed39",
+   "title": "平原省",
+   "page": 12475,
+   "revision": 92032503,
+   "offset": 1577,
+   "context": "有即时提出对这个事件的处理办法。我们要求聊城专署进行检讨，并对与此事件有关的负责人员迅速予以处分，采用有效办法，补偿农民的损失。",
+   "gold": [
+    "并将处理结果公布"
+   ],
+   "input": "b;jdiulijxgogsbu"
+  },
+  {
+   "id": "1cf2759c317b1658de39",
+   "title": "张艺谋",
+   "page": 12500,
+   "revision": 94502852,
+   "offset": 3179,
+   "context": "奖，第53届柏林国际电影节阿尔弗雷德-鲍尔特别创新作品奖；第60届美国金球奖最佳外语片提名，第75届奥斯卡金像奖最佳外语片提名。",
+   "gold": [
+    "同年荣获福冈亚洲文化奖"
+   ],
+   "input": "tsnmrshofughyavbwfhwjd"
+  },
+  {
+   "id": "1515449b3fe986eddcec",
+   "title": "禅宗",
+   "page": 12507,
+   "revision": 93600294,
+   "offset": 4673,
+   "context": "命。中宗因赠摩纳袈裟一领及绢五百匹以为供养。并命改称宝林寺为中兴寺，由韶州刺史重修，又给予法泉寺额，并以惠能新州故宅为国恩寺。\n",
+   "gold": [
+    "惠能的禅法以定慧为本"
+   ],
+   "input": "hvngdeijfayid;hvwzbf"
+  },
+  {
+   "id": "48b501f263480ff7c2f7",
+   "title": "法国大革命",
+   "page": 12513,
+   "revision": 94067810,
+   "offset": 20221,
+   "context": "各，英军则于1798年撤离。\n1793年至1799年间，在共和派控制区的获释奴隶仍被要求留在原种植园工作，或在原主人家担任家仆。",
+   "gold": [
+    "他们获发薪资并获得财产权"
+   ],
+   "input": "tamfhofaxnzib;hodeclijqr"
+  },
+  {
+   "id": "ff5536b22cdaaf5e8184",
+   "title": "数据",
+   "page": 12007,
+   "revision": 94055597,
+   "offset": 344,
+   "context": "非常重要。\n然而在学术课题论述中，数据只是“信息的单元”。在经济领域上，“信息”衍生信息经济，而“数据”则衍生数据经济。\n分类\n",
+   "gold": [
+    "原始数据是一组未经过纠正的数字或特征"
+   ],
+   "input": "yruiuujuuiyizuwzj;gojqvgdeuuzihotevg"
+  },
+  {
+   "id": "014cb5c04a947070728c",
+   "title": "赵紫阳",
+   "page": 12019,
+   "revision": 94118368,
+   "offset": 18152,
+   "context": "比较急躁和冲动的情况下便想提出辞职。尚昆同志知道后，立即劝我说，如我辞职，将在群众中起激化作用，并说常委内部还是能够继续共事的。",
+   "gold": [
+    "我无论如何不能做使党为难的事"
+   ],
+   "input": "wowulpruhebungzouidhwznjdeui"
+  },
+  {
+   "id": "36a3b03e0fb8297928b8",
+   "title": "班固",
+   "page": 12023,
+   "revision": 89378831,
+   "offset": 592,
+   "context": "。当时兰台令史傅毅是他的同僚，二人皆以文闻名，班固与弟班超书曰：“武仲以能属文，为兰台令史，下笔不能自休。”此即文人相轻的流传。",
+   "gold": [
+    "班固又奉敕诏完成其父所著书"
+   ],
+   "input": "bjguybfgiivkwjigqifusovuuu"
+  },
+  {
+   "id": "3275baa0fd0694f4ead0",
+   "title": "段祺瑞",
+   "page": 12024,
+   "revision": 94461424,
+   "offset": 6611,
+   "context": "次世界大战东线对上德国处于苦战状态，于是日本迅速取代了沙俄在东三省的战略地位，中国东北面临沦为日本殖民地的局面。\n 六不总理 \n",
+   "gold": [
+    "段祺瑞是当时少有的人品高尚的廉洁官员"
+   ],
+   "input": "drqirvuidhuiukybderfpngkuhdelmjxgryr"
+  },
+  {
+   "id": "b58f6f7b5ba25bdfd28e",
+   "title": "羅榮焜",
+   "page": 12028,
+   "revision": 93890385,
+   "offset": 41,
+   "context": "罗荣焜（，），艺名罗山。前任香港东区区议会炮台山选区区议员、香港岛各界联合会成员。",
+   "gold": [
+    "是香港少数由娱乐圈转至政坛发展的人物"
+   ],
+   "input": "uixdghukuuybyuleqrvrvivgtjfavjderfwu"
+  },
+  {
+   "id": "082f6a2f9c0f08e8e7d0",
+   "title": "北洋政府",
+   "page": 12034,
+   "revision": 94227644,
+   "offset": 24530,
+   "context": "多份至1920年增长至1,000多种。1926年中国首家无线电广播电台在哈尔滨建立，之后各类官方和民间私营广播电台开始大量出现。",
+   "gold": [
+    "但袁世凯后的北洋政府并未停止对报界报人的迫害"
+   ],
+   "input": "djyruiklhbdebzyhvgfub;wzt;vidvbkjxbkrfdepohl"
+  },
+  {
+   "id": "0586d92f18d0810c509a",
+   "title": "网络层",
+   "page": 12042,
+   "revision": 72676327,
+   "offset": 93,
+   "context": "（TCP/IP模型中的网际层），提供路由和寻址的功能，使两终端系统能够互连且决定最佳路径，并具有一定的拥塞控制和流量控制的能力。",
+   "gold": [
+    "相当于传送邮件时需要地址一般重要"
+   ],
+   "input": "xddhyuirssybjmuixuykdiviyibjvsyk"
+  },
+  {
+   "id": "a057024a5653e6832b0a",
+   "title": "吴文俊",
+   "page": 12043,
+   "revision": 94210666,
+   "offset": 123,
+   "context": "拓扑学和数学机械化两个领域，他为拓扑学做了奠基性的工作。他的示性类和示嵌类研究被国际数学界称为“”、“吴示性类”、“吴示嵌类”。",
+   "gold": [
+    "其创立的吴消元法至今仍被国际同行广泛引用"
+   ],
+   "input": "qiidlidewuxcyrfavijnrgbzgojitshhgdfjynys"
+  },
+  {
+   "id": "221b935d809d2467844a",
+   "title": "肿瘤学",
+   "page": 12045,
+   "revision": 93115789,
+   "offset": 373,
+   "context": "及时跟进肿瘤学的最新动态。对于病情恶化的患者，或者标准疗法不适用的患者，如果符合标准，应该进行临床试验。\n 风险因素 \n 烟\n ",
+   "gold": [
+    "吸烟是最容易致癌或致死的因素"
+   ],
+   "input": "xiyjuizvrsyiviolhovisideynsu"
+  },
+  {
+   "id": "1779f73b52a768c3e883",
+   "title": "脑死",
+   "page": 12048,
+   "revision": 93592630,
+   "offset": 1650,
+   "context": "此最长有维持107天。一般在生产后也作器官捐献。\n争议\n脑死是否可以作为医学上死亡判定的最高准则，在医学界仍有争议。\n各国采用\n",
+   "gold": [
+    "各国诊断脑死亡的标准不尽相同"
+   ],
+   "input": "gegovfdrnksiwhdebcvpbujnxdts"
+  },
+  {
+   "id": "09ad6ebf4097518c07b8",
+   "title": "电磁场",
+   "page": 12057,
+   "revision": 87927632,
+   "offset": 279,
+   "context": "波，又称光波。无线电波或红外线是较低频率的电磁波；紫外光或X-射线是较高频率的电磁波。\n电磁场涉及的基本交互作用是电磁交互作用。",
+   "gold": [
+    "这是大自然的四个基本作用之一"
+   ],
+   "input": "veuidazirjdesigejibfzoysviyi"
+  },
+  {
+   "id": "1499b1e8ebe7f0a6a4f6",
+   "title": "比哈尔邦",
+   "page": 12062,
+   "revision": 90669698,
+   "offset": 7048,
+   "context": "名游客，其中外国游客100万。\n比哈尔邦古迹众多，有两处世界遗产：摩诃菩提寺和那烂陀寺。摩诃菩提寺位于菩提伽耶，是佛陀开悟之地。",
+   "gold": [
+    "那烂陀寺是印度古代的佛教学术中心"
+   ],
+   "input": "naljtosiuiyndugudldefojcxtuuvsxn"
+  },
+  {
+   "id": "35ab2a4e7ebac00066a7",
+   "title": "传输层",
+   "page": 12075,
+   "revision": 88043628,
+   "offset": 50,
+   "context": "传输层（）在计算机网络中是互联网协议套件与（OSI）网络堆栈中协议的分层结构中的方法的一个概念划分。",
+   "gold": [
+    "该层的协议为应用进程提供端到端的通信服务"
+   ],
+   "input": "glcgdexxyiwzy;ysjnigtigsdrdkdrdetsxnfuwu"
+  },
+  {
+   "id": "3e4395e8b6a59810a0d3",
+   "title": "应用层",
+   "page": 12079,
+   "revision": 88065164,
+   "offset": 45,
+   "context": "应用层（）位于OSI模型的第七层。应用层直接和应用程式介面结合，并提供常见的网路应用服务。",
+   "gold": [
+    "应用层也向第六层表示层发出请求"
+   ],
+   "input": "y;yscgyexddilqcgbcuicgfaiuq;qq"
+  },
+  {
+   "id": "5d9a6ebbc7a5bc978e87",
+   "title": "人名",
+   "page": 12081,
+   "revision": 93958752,
+   "offset": 85,
+   "context": "定名称符号，是通过语言文字资讯区别人群个体差异的标志。由于有了人名，人类才能正常有序的交往，因此每个人都有一个属于自己的名字。\n",
+   "gold": [
+    "人名是在语言产生以后才出现的"
+   ],
+   "input": "rfm;uizlyuyjijugyihbcliuxmde"
+  },
+  {
+   "id": "10d08764a3b7c522fb4f",
+   "title": "漢族人名",
+   "page": 12082,
+   "revision": 93220544,
+   "offset": 2395,
+   "context": "受。由于命名者多半是亲朋好友，通常不会强烈表现出自己无法接受的事实。绰号可以由一些前缀加上姓名中的一个字组成。如‘阿’、‘小’。",
+   "gold": [
+    "绰号很少用于正式或半正式的称谓"
+   ],
+   "input": "iohkhfukysyuvguihobjvguideigwz"
+  },
+  {
+   "id": "7e39f43c5d2be0f68f0a",
+   "title": "朝鲜民族人名",
+   "page": 12084,
+   "revision": 92534299,
+   "offset": 2790,
+   "context": "传统乳名 \n早期由于小孩子的死亡率非常高，父母们会给自己的孩子起一个乳名（），而且常常是一些贱名，人们相信这样可以防止他们夭折。",
+   "gold": [
+    "现在已经很少会有人给孩子起那些带有侮辱性的乳名了"
+   ],
+   "input": "xmzlyij;hfukhvybrfgzhlziqinaxxdlybwurux;derum;le"
+  },
+  {
+   "id": "573052eac060c5be44c7",
+   "title": "避讳",
+   "page": 12096,
+   "revision": 94551275,
+   "offset": 5500,
+   "context": "豪死后，琉球便废除了这个命令。为避讳而更改名乘头的家族，多获准恢复使用原先的名乘头；但仍有家族的名乘头未被改回。\n 朝鲜半岛 \n",
+   "gold": [
+    "朝鲜半岛的避讳可能始于统一新罗时代"
+   ],
+   "input": "ikxmbjdkdebihvkenguiyutsyixnlouidl"
+  },
+  {
+   "id": "5198622df6ab526a52da",
+   "title": "斯洛文尼亚",
+   "page": 12129,
+   "revision": 94594212,
+   "offset": 2358,
+   "context": "家地理旅行者》杂志将斯洛文尼亚评为世界上可持续旅游性最佳的国家。斯洛维尼亚首都卢比安那有许多重要的巴洛克风格和新艺术风格的建筑。",
+   "gold": [
+    "斯洛维尼亚还以喀斯特地貌著称"
+   ],
+   "input": "silowzniyahlyikasitedimkvuig"
+  },
+  {
+   "id": "10964c455b44a18fd319",
+   "title": "伊斯坦堡",
+   "page": 12135,
+   "revision": 94396114,
+   "offset": 9830,
+   "context": "避免仍然有效的这些禁令，这些组织使用“文化协会”的名称。\n自西元4世纪起，该市就是希腊正教会的精神领袖君士坦丁堡普世牧首的驻地。",
+   "gold": [
+    "目前的驻地为芬内尔区的圣乔治主教座堂"
+   ],
+   "input": "muqmdevudiwzffnzorqudeugqcvivujczoth"
+  },
+  {
+   "id": "6e329e572e108dfae031",
+   "title": "费奥多尔·陀思妥耶夫斯基",
+   "page": 12146,
+   "revision": 93547949,
+   "offset": 3981,
+   "context": "法。他的作品探索自杀、贫穷及道德等主题。其中和心理学有关的主题有首次出现在《白夜》中的作梦，以及首次在《少年》中出现的父子关系。",
+   "gold": [
+    "他大部份的作品都呈现当时俄罗斯混乱及复杂的结构"
+   ],
+   "input": "tadabuffdezopndbigxmdhuioelosihplrjifuzadejxgb"
+  },
+  {
+   "id": "1d115957cd7d2a985ef4",
+   "title": "战争游戏",
+   "page": 12152,
+   "revision": 94361331,
+   "offset": 1849,
+   "context": "攻占约翰森群岛及夏威夷的计划、夺取锡兰、歼灭英国远东舰队等计划都在战争游戏中得到了检验。其中只有中途岛战役的战争游戏没有成功。\n",
+   "gold": [
+    "英国人在二战中也是应用战争游戏的高手"
+   ],
+   "input": "y;gorfzlorvjvsyeuiy;ysvjvgybxidegkub"
+  },
+  {
+   "id": "22111acb5178e48df390",
+   "title": "厦门市",
+   "page": 12160,
+   "revision": 94491150,
+   "offset": 11372,
+   "context": "林站、前场站等5个铁路场站。目前，提升厦渝通道、昌厦通道运输能力，预控兴泉铁路支线（东孚至安溪段）用地空间。建设福厦铁路翔安站。",
+   "gold": [
+    "保障前场铁路货运站作业空间"
+   ],
+   "input": "bkvhqmihtxluhoypvjzoyeksjm"
+  },
+  {
+   "id": "d8bb2181de686e11f49b",
+   "title": "2月11日",
+   "page": 12174,
+   "revision": 94004061,
+   "offset": 471,
+   "context": "届冬季奥林匹克运动会在瑞士的圣莫里茨举行。这是第一场独自举行的真正意义的冬季奥林匹克运动会，因为它与夏季奥林匹克运动会完全无关。",
+   "gold": [
+    "本次运动会也取代了早期四年一届的北欧运动会"
+   ],
+   "input": "bfciypdshvyequdllezkqisinmyijxdebzobypdshv"
+  },
+  {
+   "id": "4a19806dd35dd5555893",
+   "title": "MUD",
+   "page": 12190,
+   "revision": 93777227,
+   "offset": 922,
+   "context": "命令与之互动。以中文MUD常见的LPMud系统为例，系统显示：\n 你来到一处森林中的空地，东边有一株大树，树上垂下一条粗绳。\n ",
+   "gold": [
+    "你的北边远处有一道炊烟升起"
+   ],
+   "input": "nidebzbmyriuybyidkivyjugqi"
+  },
+  {
+   "id": "0ff301465cfa90dc04c2",
+   "title": "灵魂",
+   "page": 12191,
+   "revision": 93928825,
+   "offset": 2334,
+   "context": "，是精神世界的、理性的、纯粹的，因它有追求世界的欲望，而堕落到地上，被圈入于肉体中，注定要经过一个净化的阶段，灵魂是会轮回转世。",
+   "gold": [
+    "其后的新柏拉图主义都有对灵魂作出描述"
+   ],
+   "input": "qihbdexnbolatuvuyidbybdvl;hpzoiumcuu"
+  },
+  {
+   "id": "0539e01bd653c2871572",
+   "title": "轮回",
+   "page": 12201,
+   "revision": 93123145,
+   "offset": 4171,
+   "context": "现于文艺复兴时期的密传基督教等一些密传宗教可能也有类似的观念。\n 各个学派的观点 \n 起源于希腊的哲学思想 \n 旧柏拉图主义 \n",
+   "gold": [
+    "著名哲学家柏拉图认可轮回论"
+   ],
+   "input": "vum;vextjwbolaturfkelphvlp"
+  },
+  {
+   "id": "098f23cac919dd4927db",
+   "title": "南非",
+   "page": 12204,
+   "revision": 94099705,
+   "offset": 4984,
+   "context": "-纳塔尔省）。\n1867年在金伯利发现的钻石以及1886年2月在约翰内斯堡发现的黄金促使开始，并加速了南非的经济增长与移民数量。",
+   "gold": [
+    "英国加强了对原住民的控制力度"
+   ],
+   "input": "y;gojwqdledvyrvumndeksvilidu"
+  },
+  {
+   "id": "ae5c1003560b3c4ae570",
+   "title": "1UP",
+   "page": 12209,
+   "revision": 92739333,
+   "offset": 27,
+   "context": "1UP是电子游戏中，尤其是动作游戏中的一个常见的术语。",
+   "gold": [
+    "它是一个表示增加一次游戏机会的符号"
+   ],
+   "input": "tauiyigebcuizgjwyiciybxijihvdefuhk"
+  },
+  {
+   "id": "9fd6ea94e9405af15823",
+   "title": "动作游戏",
+   "page": 12213,
+   "revision": 93117395,
+   "offset": 855,
+   "context": "场景，能更清楚观察整体地形及角色背面。\n 格斗游戏：格斗游戏为玩家操控两个角色或两个阵营互斗，运用各种格斗技能在画面对战的游戏。",
+   "gold": [
+    "格斗游戏强调角色细节及招式设定"
+   ],
+   "input": "gedbybxiqddcjtsexijxjivkuiued;"
+  },
+  {
+   "id": "15dc03d57e42bfbcb716",
+   "title": "冒险游戏",
+   "page": 12215,
+   "revision": 92427861,
+   "offset": 201,
+   "context": "偏重解谜、探索而非角色成长，玩家操控的游戏主角本身的等级、属性、能力等在游戏进程中一般变化不大并且不会影响游戏推进。\n 概要 \n",
+   "gold": [
+    "冒险游戏是玩家操控角色进行虚拟冒险的游戏"
+   ],
+   "input": "mkxmybxiuiwjjwckksjtsejnx;xunimkxmdeybxi"
+  },
+  {
+   "id": "069ef5a3c4b9f25d6543",
+   "title": "CD-ROM",
+   "page": 12221,
+   "revision": 76776325,
+   "offset": 2497,
+   "context": "转速为每分钟500转，而8倍速的光驱转速为每分钟4000转，相应的读取速度为1.2MB/s。超过12倍速时，震动和散热成为问题。",
+   "gold": [
+    "超过这个速度的光驱通过各种方法解决这些问题"
+   ],
+   "input": "ikgovegesududegdqutsgogevsfhfajxjtvexxwfti"
+  },
+  {
+   "id": "1576898561a68384ca2b",
+   "title": "沙埗",
+   "page": 12230,
+   "revision": 75258671,
+   "offset": 75,
+   "context": "沙坪镇（今沙坪街道）的村落，属永安管理区辖，有广湛公路及江肇公路经过。\n传说明永乐六年（1408），邓姓先民从顺德迁于此处开村。",
+   "gold": [
+    "村民多以纺织竹器等手工业谋生"
+   ],
+   "input": "cpmndoyifhvivuqidgubgsyembug"
+  },
+  {
+   "id": "0b6c1effe00cd8ec3f3e",
+   "title": "东莞市",
+   "page": 12232,
+   "revision": 94632209,
+   "offset": 10976,
+   "context": "产保护园，园内种有莞香树6万多株，其中树龄过百年的有1百多株，过千年的2株。东莞莞香年产量超过1吨，成为中国沉香产量最大的地区。",
+   "gold": [
+    "未来将从莞香文化产业相关方面发展"
+   ],
+   "input": "wzlljdcsgrxdwfhwijyexdgrfhmmfavj"
+  },
+  {
+   "id": "3ea59ed4824b291c3549",
+   "title": "太阳光",
+   "page": 12233,
+   "revision": 92881719,
+   "offset": 3545,
+   "context": "常利用遮光帘，遮阳篷，百叶窗或窗帘以阻挡阳光进入室内。\n日光浴\n日光浴是一项流行的休闲活动，人直接坐在或躺在阳光下的来享受阳光。",
+   "gold": [
+    "人们通常在舒适而阳光充足的地方进行日光浴"
+   ],
+   "input": "rfmftsihzluuuioryhgdiszudedifhjnx;rigdyu"
+  },
+  {
+   "id": "147b6f7d1cd8f69b76d4",
+   "title": "盐田区",
+   "page": 12234,
+   "revision": 93943581,
+   "offset": 1076,
+   "context": "932年（民国13～21年），实行区乡编制，盐田区域内有沙头角、盐田两个小乡；民国二十二年（1933年），调整为1个乡称东和乡。",
+   "gold": [
+    "这是盐田区域第一个统一全区域的建制设置"
+   ],
+   "input": "veuiyjtmquyudiyigetsyiqrquyudejmviuevi"
+  },
+  {
+   "id": "67d1e2f22ad03ecae850",
+   "title": "國際標準化組織",
+   "page": 12237,
+   "revision": 91266415,
+   "offset": 123,
+   "context": "，现有175个会员国家/地区，该组织定义为非政府组织，官方语言是英语、法语和俄语。参加者包括各会员国的国家标准机构和主要公司。\n",
+   "gold": [
+    "与负责电子设备标准的国际电工委员会密切合作"
+   ],
+   "input": "yufuzedmziuebzbcvpdegojidmgswzyrhvmiqxhezo"
+  },
+  {
+   "id": "39080c7473e674bc05b9",
+   "title": "殼牌",
+   "page": 12239,
+   "revision": 94480979,
+   "offset": 2491,
+   "context": "AA的评级，是欧洲两家得到双AAA评级的公司之一。4月28日，美国司法机构和英国当局都开始对事件展开调查。\n 环保及人权争议 \n",
+   "gold": [
+    "许多环境保护和人权团体多次指责壳牌的一些行为"
+   ],
+   "input": "xudohrj;bkhuherfqrtrtidocivizekepldeyixxx;wz"
+  },
+  {
+   "id": "47a4cf7c1ad31a980858",
+   "title": "湖南省长沙市第一中学",
+   "page": 12243,
+   "revision": 94281898,
+   "offset": 732,
+   "context": "统的同时积极探索中学教育规律，树立“奋发图强，刻苦学习，尊师爱生，热爱集体”的校风，使学校在湖南省中学中的“龙头”地位不断巩固。",
+   "gold": [
+    "他本人也因此赢得极高的声望"
+   ],
+   "input": "tabfrfyeynciy;dejigkdeugwh"
+  },
+  {
+   "id": "2c0f26d785e42ae8ebe0",
+   "title": "凯特·布兰切特",
+   "page": 12246,
+   "revision": 94500338,
+   "offset": 12393,
+   "context": "列）。\n以「反串」（《摇滚启示录》）入围奥斯卡金像奖，为奥斯卡奖史上的三位演员之一（其他两位为琳达·亨特、费丽西蒂·荷夫曼）。\n",
+   "gold": [
+    "同一年提名奥斯卡奖双料演技奖的演员之一"
+   ],
+   "input": "tsyinmtim;oksikajdudlcyjjijddeyjyrviyi"
+  },
+  {
+   "id": "072d18c42476ac8307d9",
+   "title": "伦理学",
+   "page": 12252,
+   "revision": 93639908,
+   "offset": 5624,
+   "context": "？\n在战争中，可以使用哪些武器？哪些损毁效应可以被容忍？\n对待战俘的标准为何？\n应该怎样处理任何违反战争法的动作？\n政治伦理学\n",
+   "gold": [
+    "政治伦理学研究关于政治行为所做出道德判断"
+   ],
+   "input": "vgvilplixtyjjqgryuvgvix;wzsozoiudkdepjdr"
+  },
+  {
+   "id": "999a6f5171d1ae2893ca",
+   "title": "公共財政",
+   "page": 12254,
+   "revision": 93532885,
+   "offset": 725,
+   "context": "品和公共管理，还需要减少社会财富和收入不平等。税收还用于限制资本以防范通货膨胀。\n税收收入依政府机关分类，又分为中央税和地方税。",
+   "gold": [
+    "税收内容又可分为直接税和间接税"
+   ],
+   "input": "uvubnzrsybkeffwzvijxuvhejmjxuv"
+  },
+  {
+   "id": "057a90e27d4ac385cdc9",
+   "title": "太初曆",
+   "page": 12259,
+   "revision": 92991170,
+   "offset": 235,
+   "context": "定一回归年为日，一朔望月为日，所以又称八十一分律历。以夏历的正月为岁首。太初历第一次编二十四节气入历法，以没有中气的月份为闰月。",
+   "gold": [
+    "它亦首次记录了五大行星运行的周期"
+   ],
+   "input": "tayiubcijilulewudax;x;ypx;devbqi"
+  },
+  {
+   "id": "026319c678811c2202cd",
+   "title": "互联网用语",
+   "page": 12265,
+   "revision": 93933509,
+   "offset": 1586,
+   "context": "把控。\n 英文当拼音再转换 \n“润”是英文run（逃跑/跑路）看作是汉语拼音rùn，指移民（一般是用非法手段）。\n 文字分割 \n",
+   "gold": [
+    "把文字拆分成偏旁和部首两部分"
+   ],
+   "input": "bawfziilffigpmphhebuubldbuff"
+  },
+  {
+   "id": "1d4158cf344e22a26dbd",
+   "title": "西敏寺",
+   "page": 12284,
+   "revision": 93914322,
+   "offset": 376,
+   "context": "个市级行政区之一（另一个是伦敦市）。1579年以后，教堂改名「西敏圣彼得协同教堂」（），名称中的「」已不是修道院名而是地名了。\n",
+   "gold": [
+    "统称译法现在主要通行于港澳台和海外华人地区"
+   ],
+   "input": "tsigyifaxmzlvuyktsx;yughoktlhehlwlhwrfdiqu"
+  },
+  {
+   "id": "01191a5ea082c3f21379",
+   "title": "简·奥斯汀",
+   "page": 12297,
+   "revision": 93230602,
+   "offset": 6749,
+   "context": "考斯比处买回了《苏珊》的版权。亨利的银行在同年3月破产，使他丧失了财产，深陷债务中，让兄弟爱德华、詹姆斯和弗兰克花去了大笔金钱。",
+   "gold": [
+    "亨利和弗兰克无力再供养他们的母亲和姐妹了"
+   ],
+   "input": "hglihefuljkewulizlgsyhtamfdemuqnhejxmzle"
+  },
+  {
+   "id": "06ec62d61f45d3ef2c2c",
+   "title": "道德",
+   "page": 12325,
+   "revision": 94461869,
+   "offset": 829,
+   "context": "也。道者，即人道，其本在心。」可见「道」确实是人对于世界的看法，可以说是一种世界观的范畴。\n而「德」是指人世的德性、品行、王道。",
+   "gold": [
+    "但德的本意实为遵循道的规律来自身发展变化的事物"
+   ],
+   "input": "djdedebfyiuiwzzpxpdkdegvlyllziuffavjbmhwdeuiwu"
+  },
+  {
+   "id": "0c7e1c4de64466412dea",
+   "title": "伊顿公学",
+   "page": 12326,
+   "revision": 94634112,
+   "offset": 307,
+   "context": "学年（三学期）的学费和住宿费大约是42,000英镑。伊顿公学学生的毕业后的成就都十分杰出，是英国皇室、政治界、经济界精英的摇篮。",
+   "gold": [
+    "伊顿公学以其古老的传统和特别的校服而闻名"
+   ],
+   "input": "yidpgsxtyiqigulkdeirtshetebxdexcfuorwfm;"
+  },
+  {
+   "id": "226ae919987cf1a15341",
+   "title": "大乘佛教",
+   "page": 12339,
+   "revision": 94345233,
+   "offset": 4577,
+   "context": "基于佛教的某些典籍，如《乌格拉帕里普查经》和《大乘拉施拉帕拉帕帕查经》，这些典籍将在荒野中的苦行实践视为一条优越而精要的道路。 ",
+   "gold": [
+    "这些文本批评居住在城镇并诋毁森林生活的僧尼"
+   ],
+   "input": "vexxwfbfpip;juvuzligvfb;dihvsflnughodesgni"
+  },
+  {
+   "id": "00b03c2e607c968ee4b2",
+   "title": "情人节",
+   "page": 12350,
+   "revision": 92709279,
+   "offset": 3254,
+   "context": "力。\n 在日本，通常情人节是由女方自制或者购买朱古力送给心爱的男方或是男朋友，若送给朋友，即是「义理巧克力」（又译人情巧克力）。",
+   "gold": [
+    "收礼者可能在白色情人节回礼"
+   ],
+   "input": "ublivekengzlblseq;rfjxhvli"
+  }
+ ]
+}
