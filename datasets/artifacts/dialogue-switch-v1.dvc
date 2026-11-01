@@ -1,0 +1,6 @@
+outs:
+- md5: 94a688fcf6fd19fd8766bcd4ab39aec8.dir
+  size: 76314
+  nfiles: 16
+  hash: md5
+  path: dialogue-switch-v1
