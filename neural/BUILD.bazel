@@ -2,20 +2,9 @@ load(":gpu_runtime.bzl", "gpu_runtime")
 
 gpu_runtime(
     name = "cuda-runtime",
-    srcs = [
+    srcs = glob(["wime_runtime/*.py", "wime_runtime/*.json"]) + [
         "gpu-worker.py",
-        "rescorer.py",
-        "fusion.py",
-        "decoding_model.py",
-        "decoder.py",
-        "japanese.py",
-        "conditional.py",
-        "composition.py",
-        "transducer.py",
-        "charlm.py",
-        "syllables.py",
-        "//emacs-packages/wime:gen/context-pinyin.json",
-        "//emacs-packages/wime:gen/wime_gen.py",
+        "benchmark-keystrokes.py",
         "pyproject.toml",
         "uv.lock",
     ],

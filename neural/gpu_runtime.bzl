@@ -2,7 +2,8 @@
 
 def _gpu_runtime_impl(ctx):
     output = ctx.actions.declare_directory("wime-cuda")
-    files = {source.basename: source.path for source in ctx.files.srcs}
+    prefix = ctx.label.package + "/"
+    files = {source.short_path[len(prefix):]: source.path for source in ctx.files.srcs}
     for source in ctx.files.pypinyin:
         # Wheel members retain their package/data/metadata paths.
         parts = source.path.split("/")

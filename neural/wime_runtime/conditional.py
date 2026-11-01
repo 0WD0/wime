@@ -11,8 +11,8 @@ import json
 import torch
 from safetensors import safe_open
 
-from charlm import CharLM, Config
-from composition import KEYS, INPUT, OUTPUT, EOS, ENCODING, input_tokens, prompt, composition_prompt
+from .charlm import CharLM, Config
+from .composition import KEYS, INPUT, OUTPUT, EOS, ENCODING, input_tokens, prompt, composition_prompt
 
 FORMAT = "wime-ms-pinyin-v1"
 EXTRA = [chr(0xE000 + i) for i in range(27 * 27)] + [INPUT, OUTPUT, EOS]

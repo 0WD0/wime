@@ -17,14 +17,14 @@ def add_fusion_arguments(parser):
 
 
 def make_rescorer(args):
-    from rescorer import Rescorer
+    from .rescorer import Rescorer
     return Rescorer(args.rescorer, args.rescorer_weight, args.device) if args.rescorer else None
 
 
 def make_decoder(args, evaluator, rescorer):
     if rescorer is None or not args.database:
         return None
-    from decoder import Decoder, Units
-    from syllables import database_layout
+    from .decoder import Decoder, Units
+    from .syllables import database_layout
     evaluator.syllable_layout = database_layout(args.database)
     return Decoder(evaluator, rescorer, Units.from_database(rescorer.tokenizer, args.database))

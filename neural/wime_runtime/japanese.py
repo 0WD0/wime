@@ -403,7 +403,7 @@ class KanaModel:
 
     def __init__(self, path, device="cuda"):
         from safetensors import safe_open
-        from charlm import CharLM, Config
+        from .charlm import CharLM, Config
         with safe_open(str(path), framework="pt") as f:
             meta = f.metadata()
             weights = {k: f.get_tensor(k).float() for k in f.keys()}

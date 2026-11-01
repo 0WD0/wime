@@ -7,15 +7,9 @@ double-pinyin code; other layouts or full pinyin reach the same features.
 """
 import ast
 from contextlib import closing
-import json
-from pathlib import Path
 import sqlite3
-import sys
 
-# The worker bundle ships the generator beside this file.
-if not Path(__file__).with_name("wime_gen.py").is_file():
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gen"))
-from wime_gen import SYLLABLE_ENCODING, split_pinyin, syllable_inventory  # noqa: E402
+from ._dictionary import SYLLABLE_ENCODING, split_pinyin, syllable_inventory
 
 CODES = syllable_inventory()
 SPLIT = {syllable: split_pinyin(syllable) for syllable in CODES}

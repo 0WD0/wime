@@ -36,7 +36,7 @@ import sqlite3
 
 import torch
 
-from decoding_model import DecodingModel, aux_match, readings, tones
+from .decoding_model import DecodingModel, aux_match, readings, tones
 
 BEAM, PER_HYPOTHESIS = 16, 24
 MEMO = 4096  # memoized LM rows, ~0.5 MB each

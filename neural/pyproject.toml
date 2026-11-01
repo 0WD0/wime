@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 # The decode worker's environment; see the README for `uv sync`.  Each extra
 # picks the PyTorch build for one kind of GPU.
 [project]
@@ -17,7 +21,6 @@ xpu = ["torch==2.11.0", "triton-xpu; sys_platform == 'linux'"]
 mps = ["torch==2.11.0; sys_platform == 'darwin'"]
 
 [tool.uv]
-package = false
 conflicts = [[{ extra = "cuda" }, { extra = "rocm" }, { extra = "xpu" }, { extra = "mps" }]]
 
 [tool.uv.sources]
@@ -43,3 +46,13 @@ explicit = true
 name = "pytorch-xpu"
 url = "https://download.pytorch.org/whl/xpu"
 explicit = true
+
+[project.scripts]
+wime-worker = "wime_runtime.worker:main"
+wime-benchmark = "wime_runtime.benchmark:main"
+
+[tool.setuptools.packages.find]
+include = ["wime_runtime*"]
+
+[tool.setuptools.package-data]
+wime_runtime = ["*.json"]

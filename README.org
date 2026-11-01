@@ -160,7 +160,7 @@ worker 在后台常驻，首次启动要加载模型。
 "$D/python/bin/python" neural/benchmark-keystrokes.py --out benchmark.json
 #+end_src
 
-它逐键输入 =neural/benchmark-cases.json= 里的 100 句维基百科句子，
+它逐键输入 =neural/wime_runtime/benchmark-cases.json= 里的 100 句维基百科句子，
 把按键延迟分位数、显存或内存峰值、加载时间和机器信息写进 =benchmark.json=。
 缺少的模型和词库按上文的位置下载。
 =--device cpu --cases 5 --threads 8= 在 CPU 上用 8 线程只测五句，=--beam= 可以重复；
@@ -173,7 +173,7 @@ worker 在后台常驻，首次启动要加载模型。
 辅助码和声调是硬约束。追加、退格时复用仍然有效的前缀。
 
 停键 40 ms 后，输入发给本地的 GPU worker（=neural/gpu-worker.py=）。
-它逐字做 beam 搜索：音节模型（=neural/transducer.py=）根据左文和
+它逐字做 beam 搜索：音节模型（=neural/wime_runtime/transducer.py=）根据左文和
 每个音节的声母、韵母、声调给出汉字概率，加权上 Qwen 的概率；
 词库的读音、辅助码、声调和已选定的字是约束。
 结果回来时输入没变，就排在词格候选前面。

@@ -20,10 +20,10 @@ import torch.nn.functional as F
 from safetensors import safe_open
 from safetensors.torch import save_file
 
-from conditional import load_model
-from composition import OUTPUT
-from charlm import CharLM, Config
-import syllables
+from .conditional import load_model
+from .composition import OUTPUT
+from .charlm import CharLM, Config
+from . import syllables
 
 FORMAT = "wime-syllable-transducer-v1"
 CONTEXT = 64
