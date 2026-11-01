@@ -154,10 +154,10 @@ worker 在后台常驻，首次启动要加载模型。
 
 ** 跑基准
 
-装好 Python 环境后，在 wime 目录执行：
+装好 Python 环境后执行：
 
 #+begin_src sh
-"$D/python/bin/python" neural/benchmark-keystrokes.py --out benchmark.json
+"$D/python/bin/wime-benchmark" --out benchmark.json
 #+end_src
 
 它逐键输入 =neural/wime_runtime/benchmark-cases.json= 里的 100 句维基百科句子，
@@ -172,7 +172,7 @@ worker 在后台常驻，首次启动要加载模型。
 按双拼码查词，按词频、每词罚项和可选的 octagram 搭配分打分，
 辅助码和声调是硬约束。追加、退格时复用仍然有效的前缀。
 
-停键 40 ms 后，输入发给本地的 GPU worker（=neural/gpu-worker.py=）。
+停键 40 ms 后，输入发给本地的 GPU worker（=wime_runtime.worker=）。
 它逐字做 beam 搜索：音节模型（=neural/wime_runtime/transducer.py=）根据左文和
 每个音节的声母、韵母、声调给出汉字概率，加权上 Qwen 的概率；
 词库的读音、辅助码、声调和已选定的字是约束。

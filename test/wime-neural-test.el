@@ -391,11 +391,12 @@
         (delete-process process)))))
 
 (ert-deftest wime-neural-real-worker-protocol ()
-  (let ((program (getenv "WIME_NEURAL_PROGRAM"))
+  (let ((command (getenv "WIME_NEURAL_COMMAND"))
         (model (getenv "WIME_NEURAL_MODEL")))
-    (unless (and program model) (ert-skip "model and worker not configured"))
+    (unless (and command model) (ert-skip "model and worker not configured"))
     (wime-neural-test--composition
-      (let ((wime-neural-program program) (wime-neural-model-file model)
+      (let ((wime-neural-command (json-parse-string command :array-type 'list))
+            (wime-neural-directory (getenv "WIME_NEURAL_DIRECTORY")) (wime-neural-model-file model)
             (wime-neural--process nil) (wime-neural--pending nil)
             (wime-neural--busy nil) (wime-neural--failed nil)
             (wime-neural--timeout-timer nil))
@@ -474,7 +475,7 @@
 
 (ert-deftest wime-neural-decode-travels-with-checkpoint-recipes ()
   (require 'wime-checkpoint)
-  (let ((wime-neural-program "/bin/true") (wime-neural-interpreter nil) (wime-database-file "/w.db")
+  (let ((wime-neural-command '("python" "-m" "wime_runtime.worker")) (wime-database-file "/w.db")
         (wime-japanese-model-file nil) (wime-japanese-table-file nil)
         wime-neural-rescorer wime-neural-rescorer-weight wime-neural-model-file
         wime-search-width wime-neural-single-character wime-neural-beam)
@@ -483,7 +484,7 @@
      '(:path "/m.safetensors" :profile (:width 16 :budget 4 :search_method "verify"
                                         :pool_width 32 :rescorer "/lm")))
     (should (equal (wime-neural--command wime-neural-model-file)
-                   '("/bin/true" "--rescorer" "/lm" "--rescorer-weight" "1.5"
+                   '("python" "-m" "wime_runtime.worker" "--rescorer" "/lm" "--rescorer-weight" "1.5"
                      "--database" "/w.db" "--beam" "32" "/m.safetensors")))
     (should-not (plist-member (wime-checkpoint-profile) :search_method))
     (wime-checkpoint--apply

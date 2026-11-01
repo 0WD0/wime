@@ -3,8 +3,6 @@ load(":gpu_runtime.bzl", "gpu_runtime")
 gpu_runtime(
     name = "cuda-runtime",
     srcs = glob(["wime_runtime/*.py", "wime_runtime/*.json"]) + [
-        "gpu-worker.py",
-        "benchmark-keystrokes.py",
         "pyproject.toml",
         "uv.lock",
     ],

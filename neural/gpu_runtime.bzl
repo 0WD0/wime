@@ -28,7 +28,7 @@ while [ "$#" -gt 0 ]; do
     output="$destination/$1"
     mkdir -p "$(dirname "$output")"
     cp "$2" "$output"
-    case "$1" in gpu-worker.py) chmod 755 "$output";; *) chmod 644 "$output";; esac
+    chmod 644 "$output"
     shift 2
 done
 """,

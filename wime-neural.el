@@ -16,24 +16,24 @@
 (require 'json)
 (require 'wime)
 
-(defconst wime-neural--directory
-  (expand-file-name "neural" (file-name-directory (or load-file-name buffer-file-name)))
-  "This package's worker sources and environment project.")
-
 ;; The defaults are the evaluated decode setup, laid out as the README describes.
-(defcustom wime-neural-program (expand-file-name "gpu-worker.py" wime-neural--directory)
-  "Local worker executable, by default this package's gpu-worker.py."
-  :type 'string :group 'wime)
+(defcustom wime-neural-command
+  (list (expand-file-name "python/bin/python" wime-data-directory)
+        "-m" "wime_runtime.worker")
+  "Command and fixed arguments for the local decoding worker.
+Model and decoding options are appended to this list."
+  :type '(repeat string) :group 'wime)
 
 (defcustom wime-neural-model-file
   (expand-file-name "wime-syllable-40m/model.safetensors" wime-data-directory)
   "Syllable transducer (wime-syllable-transducer-v1) in safetensors format."
   :type '(choice (const nil) file) :group 'wime)
 
-(defcustom wime-neural-interpreter (expand-file-name "python/bin/python" wime-data-directory)
-  "Interpreter that runs `wime-neural-program', or nil to execute it directly.
-The worker needs PyTorch with GPU support and transformers."
-  :type '(choice (const nil) file) :group 'wime)
+(defcustom wime-neural-directory nil
+  "Worker working directory, or nil to use the temporary directory.
+A directory containing the wime_runtime package selects that source snapshot
+when the command uses Python's -m option."
+  :type '(choice (const nil) directory) :group 'wime)
 
 (defconst wime-neural-rescorers '("Qwen3.5-2B-Base" "Qwen3.5-0.8B-Base")
   "Language models measured with the decoder, best first, under rescorers/.
@@ -263,9 +263,7 @@ the lattice instead."
 
 (defun wime-neural--command (model)
   "Worker command line for MODEL; the model stays the last argument."
-  (append (and wime-neural-interpreter (list wime-neural-interpreter))
-          (list (or (executable-find wime-neural-program)
-                    (expand-file-name wime-neural-program)))
+  (append wime-neural-command
           (and wime-neural-rescorer
                (list "--rescorer" (expand-file-name wime-neural-rescorer)
                      "--rescorer-weight" (number-to-string wime-neural-rescorer-weight)))
@@ -280,19 +278,25 @@ the lattice instead."
                             (list "--japanese-zenz" (expand-file-name wime-japanese-zenz-directory)))))
           (list (expand-file-name model))))
 
+(defun wime-neural--make-process (command &rest properties)
+  "Start COMMAND in the configured runtime directory with PROPERTIES."
+  (let ((default-directory (if wime-neural-directory
+                               (file-name-as-directory (expand-file-name wime-neural-directory))
+                             temporary-file-directory)))
+    (apply #'make-process :command command :buffer nil :noquery t
+           :connection-type 'pipe :coding 'utf-8-unix properties)))
+
 (defun wime-neural--start ()
   "Return a running local worker or signal a startup error."
   (unless (process-live-p wime-neural--process)
     (unless (and wime-neural-model-file (file-readable-p wime-neural-model-file))
       (error "Model file is not readable"))
-    (let ((default-directory temporary-file-directory))
-      (setq wime-neural--process
-            (make-process :name "wime-neural" :buffer nil :noquery t
-                          :connection-type 'pipe :coding 'utf-8-unix
-                          :stderr " *wime-neural-errors*"
-                          :command (wime-neural--command wime-neural-model-file)
-                          :filter #'wime-neural--filter
-                          :sentinel #'wime-neural--sentinel))))
+    (setq wime-neural--process
+          (wime-neural--make-process
+           (wime-neural--command wime-neural-model-file)
+           :name "wime-neural" :stderr " *wime-neural-errors*"
+           :filter #'wime-neural--filter
+           :sentinel #'wime-neural--sentinel)))
   wime-neural--process)
 
 (defun wime-neural--request (job)
@@ -324,10 +328,11 @@ the lattice instead."
        :memory_weight ,wime-neural-memory-weight))))
 
 (defun wime-neural--installed-p ()
-  "Whether the model, language model and interpreter are where the options say."
+  "Whether the configured models and worker command are available."
   (and wime-neural-model-file (file-readable-p wime-neural-model-file)
        (file-directory-p wime-neural-rescorer)
-       (or (null wime-neural-interpreter) (file-executable-p wime-neural-interpreter))))
+       wime-neural-command (executable-find (car wime-neural-command))
+       (or (null wime-neural-directory) (file-directory-p wime-neural-directory))))
 
 (defun wime-neural--enqueue (job)
   "Send JOB or replace pending work while the worker is busy.

@@ -1,5 +1,5 @@
 #!/usr/bin/env -S python3 -B
-"""Persistent GPU worker for wime's JSON-lines protocol (wime-neural-program).
+"""Persistent GPU worker for wime's JSON-lines protocol.
 
 It loads a syllable transducer and a general language model for Chinese
 beam decoding. Stdout is exclusively the protocol; typed text is omitted
