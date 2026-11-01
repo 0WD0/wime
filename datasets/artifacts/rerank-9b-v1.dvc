@@ -1,6 +1,0 @@
-outs:
-- md5: f6ff8a6f96c707801362615f09499d4a.dir
-  size: 20256760
-  nfiles: 21
-  hash: md5
-  path: rerank-9b-v1

@@ -1,6 +1,0 @@
-outs:
-- md5: b617296db86b43470be3acb6a3f42bd6.dir
-  size: 1534848767
-  nfiles: 85
-  hash: md5
-  path: syllable-transducer-v2

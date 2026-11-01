@@ -20,6 +20,11 @@ from pathlib import Path
 SYLLABLE_ENCODING = "wime-syllable-features-v1"
 
 
+def syllable_inventory():
+    """Read the inventory shipped beside this generator and in worker bundles."""
+    return json.loads(Path(__file__).with_name("context-pinyin.json").read_text())["syllables"]
+
+
 def load_scheme(path):
     """Return a converter and identifier from a build-time JSON definition."""
     scheme = json.loads(path.read_text(encoding="utf-8"))
@@ -218,8 +223,7 @@ def build_database(dict_paths, converter, output, name):
     connection.execute("CREATE INDEX entry_code ON entry(code, weight DESC)")
     # Use the model's fixed syllable inventory and collision order for every
     # layout. Primary codes take precedence over aliases of other syllables.
-    inventory = json.loads((Path(__file__).resolve().parents[1] /
-                            "neural/context-pinyin.json").read_text())["syllables"]
+    inventory = syllable_inventory()
     features = {code: split_pinyin(pinyin) for pinyin in inventory
                 if (code := converter.primary(pinyin))}
     for pinyin in inventory:

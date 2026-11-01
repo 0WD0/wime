@@ -28,14 +28,15 @@ cc_binary(
     ],
 )
 
-exports_files(["gen/wime_gen.py"], visibility = ["//emacs-packages/wime/neural:__pkg__"])
+
+exports_files(["gen/wime_gen.py", "gen/context-pinyin.json"])
 
 py_binary(
     name = "generator",
     srcs = ["gen/wime_gen.py"],
     data = [
         "schemes/mspy.json",
-        "//emacs-packages/wime/neural:context-pinyin.json",
+        "gen/context-pinyin.json",
     ],
     main = "gen/wime_gen.py",
 )

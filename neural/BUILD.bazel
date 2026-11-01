@@ -1,7 +1,5 @@
 load(":gpu_runtime.bzl", "gpu_runtime")
 
-exports_files(["context-pinyin.json"], visibility = ["//emacs-packages/wime:__pkg__"])
-
 gpu_runtime(
     name = "cuda-runtime",
     srcs = [
@@ -16,7 +14,7 @@ gpu_runtime(
         "transducer.py",
         "charlm.py",
         "syllables.py",
-        "context-pinyin.json",
+        "//emacs-packages/wime:gen/context-pinyin.json",
         "//emacs-packages/wime:gen/wime_gen.py",
         "pyproject.toml",
         "uv.lock",

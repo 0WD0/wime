@@ -1,6 +1,0 @@
-outs:
-- md5: bf8c960ec863d8102a9b7a0f350e1ea8.dir
-  size: 1255539
-  nfiles: 16
-  hash: md5
-  path: legacy-corpus25-core-regression-v1

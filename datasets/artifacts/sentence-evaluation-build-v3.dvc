@@ -1,6 +1,0 @@
-outs:
-- md5: 9c54a855aa8c87714cff34f7579821ce.dir
-  size: 2166315
-  nfiles: 28
-  hash: md5
-  path: sentence-evaluation-build-v3

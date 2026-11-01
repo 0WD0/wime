@@ -15,9 +15,9 @@ import sys
 # The worker bundle ships the generator beside this file.
 if not Path(__file__).with_name("wime_gen.py").is_file():
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gen"))
-from wime_gen import SYLLABLE_ENCODING, split_pinyin  # noqa: E402
+from wime_gen import SYLLABLE_ENCODING, split_pinyin, syllable_inventory  # noqa: E402
 
-CODES = json.loads(Path(__file__).with_name("context-pinyin.json").read_text())["syllables"]
+CODES = syllable_inventory()
 SPLIT = {syllable: split_pinyin(syllable) for syllable in CODES}
 INITIALS = [None] + sorted({initial for initial, _ in SPLIT.values()})
 FINALS = [None] + sorted({final for _, final in SPLIT.values()})

@@ -206,8 +206,7 @@ worker 在后台常驻，首次启动要加载模型。
 * 词库与方案
 
 =schemes/*.json= 定义每个方案的声母键、韵母键、零声母和整音节别名。
-=gen/wime_gen.py= 只用 Python 标准库，从万象拼音的
-[[https://github.com/amzxyz/rime-wanxiang/releases/tag/dict-nightly][=rime-wanxiang-moqi-fuzhu.zip=]]
+=gen/wime_gen.py= 只用 Python 标准库，从万象拼音的 [[https://github.com/amzxyz/rime-wanxiang/releases/tag/dict-nightly][=rime-wanxiang-moqi-fuzhu.zip=]]
 生成按双拼码索引的 SQLite 词库，保留辅助码和声调：
 
 #+begin_src sh
@@ -218,22 +217,6 @@ python3 gen/wime_gen.py --rime-data /path/to/unzipped \
 =--rime-data= 是含 =wanxiang_pro.dict.yaml= 的目录。
 自定义方案时复制一份 JSON 修改。词库记录每组键对应的声母和韵母，
 神经解码据此读取新方案；两个音节共用一组键时，模型只看到其中一个。
-
-* 开发
-
-#+begin_src sh
-make test-elisp
-make test-python PYTHON=/path/to/python
-#+end_src
-
-ERT 测试使用临时的小词库，不读个人记录，不需要模型或网络；
-=WIME_TEST_DATABASE=/path/to/wanxiang.db= 改用完整词库。
-Python 测试只需 PyTorch 和 safetensors，在 CPU 上用小模型检查解码和 worker 协议。
-
-=neural/= 和 =test/= 里的训练、语料和评测脚本是开发者的研究工具，
-依赖作者 monorepo 中的其他部分和本地数据，不提供外部复现支持。
-octagram 打分模块（=grammar.cc=）和 =BUILD.bazel= 等文件也只在 monorepo 中构建；
-没有它时 wime 不使用 octagram。
 
 * 许可
 

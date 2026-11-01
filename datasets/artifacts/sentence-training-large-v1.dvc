@@ -1,6 +1,0 @@
-outs:
-- md5: 6ddbc9d1fdaecee2fad921580ffff148.dir
-  size: 2897900313
-  nfiles: 8
-  hash: md5
-  path: sentence-training-large-v1

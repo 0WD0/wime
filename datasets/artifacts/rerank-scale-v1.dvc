@@ -1,6 +1,0 @@
-outs:
-- md5: e9b7d618f232d9b88a6ab5193809ea1c.dir
-  size: 2964262
-  nfiles: 4
-  hash: md5
-  path: rerank-scale-v1

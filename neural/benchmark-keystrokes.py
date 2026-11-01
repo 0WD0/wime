@@ -8,6 +8,7 @@ is the top result after the last key equal to the gold text.
 """
 import argparse
 import importlib.metadata
+import hashlib
 import json
 import math
 import os
@@ -23,12 +24,16 @@ import torch
 from composition import decode as decode_composition
 from decoder import Decoder, Units
 from fusion import accelerator
-from replay import fingerprint
 from rescorer import Rescorer
 from transducer import Evaluator
 
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "wime"
 QWEN = "Qwen/Qwen3.5-2B-Base@b1485b2fa6dfa1287294f269f5fb618e03d52d7c"
+
+
+def fingerprint(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def percentile(values, fraction):
@@ -73,7 +78,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case-file", type=Path, default=Path(__file__).with_name("benchmark-cases.json"),
                         help="public cases (default: the Wikipedia set beside this script)")
-    parser.add_argument("--dataset", help="registry evaluation suite instead of --case-file")
     parser.add_argument("--cases", type=int, help="first N cases by id")
     parser.add_argument("--model", default="0WD0/wime-syllable-40m",
                         help="model.safetensors, or a Hugging Face REPO[@REVISION]")
@@ -86,13 +90,9 @@ def main():
     parser.add_argument("--threads", type=int, default=4, help="CPU threads")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
-    if args.dataset:
-        from dataset_registry import Registry
-        path, dataset = Registry().evaluation(args.dataset)
-        cases = json.loads(path.read_text())
-    else:
-        dataset = dict(path=args.case_file.name, sha256=fingerprint(args.case_file))
-        cases = json.loads(args.case_file.read_text())["cases"]
+    dataset = dict(path=args.case_file.name, sha256=fingerprint(args.case_file))
+    contents = json.loads(args.case_file.read_text())
+    cases = contents["cases"] if isinstance(contents, dict) else contents
     cases = sorted(cases, key=lambda c: c["id"])[:args.cases]
     specs = dict(model=args.model, database=args.database, rescorer=args.rescorer)
     model = fetch(args.model, "wime-syllable-40m", "model.safetensors")
