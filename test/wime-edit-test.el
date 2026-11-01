@@ -480,25 +480,29 @@
 
 (ert-deftest wime-edit-async-publication-preserves-point-mark-and-is-undoable ()
   (wime-edit-test--buffer
-    (wime-edit-test--type "aabb")
-    (wime-edit-test--command #'backward-char 1)
-    (set-mark 3)
-    ;; An accepted model result publishes via this same display entry point.
-    (setq wime--candidate-records
-          (list (wime--make-candidate :text "乙丁" :end 2 :score 2.0))
-          wime--candidates '("乙丁"))
-    (wime--display)
-    (undo-boundary)
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "乙丁"))
-    (should (= (point) 2))
-    (should (= (mark) 3))
-    (should (equal (mapcar #'wime-edit-test--keys '(1 2)) '("aa" "bb")))
-    (wime-edit-test--command #'undo-only 1)
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲丙"))
-    (should (equal (mapcar #'wime-edit-test--keys '(1 2)) '("aa" "bb")))
-    (wime-edit-test--command #'undo-redo 1)
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "乙丁"))
-    (should (equal (mapcar #'wime-edit-test--keys '(1 2)) '("aa" "bb")))))
+   (let ((transient-mark-mode t))
+     (wime-edit-test--type "aabb")
+     (wime-edit-test--command #'backward-char 1)
+     (set-mark 3)
+     ;; An accepted model result publishes via this same display entry point.
+     (setq wime--candidate-records
+           (list (wime--make-candidate :text "乙丁" :end 2 :score 2.0))
+           wime--candidates '("乙丁"))
+     (wime--display)
+     (undo-boundary)
+     (should (equal (buffer-substring-no-properties 1 (point-max)) "乙丁"))
+     (should (= (point) 2))
+     (should (= (mark) 3))
+     (should (region-active-p))
+     (should (equal (mapcar #'wime-edit-test--keys '(1 2)) '("aa" "bb")))
+     ;; Whole-update undo, after checking the preserved active region.
+     (deactivate-mark)
+     (wime-edit-test--command #'undo-only 1)
+     (should (equal (buffer-substring-no-properties 1 (point-max)) "甲丙"))
+     (should (equal (mapcar #'wime-edit-test--keys '(1 2)) '("aa" "bb")))
+     (wime-edit-test--command #'undo-redo 1)
+     (should (equal (buffer-substring-no-properties 1 (point-max)) "乙丁"))
+     (should (equal (mapcar #'wime-edit-test--keys '(1 2)) '("aa" "bb"))))))
 
 (ert-deftest wime-edit-grow-run-preserves-unrelated-properties ()
   (wime-edit-test--buffer
