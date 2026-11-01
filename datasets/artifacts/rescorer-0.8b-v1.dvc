@@ -1,0 +1,6 @@
+outs:
+- md5: e091419445758fae5e51d9692526429b.dir
+  size: 12379281
+  nfiles: 24
+  hash: md5
+  path: rescorer-0.8b-v1
