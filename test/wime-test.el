@@ -272,10 +272,14 @@
 ;; posterior and alternatives come from every scored reading.
 (ert-deftest wime-uncertain-spans-follow-the-reranker-posterior ()
   (let ((wime-confidence-temperature 3.0) (wime-confidence-threshold 0.9)
-        (wime-span-alternatives 3))
+        (wime-candidates-max 3))
     (should (equal (wime--uncertain-spans
                     "甲乙丙" '(("甲乙丙" . -0.1) ("甲丁丙" . -0.3) ("甲戊丙" . -2.0) ("短" . 0.0)))
                    '((1 2 ("丁" "戊")))))
+    (let ((wime-candidates-max 1))
+      (should (equal (wime--uncertain-spans
+                      "甲中乙" '(("甲中乙" . -0.1) ("丁中己" . -0.3) ("戊中庚" . -2.0)))
+                     '((0 1 ("丁")) (2 3 ("己"))))))
     (should-not (wime--uncertain-spans "甲乙丙" '(("甲乙丙" . -0.1) ("甲丁丙" . -9.0))))
     (should-not (wime--uncertain-spans "甲乙丙" nil))))
 

@@ -155,12 +155,18 @@ worker process, and can check each asynchronous invalidation separately."
 
 (ert-deftest wime-edit-neural-callback-updates-real-text-without-moving-cursor ()
   (wime-edit-neural-test--buffer
+    (should (cl-some (lambda (overlay)
+                       (string-match-p "1[.]甲乙" (or (overlay-get overlay 'after-string) "")))
+                     wime-edit--correction-decorations))
     (goto-char 4)
     (set-mark 5)
     (should (equal (wime-neural--job-context job) "前文"))
     (should (wime-neural--valid-p job))
     (wime-neural--apply job '((candidates . [["丙丁" -1.0]])))
     (should (equal (buffer-substring-no-properties 1 5) "前文丙丁"))
+    (should (cl-some (lambda (overlay)
+                       (string-match-p "1[.]丙丁" (or (overlay-get overlay 'after-string) "")))
+                     wime-edit--correction-decorations))
     (should (= (point) 4))
     (should (= (mark) 5))
     (should (= wime-edit--generation (wime-neural--job-edit-generation job)))

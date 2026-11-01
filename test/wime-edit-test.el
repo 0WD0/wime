@@ -861,14 +861,36 @@
         (should-not wime--span-choices)
         (let* ((text (wime-edit-test--correction-text))
                (rows (split-string text "\n" t)))
-          (should (= (length rows) 2))
-          (should-not (string-match-p "甲丙" text))
-          (should (string-match-p "2[^0-9]*乙丙" (nth 0 rows)))
-          (should (string-match-p "3[^0-9]*甲丁" (nth 1 rows))))
+          (should (= (length rows) 3))
+          (should (string-match-p "1[.]甲丙" (nth 0 rows)))
+          (should (string-match-p "2[.]乙丙" (nth 1 rows)))
+          (should (string-match-p "3[.]甲丁" (nth 2 rows))))
         (wime-edit-test--type "2")
         (should (equal (buffer-substring-no-properties 1 (point-max)) "乙丙"))
         (should (equal (mapcar (lambda (p) (wime-edit--unit-pin (wime-edit--unit-at p)))
                                '(1 2)) '(?乙 ?丙)))))))
+
+(ert-deftest wime-edit-candidate-column-respects-the-limit-and-digit-selection ()
+  (wime-edit-test--buffer
+    (let* ((wime-candidates-max 5)
+           (words '("甲" "乙" "丙" "丁" "戊" "己" "庚"))
+           (wime-edit-test--dictionary
+            `(("aa" ,@(cl-loop for word in words for weight downfrom 100
+                               collect (list word "a" weight))))))
+      (wime-edit-test--type "aa")
+      (should (equal wime--candidates (seq-take words 5)))
+      (let ((rows (split-string (wime-edit-test--correction-text) "\n" t)))
+        (should (= (length rows) 5))
+        (cl-loop for row in rows for word in words for digit from 1
+                 do (should (string-match-p (format "%d[.]%s" digit word) row))))
+      (wime-edit-test--type "6")
+      (should (equal (buffer-string) "甲"))
+      (should-not wime--pins)
+      (wime-edit-test--type "5")
+      (should (equal (buffer-string) "戊"))
+      (should (eq (wime-edit--unit-pin (wime-edit--unit-at 1)) ?戊))
+      ;; The selected reading remains visible even when it is the only choice.
+      (should (string-match-p "1[.]戊" (wime-edit-test--correction-text))))))
 
 (ert-deftest wime-edit-hidden-corrections-cannot-use-stale-span-shortcuts ()
   (wime-edit-test--buffer

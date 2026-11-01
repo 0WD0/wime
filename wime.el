@@ -92,8 +92,9 @@
 (defvar wime-english-title "英"
   "The title shown while `wime-english-mode' inserts keys literally.")
 
-(defcustom wime-candidates-max 10
-  "Maximum number of candidates shown at once."
+(defcustom wime-candidates-max 5
+  "Maximum candidates in the sentence list or each uncertain span.
+Numbered span alternatives share the ten digit keys across all spans."
   :type 'natnum
   :group 'wime)
 
@@ -369,10 +370,6 @@ composition back to the sentence list."
 3.0 was calibrated on development pools for the earlier 25M conditional
 model with the Qwen3.5-2B rescorer, not yet for the syllable transducer."
   :type 'number :group 'wime)
-
-(defcustom wime-span-alternatives 3
-  "Maximum inline alternatives shown for one uncertain span."
-  :type 'natnum :group 'wime)
 
 (defvar-local wime--input nil
   "Raw typed string, preserving the case and order of the keys.")
@@ -928,7 +925,7 @@ ALTERNATIVES are other substrings at that span, most probable first."
                   (puthash part (+ w (gethash part mass 0)) mass))))
             (push (list i j (seq-take (sort (hash-table-keys mass)
                                             (lambda (a b) (> (gethash a mass) (gethash b mass))))
-                                      wime-span-alternatives))
+                                      wime-candidates-max))
                   spans)
             (setq i j)))))
     (nreverse spans)))

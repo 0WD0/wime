@@ -425,7 +425,7 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
 (defun wime-edit--correction-groups (text)
   "Return (START END OPTIONS) groups, where OPTIONS contain (LABEL . TEXT).
 Span labels share one sequence across the whole run.  Whole-sentence labels
-keep their original indices so the existing digit selection remains valid."
+keep their original indices, including the reading already shown in TEXT."
   (setq wime--span-choices nil)
   (when (and wime-show-candidates wime--candidates)
     (if (wime--spans-p)
@@ -444,8 +444,7 @@ keep their original indices so the existing digit selection remains valid."
       (let ((label 0) options)
         (dolist (candidate wime--candidates)
           (cl-incf label)
-          (when (and (<= label 10) (= (length candidate) (length text))
-                     (not (equal candidate text)))
+          (when (and (<= label 10) (= (length candidate) (length text)))
             (push (cons (% label 10) candidate) options)))
         (when options (list (list 0 (length text) (nreverse options))))))))
 
