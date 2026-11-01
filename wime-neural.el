@@ -35,10 +35,25 @@
 The worker needs PyTorch with GPU support and transformers."
   :type '(choice (const nil) file) :group 'wime)
 
-(defcustom wime-neural-rescorer (expand-file-name "rescorers/Qwen3.5-2B-Base" wime-data-directory)
+(defconst wime-neural-rescorers '("Qwen3.5-2B-Base" "Qwen3.5-0.8B-Base")
+  "Language models measured with the decoder, best first, under rescorers/.
+Both take weight 1.5.  On dev-v2 the 0.8B decodes 693 of 759 sentences
+against 701, at the same keystroke latency, in 2.8 GB of GPU memory
+against 5.2 GB.")
+
+(defun wime-neural-installed-rescorer (directory)
+  "The best of `wime-neural-rescorers' under DIRECTORY/rescorers, or nil."
+  (cl-loop for name in wime-neural-rescorers
+           for path = (expand-file-name name (expand-file-name "rescorers" directory))
+           when (file-directory-p path) return path))
+
+(defcustom wime-neural-rescorer
+  (or (wime-neural-installed-rescorer wime-data-directory)
+      (expand-file-name (car wime-neural-rescorers) (expand-file-name "rescorers" wime-data-directory)))
   "Directory of a general causal language model for the worker.
 Its log probability, times `wime-neural-rescorer-weight', joins the
-syllable model score.  Nil disables it."
+syllable model score.  The default is the best installed of
+`wime-neural-rescorers'.  Nil disables it."
   :type '(choice (const nil) directory) :group 'wime)
 
 (defcustom wime-neural-rescorer-weight 1.5

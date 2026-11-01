@@ -94,14 +94,18 @@ uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
 
 * 神经解码
 
-需要约 6 GB 显存的 GPU。CPU 太慢（一句要十几秒），不适用。
-下表的文件放在 =wime-data-directory= 下，各选项默认就指向这些位置。
+需要 GPU：通用语言模型用 Qwen3.5-2B 时约 5 GB 显存，
+用 Qwen3.5-0.8B 时约 3 GB，整句少对约 1%（759 句中 693 对 701），速度相同。
+CPU 太慢（一句要十几秒），不适用。
+下表的文件放在 =wime-data-directory= 下，各选项默认就指向这些位置；
+两个语言模型都在时用 2B。
 
-| 内容         | 位置                         | 来源                                 |
-|--------------+------------------------------+--------------------------------------|
-| Python 环境  | =python/=                    | =neural/pyproject.toml= 和 =uv.lock= |
-| 音节模型     | =wime-syllable-40m/=         | HF =0WD0/wime-syllable-40m=          |
-| 通用语言模型 | =rescorers/Qwen3.5-2B-Base/= | HF =Qwen/Qwen3.5-2B-Base=，固定版本  |
+| 内容         | 位置                           | 来源                                  |
+|--------------+--------------------------------+---------------------------------------|
+| Python 环境  | =python/=                      | =neural/pyproject.toml= 和 =uv.lock=  |
+| 音节模型     | =wime-syllable-40m/=           | HF =0WD0/wime-syllable-40m=           |
+| 通用语言模型 | =rescorers/Qwen3.5-2B-Base/=   | HF =Qwen/Qwen3.5-2B-Base=，固定版本   |
+| 或者         | =rescorers/Qwen3.5-0.8B-Base/= | HF =Qwen/Qwen3.5-0.8B-Base=，固定版本 |
 
 在 wime 目录执行：
 
@@ -113,6 +117,14 @@ UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural --extra cud
 "$D/python/bin/hf" download Qwen/Qwen3.5-2B-Base \
     --revision b1485b2fa6dfa1287294f269f5fb618e03d52d7c \
     --local-dir "$D/rescorers/Qwen3.5-2B-Base"
+#+end_src
+
+显存不够时，最后一步换成：
+
+#+begin_src sh
+"$D/python/bin/hf" download Qwen/Qwen3.5-0.8B-Base \
+    --revision dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68 \
+    --local-dir "$D/rescorers/Qwen3.5-0.8B-Base"
 #+end_src
 
 =--extra= 按显卡选择 PyTorch：
@@ -228,7 +240,7 @@ octagram 打分模块（=grammar.cc=）和 =BUILD.bazel= 等文件也只在 mono
 - 代码：GPL-3.0-or-later，见 =LICENSE=。
 - 词库：万象拼音（amzxyz），CC-BY-4.0。
 - 音节模型：CC-BY-SA-4.0。
-- Qwen3.5-2B-Base：Apache-2.0。
+- Qwen3.5-2B-Base 和 Qwen3.5-0.8B-Base：Apache-2.0。
 
 * 尚未实现
 

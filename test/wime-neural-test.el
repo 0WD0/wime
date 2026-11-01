@@ -499,3 +499,15 @@
     (let ((request (json-parse-string (wime-neural--request job) :object-type 'alist)))
       (should (equal (alist-get 'input request) "aabb"))
       (should (equal (alist-get 'tones request) [[0 3]])))))
+
+(ert-deftest wime-neural-default-rescorer-is-the-best-installed ()
+  (let ((data (make-temp-file "wime-rescorers-" t)))
+    (unwind-protect
+        (let ((small (expand-file-name "rescorers/Qwen3.5-0.8B-Base" data))
+              (large (expand-file-name "rescorers/Qwen3.5-2B-Base" data)))
+          (should-not (wime-neural-installed-rescorer data))
+          (make-directory small t)
+          (should (equal (wime-neural-installed-rescorer data) small))
+          (make-directory large t)
+          (should (equal (wime-neural-installed-rescorer data) large)))
+      (delete-directory data t))))
