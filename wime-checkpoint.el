@@ -5,25 +5,33 @@
 ;;; Code:
 (require 'wime-neural)
 (require 'json)
-(defcustom wime-checkpoint-program nil "Path to Wime Lab's Python controller." :type '(choice (const nil) file) :group 'wime)
+(defcustom wime-checkpoint-runtime-directory nil
+  "Directory containing the packaged wime_research backend, or nil when installed."
+  :type '(choice (const nil) directory) :group 'wime)
 (defcustom wime-checkpoint-python "python3" "Python for the experiment controller." :type 'string :group 'wime)
 (defcustom wime-checkpoint-directory wime-data-directory
   "Persistent experiment and checkpoint directory." :type 'directory :group 'wime)
 (defvar wime-checkpoint-previous nil "Previous successfully selected runtime recipe.")
 
+(defun wime-checkpoint-command (&optional python)
+  "Controller argv using PYTHON or the configured experiment Python."
+  (list (or python wime-checkpoint-python) "-m" "wime_research.lab"
+        "--root" (expand-file-name wime-checkpoint-directory) "request"))
+
 (defun wime-checkpoint-call (request)
   "Execute a small controller REQUEST and return its checked response."
-  (unless (and wime-checkpoint-program (file-readable-p wime-checkpoint-program))
-    (error "Wime Lab controller is unavailable"))
-  (with-temp-buffer
-    (let ((coding-system-for-read 'utf-8-unix) (coding-system-for-write 'utf-8-unix))
-      (insert (json-serialize request))
-      (unless (zerop (call-process-region (point-min) (point-max) wime-checkpoint-python t t nil
-                                        wime-checkpoint-program "--root" wime-checkpoint-directory "request"))
-        (error "Wime Lab controller failed"))
+  (let ((default-directory (file-name-as-directory (expand-file-name
+                               (or wime-checkpoint-runtime-directory temporary-file-directory))))
+        (command (wime-checkpoint-command))
+        (coding-system-for-read 'utf-8-unix) (coding-system-for-write 'utf-8-unix))
+    (with-temp-buffer
+      (insert (decode-coding-string (json-serialize request) 'utf-8-unix))
+      (let ((code (apply #'call-process-region (point-min) (point-max) (car command) t t nil (cdr command))))
+        (unless (equal code 0)
+          (error "Wime Lab controller exited %s: %s" code (string-trim (buffer-string)))))
       (goto-char (point-min))
       (let ((response (json-parse-buffer :object-type 'plist :array-type 'list
-                                         :null-object nil :false-object :false)))
+                                       :null-object nil :false-object :false)))
         (unless (eq (plist-get response :ok) t) (error "%s" (plist-get response :error)))
         (plist-get response :value)))))
 
@@ -55,8 +63,7 @@
 
 (defun wime-checkpoint-restore ()
   "Restore the explicit startup recipe, retaining packaged defaults on error."
-  (when (and wime-checkpoint-program
-             (file-exists-p (expand-file-name "lab.sqlite3" wime-checkpoint-directory)))
+  (when (file-exists-p (expand-file-name "lab.sqlite3" wime-checkpoint-directory))
     (condition-case err
         (when-let* ((recipe (wime-checkpoint-call '(:op "startup"))))
           (wime-checkpoint--apply recipe))
