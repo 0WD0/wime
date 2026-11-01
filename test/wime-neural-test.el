@@ -390,13 +390,16 @@
             (should (equal delays '(2.2 10.2))))
         (delete-process process)))))
 
+(defvar wime-neural-test-worker nil
+  "Optional real worker fixture: plist with :command argv, :directory and :model.")
+
 (ert-deftest wime-neural-real-worker-protocol ()
-  (let ((command (getenv "WIME_NEURAL_COMMAND"))
-        (model (getenv "WIME_NEURAL_MODEL")))
+  (let ((command (plist-get wime-neural-test-worker :command))
+        (model (plist-get wime-neural-test-worker :model)))
     (unless (and command model) (ert-skip "model and worker not configured"))
     (wime-neural-test--composition
-      (let ((wime-neural-command (json-parse-string command :array-type 'list))
-            (wime-neural-directory (getenv "WIME_NEURAL_DIRECTORY")) (wime-neural-model-file model)
+      (let ((wime-neural-command command)
+            (wime-neural-directory (plist-get wime-neural-test-worker :directory)) (wime-neural-model-file model)
             (wime-neural--process nil) (wime-neural--pending nil)
             (wime-neural--busy nil) (wime-neural--failed nil)
             (wime-neural--timeout-timer nil))
