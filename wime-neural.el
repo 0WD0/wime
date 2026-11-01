@@ -108,7 +108,8 @@ When disabled, single-character input retains dictionary ranking."
 (defvar wime-neural--pending nil)
 (defvar wime-neural--timeout-timer nil)
 (defvar wime-neural--serial 0)
-(defvar wime-neural--failed nil)
+(defvar wime-neural--failed nil
+  "Last worker failure message, or nil while decoding is available.")
 (defvar-local wime-neural--timer nil)
 (defvar-local wime-neural--job nil
   "This buffer's latest scheduled decode, which a choice may wait for.")
@@ -242,16 +243,14 @@ between requests, the lattice converts instead of committing keys."
     (delete-process wime-neural--process))
   (setq wime-neural--process nil))
 
-(defun wime-neural--fail (reason &optional job)
-  "Disable failed worker attempts, retaining traditional results, with REASON.
-A nil REASON fails quietly.  Under `neural' decoding, JOB's composition (by
-default the busy one's), which showed its keys while waiting, converts with
-the lattice instead."
+(defun wime-neural--fail (reason &optional job quiet)
+  "Retain REASON and fall back to dictionary candidates for JOB.
+QUIET suppresses the interactive message without losing the diagnostic."
   (let ((job (or job wime-neural--busy)))
     (wime-neural--stop)
-    (unless (or wime-neural--failed (null reason))
+    (unless (or wime-neural--failed quiet)
       (message "wime neural unavailable: %s (M-x wime-neural-restart retries)" reason))
-    (setq wime-neural--failed t)
+    (setq wime-neural--failed reason)
     (when (and job (eq wime-decoding 'neural) (buffer-live-p (wime-neural--job-buffer job)))
       (with-current-buffer (wime-neural--job-buffer job)
         (when (wime--active-p) (wime--refresh))))))
@@ -259,7 +258,8 @@ the lattice instead."
 (defun wime-neural--sentinel (process _event)
   "Handle PROCESS exiting without logging any typed text."
   (when (and (eq process wime-neural--process) (not (process-live-p process)))
-    (wime-neural--fail "worker exited")))
+    (wime-neural--fail (format "worker %s (code %s); stderr: *wime-neural-errors*"
+                               (process-status process) (process-exit-status process)))))
 
 (defun wime-neural--command (model)
   "Worker command line for MODEL; the model stays the last argument."
@@ -327,12 +327,17 @@ the lattice instead."
                                 (wime--tones (wime-neural--job-input job))))
        :memory_weight ,wime-neural-memory-weight))))
 
-(defun wime-neural--installed-p ()
-  "Whether the configured models and worker command are available."
-  (and wime-neural-model-file (file-readable-p wime-neural-model-file)
-       (file-directory-p wime-neural-rescorer)
-       wime-neural-command (executable-find (car wime-neural-command))
-       (or (null wime-neural-directory) (file-directory-p wime-neural-directory))))
+(defun wime-neural--unavailable-reason ()
+  "Explain unavailable runtime files or command, or return nil."
+  (cond
+   ((not (and wime-neural-model-file (file-readable-p wime-neural-model-file)))
+    (format "Model file is not readable: %s" wime-neural-model-file))
+   ((not (and wime-neural-rescorer (file-directory-p wime-neural-rescorer)))
+    (format "Language model directory is unavailable: %s" wime-neural-rescorer))
+   ((not (and wime-neural-command (executable-find (car wime-neural-command))))
+    (format "Worker executable is unavailable: %s" (car wime-neural-command)))
+   ((and wime-neural-directory (not (file-directory-p wime-neural-directory)))
+    (format "Worker directory is unavailable: %s" wime-neural-directory))))
 
 (defun wime-neural--enqueue (job)
   "Send JOB or replace pending work while the worker is busy.
@@ -341,10 +346,11 @@ without a message."
   (when (and (not wime-neural--failed) (wime-neural--valid-p job))
     (cond
      (wime-neural--busy (setq wime-neural--pending job))
-     ((not (or (process-live-p wime-neural--process) (wime-neural--installed-p)))
-      (wime-neural--fail (unless (eq wime-decoding 'hybrid) "model files are missing") job))
+     ((and (not (process-live-p wime-neural--process))
+           (wime-neural--unavailable-reason))
+      (wime-neural--fail (wime-neural--unavailable-reason) job (eq wime-decoding 'hybrid)))
      (t
-      (condition-case nil
+      (condition-case err
           (let ((process (wime-neural--start)))
             (setq wime-neural--busy job
                   wime-neural--timeout-timer
@@ -355,7 +361,7 @@ without a message."
                                      (* 0.1 (wime-neural--job-syllables job)))
                                   nil #'wime-neural--fail "worker timed out"))
             (process-send-string process (concat (wime-neural--request job) "\n")))
-        (error (wime-neural--fail "worker could not start or receive input" job)))))))
+        (error (wime-neural--fail (format "Worker startup/send failed: %s" (error-message-string err)) job)))))))
 
 (defun wime-neural--apply (job response)
   "Apply RESPONSE only if JOB is still current."
@@ -411,10 +417,17 @@ words and completions stay after them, so a prefix can still be committed."
     (let* ((data (concat (process-get process 'partial) chunk))
            (lines (split-string data "\n")))
       (process-put process 'partial (car (last lines)))
-      (condition-case nil
+      (condition-case err
           (dolist (line (butlast lines))
             (wime-neural--reply (json-parse-string line :object-type 'alist :null-object nil)))
-        (error (wime-neural--fail "invalid worker response"))))))
+        (error (wime-neural--fail (format "Invalid worker response: %s" (error-message-string err))))))))
+
+(defun wime-neural-wait ()
+  "Wait for scheduled and in-flight work; signal the retained failure.
+The worker owns startup and response deadlines, including pending requests."
+  (while (or (memq wime-neural--timer timer-list) wime-neural--busy wime-neural--pending)
+    (accept-process-output wime-neural--process .001))
+  (when wime-neural--failed (error "%s" wime-neural--failed)))
 
 (defun wime-neural-restart ()
   "Stop the worker and forget a failure; the next decode starts it again."

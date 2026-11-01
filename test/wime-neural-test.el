@@ -515,3 +515,48 @@
           (make-directory large t)
           (should (equal (wime-neural-installed-rescorer data) large)))
       (delete-directory data t))))
+
+(ert-deftest wime-neural-wait-honors-runtime-deadline-and-pending-work ()
+  (let ((wime-neural--busy 'first) (wime-neural--pending 'second)
+        (wime-neural--failed nil) (wime-neural--timer nil)
+        (wime-neural--process nil) (clock 0) (ticks 0))
+    ;; Advance beyond the old replay deadline while the runtime still permits work.
+    (cl-letf (((symbol-function 'float-time) (lambda (&rest _) clock))
+              ((symbol-function 'accept-process-output)
+               (lambda (&rest _)
+                 (setq clock (+ clock 31))
+                 (if (= (cl-incf ticks) 1)
+                     (setq wime-neural--busy wime-neural--pending wime-neural--pending nil)
+                   (setq wime-neural--busy nil)))))
+      (wime-neural-wait))
+    (should (= ticks 2))))
+
+(ert-deftest wime-neural-runtime-timeout-reaches-waiter ()
+  (wime-neural-test--composition
+    (let* ((process (make-pipe-process :name "wime-deadline-test" :noquery t))
+           (wime-neural--process process) (wime-neural--busy nil)
+           (wime-neural--pending nil) (wime-neural--failed nil)
+           (wime-neural--timeout-timer nil) (wime-neural-startup-timeout .01))
+      (setf (wime-neural--job-syllables job) 0)
+      (unwind-protect
+          (cl-letf (((symbol-function 'wime-neural--start) (lambda () process))
+                    ((symbol-function 'process-send-string) #'ignore))
+            (wime-neural--enqueue job)
+            (should (string-match-p "worker timed out"
+                                    (error-message-string (should-error (wime-neural-wait)))))
+            (should-not wime-neural--busy)
+            (should-not wime-neural--timeout-timer))
+        (delete-process process)))))
+
+(ert-deftest wime-neural-startup-failure-retains-original-cause ()
+  (wime-neural-test--composition
+    (let ((wime-neural--process nil) (wime-neural--busy nil)
+          (wime-neural--pending nil) (wime-neural--failed nil)
+          (wime-neural--timeout-timer nil))
+      (cl-letf (((symbol-function 'wime-neural--unavailable-reason) (lambda () nil))
+                ((symbol-function 'wime-neural--start)
+                 (lambda () (signal 'file-error '("fixture executable missing" "/fixture/python")))))
+        (wime-neural--enqueue job))
+      (let ((message (error-message-string (should-error (wime-neural-wait)))))
+        (should (string-match-p "fixture executable missing" message))
+        (should (string-match-p "/fixture/python" message))))))
