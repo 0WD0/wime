@@ -306,7 +306,8 @@ of truth.  Widen only for display; confirmation still respects narrowing."
   "Return a full reading, with a one-character fallback for incomplete keys.
 While a model decode is pending, characters already shown keep their text:
 dictionary guesses would replace the last decoded reading, and a character
-leaving the window at that moment would keep the guess."
+leaving the window at that moment would keep the guess.  Explicit selections
+take effect immediately, before the updated pins reach the unit metadata."
   (let* ((syllables (wime-edit--syllables wime-edit--units))
          (n (length syllables))
          (candidate (seq-find
@@ -324,10 +325,12 @@ leaving the window at that moment would keep the guess."
       (mapconcat #'wime-edit--unit-text syllables ""))
      ((and guess (not provisional)) guess)
      (t
-      (let (wime--candidate-records wime--search-cache wime--pins)
+      (let ((pins wime--pins)
+            wime--candidate-records wime--search-cache wime--pins)
         (mapconcat (lambda (unit)
                      (cl-incf i)
-                     (or (wime-edit--pin-text unit)
+                     (or (when-let* ((pin (assq i pins))) (string (nth 1 pin)))
+                         (wime-edit--pin-text unit)
                          (and provisional (wime-edit--shown unit))
                          (and guess (substring guess i (1+ i)))
                          (car (wime--candidates (wime-edit--unit-keys unit)))

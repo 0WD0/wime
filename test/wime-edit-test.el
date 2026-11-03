@@ -435,6 +435,47 @@
     (wime-edit-test--command #'goto-char (point-max))
     (should (eq (wime-edit--unit-pin (wime-edit--unit-at 1)) ?乙))))
 
+(ert-deftest wime-edit-candidate-choice-can-be-confirmed-before-model-reply ()
+  (wime-edit-test--buffer
+    (wime-edit-test--type "aabb")
+    (let ((wime-decoding 'hybrid) (wime-neural--failed nil)
+          (wime-neural-rescorer "lm"))
+      ;; Offer a model reading, then leave the next decode unanswered.
+      (setq wime--candidates '("甲丙" "乙丁") wime--model-ranked t)
+      (wime-edit-test--type "2")
+      (should-not wime--model-ranked)
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙丁"))
+      (wime-edit-test--type " ")
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙丁"))
+      (should-not (text-property-not-all 1 (point-max) 'wime-edit-unit nil)))))
+
+(ert-deftest wime-edit-span-choice-updates-only-selected-text-before-model-reply ()
+  (wime-edit-test--buffer
+    (wime-edit-test--type "aa")
+    (wime-english-mode 1)
+    (wime-edit-test--type "X")
+    (wime-english-mode -1)
+    (wime-edit-test--type "bb")
+    (let ((wime-decoding 'hybrid) (wime-neural--failed nil)
+          (wime-neural-rescorer "lm") (wime-candidate-style 'spans))
+      ;; The model's first character differs from the dictionary's guess.
+      (setq wime--candidate-records (list (wime--make-candidate :text "乙丙" :end 2 :score 0))
+            wime--candidates '("乙丙" "乙丁")
+            wime--candidate-scores '(("乙丙" . -0.1) ("乙丁" . -0.2))
+            wime--model-ranked t)
+      (wime--display)
+      (should (equal wime--span-choices '((1 2 "丁"))))
+      (wime-edit-test--type "1")
+      (should-not wime--model-ranked)
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙X丁"))
+      (should-not (wime-edit--unit-pin (wime-edit--unit-at 1)))
+      (should (eq (wime-edit--unit-pin (wime-edit--unit-at 3)) ?丁))
+      ;; A new choice also takes precedence over a previously stored pin.
+      (wime--choose-span 1 2 "丙")
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙X丙"))
+      (wime-edit-test--type " ")
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙X丙")))))
+
 (ert-deftest wime-edit-backspace-removes-local-auxiliary-before-code ()
   (wime-edit-test--buffer
     (wime-edit-test--type "aaBbb")
