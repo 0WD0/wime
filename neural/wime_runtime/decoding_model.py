@@ -13,8 +13,8 @@ LM_CONTEXT = 1024
 class SharedContext(DynamicCache):
     """LM states after a left context, read by every row of a batch.
 
-    Each layer holds batch-1 tensors expanded to the batch without copying;
-    the forward pass sees them as its past and never writes them back."""
+    Attention and recurrent states share the read-only context. Convolution
+    states are private because single-token GatedDeltaNet updates them in place."""
 
     def __init__(self, prefix, rows):
         self.__dict__.update(prefix.__dict__)
@@ -25,7 +25,8 @@ class SharedContext(DynamicCache):
                 layer.values = layer.values.expand(rows, *layer.values.shape[1:])
             for states in ("conv_states", "recurrent_states"):
                 if getattr(layer, states, {}).get(0) is not None:
-                    setattr(layer, states, {0: getattr(layer, states)[0].expand(rows, *getattr(layer, states)[0].shape[1:])})
+                    value = getattr(layer, states)[0].expand(rows, *getattr(layer, states)[0].shape[1:])
+                    setattr(layer, states, {0: value.clone() if states == "conv_states" else value})
 
     def update(self, keys, values, layer_idx, *args, **kwargs):
         layer = self.layers[layer_idx]
