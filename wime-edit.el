@@ -421,6 +421,7 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
   (list (point-min) (point-max) (copy-tree face-remapping-alist)
         (mapcar (lambda (window)
                   (list window (window-body-width window) (window-hscroll window)
+                        (window-point window)
                         display-line-numbers
                         (with-selected-window window (line-number-display-width t))))
                 (get-buffer-window-list (current-buffer) nil t))))
@@ -548,6 +549,30 @@ fonts use the same units as the source-text alignment."
            (frame-char-width (window-frame window))))
     (string-width text)))
 
+(defun wime-edit--reserve-correction-space (window anchor limit)
+  "Expose the correction rows through ANCHOR in WINDOW.
+Advance its start only as far as necessary, keeping the source display
+line beginning at LIMIT visible.  Measure the rendered text, since a
+candidate row need not have the same height as a source line."
+  (let* ((start (window-start window))
+         (height (window-body-height window t))
+         (needed (- (cdr (window-text-pixel-size window start anchor))
+                    (window-vscroll window t) height)))
+    (when (> needed 0)
+      (save-excursion
+        (goto-char start)
+        (while (and (< (point) limit)
+                    (< (cdr (window-text-pixel-size window start (point) nil nil nil t))
+                       needed))
+          (let ((previous (point)))
+            (vertical-motion 1 window)
+            ;; Several virtual rows can share one buffer position.  Skip
+            ;; their anchor if vertical-motion cannot advance through them.
+            (when (= (point) previous) (forward-char 1))
+            (goto-char (min (point) limit))))
+        (when (> (point) start)
+          (set-window-start window (point) t))))))
+
 (defun wime-edit--show-corrections (text)
   "Display correction columns underneath their source text."
   (let ((groups (wime-edit--correction-groups text))
@@ -559,7 +584,12 @@ fonts use the same units as the source-text alignment."
         (overlay-put overlay 'priority 1)
         (push overlay wime-edit--correction-decorations)))
     (dolist (window windows)
-      (let (lines)
+      (let ((cursor-line
+             (when (and (eq window (selected-window))
+                        (eq (window-buffer window) (current-buffer))
+                        (pos-visible-in-window-p (point) window t))
+               (save-excursion (vertical-motion 0 window) (point))))
+            lines)
         ;; Measure every column before inserting any virtual lines.
         (dolist (group groups)
           (pcase-let* ((`(,anchor ,column ,soft)
@@ -589,10 +619,20 @@ fonts use the same units as the source-text alignment."
         (dolist (line lines)
           (let ((overlay (make-overlay (car line) (car line))))
             (when window (overlay-put overlay 'window window))
+            (when (and window (not (nth 1 line))
+                       (= (window-point window) (car line)))
+              ;; At a hard line end, the after-string otherwise makes the
+              ;; cursor follow the last candidate row.  Give it its own
+              ;; glyph on the source line; a cursor property on a newline
+              ;; has no glyph and cannot anchor it.
+              (overlay-put overlay 'before-string (propertize " " 'cursor t)))
             (overlay-put overlay 'after-string
                          (concat (wime-edit--correction-rows (nth 2 line) window)
                                  (when (nth 1 line) "\n")))
-            (push overlay wime-edit--correction-decorations))))))
+            (push overlay wime-edit--correction-decorations)))
+        (when (and cursor-line lines)
+          (wime-edit--reserve-correction-space
+           window (apply #'max (mapcar #'car lines)) cursor-line)))))
   (setq wime-edit--correction-layout (wime-edit--layout-signature)))
 
 (defun wime-edit--render ()
