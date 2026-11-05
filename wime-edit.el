@@ -418,9 +418,10 @@ All real edits remain undoable; ordinary buffer modification hooks still run."
 
 (defun wime-edit--layout-signature ()
   "Return the window geometry relevant to correction rows."
-  (list (point-min) (point-max) (copy-tree face-remapping-alist)
+  (list (point-min) (point-max) (selected-window) (copy-tree face-remapping-alist)
         (mapcar (lambda (window)
-                  (list window (window-body-width window) (window-hscroll window)
+                  (list window (window-body-width window) (window-body-height window t)
+                        (window-hscroll window)
                         (window-point window)
                         display-line-numbers
                         (with-selected-window window (line-number-display-width t))))
@@ -556,13 +557,16 @@ line beginning at LIMIT visible.  Measure the rendered text, since a
 candidate row need not have the same height as a source line."
   (let* ((start (window-start window))
          (height (window-body-height window t))
+         (vscroll (window-vscroll window t))
+         ;; Measuring from window-start already excludes its clipped pixels.
          (needed (- (cdr (window-text-pixel-size window start anchor))
-                    (window-vscroll window t) height)))
+                    height)))
     (when (> needed 0)
       (save-excursion
         (goto-char start)
         (while (and (< (point) limit)
-                    (< (cdr (window-text-pixel-size window start (point) nil nil nil t))
+                    (< (+ (cdr (window-text-pixel-size window start (point) nil nil nil t))
+                          vscroll)
                        needed))
           (let ((previous (point)))
             (vertical-motion 1 window)
@@ -571,7 +575,10 @@ candidate row need not have the same height as a source line."
             (when (= (point) previous) (forward-char 1))
             (goto-char (min (point) limit))))
         (when (> (point) start)
-          (set-window-start window (point) t))))))
+          (set-window-start window (point) t))
+        ;; If all candidates cannot fit, keep at least the whole input line.
+        (when (= (point) limit)
+          (set-window-vscroll window 0 t))))))
 
 (defun wime-edit--show-corrections (text)
   "Display correction columns underneath their source text."

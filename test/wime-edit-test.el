@@ -986,6 +986,173 @@
           (should (cl-every (lambda (alignment) (= alignment (max 0 (- column 2))))
                             (wime-edit-test--alignments text))))))))
 
+(defun wime-edit-test--bottom-corrections (following &optional full-width variation)
+  "Exercise real redisplay with candidates at a window's bottom.
+Keep FOLLOWING text after point; FULL-WIDTH fills the source display row.
+VARIATION can exercise a height change or partial pixel scrolling."
+  (unless (and (not noninteractive) (display-graphic-p)
+               (fboundp 'window-cursor-info))
+    (ert-skip "Requires a graphical command loop and physical cursor information"))
+  (wime-edit-test--buffer
+    (save-window-excursion
+      (delete-other-windows)
+      (switch-to-buffer (current-buffer))
+      (setq-local scroll-conservatively 10 scroll-margin 0
+                  truncate-lines nil truncate-partial-width-windows nil)
+      (when (eq variation 'tiny) (split-window-below 5))
+      (dotimes (i (* 3 (window-body-height))) (insert (format "history %03d\n" i)))
+      (insert (if full-width (make-string (- (window-body-width) 2) ?x) ">>> "))
+      (save-excursion (insert following))
+      (let ((wime-show-candidates nil)) (wime-edit-test--type "aa"))
+      (let ((position (point)))
+        (redisplay t)
+        (recenter -2)
+        (when (memq variation '(vscroll tiny)) (set-window-vscroll nil 15 t))
+        (redisplay t)
+        (let* ((window (selected-window))
+               (original (buffer-string))
+               (initial-cursor (window-cursor-info))
+               (words '("甲" "乙" "丙" "丁" "戊" "己" "庚" "辛" "壬" "癸"))
+               previous-start previous-cursor)
+          ;; Simulate successive synchronous and asynchronous publications,
+          ;; including an identical response that must not scroll again.
+          (dolist (count '(2 5 10 10))
+            (setq wime--candidates (seq-take words count))
+            (wime--display)
+            (redisplay t)
+            (should (equal-including-properties (buffer-string) original))
+            (should (= (point) position))
+            (let* ((cursor (window-cursor-info))
+                   (source (posn-at-point (1- position)))
+                   (source-y (cdr (posn-x-y source)))
+                   (anchor (apply #'max (mapcar #'overlay-start
+                                               (wime-edit-test--correction-lines))))
+                   (height (cdr (window-text-pixel-size window (window-start) anchor))))
+              ;; Check the physical cursor, not posn-at-point at the overlay
+              ;; anchor: the latter describes the last virtual candidate row.
+              (should cursor)
+              (should (= (aref cursor 1) (if full-width 0 (aref initial-cursor 1))))
+              (should (= (aref cursor 2)
+                         (+ source-y (if full-width (cdr (posn-object-width-height source)) 0))))
+              (should (>= (aref cursor 2) 0))
+              (unless (eq variation 'tiny)
+                (should (<= height (window-body-height window t))))
+              ;; Moving the start one screen line back must overflow: there
+              ;; is no needless recentering or extra reserved candidate row.
+              (save-excursion
+                (goto-char (window-start))
+                (when (< (vertical-motion -1 window) 0)
+                  (should (> (- (cdr (window-text-pixel-size window (point) anchor))
+                                ;; This position is not window-start, so its
+                                ;; measurement has no implicit pixel offset.
+                                (window-vscroll window t))
+                             (window-body-height window t)))))
+              (when (= count 10)
+                (when previous-cursor
+                  (should (= (window-start) previous-start))
+                  (should (equal cursor previous-cursor)))
+                (setq previous-start (window-start) previous-cursor cursor))))
+          ;; Moving within the same composition removes and restores the
+          ;; end-of-line cursor anchor without another dictionary lookup.
+          (wime-edit-test--command #'backward-char 1)
+          (redisplay t)
+          (let ((xy (posn-x-y (posn-at-point))))
+            (should (equal (seq-subseq (window-cursor-info) 1 3)
+                           (vector (car xy) (cdr xy)))))
+          (wime-edit-test--command #'forward-char 1)
+          (redisplay t)
+          (should (equal (window-cursor-info) previous-cursor))
+          (when (eq variation 'resize)
+            (let ((width (window-body-width)) (height (window-body-height)))
+              (split-window-below (- (window-total-height) 5))
+              (wime-edit-test--command #'ignore)
+              (redisplay t)
+              (should (= (window-body-width) width))
+              (should (< (window-body-height) height))
+              (should (pos-visible-in-window-p (1- position)))
+              (should (<= (cdr (window-text-pixel-size window (window-start) position))
+                          (window-body-height window t)))))
+          (wime-edit-test--type "5")
+          (should (eq (wime-edit--unit-pin (wime-edit--unit-at (1- position))) ?戊)))))))
+
+(ert-deftest wime-edit-display-bottom-corrections-at-end-of-buffer ()
+  (wime-edit-test--bottom-corrections ""))
+
+(ert-deftest wime-edit-display-bottom-corrections-at-end-of-line ()
+  (wime-edit-test--bottom-corrections "\nfollowing line\n"))
+
+(ert-deftest wime-edit-display-bottom-corrections-before-following-text ()
+  (wime-edit-test--bottom-corrections " suffix\nfollowing line\n"))
+
+(ert-deftest wime-edit-display-bottom-corrections-before-soft-wrap ()
+  (wime-edit-test--bottom-corrections (make-string (* 2 (window-body-width)) ?x)))
+
+(ert-deftest wime-edit-display-bottom-corrections-at-full-width ()
+  (wime-edit-test--bottom-corrections "" t))
+
+(ert-deftest wime-edit-display-corrections-follow-window-height ()
+  (wime-edit-test--bottom-corrections "" nil 'resize))
+
+(ert-deftest wime-edit-display-corrections-with-partial-pixel-scroll ()
+  (wime-edit-test--bottom-corrections "" nil 'vscroll))
+
+(ert-deftest wime-edit-display-corrections-keep-input-visible-in-tiny-window ()
+  (wime-edit-test--bottom-corrections "" nil 'tiny))
+
+(ert-deftest wime-edit-display-typing-at-bottom-anchors-the-new-cursor-position ()
+  (unless (and (not noninteractive) (display-graphic-p)
+               (fboundp 'window-cursor-info))
+    (ert-skip "Requires a graphical command loop and physical cursor information"))
+  (wime-edit-test--buffer
+    (save-window-excursion
+      (delete-other-windows)
+      (switch-to-buffer (current-buffer))
+      (setq-local scroll-conservatively 10 scroll-margin 0)
+      (dotimes (i (* 3 (window-body-height))) (insert (format "history %03d\n" i)))
+      (insert ">>> ")
+      (redisplay t)
+      (recenter -2)
+      (redisplay t)
+      ;; Rendering can precede the input method's final goto-char.  The
+      ;; post-command layout must follow that new position before redisplay.
+      (wime-edit-test--type "aa")
+      (redisplay t)
+      (should (= (aref (window-cursor-info) 2)
+                 (cdr (posn-x-y (posn-at-point (1- (point)))))))
+      (should (<= (cdr (window-text-pixel-size nil (window-start) (point)))
+                  (window-body-height nil t))))))
+
+(ert-deftest wime-edit-display-corrections-only-scroll-the-selected-window ()
+  (unless (and (not noninteractive) (display-graphic-p))
+    (ert-skip "Requires a graphical command loop"))
+  (wime-edit-test--buffer
+    (save-window-excursion
+      (delete-other-windows)
+      (switch-to-buffer (current-buffer))
+      (setq-local scroll-conservatively 10 scroll-margin 0)
+      (dotimes (i (* 3 (window-body-height))) (insert (format "history %03d\n" i)))
+      (insert ">>> ")
+      (let ((wime-show-candidates nil)) (wime-edit-test--type "aa"))
+      (let* ((left (selected-window)) (right (split-window-right)))
+        (set-window-buffer right (current-buffer))
+        (redisplay t)
+        (recenter -2)
+        (set-window-start right (window-start left) t)
+        (set-window-point right (point))
+        (redisplay t)
+        (let ((start (window-start right)))
+          (setq wime--candidates '("甲" "乙" "丙" "丁" "戊"))
+          (wime--display)
+          (redisplay t)
+          (should (> (window-start left) start))
+          (should (= (window-start right) start))
+          ;; Selection changes must reserve space even when both windows
+          ;; have identical point and geometry.
+          (select-window right)
+          (wime-edit-test--command #'ignore)
+          (redisplay t)
+          (should (> (window-start right) start)))))))
+
 (ert-deftest wime-edit-soft-wrap-corrections-follow-each-window-after-resizing ()
   (wime-edit-test--buffer
     (setq-local truncate-lines nil truncate-partial-width-windows nil)
@@ -1049,7 +1216,11 @@
 
 (ert-deftest wime-edit-correction-groups-fill-earlier-gaps-using-measured-widths ()
   (let ((window (selected-window)) measured)
-    (cl-letf (((symbol-function 'wime-edit--display-width)
+    (cl-letf (((symbol-function 'wime-edit--correction-label)
+               ;; This test supplies whole-cell widths, independently of
+               ;; graphical font measurement and label resizing.
+               (lambda (option &optional _window) (format "%d." (car option))))
+              ((symbol-function 'wime-edit--display-width)
                (lambda (text measured-window)
                  (should (eq measured-window window))
                  (let ((plain (substring-no-properties text)))
