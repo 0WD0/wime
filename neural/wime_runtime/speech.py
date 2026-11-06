@@ -7,11 +7,15 @@ drops it.  Stdout answers {"ready": true} once the model is warm, then
 {"id": n, "recording": true}, {"id": n, "partial": text} after each chunk
 and {"id": n, "final": text, "elapsed_ms": ms} after stop.
 
-Streaming is qwen_asr's policy as speech-qwen-streaming-v1 measured it: each
-2 s chunk re-encodes all audio so far with the context as system prompt; from
-the third chunk on the previous output minus its last five tokens is forced as
-a prefix and greedy decoding adds at most 32 tokens.  A slow chunk skips to
-the newest boundary instead of queueing.
+Partial text follows qwen_asr's streaming policy as speech-qwen-streaming-v1
+measured it: each 2 s chunk re-encodes all audio so far; from the third chunk
+on the previous output minus its last five tokens is forced as a prefix and
+greedy decoding adds at most 32 tokens.  Partials see no context: given the
+text before point, a chunk of silence makes the model copy that text (129 of
+149 pilot takes after 2 s of leading noise).  The final text decodes all audio
+once with the context and no forced prefix, which copied nothing and was the
+most accurate there.  A slow chunk skips to the newest boundary instead of
+queueing.
 """
 import argparse
 import json
@@ -36,13 +40,11 @@ class Recognizer:
         self.model = Qwen3ASRForConditionalGeneration.from_pretrained(model, dtype=torch.bfloat16).to(device).eval()
         self.device = device
 
-    def prefix(self, raw, chunk, final):
+    def prefix(self, raw, chunk):
         """The upstream rollback: nothing for the first chunks, else drop the last tokens without splitting a character."""
         if chunk < UNFIXED_CHUNKS:
             return ""
         ids = self.tokenizer.encode(raw)
-        if final:
-            return self.tokenizer.decode(ids[:max(1, len(ids) - UNFIXED_TOKENS)])
         k = UNFIXED_TOKENS
         while True:
             end = max(0, len(ids) - k)
@@ -101,11 +103,10 @@ def requests(stream, inbox):
 
 
 def finish(recognize, session):
-    """The last update over all audio, its prefix rolled back as the upstream flush does."""
+    """All audio decoded once with the context, free of the partials' prefix."""
     start = time.perf_counter()
     audio = session["recording"].samples()
-    forced = recognize.prefix(session["raw"], session["chunk"], True)
-    text = recognize(audio, session["context"], forced, FINAL_TOKENS) if len(audio) else ""
+    text = recognize(audio, session["context"], "", FINAL_TOKENS) if len(audio) else ""
     send(id=session["id"], final=text, elapsed_ms=1000 * (time.perf_counter() - start))
 
 
@@ -119,8 +120,8 @@ def serve(recognize, inbox, chunk, target):
             audio = session["recording"].samples()
             boundary = len(audio) // size * size
             if boundary > session["done"]:
-                forced = recognize.prefix(session["raw"], session["chunk"], False)
-                session.update(raw=recognize(audio[:boundary], session["context"], forced, CHUNK_TOKENS),
+                forced = recognize.prefix(session["raw"], session["chunk"])
+                session.update(raw=recognize(audio[:boundary], "", forced, CHUNK_TOKENS),
                                chunk=session["chunk"] + 1, done=boundary)
                 send(id=session["id"], partial=session["raw"])
             continue
