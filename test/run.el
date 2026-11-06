@@ -16,7 +16,7 @@
         native-comp-enable-subr-trampolines nil)
   (dolist (file '("wime-test.el" "wime-edit-test.el" "wime-edit-neural-test.el"
                   "wime-neural-test.el" "wime-japanese-test.el" "wime-memory-test.el"
-                  "japanese-generation-test.el" "schemes-test.el"))
+                  "japanese-generation-test.el" "schemes-test.el" "wime-speech-test.el"))
     (load (expand-file-name file directory) nil t)))
 
 (ert-run-tests-batch-and-exit)

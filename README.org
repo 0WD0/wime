@@ -166,6 +166,27 @@ worker 在后台常驻，首次启动要加载模型。
 =--device cpu --cases 5 --threads 8= 在 CPU 上用 8 线程只测五句，=--beam= 可以重复；
 =--rescorer Qwen/Qwen3.5-0.8B-Base@dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68= 换小模型。
 
+* 语音输入
+
+=M-x wime-speech-dictate= 开始录音，再执行一次结束，
+识别结果插入到开始录音的位置。
+说话时每 2 秒在那里显示一次识别中的文字，结束后约 0.1 秒定稿。
+光标前的 1024 字作为上下文，帮助识别专名和同音字。
+=M-x wime-speech-cancel= 放弃这次录音。
+
+识别器是 Qwen3-ASR-1.7B，跑在单独的常驻进程里，用同一个 Python 环境；
+第一次录音要先加载模型。
+录音用 =pw-record=，=wime-speech-target= 可以指定 PipeWire 音源。
+
+#+begin_src sh
+"$D/python/bin/hf" download Qwen/Qwen3-ASR-1.7B-hf \
+    --revision bcd2b5b7f32b480ab5790554cfa8347f246a14f3 \
+    --local-dir "$D/asr/Qwen3-ASR-1.7B-hf"
+#+end_src
+
+2 秒一块的流式和整句识别一样准，更短的块会锁死早期错误，
+见 =ai/wime/datasets/artifacts/speech-qwen-streaming-v1=。
+
 * 工作方式
 
 打字时，wime 在词库上做词格搜索：
