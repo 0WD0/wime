@@ -291,16 +291,28 @@ of truth.  Widen only for display; confirmation still respects narrowing."
     ;; All outstanding responses refer to the previous buffer contents.
     (when (wime-edit--active-p) (wime--reset))))
 
+(defun wime-edit--decorations-touch-p (start end)
+  "Return non-nil when a reading decoration meets START..END or has evaporated."
+  (cl-flet ((touch-p (overlay)
+              (or (null (overlay-buffer overlay))
+                  (and (<= (overlay-start overlay) end)
+                       (<= start (overlay-end overlay))))))
+    (or (cl-some #'touch-p wime-edit--pending-decorations)
+        (cl-some #'touch-p wime-edit--aux-decorations))))
+
 (defun wime-edit--after-change (start end _old-length)
   (unless wime-edit--internal
     (setq wime-edit--undoing undo-in-progress)
     ;; Undo restores exact reading properties.  Other inserted/replaced text,
     ;; including yanked text, is literal and cannot acquire a stale reading.
-    (unless undo-in-progress
-      (let ((wime-edit--internal t))
-        (with-silent-modifications
-          (remove-text-properties start end '(wime-edit-unit nil)))))
-    (wime-edit--refresh-pending-decorations)))
+    ;; Rebuilding scans the whole buffer, so only do it when readings or their
+    ;; decorations changed; generated text elsewhere must stay cheap.
+    (when (or undo-in-progress
+              (let ((wime-edit--internal t))
+                (with-silent-modifications
+                  (remove-text-properties start end '(wime-edit-unit nil))))
+              (wime-edit--decorations-touch-p start end))
+      (wime-edit--refresh-pending-decorations))))
 
 (defun wime-edit--candidate-text ()
   "Return a full reading, with a one-character fallback for incomplete keys.
