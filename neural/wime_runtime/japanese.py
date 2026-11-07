@@ -180,40 +180,94 @@ def frequent(lexicon, top):
     return [(w, r) for r, ws in by_reading.items() for _, w in sorted(ws, reverse=True)[:top]]
 
 
-def segments(get_units, kana, text, constraints=None, max_read=None):
-    """TEXT as the fewest GET_UNITS covering KANA: [(kana count, written text)].
+def crosses(pins, start, end):
+    """Whether kana START..END cuts into a pinned (start, end, text) span
+    without being exactly that span."""
+    return any((start, end) != (a, b) and (start < a < end or start < b < end or a <= start < b)
+               for a, b, _ in pins)
 
-    Units match TEXT's characters NFKC-equal and segments keep TEXT's own
-    characters; None when the units cannot cover both without omissions."""
-    pieces = [unicodedata.normalize("NFKC", c) for c in text]
-    norm = "".join(pieces)
-    starts = dict(zip(itertools.accumulate(map(len, pieces), initial=0), range(len(text) + 1)))
 
-    @functools.lru_cache(maxsize=None)
-    def best(i, j):
-        if i == len(kana):
-            return () if j == len(norm) else None
-        found = None
-        for end in range(i + 1, min(len(kana), i + (max_read or len(kana))) + 1):
-            units = [u for u, _ in (get_units(kana[i:end]) or ())]
-            if end == i + 1 and not is_kana(kana[i]):
-                units.append(kana[i])
+class Alignment:
+    """Ways GET_UNITS cover KANA and TEXT together: units match TEXT's
+    characters NFKC-equal, and each pinned (start, end, text) span of KANA is
+    one unit written exactly so, whatever CONSTRAINTS say."""
+
+    def __init__(self, get_units, kana, text, constraints=None, max_read=None, pins=()):
+        pieces = [unicodedata.normalize("NFKC", c) for c in text]
+        self.kana, self.text, self.norm = kana, text, "".join(pieces)
+        # Offsets in the normalized text that fall between TEXT's characters.
+        self.starts = dict(zip(itertools.accumulate(map(len, pieces), initial=0), range(len(text) + 1)))
+        self.get_units, self.constraints, self.pins = get_units, constraints, tuple(pins)
+        self.max_read = max_read or len(kana)
+        self.best = functools.lru_cache(maxsize=None)(self._best)
+
+    def steps(self, i, j):
+        """(END, K) states one unit from kana I and normalized offset J."""
+        kana = self.kana
+        for end in range(i + 1, min(len(kana), i + self.max_read) + 1):
+            pinned = [t for a, b, t in self.pins if (a, b) == (i, end)]
+            if pinned:
+                units = pinned
+            elif crosses(self.pins, i, end):
+                continue
+            else:
+                units = [u for u, _ in (self.get_units(kana[i:end]) or ())]
+                if end == i + 1 and not is_kana(kana[i]):
+                    units.append(kana[i])
+                if self.constraints:
+                    pattern = span_pattern(kana[i:end], self.constraints[i:end])
+                    units = [u for u in units if pattern.fullmatch(u)]
             for u in units:
-                if constraints and not span_pattern(kana[i:end], constraints[i:end]).fullmatch(u):
-                    continue
                 n = unicodedata.normalize("NFKC", u)
                 k = j + len(n)
-                if n and norm.startswith(n, j) and k in starts:
-                    rest = best(end, k)
-                    if rest is not None and (found is None or len(rest) + 1 < len(found)):
-                        found = ((end - i, text[starts[j]:starts[k]]),) + rest
+                if n and self.norm.startswith(n, j) and k in self.starts:
+                    yield end, k
+
+    def _best(self, i, j):
+        """The fewest-unit rest from (I, J) as (kana count, normalized offset) pairs, or None."""
+        if i == len(self.kana):
+            return () if j == len(self.norm) else None
+        found = None
+        for end, k in self.steps(i, j):
+            rest = self.best(end, k)
+            if rest is not None and (found is None or len(rest) + 1 < len(found)):
+                found = ((end, k),) + rest
         return found
-    return best(0, 0)
+
+    def segments(self):
+        """The fewest units as (kana count, written text) pairs, or None."""
+        path = self.best(0, 0)
+        if path is None:
+            return None
+        result, i, j = [], 0, 0
+        for end, k in path:
+            result.append((end - i, self.text[self.starts[j]:self.starts[k]]))
+            i, j = end, k
+        return tuple(result)
+
+    def cuts(self):
+        """Every (kana, character) offset some full alignment passes, ends excluded."""
+        seen, frontier = {(0, 0)}, [(0, 0)]
+        while frontier:
+            i, j = frontier.pop()
+            for state in self.steps(i, j):
+                if state not in seen and self.best(*state) is not None:
+                    seen.add(state)
+                    frontier.append(state)
+        ends = {(0, 0), (len(self.kana), len(self.norm))}
+        return sorted((i, self.starts[j]) for i, j in seen - ends)
 
 
-def spells(get_units, kana, text, constraints=None, max_read=None):
+def segments(get_units, kana, text, constraints=None, max_read=None, pins=()):
+    """TEXT as the fewest GET_UNITS covering KANA: [(kana count, written text)],
+    segments keeping TEXT's own characters; None when the units cannot cover
+    both without omissions."""
+    return Alignment(get_units, kana, text, constraints, max_read, pins).segments()
+
+
+def spells(get_units, kana, text, constraints=None, max_read=None, pins=()):
     """Whether GET_UNITS can cover KANA and TEXT (NFKC-equal), without omissions."""
-    return segments(get_units, kana, text, constraints, max_read) is not None
+    return Alignment(get_units, kana, text, constraints, max_read, pins).best(0, 0) is not None
 
 
 def complete_dictionary(index, tokenizer, writings):
@@ -359,13 +413,12 @@ class Table:
     def literal(self, c):
         return [(c, tuple(self.tokenizer(c)["input_ids"]))]
 
-    def spells(self, kana, text, constraints=None):
-        """Whether decoding could write KANA as TEXT (NFKC-equal), under CONSTRAINTS."""
-        return spells(self.get, kana, text, constraints, self.max_read)
+    def spells(self, kana, text, constraints=None, pins=()):
+        """Whether decoding could write KANA as TEXT (NFKC-equal), under CONSTRAINTS and PINS."""
+        return spells(self.get, kana, text, constraints, self.max_read, pins)
 
-    def segments(self, kana, text):
-        """TEXT's units over KANA, as `segments' gives them."""
-        return segments(self.get, kana, text, max_read=self.max_read)
+    def alignment(self, kana, text, pins=()):
+        return Alignment(self.get, kana, text, max_read=self.max_read, pins=pins)
 
 
 # --- zenz --------------------------------------------------------------------
@@ -489,27 +542,28 @@ class Decoder:
         model = self.kana_model
         return model.score(model.prompt(context, kana, max(map(len, texts))), texts)
 
-    def decode(self, context, kana, pending=(), shift=None, explicit=False, pending_shift=False):
+    def decode(self, context, kana, pending=(), shift=None, explicit=False, pending_shift=False, pins=()):
         """Best readings of KANA as [(text, score)]. PENDING lists the kana the
         still-pending keys can start; the last kana is then provisional. With
         EXPLICIT, SHIFT ('1'/'0' per kana, PENDING_SHIFT for the provisional
-        one) says which kana to convert and which stay hiragana."""
+        one) says which kana to convert and which stay hiragana.  PINS
+        (start, end, text) write those kana spans as chosen."""
         if self.session is None or self.session.context != context:
             self.session = Session(self, context)
         constraints = (tuple("c" if f == "1" else "k" for f in (shift or "0" * len(kana)))
                        + ("c" if pending_shift else "k",) if explicit else None)
         try:
-            ranked = self.session.decode(kana, tuple(sorted(set(pending))), constraints)
+            ranked = self.session.decode(kana, tuple(sorted(set(pending))), constraints, tuple(pins))
         except ValueError:
             self.session = None
             return []
         if self.zenz is None or pending or not ranked:
             return ranked
-        return self.rerank(context, kana, [t for t, _ in ranked], constraints and constraints[:len(kana)])
+        return self.rerank(context, kana, [t for t, _ in ranked], constraints and constraints[:len(kana)], pins)
 
-    def rerank(self, context, kana, texts, constraints):
+    def rerank(self, context, kana, texts, constraints, pins=()):
         texts = list(dict.fromkeys(texts + [t for t in self.zenz.generate(context, kana)
-                                            if t and self.table.spells(kana, t, constraints)]))
+                                            if t and self.table.spells(kana, t, constraints, pins)]))
         z = self.zenz.score(context, kana, texts)
         q = self.lm_tails(self.session.lm, [()] * len(texts),
                           [self.table.tokenizer(t)["input_ids"] for t in texts])
@@ -521,7 +575,7 @@ class Session:
         self.decoder, self.context = decoder, context
         self.kana, self.kept = "", [[Hypothesis("", (), 0.0, 0.0)]]
         self.memo, self.tails = {}, {}
-        self.constraints = None
+        self.constraints, self.pins = None, ()
         self.lm = decoder.lm_context(context)
 
     def rank(self, h):
@@ -555,6 +609,12 @@ class Session:
             if self.constraints:
                 pattern = span_pattern(kana[start:end], self.constraints[start:end])
                 units = [u for u in units if pattern.fullmatch(u[0])]
+            # A pinned span is one unit written as chosen; nothing cuts into it.
+            pinned = [t for a, b, t in self.pins if (a, b) == (start, end)]
+            if pinned:
+                units = table.literal(pinned[0])
+            elif crosses(self.pins, start, end):
+                units = []
             if units:
                 first = len(hypotheses)
                 hypotheses += self.kept[start]
@@ -594,10 +654,14 @@ class Session:
                 best[text] = h
         return sorted(best.values(), key=self.rank, reverse=True)[:decoder.beam]
 
-    def decode(self, kana, pending, constraints):
+    def decode(self, kana, pending, constraints, pins=()):
         common = 0
         while common < min(len(kana), len(self.kana)) and kana[common] == self.kana[common]:
             common += 1
+        if pins != self.pins:
+            # Frontiers before the first changed pin stay valid.
+            common = min([common] + [a for a, _, _ in set(pins) ^ set(self.pins)])
+            self.pins = pins
         if constraints != self.constraints:
             # Frontiers before the first changed constraint stay valid.
             old = self.constraints or (None,) * len(self.kana)

@@ -65,7 +65,15 @@ def validate(request):
                 or not isinstance(shift, str) or set(shift) - set("01")
                 or (shift and len(shift) != len(request["kana"]))
                 or type(request.get("explicit", False)) is not bool
-                or type(request.get("pending_shift", False)) is not bool):
+                or type(request.get("pending_shift", False)) is not bool
+                or not isinstance(request.get("pins", []), list)):
+            raise ValueError("invalid request")
+        spans = sorted(request.get("pins", []), key=lambda pin: pin[:1])
+        for pin in spans:
+            if (not isinstance(pin, list) or len(pin) != 3 or type(pin[0]) is not int or type(pin[1]) is not int
+                    or not 0 <= pin[0] < pin[1] <= len(request["kana"]) or not isinstance(pin[2], str) or not pin[2]):
+                raise ValueError("invalid request")
+        if any(a[1] > b[0] for a, b in zip(spans, spans[1:])):
             raise ValueError("invalid request")
 
 
@@ -75,11 +83,16 @@ def respond(evaluator, request, decoder=None, japanese=None):
     result = dict(id=request["id"], elapsed_ms=0.0)
     if request.get("operation") == "japanese":
         # Each reading's segments [kana count, text] let the editor keep the
-        # kana of every written segment; null for a provisional last kana.
+        # kana of every written segment, and its cuts [kana, character] say
+        # where it can be compared with the others; null for a provisional
+        # last kana.
+        pins = tuple(tuple(pin) for pin in request.get("pins", []))
         result["candidates"] = [] if japanese is None else [
-            [text, score, japanese.table.segments(request["kana"], text)] for text, score in japanese.decode(
+            [text, score, alignment.segments(), alignment.cuts() if alignment.segments() else None]
+            for text, score in japanese.decode(
                 request["context"], request["kana"], request.get("pending", []), request.get("shift"),
-                request.get("explicit", False), request.get("pending_shift", False))]
+                request.get("explicit", False), request.get("pending_shift", False), pins)
+            for alignment in [japanese.table.alignment(request["kana"], text, pins)]]
         result["elapsed_ms"] = 1000 * (time.perf_counter() - start)
         return result
     if request.get("operation") == "decode":
