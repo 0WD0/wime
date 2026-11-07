@@ -510,6 +510,9 @@
           (with-temp-file (expand-file-name "db" first) (insert "readings\n"))
           (dolist (file '("code/pkg/worker.py" "db"))
             (add-name-to-file (expand-file-name file first) (expand-file-name file second)))
+          ;; Empty files are created per checkout, not linked.
+          (dolist (snapshot (list first second))
+            (with-temp-file (expand-file-name "code/pkg/__init__.py" snapshot)))
           (should (equal (funcall socket first) (funcall socket second)))
           ;; Bytecode the worker writes does not change its identity.
           (make-directory (expand-file-name "code/pkg/__pycache__" second))

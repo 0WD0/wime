@@ -318,6 +318,8 @@ hardlink the same files then share one worker, whatever their paths."
                      (lambda (directory)
                        (not (equal (file-name-nondirectory directory) "__pycache__"))))
                     #'string<)))
+     ;; OSTree creates empty files afresh in each checkout instead of linking them.
+     ((zerop (file-attribute-size attributes)) 'empty)
      (t (list (file-attribute-device-number attributes)
               (file-attribute-inode-number attributes)
               (file-attribute-size attributes)
