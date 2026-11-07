@@ -301,11 +301,38 @@ elsewhere: the next decode reconnects.  Otherwise decoding fails."
       (file-name-as-directory (expand-file-name wime-neural-directory))
     temporary-file-directory))
 
+(defun wime-neural--identity (value)
+  "VALUE, with an existing file named by it replaced by the file's identity.
+A file is its device, inode, size and modification time; a directory is
+its files', without __pycache__, which the worker writes.  Snapshots that
+hardlink the same files then share one worker, whatever their paths."
+  (let ((attributes (and (stringp value) (file-name-absolute-p value)
+                         (file-attributes value))))
+    (cond
+     ((null attributes) value)
+     ((eq (file-attribute-type attributes) t)
+      (mapcar (lambda (file)
+                (cons (file-relative-name file value) (wime-neural--identity file)))
+              (sort (directory-files-recursively
+                     value "" nil
+                     (lambda (directory)
+                       (not (equal (file-name-nondirectory directory) "__pycache__"))))
+                    #'string<)))
+     (t (list (file-attribute-device-number attributes)
+              (file-attribute-inode-number attributes)
+              (file-attribute-size attributes)
+              (file-attribute-modification-time attributes))))))
+
 (defun wime-neural--socket (command)
   "Socket of the shared worker running COMMAND in `wime-neural--directory'."
   (expand-file-name
    (format "wime-%s.sock"
-           (substring (secure-hash 'sha1 (prin1-to-string (list (wime-neural--directory) command))) 0 16))
+           (substring (secure-hash 'sha1 (prin1-to-string
+                                          (cons (if wime-neural-directory
+                                                    (wime-neural--identity (wime-neural--directory))
+                                                  (wime-neural--directory))
+                                                (mapcar #'wime-neural--identity command))))
+                      0 16))
    (expand-file-name "wime" (or (getenv "XDG_RUNTIME_DIR") temporary-file-directory))))
 
 (defun wime-neural--make-process (command &rest properties)

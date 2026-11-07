@@ -495,6 +495,32 @@
     (should-not wime-neural-rescorer)
     (should (eq (plist-get (wime-checkpoint-profile) :rescorer) :null))))
 
+(ert-deftest wime-neural-snapshots-sharing-files-share-a-worker ()
+  (let* ((root (make-temp-file "wime-socket-" t))
+         (first (expand-file-name "a/" root))
+         (second (expand-file-name "b/" root))
+         (socket (lambda (snapshot)
+                   (let ((wime-neural-directory (expand-file-name "code" snapshot)))
+                     (wime-neural--socket (list "python" (expand-file-name "db" snapshot)))))))
+    (unwind-protect
+        (progn
+          (make-directory (expand-file-name "code/pkg" first) t)
+          (make-directory (expand-file-name "code/pkg" second) t)
+          (with-temp-file (expand-file-name "code/pkg/worker.py" first) (insert "x = 1\n"))
+          (with-temp-file (expand-file-name "db" first) (insert "readings\n"))
+          (dolist (file '("code/pkg/worker.py" "db"))
+            (add-name-to-file (expand-file-name file first) (expand-file-name file second)))
+          (should (equal (funcall socket first) (funcall socket second)))
+          ;; Bytecode the worker writes does not change its identity.
+          (make-directory (expand-file-name "code/pkg/__pycache__" second))
+          (with-temp-file (expand-file-name "code/pkg/__pycache__/worker.pyc" second) (insert "pyc"))
+          (should (equal (funcall socket first) (funcall socket second)))
+          ;; New contents under the same path need their own worker.
+          (delete-file (expand-file-name "db" second))
+          (with-temp-file (expand-file-name "db" second) (insert "readings\n"))
+          (should-not (equal (funcall socket first) (funcall socket second))))
+      (delete-directory root t))))
+
 (ert-deftest wime-neural-rescorer-weight-follows-the-model ()
   (let ((wime-neural-rescorer-weight nil))
     (let ((wime-neural-rescorer "/data/rescorers/Qwen3.5-9B-Base/"))
