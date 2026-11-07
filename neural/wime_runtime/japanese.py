@@ -461,31 +461,11 @@ class Decoder:
         return self.rescorer.tokenizer(context if any(is_kana(c) or is_kanji(c) for c in context)
                                        else NEUTRAL + context)["input_ids"]
 
-    @torch.inference_mode()
     def lm_next(self, context, sequences):
-        model = self.rescorer.model
-        ids = torch.full((len(sequences), len(context) + max(map(len, sequences))), self.rescorer.pad)
-        for i, s in enumerate(sequences):
-            ids[i, :len(context) + len(s)] = torch.tensor(context + list(s))
-        hidden = model.model(input_ids=ids.to(self.device)).last_hidden_state
-        last = torch.tensor([len(context) + len(s) - 1 for s in sequences], device=self.device)
-        return model.lm_head(hidden[torch.arange(len(sequences), device=self.device), last]).float().log_softmax(-1)
+        return self.rescorer.next(context, sequences)
 
-    @torch.inference_mode()
     def lm_tails(self, context, prefixes, tails):
-        model, sequences = self.rescorer.model, [list(p) + list(t) for p, t in zip(prefixes, tails)]
-        ids = torch.full((len(sequences), len(context) + max(map(len, sequences))), self.rescorer.pad)
-        for i, s in enumerate(sequences):
-            ids[i, :len(context) + len(s)] = torch.tensor(context + s)
-        hidden = model.model(input_ids=ids.to(self.device)).last_hidden_state
-        rows, cols, targets = [], [], []
-        for i, (p, t) in enumerate(zip(prefixes, tails)):
-            for j, token in enumerate(t):
-                rows.append(i), cols.append(len(context) + len(p) - 1 + j), targets.append(token)
-        rows = torch.tensor(rows, device=self.device)
-        picked = model.lm_head(hidden[rows, torch.tensor(cols, device=self.device)]).float().log_softmax(-1)
-        picked = picked[torch.arange(len(targets), device=self.device), torch.tensor(targets, device=self.device)]
-        return torch.zeros(len(tails), device=self.device).index_add_(0, rows, picked).tolist()
+        return self.rescorer.tails(context, prefixes, tails)
 
     def model_score(self, context, kana, texts):
         model = self.kana_model
