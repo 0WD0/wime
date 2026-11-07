@@ -15,7 +15,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cuda = ["torch==2.11.0"]
+# flash-linear-attention: Triton kernels for Qwen3.5's linear attention;
+# without them transformers falls back to reference PyTorch loops.
+cuda = ["torch==2.11.0", "flash-linear-attention==0.6.0"]
 rocm = ["torch==2.11.0", "triton-rocm; sys_platform == 'linux'"]
 xpu = ["torch==2.11.0", "triton-xpu; sys_platform == 'linux'"]
 mps = ["torch==2.11.0; sys_platform == 'darwin'"]
