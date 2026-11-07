@@ -77,17 +77,34 @@ With Shift held, ; (っ) arrives as :, and still types っ, marked."
   "Kana around point that decoding reconsiders together."
   :type 'natnum :group 'wime)
 
-(cl-defstruct (wime-japanese--segment (:constructor wime-japanese--make-segment (kana text)))
-  "Written TEXT of KANA, whose characters carry their Shift marks."
-  kana text)
+(defcustom wime-japanese-confidence-temperature 3.0
+  "Temperature turning whole-reading scores into probabilities for the span view.
+The scale of `wime-confidence-temperature', not yet calibrated for Japanese:
+at 1.0 the top reading's typical lead of several nats leaves nothing uncertain."
+  :type 'number :group 'wime)
+
+(cl-defstruct (wime-japanese--segment (:constructor wime-japanese--make-segment (kana text &optional pinned)))
+  "Written TEXT of KANA, whose characters carry their Shift marks.  A PINNED
+segment was chosen: decoding keeps its text."
+  kana text pinned)
+
+(cl-defstruct (wime-japanese--choice (:constructor wime-japanese--make-choice (text segments &optional cuts score)))
+  "A reading of the window: TEXT as (KANA-COUNT . TEXT) SEGMENTS.  A decoded
+one has a SCORE and CUTS, an alist from kana offsets to the character
+offsets some alignment passes there, both ends included."
+  text segments cuts score)
 
 ;; Text typed next to a segment is not part of it.
 (add-to-list 'text-property-default-nonsticky '(wime-japanese-segment . t))
 
 (defvar-local wime-japanese--pending "" "Keys at point that spell no kana yet.")
 (defvar-local wime-japanese--choices nil
-  "Readings of the window at point, decoded ones first: (TEXT . SEGMENTS),
-each segment a (KANA-COUNT . TEXT) pair.")
+  "Readings of the window at point, decoded ones first.")
+(defvar-local wime-japanese--span-choices nil
+  "Numbered span alternatives on display: (START END TEXT) in window kana.")
+(defvar-local wime-japanese--list-view nil "Non-nil shows whole readings instead of spans.")
+(defvar-local wime-japanese--columns nil "Overlays showing span alternatives.")
+(defvar-local wime-japanese--layout nil "Window layout the span alternatives were drawn for.")
 (defvar-local wime-japanese--candidates nil "Texts of `wime-japanese--choices'.")
 (defvar-local wime-japanese--generation 0 "Counts edits; replies for older text are stale.")
 (defvar-local wime-japanese--point nil "Point after the last conversion step.")
@@ -285,17 +302,22 @@ kana before point, then after it.  A segment holding point counts as before it."
   "A segment writing KANA as typed, until decoding rewrites it."
   (wime-japanese--make-segment kana (substring-no-properties kana)))
 
-(defun wime-japanese--write (window segments)
+(defun wime-japanese--write (window segments &optional pins)
   "Write SEGMENTS, (KANA-COUNT . TEXT) pairs, over WINDOW's kana.
+A segment matching one of PINS, (START END TEXT) in window kana, is pinned.
 Segments that stay the same keep their text; point keeps its kana position."
   (let* ((kana (wime-japanese--kana window)) (cursor (wime-japanese--cursor window))
          (start (car (car window))) (k 0)
-         (new (mapcar (lambda (s) (prog1 (wime-japanese--make-segment (substring kana k (+ k (car s))) (cdr s))
-                                    (cl-incf k (car s))))
+         (new (mapcar (lambda (s)
+                        (prog1 (wime-japanese--make-segment
+                                (substring kana k (+ k (car s))) (cdr s)
+                                (and (member (list k (+ k (car s)) (cdr s)) pins) t))
+                          (cl-incf k (car s))))
                       segments))
          (old (mapcar #'caddr window))
          (same (lambda (a b) (and (equal (wime-japanese--segment-text a) (wime-japanese--segment-text b))
-                                  (equal (wime-japanese--segment-kana a) (wime-japanese--segment-kana b)))))
+                                  (equal (wime-japanese--segment-kana a) (wime-japanese--segment-kana b))
+                                  (eq (wime-japanese--segment-pinned a) (wime-japanese--segment-pinned b)))))
          (prefix (cl-loop for a in old for b in new while (funcall same a b) count t))
          (suffix (cl-loop for a in (reverse (nthcdr prefix old)) for b in (reverse (nthcdr prefix new))
                           while (funcall same a b) count t)))
@@ -309,6 +331,15 @@ Segments that stay the same keep their text; point keeps its kana position."
                do (cl-incf position (length (wime-japanese--segment-text segment))))
       (goto-char position))))
 
+(defun wime-japanese--pins (window)
+  "WINDOW's pinned segments as (START END TEXT) in its kana."
+  (let ((k 0) pins)
+    (pcase-dolist (`(,_ ,_ ,segment) window)
+      (let ((n (length (wime-japanese--segment-kana segment))))
+        (when (wime-japanese--segment-pinned segment)
+          (push (list k (+ k n) (wime-japanese--segment-text segment)) pins))
+        (cl-incf k n)))
+    (nreverse pins)))
 (defun wime-japanese--after-change (start end _length)
   "Turn segments an ordinary edit changed into ordinary text."
   (unless wime-japanese--internal
@@ -357,35 +388,120 @@ Segments that stay the same keep their text; point keeps its kana position."
               (when (get-text-property i 'wime-japanese-shift kana)
                 (mark (+ from i) (+ from i 1) 'wime-japanese-shift-face 3)))))))))
 
+(defun wime-japanese--spans-p ()
+  "Whether decoded readings show as alternatives under uncertain spans."
+  (and (eq wime-candidate-style 'spans) (not wime-japanese--list-view) wime-japanese--choices
+       (wime-japanese--choice-score (car wime-japanese--choices))))
+
+(defun wime-japanese--differences (top other)
+  "Kana spans (START . END) where OTHER's text differs from TOP's, between
+kana offsets where both readings can be cut."
+  (let* ((a (wime-japanese--choice-cuts top)) (b (wime-japanese--choice-cuts other))
+         (common (sort (seq-filter (lambda (i) (assq i b)) (mapcar #'car a)) #'<)))
+    (cl-loop for (i j) on common while j
+             unless (equal (substring (wime-japanese--choice-text top) (alist-get i a) (alist-get j a))
+                           (substring (wime-japanese--choice-text other) (alist-get i b) (alist-get j b)))
+             collect (cons i j))))
+
+(defun wime-japanese--uncertain-spans ()
+  "(START END ALTERNATIVES) kana spans the decoded readings leave uncertain.
+Scores form a posterior; kana below `wime-confidence-threshold' of agreeing
+mass are uncertain, and a run of them widens to every disagreeing reading's
+difference it touches.  ALTERNATIVES are other texts there, likeliest first."
+  (let* ((decoded (seq-filter #'wime-japanese--choice-score wime-japanese--choices))
+         (top (car decoded))
+         (best (wime-japanese--choice-score top))
+         (others (mapcar (lambda (c)
+                           (list c (exp (/ (- (wime-japanese--choice-score c) best)
+                                           wime-japanese-confidence-temperature))
+                                 (wime-japanese--differences top c)))
+                         (cdr decoded)))
+         (total (apply #'+ 1.0 (mapcar #'cadr others)))
+         (n (car (car (last (wime-japanese--choice-cuts top)))))
+         (covers (lambda (diffs k) (seq-some (lambda (d) (and (<= (car d) k) (< k (cdr d)))) diffs)))
+         (sure (lambda (k)
+                 (>= (/ (- total (cl-loop for (_ w diffs) in others when (funcall covers diffs k) sum w))
+                        total)
+                     wime-confidence-threshold)))
+         (k 0) spans)
+    (while (< k n)
+      (if (funcall sure k)
+          (cl-incf k)
+        (let ((start k) (end (1+ k)) (wider t))
+          (while (and (< end n) (not (funcall sure end))) (cl-incf end))
+          (while wider
+            (setq wider nil)
+            (pcase-dolist (`(,_ ,_ ,diffs) others)
+              (pcase-dolist (`(,a . ,b) diffs)
+                (when (and (< a end) (< start b) (or (< a start) (> b end)))
+                  (setq start (min start a) end (max end b) wider t)))))
+          (let ((shown (substring (wime-japanese--choice-text top)
+                                  (alist-get start (wime-japanese--choice-cuts top))
+                                  (alist-get end (wime-japanese--choice-cuts top))))
+                alternatives)
+            (pcase-dolist (`(,c ,_ ,_) others)
+              (let* ((cuts (wime-japanese--choice-cuts c))
+                     (part (and (assq start cuts) (assq end cuts)
+                                (substring (wime-japanese--choice-text c)
+                                           (alist-get start cuts) (alist-get end cuts)))))
+                (when (and part (not (equal part shown)) (not (member part alternatives)))
+                  (push part alternatives))))
+            (when alternatives
+              (push (list start end (seq-take (nreverse alternatives) wime-candidates-max)) spans)))
+          (setq k end))))
+    (nreverse spans)))
+
+(defun wime-japanese--show-spans (window)
+  "Stack numbered alternatives under WINDOW's uncertain spans."
+  (let* ((top (car wime-japanese--choices)) (cuts (wime-japanese--choice-cuts top))
+         (start (car (car window))) (label 0) groups choices)
+    (pcase-dolist (`(,from ,to ,alternatives) (wime-japanese--uncertain-spans))
+      (let (options)
+        (dolist (alternative alternatives)
+          (when (< label 10)
+            (cl-incf label)
+            (push (cons (% label 10) alternative) options)
+            (push (list from to alternative) choices)))
+        (when options
+          (push (list (+ start (alist-get from cuts)) (+ start (alist-get to cuts)) (nreverse options))
+                groups))))
+    (setq wime-japanese--span-choices (nreverse choices)
+          wime-japanese--columns (wime-edit--show-columns (nreverse groups))
+          wime-japanese--layout (wime-edit--layout-signature))))
+
 (defun wime-japanese--display ()
-  "Show pending keys and candidates at point, and mark unconfirmed text."
+  "Show pending keys and candidates, and mark unconfirmed text."
   (when (overlayp wime-japanese--overlay) (delete-overlay wime-japanese--overlay))
-  (setq wime-japanese--overlay nil)
+  (mapc #'delete-overlay wime-japanese--columns)
+  (setq wime-japanese--overlay nil wime-japanese--columns nil wime-japanese--span-choices nil)
   (when (wime-japanese--converting-p)
-    (setq wime-japanese--overlay (make-overlay (point) (point)))
-    (overlay-put wime-japanese--overlay 'after-string
-                 (concat (propertize wime-japanese--pending 'face 'wime-aux-face)
-                         (when (and wime-show-candidates wime-japanese--candidates)
-                           (concat " " (wime--format-list wime-japanese--candidates -1))))))
+    (let ((spans (wime-japanese--spans-p)) (window (wime-japanese--window)))
+      (setq wime-japanese--overlay (make-overlay (point) (point)))
+      (overlay-put wime-japanese--overlay 'after-string
+                   (concat (propertize wime-japanese--pending 'face 'wime-aux-face)
+                           ;; The span view shows alternatives under the text instead.
+                           (when (and wime-show-candidates wime-japanese--candidates
+                                      (or wime-japanese--list-view (not (eq wime-candidate-style 'spans))))
+                             (concat " " (wime--format-list wime-japanese--candidates -1)))))
+      (when (and spans window wime-show-candidates)
+        (wime-japanese--show-spans window))))
   (wime-japanese-active-mode (if (wime-japanese--converting-p) 1 -1))
   (wime-japanese--decorate))
-
 (defun wime-japanese--fallbacks (kana)
   "Hiragana and katakana of KANA as choices covering all of it; with Shift
 used, first the shifted kana in katakana and the rest in hiragana."
   (let ((plain (substring-no-properties kana)))
-    (mapcar (lambda (text) (list text (cons (length kana) text)))
+    (mapcar (lambda (text) (wime-japanese--make-choice text (list (cons (length kana) text))))
             (delete-dups
              (append (when (wime-japanese--explicit-p kana)
                        (list (concat (cl-loop for c across plain for i from 0
                                               collect (if (get-text-property i 'wime-japanese-shift kana)
                                                           (aref (japanese-katakana (string c)) 0) c)))))
                      (list plain (japanese-katakana plain)))))))
-
 (defun wime-japanese--offer (choices)
-  (setq wime-japanese--choices (seq-take choices wime-candidates-max)
-        wime-japanese--candidates (mapcar #'car wime-japanese--choices)))
-
+  "Offer CHOICES; every decoded one informs the span view, the first few are listed."
+  (setq wime-japanese--choices choices
+        wime-japanese--candidates (mapcar #'wime-japanese--choice-text (seq-take choices wime-candidates-max))))
 (defun wime-japanese--refresh ()
   "Offer the window's kana and ask the worker to decode them after a pause."
   (let ((window (wime-japanese--window)))
@@ -397,7 +513,7 @@ used, first the shifted kana in katakana and the rest in hiragana."
 (defun wime-japanese--reset ()
   "Stop converting, keeping unconfirmed text and its kana."
   (setq wime-japanese--pending "" wime-japanese--choices nil wime-japanese--candidates nil
-        wime-japanese--point nil)
+        wime-japanese--point nil wime-japanese--list-view nil)
   (wime-neural--reset)
   (wime-japanese--display))
 
@@ -415,7 +531,7 @@ used, first the shifted kana in katakana and the rest in hiragana."
                  :context (save-excursion
                             (goto-char start)
                             (concat (wime-neural--prefix) (wime--context-at-point wime-neural-context-limit)))
-                 :method 'japanese :syllables (length kana))))
+                 :method 'japanese :syllables (length kana) :pins (wime-japanese--pins window))))
       (setq wime-neural--job job
             wime-neural--timer (run-with-timer wime-neural-delay nil #'wime-neural--enqueue job)))))
 
@@ -434,6 +550,7 @@ used, first the shifted kana in katakana and the rest in hiragana."
        :kana ,(substring-no-properties kana) :pending []
        :explicit ,(if (wime-japanese--explicit-p kana) t :false)
        :shift ,(wime-japanese--shift kana) :pending_shift :false
+       :pins ,(vconcat (mapcar #'vconcat (wime-neural--job-pins job)))
        :syllables ,(length kana) :candidates []))))
 
 (defun wime-japanese--segments (value count)
@@ -446,22 +563,35 @@ used, first the shifted kana in katakana and the rest in hiragana."
     (and (= (length segments) (length value)) (= (apply #'+ (mapcar #'car segments)) count)
          segments)))
 
+(defun wime-japanese--cuts (value count text)
+  "VALUE's [KANA CHARACTER] offsets as an alist from kana offsets, both ends
+added; nil when one is out of range.  The first offset of each kana wins."
+  (let ((cuts (cl-loop for pair across (if (vectorp value) value [])
+                       when (and (vectorp pair) (= (length pair) 2) (natnump (aref pair 0)) (natnump (aref pair 1))
+                                 (< 0 (aref pair 0) count) (<= (aref pair 1) (length text)))
+                       collect (cons (aref pair 0) (aref pair 1)))))
+    (and (vectorp value) (= (length cuts) (length value))
+         (append (list (cons 0 0)) (sort cuts (lambda (a b) (< (car a) (car b))))
+                 (list (cons count (length text)))))))
 (defun wime-japanese--apply (job response)
   "Write RESPONSE's best reading over the window, keeping the rest as choices."
   (let* ((kana (wime-neural--job-input job))
          (decoded (cl-loop for candidate across (or (alist-get 'candidates response) [])
-                           for segments = (and (vectorp candidate) (= (length candidate) 3)
-                                               (stringp (aref candidate 0))
-                                               (wime-japanese--segments (aref candidate 2) (length kana)))
-                           when (and segments (equal (apply #'concat (mapcar #'cdr segments)) (aref candidate 0)))
-                           collect (cons (aref candidate 0) segments))))
+                           for text = (and (vectorp candidate) (= (length candidate) 4)
+                                           (stringp (aref candidate 0)) (numberp (aref candidate 1))
+                                           (aref candidate 0))
+                           for segments = (and text (wime-japanese--segments (aref candidate 2) (length kana)))
+                           for cuts = (and segments (wime-japanese--cuts (aref candidate 3) (length kana) text))
+                           when (and cuts (equal (apply #'concat (mapcar #'cdr segments)) text))
+                           collect (wime-japanese--make-choice text segments cuts (aref candidate 1)))))
     (when decoded
-      (wime-japanese--write (wime-japanese--window) (cdar decoded))
-      (wime-japanese--offer (append decoded (seq-remove (lambda (c) (assoc (car c) decoded))
-                                                        (wime-japanese--fallbacks kana))))
+      (wime-japanese--write (wime-japanese--window) (wime-japanese--choice-segments (car decoded))
+                            (wime-neural--job-pins job))
+      (wime-japanese--offer
+       (append decoded (seq-remove (lambda (c) (member (wime-japanese--choice-text c) (mapcar #'wime-japanese--choice-text decoded)))
+                                   (wime-japanese--fallbacks kana))))
       (setq wime-japanese--point (point))
       (wime-japanese--display))))
-
 (defun wime-japanese--settle ()
   "Send a scheduled decode at once and wait for every outstanding one."
   (when-let* ((job wime-neural--job))
@@ -536,16 +666,68 @@ the keys left over."
   (wime-japanese--confirm))
 
 (defun wime-japanese-choose ()
-  "Confirm the candidate the digit of this C-digit key numbers."
+  "Choose what the digit of this C-digit key numbers.
+In the span view, pin that span's alternative and decode the rest again;
+otherwise confirm that whole reading."
   (interactive)
   (let* ((digit (event-basic-type last-command-event))
-         (choice (and (wime--digit-p digit) (nth (wime--digit-index digit) wime-japanese--choices)))
+         (index (and (wime--digit-p digit) (wime--digit-index digit)))
          (window (wime-japanese--window)))
-    (when (and choice window)
-      (wime-japanese--write window (cdr choice))
+    (cond
+     ((not (and index window)))
+     ((wime-japanese--spans-p)
+      (when-let* ((choice (nth index wime-japanese--span-choices)))
+        (apply #'wime-japanese--pin window choice)))
+     ((< index (length wime-japanese--candidates))
+      (wime-japanese--write window (wime-japanese--choice-segments (nth index wime-japanese--choices)))
       (goto-char (cadr (car (last (wime-japanese--window)))))
-      (wime-japanese--confirm))))
+      (wime-japanese--confirm)))))
 
+(defun wime-japanese--pin (window start end text)
+  "Pin WINDOW's kana START..END as TEXT, splitting the segments it cuts with
+the shown reading, and decode the rest again."
+  (let* ((top (car wime-japanese--choices)) (cuts (wime-japanese--choice-cuts top))
+         (slice (lambda (a b) (substring (wime-japanese--choice-text top) (alist-get a cuts) (alist-get b cuts))))
+         (k 0) pairs)
+    (pcase-dolist (`(,_ ,_ ,segment) window)
+      (let* ((a k) (b (+ k (length (wime-japanese--segment-kana segment)))))
+        (if (or (<= b start) (>= a end))
+            (push (cons (- b a) (wime-japanese--segment-text segment)) pairs)
+          (when (< a start) (push (cons (- start a) (funcall slice a start)) pairs))
+          (when (<= a start) (push (cons (- end start) text) pairs))
+          (when (> b end) (push (cons (- b end) (funcall slice end b)) pairs)))
+        (setq k b)))
+    (wime-japanese--write window (nreverse pairs)
+                          (cons (list start end text)
+                                (seq-remove (lambda (pin) (and (< (car pin) end) (< start (nth 1 pin))))
+                                            (wime-japanese--pins window))))
+    (wime-japanese--refresh)))
+
+(defun wime-japanese--rewrite (convert)
+  "Pin the segment before point as CONVERT writes its kana."
+  (wime-japanese--to-boundary)
+  (when-let* ((group (car (last (seq-filter (lambda (g) (< (car g) (point))) (wime-japanese--window))))))
+    (let* ((kana (wime-japanese--segment-kana (nth 2 group)))
+           (text (funcall convert (substring-no-properties kana))))
+      (wime-japanese--edit (car group) (cadr group) (list (wime-japanese--make-segment kana text t)))
+      (goto-char (+ (car group) (length text)))
+      (wime-japanese--refresh))))
+
+(defun wime-japanese-katakana ()
+  "Write the segment before point in katakana, and keep it so."
+  (interactive)
+  (wime-japanese--rewrite #'japanese-katakana))
+
+(defun wime-japanese-hiragana ()
+  "Write the segment before point in hiragana, and keep it so."
+  (interactive)
+  (wime-japanese--rewrite #'japanese-hiragana))
+
+(defun wime-japanese-toggle-candidate-list ()
+  "Switch between alternatives under uncertain spans and whole readings."
+  (interactive)
+  (setq wime-japanese--list-view (not wime-japanese--list-view))
+  (wime-japanese--display))
 (defun wime-japanese-delete-backward ()
   "Delete the last pending key, else the last kana before point."
   (interactive)
@@ -569,7 +751,7 @@ the keys left over."
     (pcase-dolist (`(,from ,to ,segment) (reverse (wime-japanese--run)))
       (let ((kana (wime-japanese--segment-kana segment)))
         (wime-japanese--edit from to (list (wime-japanese--make-segment
-                                            kana (car (car (wime-japanese--fallbacks kana))))))))
+                                            kana (wime-japanese--choice-text (car (wime-japanese--fallbacks kana))))))))
     (goto-char (if-let* ((run (wime-japanese--run))) (cadr (car (last run))) (point)))
     (insert rest))
   (wime-japanese--confirm))
@@ -597,11 +779,13 @@ the keys left over."
   (wime-japanese--reset))
 
 (defun wime-japanese--post-command ()
-  "Stop converting once point leaves the place conversion left it."
+  "Stop converting once point leaves the place conversion left it, and redraw
+span alternatives when the window layout changes."
   (when (and (wime-japanese--converting-p) (not (eql (point) wime-japanese--point)))
     (wime-japanese-pause))
-  (wime-japanese--decorate))
-
+  (if (and wime-japanese--columns (not (equal wime-japanese--layout (wime-edit--layout-signature))))
+      (wime-japanese--display)
+    (wime-japanese--decorate)))
 (defvar wime-japanese-active-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "DEL") #'wime-japanese-delete-backward)
@@ -609,6 +793,9 @@ the keys left over."
     (define-key map (kbd "RET") #'wime-japanese-commit-kana)
     (define-key map (kbd "<return>") #'wime-japanese-commit-kana)
     (define-key map (kbd "<escape>") #'wime-japanese-escape)
+    (define-key map (kbd "TAB") #'wime-japanese-toggle-candidate-list)
+    (define-key map (kbd "<f6>") #'wime-japanese-hiragana)
+    (define-key map (kbd "<f7>") #'wime-japanese-katakana)
     (dotimes (i 10)
       (define-key map (kbd (format "C-%d" i)) #'wime-japanese-choose))
     map)

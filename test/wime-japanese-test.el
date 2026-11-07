@@ -179,9 +179,9 @@ bound to the latest job instead of a timer."
       (should (equal (alist-get 'context request) "前"))
       (should-not (alist-get 'pending request)))
     (should (wime-neural--valid-p scheduled))
-    (wime-neural--apply scheduled '((id . 1) (candidates . [["日本" -1.0 [[3 "日本"]]]
-                                                             ["にほん" -2.0 [[2 "にほ"] [1 "ん"]]]
-                                                             ["偽" -3.0 [[2 "偽"]]]])))
+    (wime-neural--apply scheduled '((id . 1) (candidates . [["日本" -1.0 [[3 "日本"]] []]
+                                                             ["にほん" -2.0 [[2 "にほ"] [1 "ん"]] []]
+                                                             ["偽" -3.0 [[2 "偽"]] []]])))
     (should (equal (buffer-string) "前日本"))
     (should (= (point) (point-max)))
     (should (equal (wime-japanese-test--segments) '(("日本" . "にほん"))))
@@ -193,11 +193,70 @@ bound to the latest job instead of a timer."
       (should-not (wime-neural--valid-p previous)))
     (should (equal (buffer-string) "前日本ご"))
     (should (equal (alist-get 'kana (wime-japanese-test--request scheduled)) "にほんご"))
-    (wime-neural--apply scheduled '((id . 2) (candidates . [["日本語" -1.0 [[4 "日本語"]]]])))
+    (wime-neural--apply scheduled '((id . 2) (candidates . [["日本語" -1.0 [[4 "日本語"]] []]])))
     (should (equal (wime-japanese-test--segments) '(("日本語" . "にほんご"))))
     ;; Deleting takes the last kana of a written segment.
     (wime-japanese-delete-backward)
     (should (equal (wime-japanese-test--segments) '(("にほん" . "にほん"))))
+    (wime-japanese--reset)))
+
+(defmacro wime-japanese-test--spans (&rest body)
+  "Run BODY after decoding にほんごを with the span view: 日本語を leads
+and 日本後を, 二本語を follow, with weights that leave 語 and 日 uncertain."
+  (declare (indent 0))
+  `(wime-japanese-test--decoding
+     (let ((wime-candidate-style 'spans) (wime-confidence-threshold 0.9)
+           (wime-japanese-confidence-temperature 1.0))
+       (wime-japanese-test--type "nihlgowo")
+       (wime-neural--apply scheduled
+                           '((id . 1) (candidates . [["日本語を" -1.0 [[4 "日本語"] [1 "を"]] [[1 1] [3 2] [4 3]]]
+                                                     ["日本後を" -1.5 [[3 "日本"] [1 "後"] [1 "を"]] [[1 1] [3 2] [4 3]]]
+                                                     ["二本語を" -2.0 [[1 "二"] [2 "本"] [1 "語"] [1 "を"]] [[1 1] [3 2] [4 3]]]])))
+       ,@body)))
+
+(ert-deftest wime-japanese-span-view-numbers-alternatives-under-uncertain-spans ()
+  (wime-japanese-test--spans
+    (should (equal (buffer-string) "前日本語を"))
+    (should (equal (wime-japanese--uncertain-spans) '((0 1 ("二")) (3 4 ("後")))))
+    (should (equal wime-japanese--span-choices '((0 1 "二") (3 4 "後"))))
+    ;; The alternatives sit under their spans; the whole readings are not listed.
+    (should (seq-some (lambda (o) (string-match-p "1\\..*二\\|2\\..*後" (or (overlay-get o 'after-string) "")))
+                      wime-japanese--columns))
+    (should-not (string-match-p "日本後を" (overlay-get wime-japanese--overlay 'after-string)))
+    ;; TAB lists whole readings instead, and a digit then confirms one.
+    (wime-japanese-toggle-candidate-list)
+    (should-not wime-japanese--columns)
+    (should (string-match-p "2\\.日本後を" (overlay-get wime-japanese--overlay 'after-string)))
+    (wime-japanese-toggle-candidate-list)
+    (should wime-japanese--columns)
+    (wime-japanese--reset)))
+
+(ert-deftest wime-japanese-a-chosen-span-is-pinned-and-the-rest-decodes-again ()
+  (wime-japanese-test--spans
+    (let ((last-command-event ?\C-2))
+      (wime-japanese-choose))
+    ;; 語 is split off the 日本語 segment and pinned as 後.
+    (should (equal (buffer-string) "前日本後を"))
+    (should (equal (wime-japanese-test--segments) '(("日本" . "にほん") ("後" . "ご") ("を" . "を"))))
+    (should (= (point) (point-max)))
+    (let ((request (wime-japanese-test--request scheduled)))
+      (should (equal (alist-get 'pins request) '((3 4 "後")))))
+    (wime-neural--apply scheduled '((id . 2) (candidates . [["二本後を" -1.0 [[1 "二"] [2 "本"] [1 "後"] [1 "を"]] []]])))
+    (should (equal (buffer-string) "前二本後を"))
+    ;; The pin travels with its segment through later decodes.
+    (should (equal (wime-japanese--pins (wime-japanese--window)) '((3 4 "後"))))
+    (wime-japanese--reset)))
+
+(ert-deftest wime-japanese-f7-and-f6-pin-the-segment-before-point-as-kana ()
+  (wime-japanese-test--decoding
+    (wime-japanese-test--type "terebi")
+    (wime-neural--apply scheduled '((id . 1) (candidates . [["てれび" -1.0 [[3 "てれび"]] []]])))
+    (wime-japanese-katakana)
+    (should (equal (buffer-string) "前テレビ"))
+    (should (equal (wime-japanese--pins (wime-japanese--window)) '((0 3 "テレビ"))))
+    (should (equal (alist-get 'pins (wime-japanese-test--request scheduled)) '((0 3 "テレビ"))))
+    (wime-japanese-hiragana)
+    (should (equal (buffer-string) "前てれび"))
     (wime-japanese--reset)))
 
 (ert-deftest wime-japanese-replies-for-other-text-are-ignored ()
@@ -206,14 +265,14 @@ bound to the latest job instead of a timer."
     (let ((job scheduled))
       (wime-japanese-test--type "go")
       (should-not (wime-neural--valid-p job))
-      (wime-neural--apply job '((id . 1) (candidates . [["日本" -1.0 [[3 "日本"]]]])))
+      (wime-neural--apply job '((id . 1) (candidates . [["日本" -1.0 [[3 "日本"]] []]])))
       (should (equal (buffer-string) "前にほんご")))
     (wime-japanese--reset)))
 
 (ert-deftest wime-japanese-suspended-text-keeps-its-kana-and-typing-resumes-it ()
   (wime-japanese-test--decoding
     (wime-japanese-test--type "nihl")
-    (wime-neural--apply scheduled '((id . 1) (candidates . [["日本" -1.0 [[3 "日本"]]]])))
+    (wime-neural--apply scheduled '((id . 1) (candidates . [["日本" -1.0 [[3 "日本"]] []]])))
     (wime-japanese-pause)
     (should-not (wime-japanese--converting-p))
     (should (wime-japanese--uncommitted-p))
@@ -239,7 +298,7 @@ bound to the latest job instead of a timer."
   (wime-japanese-test--decoding
     (activate-input-method "wime-japanese")
     (wime-japanese-test--type "nihl")
-    (wime-neural--apply scheduled '((id . 1) (candidates . [["日本" -1.0 [[3 "日本"]]]])))
+    (wime-neural--apply scheduled '((id . 1) (candidates . [["日本" -1.0 [[3 "日本"]] []]])))
     (wime-japanese-pause)
     (delete-char -1)
     (should (equal (buffer-string) "前日"))
