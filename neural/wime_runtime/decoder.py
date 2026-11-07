@@ -279,7 +279,7 @@ class Session:
                     hypotheses += kept
                     for unit in units:
                         choices.append(unit), owners.append((first, len(hypotheses)))
-                        forced.append(all("pin" in self.constraints.get(start+i, ())[::2]
+                        forced.append(all({"pin", "aux"} & set(self.constraints.get(start+i, ())[::2])
                                           for i in range(len(unit[0]))))
         if not choices:
             return []
@@ -305,8 +305,9 @@ class Session:
             extra = m.masked_fill(~valid | ~rare | (m < RARE_FLOOR), -math.inf).topk(min(RARE, len(choices)), dim=1)
             for row, more, values in zip(picks, extra.indices.tolist(), extra.values.tolist()):
                 row.extend(c for c, v in zip(more, values) if v > -math.inf)
-        # A confirmed character is an input constraint. Its byte fallback
-        # must survive even when the model assigns it a tiny probability.
+        # A pinned character, or one a typed auxiliary code selects, is an
+        # input constraint. Its byte fallback must survive even when the
+        # model assigns it a tiny probability.
         for row, legal in zip(picks, valid.tolist()):
             row.extend(c for c, fixed in enumerate(forced) if fixed and legal[c] and c not in row)
         q, m = q.tolist(), m.tolist()
