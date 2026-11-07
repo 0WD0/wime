@@ -592,16 +592,16 @@ candidate row need not have the same height as a source line."
         (when (= (point) limit)
           (set-window-vscroll window 0 t))))))
 
-(defun wime-edit--show-corrections (text)
-  "Display correction columns underneath their source text."
-  (let ((groups (wime-edit--correction-groups text))
-        (windows (or (get-buffer-window-list (current-buffer) nil t) '(nil))))
+(defun wime-edit--show-columns (groups)
+  "Show GROUPS, (START END OPTIONS) over buffer positions, under their text.
+Mark each source span uncertain and stack its numbered OPTIONS below it in
+every window showing the buffer.  Return the overlays."
+  (let ((windows (or (get-buffer-window-list (current-buffer) nil t) '(nil))) overlays)
     (dolist (group groups)
-      (let ((overlay (make-overlay (+ wime-edit--start (wime-edit--offset (car group)))
-                                   (+ wime-edit--start 1 (wime-edit--offset (1- (nth 1 group)))))))
+      (let ((overlay (make-overlay (car group) (nth 1 group))))
         (overlay-put overlay 'face 'wime-uncertain-face)
         (overlay-put overlay 'priority 1)
-        (push overlay wime-edit--correction-decorations)))
+        (push overlay overlays)))
     (dolist (window windows)
       (let ((cursor-line
              (when (and (eq window (selected-window))
@@ -612,8 +612,7 @@ candidate row need not have the same height as a source line."
         ;; Measure every column before inserting any virtual lines.
         (dolist (group groups)
           (pcase-let* ((`(,anchor ,column ,soft)
-                        (wime-edit--correction-location
-                         (+ wime-edit--start (wime-edit--offset (car group))) window))
+                        (wime-edit--correction-location (car group) window))
                        (options (nth 2 group))
                        (width (apply #'max (mapcar (lambda (option)
                                                     (wime-edit--display-width
@@ -648,11 +647,23 @@ candidate row need not have the same height as a source line."
             (overlay-put overlay 'after-string
                          (concat (wime-edit--correction-rows (nth 2 line) window)
                                  (when (nth 1 line) "\n")))
-            (push overlay wime-edit--correction-decorations)))
+            (push overlay overlays)))
         (when (and cursor-line lines)
           (wime-edit--reserve-correction-space
-           window (apply #'max (mapcar #'car lines)) cursor-line)))))
-  (setq wime-edit--correction-layout (wime-edit--layout-signature)))
+           window (apply #'max (mapcar #'car lines)) cursor-line))))
+    overlays))
+
+(defun wime-edit--show-corrections (text)
+  "Display correction columns underneath their source text."
+  (setq wime-edit--correction-decorations
+        (append (wime-edit--show-columns
+                 (mapcar (lambda (group)
+                           (list (+ wime-edit--start (wime-edit--offset (car group)))
+                                 (+ wime-edit--start 1 (wime-edit--offset (1- (nth 1 group))))
+                                 (nth 2 group)))
+                         (wime-edit--correction-groups text)))
+                wime-edit--correction-decorations)
+        wime-edit--correction-layout (wime-edit--layout-signature)))
 
 (defun wime-edit--render ()
   "Publish a reading in the buffer and show non-textual conversion details."
