@@ -136,7 +136,7 @@ value.  Return cancellation that leaves the existing worker and input intact."
                    (let ((settings (wime-checkpoint--settings recipe)))
                      (cl-progv (mapcar #'car settings) (mapcar #'cdr settings)
                        (wime-neural--command wime-neural-model-file)))
-                   :name "wime-checkpoint-prewarm" :stderr " *wime-checkpoint-errors*"
+                   :name "wime-checkpoint-prewarm"
                    :sentinel (lambda (p _event)
                                (unless (process-live-p p) (fail "New GPU worker could not load checkpoint")))
                    :filter

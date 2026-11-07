@@ -99,8 +99,7 @@ The model directory and options are appended."
   (unless (process-live-p process)
     (when wime-speech--session
       (wime-speech--end wime-speech--session))
-    (message "wime speech worker %s (code %s); stderr: *wime-speech-errors*"
-             (process-status process) (process-exit-status process))))
+    (message "wime speech worker closed; log: %s" (process-get process 'wime-log))))
 
 (defun wime-speech--start ()
   "Return a running dictation worker, starting it if needed."
@@ -112,7 +111,7 @@ The model directory and options are appended."
            (append wime-speech-command
                    (list (expand-file-name wime-speech-model))
                    (and wime-speech-target (list "--target" wime-speech-target)))
-           :name "wime-speech" :stderr " *wime-speech-errors*"
+           :name "wime-speech"
            :filter #'wime-speech--filter :sentinel #'wime-speech--sentinel)))
   wime-speech--process)
 

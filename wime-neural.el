@@ -84,6 +84,10 @@ Traditional candidates remain usable during initialization.  Later requests
 use `wime-neural-timeout'."
   :type 'number :group 'wime)
 
+(defcustom wime-neural-idle-exit 600
+  "Seconds a shared worker stays loaded after its last Emacs disconnects."
+  :type 'number :group 'wime)
+
 (defcustom wime-neural-single-character t
   "Let the model rank single-character compositions too.
 When disabled, single-character input retains dictionary ranking."
@@ -256,10 +260,13 @@ QUIET suppresses the interactive message without losing the diagnostic."
         (when (wime--active-p) (wime--refresh))))))
 
 (defun wime-neural--sentinel (process _event)
-  "Handle PROCESS exiting without logging any typed text."
+  "Handle the shared worker closing PROCESS without logging any typed text.
+A worker that answered before and owes nothing was stopped or replaced from
+elsewhere: the next decode reconnects.  Otherwise decoding fails."
   (when (and (eq process wime-neural--process) (not (process-live-p process)))
-    (wime-neural--fail (format "worker %s (code %s); stderr: *wime-neural-errors*"
-                               (process-status process) (process-exit-status process)))))
+    (if (and (process-get process 'wime-initialized) (not wime-neural--busy))
+        (wime-neural--stop)
+      (wime-neural--fail (format "worker closed; log: %s" (process-get process 'wime-log))))))
 
 (defun wime-neural--command (model)
   "Worker command line for MODEL; the model stays the last argument."
@@ -278,13 +285,52 @@ QUIET suppresses the interactive message without losing the diagnostic."
                             (list "--japanese-zenz" (expand-file-name wime-japanese-zenz-directory)))))
           (list (expand-file-name model))))
 
+(defun wime-neural--directory ()
+  "The worker's working directory."
+  (if wime-neural-directory
+      (file-name-as-directory (expand-file-name wime-neural-directory))
+    temporary-file-directory))
+
+(defun wime-neural--socket (command)
+  "Socket of the shared worker running COMMAND in `wime-neural--directory'."
+  (expand-file-name
+   (format "wime-%s.sock"
+           (substring (secure-hash 'sha1 (prin1-to-string (list (wime-neural--directory) command))) 0 16))
+   (expand-file-name "wime" (or (getenv "XDG_RUNTIME_DIR") temporary-file-directory))))
+
 (defun wime-neural--make-process (command &rest properties)
-  "Start COMMAND in the configured runtime directory with PROPERTIES."
-  (let ((default-directory (if wime-neural-directory
-                               (file-name-as-directory (expand-file-name wime-neural-directory))
-                             temporary-file-directory)))
-    (apply #'make-process :command command :buffer nil :noquery t
-           :connection-type 'pipe :coding 'utf-8-unix properties)))
+  "Connect to the worker running COMMAND, starting it if needed.
+Every Emacs with the same command and `wime-neural-directory' shares one
+worker, and so one copy of its models, through wime_runtime.daemon, run by
+COMMAND's Python.  PROPERTIES go to `make-network-process'; the process's
+`wime-log' property names the file holding the worker's stderr."
+  (let* ((default-directory (wime-neural--directory))
+         (socket (wime-neural--socket command))
+         (connect (lambda ()
+                    (let ((process (apply #'make-network-process :family 'local :service socket
+                                          :noquery t :coding 'utf-8-unix properties)))
+                      (process-put process 'wime-log (concat socket ".log"))
+                      process))))
+    (condition-case nil
+        (funcall connect)
+      (file-error
+       (let ((status (apply #'call-process (car command) nil nil nil "-m" "wime_runtime.daemon"
+                            "--idle" (number-to-string wime-neural-idle-exit) socket "--" command)))
+         (unless (eql status 0)
+           (error "Worker daemon failed to start (%s)" status)))
+       (funcall connect)))))
+
+(defun wime-neural-stop-worker ()
+  "Stop the shared worker for every Emacs, freeing its GPU memory.
+Each Emacs starts it again at its next decode."
+  (interactive)
+  (condition-case nil
+      (let ((process (make-network-process
+                      :name "wime-neural-stop" :family 'local :noquery t
+                      :service (wime-neural--socket (wime-neural--command wime-neural-model-file)))))
+        (process-send-string process "{\"daemon\": \"stop\"}\n")
+        (delete-process process))
+    (file-error (message "No shared wime worker is running"))))
 
 (defun wime-neural--start ()
   "Return a running local worker or signal a startup error."
@@ -294,7 +340,7 @@ QUIET suppresses the interactive message without losing the diagnostic."
     (setq wime-neural--process
           (wime-neural--make-process
            (wime-neural--command wime-neural-model-file)
-           :name "wime-neural" :stderr " *wime-neural-errors*"
+           :name "wime-neural"
            :filter #'wime-neural--filter
            :sentinel #'wime-neural--sentinel)))
   wime-neural--process)

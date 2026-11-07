@@ -149,8 +149,12 @@ worker 自动使用找到的第一块 GPU。只在 NVIDIA 上测过。
 
 =neural= 打不出模型不认识的字。
 worker 在后台常驻，首次启动要加载模型。
+同样配置的 Emacs 共用一个 worker，模型只占一份显存；
+最后一个 Emacs 断开 10 分钟后它退出（=wime-neural-idle-exit=），
+=M-x wime-neural-stop-worker= 立即停掉它。
 它出错、超时或缺少文件时由词格转换（=hybrid= 缺少文件时不提示），
-=M-x wime-neural-restart= 重试。
+=M-x wime-neural-restart= 重试；worker 的报错在
+=$XDG_RUNTIME_DIR/wime/= 下的 =.log= 里。
 
 ** 跑基准
 
@@ -194,7 +198,9 @@ worker 在后台常驻，首次启动要加载模型。
 按双拼码查词，按词频、每词罚项和可选的 octagram 搭配分打分，
 辅助码和声调是硬约束。追加、退格时复用仍然有效的前缀。
 
-停键 40 ms 后，输入发给本地的 GPU worker（=wime_runtime.worker=）。
+停键 40 ms 后，输入经 Unix socket 发给本地的 GPU worker（=wime_runtime.worker=）。
+=wime_runtime.daemon= 让各个 Emacs 共用它：按启动命令和目录取 socket，
+没有就启动，把各连接的请求 id 改编号后转给同一个 worker。
 它逐字做 beam 搜索：音节模型（=neural/wime_runtime/transducer.py=）根据左文和
 每个音节的声母、韵母、声调给出汉字概率，加权上 Qwen 的概率；
 词库的读音、辅助码、声调和已选定的字是约束。
