@@ -74,8 +74,10 @@ def respond(evaluator, request, decoder=None, japanese=None):
     start = time.perf_counter()
     result = dict(id=request["id"], elapsed_ms=0.0)
     if request.get("operation") == "japanese":
+        # Each reading's segments [kana count, text] let the editor keep the
+        # kana of every written segment; null for a provisional last kana.
         result["candidates"] = [] if japanese is None else [
-            [text, score] for text, score in japanese.decode(
+            [text, score, japanese.table.segments(request["kana"], text)] for text, score in japanese.decode(
                 request["context"], request["kana"], request.get("pending", []), request.get("shift"),
                 request.get("explicit", False), request.get("pending_shift", False))]
         result["elapsed_ms"] = 1000 * (time.perf_counter() - start)

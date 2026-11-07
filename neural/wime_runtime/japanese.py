@@ -180,14 +180,20 @@ def frequent(lexicon, top):
     return [(w, r) for r, ws in by_reading.items() for _, w in sorted(ws, reverse=True)[:top]]
 
 
-def spells(get_units, kana, text, constraints=None, max_read=None):
-    """Whether GET_UNITS can cover KANA and TEXT (NFKC-equal), without omissions."""
-    text = unicodedata.normalize("NFKC", text)
+def segments(get_units, kana, text, constraints=None, max_read=None):
+    """TEXT as the fewest GET_UNITS covering KANA: [(kana count, written text)].
+
+    Units match TEXT's characters NFKC-equal and segments keep TEXT's own
+    characters; None when the units cannot cover both without omissions."""
+    pieces = [unicodedata.normalize("NFKC", c) for c in text]
+    norm = "".join(pieces)
+    starts = dict(zip(itertools.accumulate(map(len, pieces), initial=0), range(len(text) + 1)))
 
     @functools.lru_cache(maxsize=None)
-    def reach(i, j):
+    def best(i, j):
         if i == len(kana):
-            return j == len(text)
+            return () if j == len(norm) else None
+        found = None
         for end in range(i + 1, min(len(kana), i + (max_read or len(kana))) + 1):
             units = [u for u, _ in (get_units(kana[i:end]) or ())]
             if end == i + 1 and not is_kana(kana[i]):
@@ -196,10 +202,18 @@ def spells(get_units, kana, text, constraints=None, max_read=None):
                 if constraints and not span_pattern(kana[i:end], constraints[i:end]).fullmatch(u):
                     continue
                 n = unicodedata.normalize("NFKC", u)
-                if n and text.startswith(n, j) and reach(end, j + len(n)):
-                    return True
-        return False
-    return reach(0, 0)
+                k = j + len(n)
+                if n and norm.startswith(n, j) and k in starts:
+                    rest = best(end, k)
+                    if rest is not None and (found is None or len(rest) + 1 < len(found)):
+                        found = ((end - i, text[starts[j]:starts[k]]),) + rest
+        return found
+    return best(0, 0)
+
+
+def spells(get_units, kana, text, constraints=None, max_read=None):
+    """Whether GET_UNITS can cover KANA and TEXT (NFKC-equal), without omissions."""
+    return segments(get_units, kana, text, constraints, max_read) is not None
 
 
 def complete_dictionary(index, tokenizer, writings):
@@ -348,6 +362,10 @@ class Table:
     def spells(self, kana, text, constraints=None):
         """Whether decoding could write KANA as TEXT (NFKC-equal), under CONSTRAINTS."""
         return spells(self.get, kana, text, constraints, self.max_read)
+
+    def segments(self, kana, text):
+        """TEXT's units over KANA, as `segments' gives them."""
+        return segments(self.get, kana, text, max_read=self.max_read)
 
 
 # --- zenz --------------------------------------------------------------------
