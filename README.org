@@ -94,26 +94,8 @@ uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
 
 * 神经解码
 
-需要 GPU。通用语言模型装哪个用哪个，都在时按 9B、2B、0.8B 的顺序选：
-
-| 模型         | 显存     | 整句对            | 整句中位延迟 |
-|--------------+----------+-------------------+--------------|
-| Qwen3.5-9B   | 约 18 GB | 572/591（均衡集） | 726 ms       |
-| Qwen3.5-2B   | 约 5 GB  | 563/591（均衡集） | 411 ms       |
-| Qwen3.5-0.8B | 约 3 GB  | 比 2B 少约 1%     | 同 2B        |
-
-融合权重随模型取（9B 3.0，其余 1.5），也可以设 =wime-neural-rescorer-weight=。
-CPU 太慢（一句要十几秒），不适用。
-下表的文件放在 =wime-data-directory= 下，各选项默认就指向这些位置。
-
-| 内容         | 位置                           | 来源                                  |
-|--------------+--------------------------------+---------------------------------------|
-| Python 环境  | =python/=                      | =neural/pyproject.toml= 和 =uv.lock=  |
-| 音节模型     | =wime-syllable-40m/=           | HF =0WD0/wime-syllable-40m=           |
-| 通用语言模型 | =rescorers/Qwen3.5-2B-Base/=   | HF =Qwen/Qwen3.5-2B-Base=，固定版本   |
-| 或者         | =rescorers/Qwen3.5-9B-Base/=   | HF =Qwen/Qwen3.5-9B-Base=，固定版本   |
-| 或者         | =rescorers/Qwen3.5-0.8B-Base/= | HF =Qwen/Qwen3.5-0.8B-Base=，固定版本 |
-
+需要 GPU；CPU 太慢，一句要十几秒。
+后台 worker 用两个模型：wime 自己的音节模型，加一个通用语言模型。
 在 wime 目录执行：
 
 #+begin_src sh
@@ -126,23 +108,21 @@ UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural --extra cud
     --local-dir "$D/rescorers/Qwen3.5-2B-Base"
 #+end_src
 
-显存够 24 GB 时，最后一步可以换成 9B：
+通用语言模型按显存挑一个，照最后一条命令下载到 =rescorers/= 下的同名目录：
 
-#+begin_src sh
-"$D/python/bin/hf" download Qwen/Qwen3.5-9B-Base \
-    --revision 68c46c4b3498877f3ef123c856ecfde50c39f404 \
-    --local-dir "$D/rescorers/Qwen3.5-9B-Base"
-#+end_src
+| 模型              | 显存     | 固定版本                                   |
+|-------------------+----------+--------------------------------------------|
+| Qwen3.5-9B-Base   | 约 18 GB | =68c46c4b3498877f3ef123c856ecfde50c39f404= |
+| Qwen3.5-2B-Base   | 约 5 GB  | =b1485b2fa6dfa1287294f269f5fb618e03d52d7c= |
+| Qwen3.5-0.8B-Base | 约 3 GB  | =dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68= |
 
-显存不够时换成 0.8B：
+9B 转换得最准，延迟接近 2B 的两倍；0.8B 比 2B 稍差。
+装了几个时按表中顺序用第一个，融合权重随模型（9B 是 3.0，其余 1.5）；
+=wime-neural-rescorer= 和 =wime-neural-rescorer-weight= 可以指定别的。
+日文输入也用这个 worker，显存再多两三 GB；语音输入另起一个进程。
 
-#+begin_src sh
-"$D/python/bin/hf" download Qwen/Qwen3.5-0.8B-Base \
-    --revision dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68 \
-    --local-dir "$D/rescorers/Qwen3.5-0.8B-Base"
-#+end_src
-
-=--extra= 按显卡选择 PyTorch：
+=--extra= 按显卡选择 PyTorch；=cuda= 还会装上 flash-linear-attention，
+Qwen3.5 的线性注意力靠它才快。
 
 | 显卡                   | =--extra= |
 |------------------------+-----------|
@@ -151,8 +131,9 @@ UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural --extra cud
 | Intel                  | =xpu=     |
 | Apple 芯片             | =mps=     |
 
-worker 自动使用找到的第一块 GPU。只在 NVIDIA 上测过。
+worker 用找到的第一块 GPU，只在 NVIDIA 上测过。
 =HF_ENDPOINT= 可指向 Hugging Face 镜像。
+
 文件就位后，默认的 =hybrid= 就会用上模型；
 =(setq wime-decoding 'neural)= 等可以换一种转换方式：
 
@@ -163,13 +144,18 @@ worker 自动使用找到的第一块 GPU。只在 NVIDIA 上测过。
 | =lattice=        | 只用词格                                           |
 
 =neural= 打不出模型不认识的字。
-worker 在后台常驻，首次启动要加载模型。
-同样配置的 Emacs 共用一个 worker，模型只占一份显存；
-最后一个 Emacs 断开 10 分钟后它退出（=wime-neural-idle-exit=），
+
+** worker
+
+worker 常驻后台，第一次启动要加载模型。
+所有 Emacs 只要用的程序和文件相同，就共用一个 worker，模型只占一份显存；
+文件按 inode 认，路径不同但硬链接到同一份文件也算相同。
+最后一个 Emacs 断开 10 分钟后 worker 退出（=wime-neural-idle-exit=），
 =M-x wime-neural-stop-worker= 立即停掉它。
-它出错、超时或缺少文件时由词格转换（=hybrid= 缺少文件时不提示），
-=M-x wime-neural-restart= 重试；worker 的报错在
-=$XDG_RUNTIME_DIR/wime/= 下的 =.log= 里。
+
+worker 出错、超时或缺少文件时由词格转换（=hybrid= 缺少文件时不提示），
+=M-x wime-neural-restart= 重试。
+报错写在 =$XDG_RUNTIME_DIR/wime/= 下的 =.log= 里。
 
 ** 跑基准
 
@@ -214,7 +200,7 @@ worker 在后台常驻，首次启动要加载模型。
 辅助码和声调是硬约束。追加、退格时复用仍然有效的前缀。
 
 停键 40 ms 后，输入经 Unix socket 发给本地的 GPU worker（=wime_runtime.worker=）。
-=wime_runtime.daemon= 让各个 Emacs 共用它：按启动命令和目录取 socket，
+=wime_runtime.daemon= 让各个 Emacs 共用它：socket 由启动命令和其中各文件的 inode 决定，
 没有就启动，把各连接的请求 id 改编号后转给同一个 worker。
 它逐字做 beam 搜索：音节模型（=neural/wime_runtime/transducer.py=）根据左文和
 每个音节的声母、韵母、声调给出汉字概率，加权上 Qwen 的概率；
@@ -266,7 +252,7 @@ python3 gen/wime_gen.py --rime-data /path/to/unzipped \
 - 代码：GPL-3.0-or-later，见 =LICENSE=。
 - 词库：万象拼音（amzxyz），CC-BY-4.0。
 - 音节模型：CC-BY-SA-4.0。
-- Qwen3.5-2B-Base 和 Qwen3.5-0.8B-Base：Apache-2.0。
+- Qwen3.5 Base 模型（9B、2B、0.8B）：Apache-2.0。
 
 * 尚未实现
 
