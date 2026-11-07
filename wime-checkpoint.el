@@ -39,7 +39,8 @@
   "Return the actual inference settings as a JSON-compatible recipe."
   (list :width wime-search-width :encoding "wime-composition-v2"
         :single_character (if wime-neural-single-character t :false)
-        :rescorer (or wime-neural-rescorer :null) :rescorer_weight wime-neural-rescorer-weight
+        :rescorer (or wime-neural-rescorer :null)
+        :rescorer_weight (if wime-neural-rescorer (wime-neural--rescorer-weight) :null)
         :beam wime-neural-beam))
 
 (defun wime-checkpoint--nullable (value)
@@ -53,7 +54,7 @@
       (wime-search-width . ,(plist-get profile :width))
       (wime-neural-single-character . ,(eq (plist-get profile :single_character) t))
       (wime-neural-rescorer . ,(wime-checkpoint--nullable (plist-get profile :rescorer)))
-      (wime-neural-rescorer-weight . ,(or (plist-get profile :rescorer_weight) 1.5))
+      (wime-neural-rescorer-weight . ,(wime-checkpoint--nullable (plist-get profile :rescorer_weight)))
       (wime-neural-beam . ,(or (plist-get profile :beam) 32)))))
 
 (defun wime-checkpoint--apply (recipe)

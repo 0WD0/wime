@@ -94,17 +94,24 @@ uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
 
 * 神经解码
 
-需要 GPU：通用语言模型用 Qwen3.5-2B 时约 5 GB 显存，
-用 Qwen3.5-0.8B 时约 3 GB，整句少对约 1%（759 句中 693 对 701），速度相同。
+需要 GPU。通用语言模型装哪个用哪个，都在时按 9B、2B、0.8B 的顺序选：
+
+| 模型         | 显存     | 整句对            | 整句中位延迟 |
+|--------------+----------+-------------------+--------------|
+| Qwen3.5-9B   | 约 18 GB | 572/591（均衡集） | 726 ms       |
+| Qwen3.5-2B   | 约 5 GB  | 563/591（均衡集） | 411 ms       |
+| Qwen3.5-0.8B | 约 3 GB  | 比 2B 少约 1%     | 同 2B        |
+
+融合权重随模型取（9B 3.0，其余 1.5），也可以设 =wime-neural-rescorer-weight=。
 CPU 太慢（一句要十几秒），不适用。
-下表的文件放在 =wime-data-directory= 下，各选项默认就指向这些位置；
-两个语言模型都在时用 2B。
+下表的文件放在 =wime-data-directory= 下，各选项默认就指向这些位置。
 
 | 内容         | 位置                           | 来源                                  |
 |--------------+--------------------------------+---------------------------------------|
 | Python 环境  | =python/=                      | =neural/pyproject.toml= 和 =uv.lock=  |
 | 音节模型     | =wime-syllable-40m/=           | HF =0WD0/wime-syllable-40m=           |
 | 通用语言模型 | =rescorers/Qwen3.5-2B-Base/=   | HF =Qwen/Qwen3.5-2B-Base=，固定版本   |
+| 或者         | =rescorers/Qwen3.5-9B-Base/=   | HF =Qwen/Qwen3.5-9B-Base=，固定版本   |
 | 或者         | =rescorers/Qwen3.5-0.8B-Base/= | HF =Qwen/Qwen3.5-0.8B-Base=，固定版本 |
 
 在 wime 目录执行：
@@ -119,7 +126,15 @@ UV_PROJECT_ENVIRONMENT="$D/python" uv sync --frozen --project neural --extra cud
     --local-dir "$D/rescorers/Qwen3.5-2B-Base"
 #+end_src
 
-显存不够时，最后一步换成：
+显存够 24 GB 时，最后一步可以换成 9B：
+
+#+begin_src sh
+"$D/python/bin/hf" download Qwen/Qwen3.5-9B-Base \
+    --revision 68c46c4b3498877f3ef123c856ecfde50c39f404 \
+    --local-dir "$D/rescorers/Qwen3.5-9B-Base"
+#+end_src
+
+显存不够时换成 0.8B：
 
 #+begin_src sh
 "$D/python/bin/hf" download Qwen/Qwen3.5-0.8B-Base \

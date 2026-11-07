@@ -495,6 +495,17 @@
     (should-not wime-neural-rescorer)
     (should (eq (plist-get (wime-checkpoint-profile) :rescorer) :null))))
 
+(ert-deftest wime-neural-rescorer-weight-follows-the-model ()
+  (let ((wime-neural-rescorer-weight nil))
+    (let ((wime-neural-rescorer "/data/rescorers/Qwen3.5-9B-Base/"))
+      (should (= (wime-neural--rescorer-weight) 3.0)))
+    (let ((wime-neural-rescorer "/data/rescorers/Qwen3.5-2B-Base"))
+      (should (= (wime-neural--rescorer-weight) 1.5))
+      (let ((wime-neural-rescorer-weight 2.0))
+        (should (= (wime-neural--rescorer-weight) 2.0))))
+    (let ((wime-neural-rescorer "/elsewhere/my-model"))
+      (should (= (wime-neural--rescorer-weight) 1.5)))))
+
 (ert-deftest wime-neural-decode-request-carries-typed-tones ()
   (wime-neural-test--composition
     (setq wime--input "aa3bb")

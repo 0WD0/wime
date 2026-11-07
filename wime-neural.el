@@ -35,30 +35,40 @@ A directory containing the wime_runtime package selects that source snapshot
 when the command uses Python's -m option."
   :type '(choice (const nil) directory) :group 'wime)
 
-(defconst wime-neural-rescorers '("Qwen3.5-2B-Base" "Qwen3.5-0.8B-Base")
-  "Language models measured with the decoder, best first, under rescorers/.
-Both take weight 1.5.  On dev-v2 the 0.8B decodes 693 of 759 sentences
-against 701, at the same keystroke latency, in 2.8 GB of GPU memory
-against 5.2 GB.")
+(defconst wime-neural-rescorers
+  '(("Qwen3.5-9B-Base" . 3.0) ("Qwen3.5-2B-Base" . 1.5) ("Qwen3.5-0.8B-Base" . 1.5))
+  "Language models measured with the decoder, best first, under rescorers/,
+each with its fusion weight.  On sentence-trajectories-balanced-dev-v1 the
+9B decodes 572 of 591 reviewed sentences against the 2B's 563, at a median
+726 ms per whole sentence against 411 ms, in about 18 GB of GPU memory
+against 5 GB.  On dev-v2 the 0.8B decodes 693 of 759 against the 2B's 701
+at the same latency in 2.8 GB.")
 
 (defun wime-neural-installed-rescorer (directory)
   "The best of `wime-neural-rescorers' under DIRECTORY/rescorers, or nil."
-  (cl-loop for name in wime-neural-rescorers
+  (cl-loop for (name . _) in wime-neural-rescorers
            for path = (expand-file-name name (expand-file-name "rescorers" directory))
            when (file-directory-p path) return path))
 
 (defcustom wime-neural-rescorer
   (or (wime-neural-installed-rescorer wime-data-directory)
-      (expand-file-name (car wime-neural-rescorers) (expand-file-name "rescorers" wime-data-directory)))
+      (expand-file-name (caar wime-neural-rescorers) (expand-file-name "rescorers" wime-data-directory)))
   "Directory of a general causal language model for the worker.
 Its log probability, times `wime-neural-rescorer-weight', joins the
 syllable model score.  The default is the best installed of
 `wime-neural-rescorers'.  Nil disables it."
   :type '(choice (const nil) directory) :group 'wime)
 
-(defcustom wime-neural-rescorer-weight 1.5
-  "Weight of `wime-neural-rescorer' relative to the syllable model score."
-  :type 'number :group 'wime)
+(defcustom wime-neural-rescorer-weight nil
+  "Weight of `wime-neural-rescorer' relative to the syllable model score.
+Nil takes the model's weight from `wime-neural-rescorers', else 1.5."
+  :type '(choice (const nil) number) :group 'wime)
+
+(defun wime-neural--rescorer-weight ()
+  (or wime-neural-rescorer-weight
+      (alist-get (file-name-nondirectory (directory-file-name wime-neural-rescorer))
+                 wime-neural-rescorers nil nil #'equal)
+      1.5))
 
 (defcustom wime-neural-memory-weight 10.0
   "Score bonus for decoded text covered by learned readings.
@@ -273,7 +283,7 @@ elsewhere: the next decode reconnects.  Otherwise decoding fails."
   (append wime-neural-command
           (and wime-neural-rescorer
                (list "--rescorer" (expand-file-name wime-neural-rescorer)
-                     "--rescorer-weight" (number-to-string wime-neural-rescorer-weight)))
+                     "--rescorer-weight" (number-to-string (wime-neural--rescorer-weight))))
           (and wime-neural-rescorer
                (list "--database" (expand-file-name wime-database-file)
                      "--beam" (number-to-string wime-neural-beam)))
