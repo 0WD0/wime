@@ -117,15 +117,6 @@ worker process, and can check each asynchronous invalidation separately."
     (backward-char)
     (should-not (wime-neural--valid-p job))))
 
-(ert-deftest wime-edit-neural-japanese-composition-still-requires-point ()
-  (wime-edit-neural-test--composition
-    (setf (wime-neural--job-method job) 'japanese)
-    (cl-letf (((symbol-function 'wime-japanese--current-p) (lambda (_job) t)))
-      (setq active nil writable nil)
-      (should (wime-neural--valid-p job))
-      (backward-char)
-      (should-not (wime-neural--valid-p job)))))
-
 (defmacro wime-edit-neural-test--buffer (&rest body)
   "Run BODY using real editor metadata and rendering, without a worker."
   (declare (indent 0))

@@ -157,30 +157,28 @@ A chat timeline that changes while the user types must not void the decode.")
   "Whether JOB still belongs to the current unselected composition."
   (and (buffer-live-p (wime-neural--job-buffer job))
        (with-current-buffer (wime-neural--job-buffer job)
-         (and (or (eq (wime-neural--job-method job) 'japanese)
-                  (= (wime-neural--job-memory-tick job) wime--memory-tick))
-              (if (eq (wime-neural--job-method job) 'japanese)
-                  (wime-japanese--current-p job)
-                (and (wime--active-p) (= wime--selected 0)
-                     (equal wime--input (wime-neural--job-input job))
-                     (eq wime--candidate-records (wime-neural--job-records job))))
-              (if (and (not (eq (wime-neural--job-method job) 'japanese))
-                       (wime-neural--job-edit-generation job))
-                  ;; Moving within an editable run changes neither its keys
-                  ;; nor its context.  Re-adoption and edits do, even when
-                  ;; they happen to restore identical text and candidates.
-                  (and (wime--editing-p) (wime-edit--writable-p)
-                       (= wime-edit--generation
-                          (wime-neural--job-edit-generation job)))
-                (= (point) (wime-neural--job-position job)))
-              ;; The decode read only this context: edits after point or past
-              ;; its window, such as a chat timeline's new rows, keep it valid.
-              ;; Overlay properties and narrowing can change it without edits.
-              (equal (wime-neural--context) (wime-neural--job-context job))
-              (or (null (wime-neural--job-history job))
-                  (let ((state (wime-neural--state)))
-                    (and (equal (alist-get 'context state) (wime-neural--job-history job))
-                         (equal (alist-get 'committed state) (wime-neural--job-committed job)))))))))
+         (if (eq (wime-neural--job-method job) 'japanese)
+             (wime-japanese--current-p job)
+           (and (= (wime-neural--job-memory-tick job) wime--memory-tick)
+                (wime--active-p) (= wime--selected 0)
+                (equal wime--input (wime-neural--job-input job))
+                (eq wime--candidate-records (wime-neural--job-records job))
+                (if (wime-neural--job-edit-generation job)
+                    ;; Moving within an editable run changes neither its keys
+                    ;; nor its context.  Re-adoption and edits do, even when
+                    ;; they happen to restore identical text and candidates.
+                    (and (wime--editing-p) (wime-edit--writable-p)
+                         (= wime-edit--generation
+                            (wime-neural--job-edit-generation job)))
+                  (= (point) (wime-neural--job-position job)))
+                ;; The decode read only this context: edits after point or past
+                ;; its window, such as a chat timeline's new rows, keep it valid.
+                ;; Overlay properties and narrowing can change it without edits.
+                (equal (wime-neural--context) (wime-neural--job-context job))
+                (or (null (wime-neural--job-history job))
+                    (let ((state (wime-neural--state)))
+                      (and (equal (alist-get 'context state) (wime-neural--job-history job))
+                           (equal (alist-get 'committed state) (wime-neural--job-committed job))))))))))
 
 (defun wime-neural--reset ()
   "Cancel this buffer's scheduled work.  In-flight replies become stale."
