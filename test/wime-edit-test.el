@@ -375,6 +375,92 @@
     (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 API 4 丙，xy 戊"))
     (should-not (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil))))
 
+;; The switch's space is pending until a word comes, shown at point.
+(defun wime-edit-test--pending-p ()
+  (and wime--boundary (= (overlay-start wime--boundary) (point))))
+
+(defun wime-edit-test--delete ()
+  (wime-edit-test--command (keymap-lookup nil "DEL")))
+
+(ert-deftest wime-edit-deleting-english-takes-its-space-back ()
+  (wime-edit-test--buffer
+    (wime-edit-test--type "aa")
+    (wime-edit-test--switch)
+    (should (wime-edit-test--pending-p))
+    (wime-edit-test--type "AB")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 AB"))
+    (wime-edit-test--delete)
+    (wime-edit-test--delete)
+    ;; Back at the Chinese, still in English: the space waits for a word.
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲"))
+    (should (wime-edit-test--pending-p))
+    (wime-edit-test--type "C")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 C"))
+    (wime-edit-test--delete)
+    ;; Chinese again: no space at all.
+    (wime-edit-test--switch)
+    (should-not (wime-edit-test--pending-p))
+    (wime-edit-test--type "bb")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲丙"))
+    (should (equal (wime-edit--literals) nil))))
+
+(ert-deftest wime-edit-deleting-the-pending-space-keeps-english-joined ()
+  (wime-edit-test--buffer
+    (wime-edit-test--type "aa")
+    (wime-edit-test--switch)
+    (wime-edit-test--delete)
+    (should-not (wime-edit-test--pending-p))
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲"))
+    (wime-edit-test--type "C")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲C"))))
+
+(ert-deftest wime-edit-deleting-chinese-after-english-takes-its-space-back ()
+  (wime-edit-test--buffer
+    (wime-edit-test--type "aa")
+    (wime-edit-test--switch)
+    (wime-edit-test--type "X")
+    (wime-edit-test--switch)
+    (wime-edit-test--type "bb")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 X 丙"))
+    (wime-edit-test--delete)
+    (wime-edit-test--delete)
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 X"))
+    (should (wime-edit-test--pending-p))
+    (wime-edit-test--type ",")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 X，"))))
+
+(ert-deftest wime-edit-punctuation-after-switching-needs-no-space ()
+  (wime-edit-test--buffer
+    (wime-edit-test--type "aa")
+    (wime-edit-test--switch)
+    (wime-edit-test--type "(")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲("))
+    (should-not (wime-edit-test--pending-p))))
+
+;; English inserted into Chinese is spaced on both sides; switching back
+;; crosses the space after it, and deleting the English removes both.
+(ert-deftest wime-edit-english-inside-chinese-is-spaced-on-both-sides ()
+  (wime-edit-test--buffer
+    (wime-edit-test--type "aabb")
+    (wime-edit-test--command #'backward-char)
+    (wime-edit-test--switch)
+    (wime-edit-test--type "XY")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 XY 丙"))
+    (should (= (point) 5))
+    (wime-edit-test--switch)
+    (should (= (point) 6))
+    (should-not (wime-edit-test--pending-p))
+    (wime-edit-test--switch)
+    (should (= (point) 5))
+    (wime-edit-test--delete)
+    (wime-edit-test--delete)
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲丙"))
+    (should (= (point) 2))
+    (should (wime-edit-test--pending-p))
+    (wime-edit-test--switch)
+    (wime-edit-test--type "cc")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲戊丙"))))
+
 (ert-deftest wime-edit-switching-language-outside-a-run ()
   (wime-edit-test--buffer
     (wime-edit-test--type "aa ")

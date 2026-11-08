@@ -55,7 +55,7 @@ Literal text inside the run does not count."
 (defvar wime-edit-mode)
 
 ;; Plain insertions next to a Chinese character must not inherit its reading.
-(add-to-list 'text-property-default-nonsticky '(wime-edit-unit . t))
+(push '(wime-edit-unit . t) (default-value 'text-property-default-nonsticky))
 
 (defun wime-edit--unit-at (position)
   "Return the reading at accessible POSITION, if any."
@@ -802,19 +802,22 @@ Return nil without a run; text before its first syllable is context."
    (t (wime-edit-pause) (list key))))
 
 (defun wime-edit-delete-backward ()
-  "Remove one auxiliary/key input at the character before point."
+  "Remove one auxiliary/key input at the character before point.
+A pending boundary space goes first."
   (interactive)
   (wime-edit--sync)
-  (if (and (wime-edit--active-p) (> (point) wime-edit--start))
-      (let* ((index (1- (- (point) wime-edit--start)))
-             (unit (nth index wime-edit--units))
-             (keys (substring (wime-edit--unit-keys unit) 0 -1)))
-        (wime-edit--refresh
-         (append (seq-take wime-edit--units index)
-                 (unless (string-empty-p keys) (list (wime-edit--make-unit :keys keys)))
-                 (nthcdr (1+ index) wime-edit--units))
-         (+ index (if (string-empty-p keys) 0 1))))
-    (backward-delete-char-untabify 1)))
+  (cond
+   ((wime--boundary-p) (wime--cancel-boundary))
+   ((and (wime-edit--active-p) (> (point) wime-edit--start))
+    (let* ((index (1- (- (point) wime-edit--start)))
+           (unit (nth index wime-edit--units))
+           (keys (substring (wime-edit--unit-keys unit) 0 -1)))
+      (wime-edit--refresh
+       (append (seq-take wime-edit--units index)
+               (unless (string-empty-p keys) (list (wime-edit--make-unit :keys keys)))
+               (nthcdr (1+ index) wime-edit--units))
+       (+ index (if (string-empty-p keys) 0 1)))))
+   (t (backward-delete-char-untabify 1))))
 
 (defun wime-edit-finish ()
   "Confirm pending readings in the accessible buffer, retaining its text."

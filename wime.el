@@ -192,6 +192,8 @@ Errors yield no prefix.")
 (declare-function wime-edit--active-p "wime-edit")
 (declare-function wime-edit--type-tone "wime-edit" (tone))
 (declare-function wime-edit--type-literal "wime-edit" (key))
+(declare-function wime-edit--unit-literal "wime-edit" (unit))
+(declare-function wime-edit-delete-backward "wime-edit")
 
 (defun wime--editing-p ()
   "Whether an editable run of `wime-edit-mode' holds the composition."
@@ -1158,36 +1160,130 @@ through literally, as in program code."
 (defvar-local wime--english nil
   "Non-nil while wime types English in this buffer.")
 
-(defvar-local wime--boundary nil
-  "Where `wime-switch-language' left the boundary space pending.")
+;; The space between Chinese and English is the switch's own: a pending
+;; one waits at point, shown faintly, and is written with the next word
+;; key; a written one stays only while it separates the two, so deleting
+;; what came after it takes it back, and the next word brings it again.
 
-(defun wime-switch-language ()
-  "Switch between Chinese and English, apart by a space.
-The space comes with the next key typed here, after a word, so switching
-twice adds none, nor does SPC right after it.  English typed inside an
-editable run joins it, and the run converts as one sentence."
-  (interactive)
-  (setq wime--english (not wime--english)
-        current-input-method-title (wime--title)
-        wime--boundary (unless (wime--boundary-p) (point-marker)))
-  (force-mode-line-update))
+(defface wime-boundary-face
+  '((t (:inherit shadow :underline t)))
+  "Face for the space a language switch adds with the next key."
+  :group 'wime)
+
+(defvar-local wime--boundary nil
+  "Overlay showing the boundary space pending at point, or nil.")
+
+;; Typed and yanked text is not the switch's space.
+(push '(wime-boundary . t) (default-value 'text-property-default-nonsticky))
+(add-to-list 'yank-excluded-properties 'wime-boundary)
 
 (defun wime--title ()
   (if wime--english wime-english-title wime-title))
 
+(defun wime--side (&optional english)
+  "The side ENGLISH, or the current language, writes: `english' or `chinese'."
+  (if (if english (eq english 'english) wime--english) 'english 'chinese))
+
+(defun wime--script (position)
+  "The side of the character at POSITION: `chinese', `english' or nil.
+Pending syllables are Chinese; spaces and punctuation are neither."
+  (when-let* (((<= (point-min) position))
+              (char (char-after position)))
+    (cond ((let ((unit (get-text-property position 'wime-edit-unit)))
+             (and unit (not (wime-edit--unit-literal unit))))
+           'chinese)
+          ((memq (aref char-script-table char) '(han kana hangul bopomofo)) 'chinese)
+          ((eq (char-syntax char) ?w) 'english))))
+
+(defun wime--separates-p (position)
+  "Whether the switch's space at POSITION still sits between both sides."
+  (let ((left (wime--script (1- position))) (right (wime--script (1+ position))))
+    (and left right (not (eq left right)))))
+
+(defun wime--auto-space-p (position)
+  (and (<= (point-min) position) (< position (point-max))
+       (get-text-property position 'wime-boundary)))
+
 (defun wime--boundary-p ()
-  (and wime--boundary (eq (marker-buffer wime--boundary) (current-buffer))
-       (= wime--boundary (point))))
+  (and wime--boundary (eq (overlay-buffer wime--boundary) (current-buffer))
+       (= (overlay-start wime--boundary) (point))))
+
+(defun wime--pend-boundary ()
+  (wime--cancel-boundary)
+  (setq wime--boundary (make-overlay (point) (point)))
+  (overlay-put wime--boundary 'before-string (propertize " " 'face 'wime-boundary-face)))
+
+(defun wime-cancel-boundary ()
+  "Forget the boundary space pending at point."
+  (interactive)
+  (when wime--boundary
+    (delete-overlay wime--boundary)
+    (setq wime--boundary nil)))
+
+(defalias 'wime--cancel-boundary #'wime-cancel-boundary)
+
+(defun wime-switch-language ()
+  "Switch between Chinese and English, apart by a space.
+After a word of the other side, the space comes with the next word key,
+so switching twice adds none, and neither does SPC or punctuation right
+after it.  Next to a space a switch added, switching moves across it to
+the side being written.  English typed inside an editable run joins it,
+and the run converts as one sentence."
+  (interactive)
+  (let ((left (wime--side)) (position (point)))
+    (setq wime--english (not wime--english)
+          current-input-method-title (wime--title))
+    (cond
+     ((wime--boundary-p) (wime--cancel-boundary))
+     ((and (wime--auto-space-p position)
+           (eq (wime--script (1+ position)) (wime--side)))
+      (forward-char))
+     ((and (wime--auto-space-p (1- position))
+           (eq (wime--script (- position 2)) (wime--side)))
+      (backward-char))
+     ((eq (wime--script (1- position)) left) (wime--pend-boundary))))
+  (force-mode-line-update))
+
+(defun wime--insert-auto-space ()
+  (unless (and (bound-and-true-p wime-edit-mode) (wime-edit--type-literal " "))
+    (insert " "))
+  (with-silent-modifications
+    (put-text-property (1- (point)) (point) 'wime-boundary t)))
 
 (defun wime--take-boundary (key)
-  "Write the boundary space pending before KEY, unless KEY is SPC."
+  "Write the boundary space pending before KEY, if KEY starts a word.
+Inserted inside text of the other side, the word gets a space after it too."
   (when (wime--boundary-p)
-    (setq wime--boundary nil)
-    (when (and (/= key ?\s) (wime--active-p) (not (wime--editing-p)))
-      (wime--commit-selected))
-    (when (and (/= key ?\s) (char-before) (eq (char-syntax (char-before)) ?w)
-               (not (and (bound-and-true-p wime-edit-mode) (wime-edit--type-literal " "))))
-      (insert " "))))
+    (cond
+     ((if wime--english (eq (char-syntax key) ?w) (wime--code-char-p key 'initial))
+      (wime--cancel-boundary)
+      (when (and (wime--active-p) (not (wime--editing-p)))
+        (wime--commit-selected))
+      (let ((inside (eq (wime--script (point)) (wime--script (1- (point))))))
+        (wime--insert-auto-space)
+        (when inside
+          (wime--insert-auto-space)
+          (backward-char))))
+     ;; Digits and auxiliary codes act on the composition without typing.
+     ((and (not wime--english) (or (wime--digit-p key) (wime--aux-char-p key))))
+     (t (wime--cancel-boundary)))))
+
+(defun wime--boundary-post-command ()
+  "Take back the switch's spaces at point that no longer separate both sides."
+  (unless (wime--boundary-p) (wime--cancel-boundary))
+  (let* ((position (point))
+         (stale (seq-remove #'wime--separates-p
+                            (seq-filter #'wime--auto-space-p (list position (1- position))))))
+    (dolist (space stale)
+      (save-excursion
+        (goto-char (1+ space))
+        (if (and (wime--editing-p) (get-text-property space 'wime-edit-unit))
+            (wime-edit-delete-backward)
+          (delete-char -1))))
+    ;; Deleting the word after the space leaves it pending for the next one.
+    (when (and (memq (1- position) stale)
+               (eq (wime--script (1- (point))) (if wime--english 'chinese 'english)))
+      (wime--pend-boundary))))
 
 (defun wime--english-input (key)
   "Insert KEY literally.
@@ -1307,12 +1403,21 @@ no place for literal text, so it commits its selected candidate first."
       (internal-pop-keymap wime-edit--keymap 'overriding-terminal-local-map))
     (remove-hook 'pre-command-hook #'wime--clear-before-unrelated-command t)))
 
+(defun wime--when-boundary (command)
+  (and (wime--boundary-p) command))
+
 (defvar-keymap wime-mode-map
-  "S-SPC" #'wime-switch-language)
+  "S-SPC" #'wime-switch-language
+  "DEL" '(menu-item "" wime-cancel-boundary :filter wime--when-boundary)
+  "<backspace>" '(menu-item "" wime-cancel-boundary :filter wime--when-boundary))
 
 (define-minor-mode wime-mode
   "Minor mode enabled while the wime input method is active."
-  :lighter nil)
+  :lighter nil
+  (if wime-mode
+      (add-hook 'post-command-hook #'wime--boundary-post-command nil t)
+    (remove-hook 'post-command-hook #'wime--boundary-post-command t)
+    (wime--cancel-boundary)))
 
 (defun wime-activate (_name)
   "Activate the wime input method."
