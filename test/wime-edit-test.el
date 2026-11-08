@@ -1293,3 +1293,17 @@ VARIATION can exercise a height change or partial pixel scrolling."
     (should (equal (wime--tones wime--input) '((0 . 2))))
     (wime-edit-test--command #'wime-edit-delete-backward)
     (should (equal (wime-edit-test--keys 1) "aaB"))))
+
+(ert-deftest wime-edit-isearch-composes-whole-words-every-time ()
+  (wime-edit-test--buffer
+    (insert "xx甲yy丙")
+    (goto-char (point-min))
+    (activate-input-method "wime")
+    (switch-to-buffer (current-buffer))
+    (execute-kbd-macro (vconcat (kbd "C-s") "aa " [return]))
+    (should (equal isearch-string "甲"))
+    ;; The reused minibuffer starts clean, so a second search works too.
+    (execute-kbd-macro (vconcat (kbd "C-s") "bb " [return]))
+    (should (equal isearch-string "丙"))
+    (with-current-buffer (window-buffer (minibuffer-window))
+      (should-not current-input-method))))

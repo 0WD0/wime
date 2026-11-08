@@ -1289,8 +1289,18 @@ commits its selected candidate first."
   (unless (eq wime-decoding 'lattice) (require 'wime-neural))
   (setq-local input-method-function #'wime-input-method)
   (setq-local deactivate-current-input-method-function #'wime-deactivate)
+  ;; Like quail: the minibuffer is reused with its permanent input method
+  ;; variables, but wime's own modes end with it.
+  (when (minibufferp)
+    (add-hook 'minibuffer-exit-hook #'wime--exit-from-minibuffer))
   (wime-english-mode -1)
   (wime-mode 1))
+
+(defun wime--exit-from-minibuffer ()
+  "Deactivate wime as the minibuffer it was activated in exits."
+  (deactivate-input-method)
+  (when (<= (minibuffer-depth) 1)
+    (remove-hook 'minibuffer-exit-hook #'wime--exit-from-minibuffer)))
 
 (defun wime-deactivate ()
   "Deactivate the wime input method."
@@ -1316,6 +1326,34 @@ keys pass through."
                   'help-echo (if wime-english-mode "wime: 英文，C-\\ 切回中文"
                                "wime: 中文双拼"))
     ""))
+
+;; `isearch-with-input-method' hands an input method one key in a
+;; minibuffer and exits at once, which suits methods that read a whole
+;; word per call, like quail.  Wime composes across commands, so that
+;; minibuffer stays until the composition is committed or cancelled.
+
+(defun wime--composing-p ()
+  "Whether a composition is in progress in this buffer."
+  (or (wime--active-p) (wime--editing-p)))
+
+(defun wime--isearch-exit-when-settled ()
+  "Exit the isearch minibuffer once nothing is being composed."
+  (unless (wime--composing-p)
+    (exit-minibuffer)))
+
+(defun wime--isearch-with-input-method (orig)
+  "Let wime compose a whole word for isearch; otherwise call ORIG."
+  (if (not (bound-and-true-p wime-mode))
+      (funcall orig)
+    (dolist (event (funcall input-method-function (pop unread-command-events)))
+      (when (integerp event) (insert event)))
+    (if (wime--composing-p)
+        ;; The minibuffer is a fresh `minibuffer-mode' buffer each time,
+        ;; so this local hook ends with it.
+        (add-hook 'post-command-hook #'wime--isearch-exit-when-settled nil t)
+      (exit-minibuffer))))
+
+(advice-add 'isearch-with-input-method :around #'wime--isearch-with-input-method)
 
 (register-input-method "wime" "euc-cn" #'wime-activate wime-title
                        "Wime double-pinyin input method.")
