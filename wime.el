@@ -268,13 +268,14 @@ Every search keeps them; a pin is dropped once the keys at POSITION change.")
 (defun wime--tones-allow-p (word start units)
   "Whether WORD, read from syllable START of UNITS, has every typed tone it covers.
 Character readings decide, so a typed 一 yi1 still reads 一个; the neutral
-tone filters nothing."
-  (cl-every (lambda (tone)
-              (let ((offset (- (car tone) start)))
-                (or (< offset 0) (>= offset (length word)) (= (cdr tone) 5)
-                    (seq-contains-p (wime--char-tones (aref word offset) (car (nth (car tone) units)))
-                                    (+ ?0 (cdr tone))))))
-            wime--typed-tones))
+tone filters nothing, and neither does any tone without a database."
+  (or (null (wime--database))
+      (cl-every (lambda (tone)
+                  (let ((offset (- (car tone) start)))
+                    (or (< offset 0) (>= offset (length word)) (= (cdr tone) 5)
+                        (seq-contains-p (wime--char-tones (aref word offset) (car (nth (car tone) units)))
+                                        (+ ?0 (cdr tone))))))
+                wime--typed-tones)))
 
 (defun wime--pins-allow-p (word start)
   "Whether WORD, read from syllable START, keeps every pin it covers."
