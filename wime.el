@@ -1211,7 +1211,10 @@ Pending syllables are Chinese; spaces and punctuation are neither."
 (defun wime--pend-boundary ()
   (wime--cancel-boundary)
   (setq wime--boundary (make-overlay (point) (point)))
-  (overlay-put wime--boundary 'before-string (propertize " " 'face 'wime-boundary-face)))
+  ;; Empty overlays here show other after-strings, like the candidate rows,
+  ;; before any before-string; a higher-priority after-string comes first.
+  (overlay-put wime--boundary 'priority 10)
+  (overlay-put wime--boundary 'after-string (propertize " " 'face 'wime-boundary-face)))
 
 (defun wime-cancel-boundary ()
   "Forget the boundary space pending at point."

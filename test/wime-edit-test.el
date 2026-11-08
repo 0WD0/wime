@@ -1232,6 +1232,28 @@ VARIATION can exercise a height change or partial pixel scrolling."
       (should (<= (cdr (window-text-pixel-size nil (window-start) (point)))
                   (window-body-height nil t))))))
 
+;; The pending space belongs on the source line, before the cursor, not
+;; after the candidate rows displayed at the same position.
+(ert-deftest wime-edit-display-pending-space-precedes-candidate-rows ()
+  (unless (and (not noninteractive) (display-graphic-p)
+               (fboundp 'window-cursor-info))
+    (ert-skip "Requires a graphical command loop and physical cursor information"))
+  (wime-edit-test--buffer
+    (save-window-excursion
+      (delete-other-windows)
+      (switch-to-buffer (current-buffer))
+      (setq-local wime-candidate-style 'spans)
+      (insert ">>> ")
+      (wime-edit-test--type "aa")
+      (redisplay t)
+      (should wime-edit--correction-decorations)
+      (let ((before (window-cursor-info)))
+        (wime-edit-test--switch)
+        (redisplay t)
+        (let ((after (window-cursor-info)))
+          (should (= (aref after 2) (aref before 2)))
+          (should (> (aref after 1) (aref before 1))))))))
+
 (ert-deftest wime-edit-display-corrections-only-scroll-the-selected-window ()
   (unless (and (not noninteractive) (display-graphic-p))
     (ert-skip "Requires a graphical command loop"))
