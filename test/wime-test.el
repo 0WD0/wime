@@ -9,9 +9,7 @@
 (require 'ert)
 (require 'wime)
 
-;; These tests type Chinese; a configured Emacs may share English mode or
-;; choose English by context.
-(wime-english-mode -1)
+;; These tests type Chinese; a configured Emacs may choose English by context.
 (setq wime-english-predicates nil)
 
 (ert-deftest wime-context-uses-existing-text-at-point-not-only-ime-commits ()
@@ -433,32 +431,14 @@
 (defmacro wime-test--type (keys &rest body)
   "Type KEYS into a temporary buffer and evaluate BODY."
   `(with-temp-buffer
-     (let ((wime-english-mode nil))
-       (wime--reset)
-       (mapc #'wime-input-method (string-to-list ,keys))
-       ,@body)))
+     (wime--reset)
+     (mapc #'wime-input-method (string-to-list ,keys))
+     ,@body))
 
 (ert-deftest wime-uppercase-without-code-passes-through ()
   (with-temp-buffer
     (wime--reset)
     (should (equal (wime-input-method ?A) (list ?A)))))
-
-(ert-deftest wime-english-mode-commits-floating-composition-first ()
-  (wime-test--type "ni"
-    (let ((selected (nth wime--selected wime--candidates))
-          (wime-english-mode t))
-      (should (equal (wime-input-method ?x) (list ?x)))
-      (should (equal (buffer-string) selected))
-      (should-not (wime--active-p)))))
-
-(ert-deftest wime-english-mode-is-shared-by-buffers ()
-  (unwind-protect
-      (progn
-        (with-temp-buffer (wime-english-mode 1))
-        (with-temp-buffer
-          (wime--reset)
-          (should (equal (wime-input-method ?n) (list ?n)))))
-    (wime-english-mode -1)))
 
 (ert-deftest wime-english-predicates-choose-english-outside-compositions ()
   (with-temp-buffer

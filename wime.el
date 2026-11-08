@@ -89,9 +89,6 @@
 (defvar wime-title "wime"
   "The title shown in the mode line.")
 
-(defvar wime-english-title "英"
-  "The title shown while `wime-english-mode' inserts keys literally.")
-
 (defcustom wime-candidates-max 5
   "Maximum candidates in the sentence list or each uncertain span.
 Numbered span alternatives share the ten digit keys across all spans."
@@ -190,6 +187,7 @@ Errors yield no prefix.")
 
 (defvar wime-edit--start)
 (declare-function wime-edit--active-p "wime-edit")
+(declare-function wime-edit--continue-literally "wime-edit")
 (declare-function wime-edit--type-tone "wime-edit" (tone))
 (declare-function wime-edit--type-literal "wime-edit" (key))
 
@@ -1149,60 +1147,16 @@ In the span view only numbered alternatives respond; others do nothing."
   (message "wime punctuation: %s"
            (if wime-ascii-punctuation "ASCII" "中文")))
 
-(define-minor-mode wime-english-mode
-  "Insert keys literally while wime stays the input method.
-Like a system input method, the mode is shared by all buffers.  With
-editable preedit, text typed inside a composition stays part of it: the
-Chinese on both sides converts as one sentence, and SPC after switching
-back confirms everything."
-  :global t
-  :lighter nil
-  (dolist (buffer (buffer-list))
-    (with-current-buffer buffer
-      (when (equal current-input-method "wime")
-        (setq current-input-method-title (wime--title)))))
-  (force-mode-line-update t))
-
-(defun wime--title ()
-  "Return the input method title for the current Chinese/English mode."
-  (if wime-english-mode wime-english-title wime-title))
-
 (defcustom wime-english-predicates nil
   "Functions of no arguments that choose English for the next key.
 Outside a composition, when one returns non-nil, wime passes the key
-through literally, as in program code or after an English word."
+through literally, as in program code."
   :type 'hook :group 'wime)
-
-(defun wime-toggle-english (&optional arg)
-  "Switch between Chinese and literal English without leaving composition.
-This applies to every buffer.  Outside wime, or with prefix ARG, run
-`toggle-input-method' instead.  Wime also counts as the input method
-where Evil keeps it for Insert state."
-  (interactive "P")
-  (if (and (not arg)
-           (member "wime" (list current-input-method
-                                (bound-and-true-p evil-input-method))))
-      (wime-english-mode 'toggle)
-    (toggle-input-method arg t)))
-
-(defun wime--english-input (key)
-  "Insert KEY literally.
-Inside an editable run KEY joins the run, which still converts as one
-sentence.  The floating composition has no place for literal text, so it
-commits its selected candidate first."
-  (cond
-   ((bound-and-true-p wime-edit-mode)
-    (unless (wime-edit--type-literal key) (list key)))
-   (t
-    (when (wime--active-p)
-      (wime--commit-selected))
-    (list key))))
 
 (defun wime-input-method (key)
   "Process KEY for the wanxiang input method."
   (cond
    ((wime--text-read-only-p) (list key))
-   (wime-english-mode (wime--english-input key))
    ((and (not (wime--composing-p))
          (run-hook-with-args-until-success 'wime-english-predicates))
     (list key))
@@ -1320,8 +1274,6 @@ commits its selected candidate first."
   ;; variables, but wime's own modes end with it.
   (when (minibufferp)
     (add-hook 'minibuffer-exit-hook #'wime--exit-from-minibuffer))
-  ;; `activate-input-method' keeps a title set here, as in isearch prompts.
-  (setq current-input-method-title (wime--title))
   (wime-mode 1))
 
 (defun wime--exit-from-minibuffer ()
@@ -1331,7 +1283,11 @@ commits its selected candidate first."
     (remove-hook 'minibuffer-exit-hook #'wime--exit-from-minibuffer)))
 
 (defun wime-deactivate ()
-  "Deactivate the wime input method."
+  "Deactivate the wime input method.
+Text typed next at an editable run joins it literally, so turning wime
+back on continues one sentence around it."
+  (when (wime--editing-p)
+    (wime-edit--continue-literally))
   (wime--reset)
   (wime-mode -1)
   (kill-local-variable 'input-method-function))
@@ -1346,12 +1302,11 @@ commits its selected candidate first."
 Bright while wime handles input, dim while the buffer is read-only and
 keys pass through."
   (if (and (equal current-input-method "wime") (bound-and-true-p wime-mode))
-      (propertize (wime--title)
+      (propertize wime-title
                   'face (if (wime--text-read-only-p)
                             'wime-indicator-dim-face
                           'wime-indicator-face)
-                  'help-echo (if wime-english-mode "wime: 英文，C-\\ 切回中文"
-                               "wime: 中文双拼"))
+                  'help-echo "wime: 中文双拼")
     ""))
 
 ;; `isearch-with-input-method' hands an input method one key in a
@@ -1377,16 +1332,6 @@ keys pass through."
       (exit-minibuffer))))
 
 (advice-add 'isearch-with-input-method :around #'wime--isearch-with-input-method)
-
-(defun wime-isearch-toggle-english ()
-  "Switch the search between Chinese and English, as `wime-toggle-english'.
-Without wime, toggle the input method like `isearch-toggle-input-method'."
-  (interactive)
-  (if (equal current-input-method "wime")
-      (progn
-        (wime-english-mode 'toggle)
-        (isearch-update))
-    (isearch-toggle-input-method)))
 
 (register-input-method "wime" "euc-cn" #'wime-activate wime-title
                        "Wime double-pinyin input method.")

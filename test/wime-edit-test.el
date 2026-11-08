@@ -4,9 +4,7 @@
 (require 'wime-edit)
 (require 'wime-neural)
 
-;; These tests type Chinese; a configured Emacs may share English mode or
-;; choose English by context.
-(wime-english-mode -1)
+;; These tests type Chinese; a configured Emacs may choose English by context.
 (setq wime-english-predicates nil)
 
 (defconst wime-edit-test--dictionary
@@ -19,8 +17,6 @@
   "Run BODY with editable input and a portable deterministic dictionary."
   (declare (indent 0))
   `(let ((wime-editable-preedit t)
-         ;; The mode is global; toggling it stays within the test.
-         (wime-english-mode nil)
          ;; Batch wdoom may configure model decoding; these tests drive the
          ;; editor with dictionary results alone.
          (wime-decoding 'lattice)
@@ -55,11 +51,18 @@
   (mapc (lambda (key)
           (let ((this-command 'self-insert-command))
             (run-hooks 'pre-command-hook)
-            (when-let* ((literal (wime-input-method key)))
-              (insert (apply #'string literal)))
+            (when-let* ((literal (funcall input-method-function key)))
+              ;; As `self-insert-command' does.
+              (insert-and-inherit (apply #'string literal)))
             (run-hooks 'post-command-hook))
           (undo-boundary))
         (string-to-list keys)))
+
+(defun wime-edit-test--toggle ()
+  "Turn wime off or on with `toggle-input-method'."
+  (let ((default-input-method "wime"))
+    (setq current-input-method (and wime-mode "wime"))
+    (wime-edit-test--command #'toggle-input-method)))
 
 (defun wime-edit-test--keys (position)
   (when-let* ((unit (wime-edit--unit-at position)))
@@ -338,15 +341,14 @@
     (should (equal (buffer-substring-no-properties 1 (point-max)) "乙API42丙"))
     (should (equal (wime-edit-test--keys 7) "bb"))))
 
-;; Text typed in English mode joins the run: the Chinese on both sides is one
+;; Text typed on with wime off joins the run: the Chinese on both sides is one
 ;; composition, the decoder hears the literal, and SPC confirms everything.
-(ert-deftest wime-edit-english-mode-types-literals-inside-the-run ()
+(ert-deftest wime-edit-typing-on-with-wime-off-adds-literals-to-the-run ()
   (wime-edit-test--buffer
-    (setq current-input-method "wime")
     (wime-edit-test--type "aa")
-    (wime-edit-test--command #'wime-toggle-english)
+    (wime-edit-test--toggle)
     (wime-edit-test--type "AP 4")
-    (wime-edit-test--command #'wime-toggle-english)
+    (wime-edit-test--toggle)
     (wime-edit-test--type "bb")
     (should (equal (buffer-substring-no-properties 1 (point-max)) "甲AP 4丙"))
     (should (= wime-edit--start 1))
@@ -354,10 +356,9 @@
     (should (equal wime--input "aabb"))
     (should (equal (wime-edit--literals) '((1 . "AP 4"))))
     (should (equal (wime-edit--merge "乙丁") "乙AP 4丁"))
-    (wime-edit-test--command #'wime-toggle-english)
+    (wime-edit-test--toggle)
     (wime-edit-test--type "!")
-    (should (equal (wime-edit--literals) '((1 . "AP 4") (2 . "!"))))
-    (wime-edit-test--command #'wime-toggle-english)
+    (wime-edit-test--toggle)
     (wime-edit-test--type ",cc")
     (should (equal (buffer-substring-no-properties 1 (point-max)) "甲AP 4丙!，戊"))
     (should (equal (wime-edit--literals) '((1 . "AP 4") (2 . "!，"))))
@@ -368,12 +369,11 @@
 
 (ert-deftest wime-edit-window-counts-syllables-only ()
   (wime-edit-test--buffer
-    (setq current-input-method "wime")
     (let ((wime-edit-max-syllables 2))
       (wime-edit-test--type "aa")
-      (wime-edit-test--command #'wime-toggle-english)
+      (wime-edit-test--toggle)
       (wime-edit-test--type "XYZ")
-      (wime-edit-test--command #'wime-toggle-english)
+      (wime-edit-test--toggle)
       (wime-edit-test--type "bb")
       (should (= wime-edit--start 1))
       (wime-edit-test--type "cc")
@@ -398,14 +398,16 @@
 
 (ert-deftest wime-edit-deleting-the-last-syllable-leaves-literals-as-text ()
   (wime-edit-test--buffer
-    (setq current-input-method "wime")
     (wime-edit-test--type "aa")
-    (wime-edit-test--command #'wime-toggle-english)
+    (wime-edit-test--toggle)
     (wime-edit-test--type "X")
+    (wime-edit-test--toggle)
     (wime-edit-test--command #'wime-edit-delete-backward)
     (should (equal (buffer-substring-no-properties 1 (point-max)) "甲"))
     (wime-edit-test--command #'backward-char)
+    (wime-edit-test--toggle)
     (wime-edit-test--type "Y")
+    (wime-edit-test--toggle)
     (should (equal (buffer-substring-no-properties 1 (point-max)) "Y甲"))
     (should (equal (wime-edit--literals) nil))
     (wime-edit-test--command #'forward-char)
@@ -459,9 +461,9 @@
 (ert-deftest wime-edit-span-choice-updates-only-selected-text-before-model-reply ()
   (wime-edit-test--buffer
     (wime-edit-test--type "aa")
-    (wime-english-mode 1)
+    (wime-edit-test--toggle)
     (wime-edit-test--type "X")
-    (wime-english-mode -1)
+    (wime-edit-test--toggle)
     (wime-edit-test--type "bb")
     (let ((wime-decoding 'hybrid) (wime-neural--failed nil)
           (wime-neural-rescorer "lm") (wime-candidate-style 'spans))
@@ -1315,21 +1317,17 @@ VARIATION can exercise a height change or partial pixel scrolling."
     (with-current-buffer (window-buffer (minibuffer-window))
       (should-not current-input-method))))
 
-(ert-deftest wime-edit-isearch-toggle-switches-chinese-and-english ()
+(ert-deftest wime-edit-isearch-toggle-types-english-and-back ()
   (wime-edit-test--buffer
     (insert "xx甲yy aa")
     (goto-char (point-min))
     (activate-input-method "wime")
     (switch-to-buffer (current-buffer))
-    (let ((isearch-mode-map (copy-keymap isearch-mode-map)))
-      (define-key isearch-mode-map (kbd "C-\\") #'wime-isearch-toggle-english)
-      (execute-kbd-macro (vconcat (kbd "C-s C-\\") "aa" [return]))
-      (should (equal isearch-string "aa"))
-      (should wime-english-mode)
-      (should (equal current-input-method "wime"))
-      (should (equal current-input-method-title wime-english-title))
-      (goto-char (point-min))
-      (execute-kbd-macro (vconcat (kbd "C-s C-\\") "aa " [return]))
-      (should (equal isearch-string "甲"))
-      (should-not wime-english-mode)
-      (should (equal current-input-method-title wime-title)))))
+    (execute-kbd-macro (vconcat (kbd "C-s C-\\") "aa" [return]))
+    (should (equal isearch-string "aa"))
+    (should-not current-input-method)
+    (goto-char (point-min))
+    (let ((default-input-method "wime"))
+      (execute-kbd-macro (vconcat (kbd "C-s C-\\") "aa " [return])))
+    (should (equal isearch-string "甲"))
+    (should (equal current-input-method "wime"))))
