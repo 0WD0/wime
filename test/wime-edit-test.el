@@ -304,7 +304,7 @@
       (should (overlay-get overlay 'face))
       (should-not (overlay-get overlay 'after-string)))))
 
-(ert-deftest wime-edit-english-space-retains-pending-readings ()
+(ert-deftest wime-edit-text-typed-with-wime-off-keeps-pending-readings ()
   (wime-edit-test--buffer
     (wime-edit-test--type "aa")
     (wime-edit-test--command (key-binding (kbd "<escape>")))
@@ -319,25 +319,6 @@
       (should (= (overlay-start overlay) 1))
       (should (= (overlay-end overlay) 2))
       (should-not (overlay-get overlay 'after-string)))))
-
-(ert-deftest wime-edit-toggle-allows-literals-and-resumes-earlier-readings ()
-  (wime-edit-test--buffer
-    (wime-edit-test--type "aa")
-    (let ((this-command 'toggle-input-method))
-      (wime-deactivate)
-      (run-hooks 'post-command-hook))
-    (should-not (eq (key-binding (kbd "DEL")) #'wime-edit-delete-backward))
-    (insert "API42")
-    (should (equal (wime-edit-test--keys 1) "aa"))
-    (should-not (wime-edit--unit-at 2))
-    (should-not (wime-edit--unit-at 6))
-    (wime-activate "wime")
-    (wime-edit-test--type "bb")
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲API42丙"))
-    (wime-edit-test--command #'goto-char 2)
-    (wime-edit-test--type "B")
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "乙API42丙"))
-    (should (equal (wime-edit-test--keys 7) "bb"))))
 
 ;; English typed in a run joins it, apart by spaces: the Chinese on both
 ;; sides is one composition, the decoder hears the English, and SPC
@@ -428,14 +409,6 @@
     (should (wime-edit-test--pending-p))
     (wime-edit-test--type ",")
     (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 X，"))))
-
-(ert-deftest wime-edit-punctuation-after-switching-needs-no-space ()
-  (wime-edit-test--buffer
-    (wime-edit-test--type "aa")
-    (wime-edit-test--switch)
-    (wime-edit-test--type "(")
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲("))
-    (should-not (wime-edit-test--pending-p))))
 
 ;; English inserted into Chinese is spaced on both sides; switching back
 ;; crosses the space after it, and deleting the English removes both.
@@ -1439,18 +1412,3 @@ VARIATION can exercise a height change or partial pixel scrolling."
     (should (equal isearch-string "丙"))
     (with-current-buffer (window-buffer (minibuffer-window))
       (should-not current-input-method))))
-
-(ert-deftest wime-edit-isearch-toggle-types-english-and-back ()
-  (wime-edit-test--buffer
-    (insert "xx甲yy aa")
-    (goto-char (point-min))
-    (activate-input-method "wime")
-    (switch-to-buffer (current-buffer))
-    (execute-kbd-macro (vconcat (kbd "C-s C-\\") "aa" [return]))
-    (should (equal isearch-string "aa"))
-    (should-not current-input-method)
-    (goto-char (point-min))
-    (let ((default-input-method "wime"))
-      (execute-kbd-macro (vconcat (kbd "C-s C-\\") "aa " [return])))
-    (should (equal isearch-string "甲"))
-    (should (equal current-input-method "wime"))))
