@@ -1157,7 +1157,15 @@ Chinese on both sides converts as one sentence, and SPC after switching
 back confirms everything."
   :global t
   :lighter nil
+  (dolist (buffer (buffer-list))
+    (with-current-buffer buffer
+      (when (equal current-input-method "wime")
+        (setq current-input-method-title (wime--title)))))
   (force-mode-line-update t))
+
+(defun wime--title ()
+  "Return the input method title for the current Chinese/English mode."
+  (if wime-english-mode wime-english-title wime-title))
 
 (defcustom wime-english-predicates nil
   "Functions of no arguments that choose English for the next key.
@@ -1312,6 +1320,8 @@ commits its selected candidate first."
   ;; variables, but wime's own modes end with it.
   (when (minibufferp)
     (add-hook 'minibuffer-exit-hook #'wime--exit-from-minibuffer))
+  ;; `activate-input-method' keeps a title set here, as in isearch prompts.
+  (setq current-input-method-title (wime--title))
   (wime-mode 1))
 
 (defun wime--exit-from-minibuffer ()
@@ -1336,7 +1346,7 @@ commits its selected candidate first."
 Bright while wime handles input, dim while the buffer is read-only and
 keys pass through."
   (if (and (equal current-input-method "wime") (bound-and-true-p wime-mode))
-      (propertize (if wime-english-mode wime-english-title wime-title)
+      (propertize (wime--title)
                   'face (if (wime--text-read-only-p)
                             'wime-indicator-dim-face
                           'wime-indicator-face)
@@ -1367,6 +1377,16 @@ keys pass through."
       (exit-minibuffer))))
 
 (advice-add 'isearch-with-input-method :around #'wime--isearch-with-input-method)
+
+(defun wime-isearch-toggle-english ()
+  "Switch the search between Chinese and English, as `wime-toggle-english'.
+Without wime, toggle the input method like `isearch-toggle-input-method'."
+  (interactive)
+  (if (equal current-input-method "wime")
+      (progn
+        (wime-english-mode 'toggle)
+        (isearch-update))
+    (isearch-toggle-input-method)))
 
 (register-input-method "wime" "euc-cn" #'wime-activate wime-title
                        "Wime double-pinyin input method.")
