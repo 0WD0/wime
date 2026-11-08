@@ -9,6 +9,11 @@
 (require 'ert)
 (require 'wime)
 
+;; These tests type Chinese; a configured Emacs may share English mode or
+;; choose English by context.
+(wime-english-mode -1)
+(setq wime-english-predicates nil)
+
 (ert-deftest wime-context-uses-existing-text-at-point-not-only-ime-commits ()
   (with-temp-buffer
     (insert (propertize (concat (make-string 70 ?前) "这个函数") 'face 'bold) "后面的文字")
@@ -428,9 +433,10 @@
 (defmacro wime-test--type (keys &rest body)
   "Type KEYS into a temporary buffer and evaluate BODY."
   `(with-temp-buffer
-     (wime--reset)
-     (mapc #'wime-input-method (string-to-list ,keys))
-     ,@body))
+     (let ((wime-english-mode nil))
+       (wime--reset)
+       (mapc #'wime-input-method (string-to-list ,keys))
+       ,@body)))
 
 (ert-deftest wime-uppercase-without-code-passes-through ()
   (with-temp-buffer
@@ -439,11 +445,30 @@
 
 (ert-deftest wime-english-mode-commits-floating-composition-first ()
   (wime-test--type "ni"
-    (let ((selected (nth wime--selected wime--candidates)))
-      (wime-english-mode 1)
+    (let ((selected (nth wime--selected wime--candidates))
+          (wime-english-mode t))
       (should (equal (wime-input-method ?x) (list ?x)))
       (should (equal (buffer-string) selected))
       (should-not (wime--active-p)))))
+
+(ert-deftest wime-english-mode-is-shared-by-buffers ()
+  (unwind-protect
+      (progn
+        (with-temp-buffer (wime-english-mode 1))
+        (with-temp-buffer
+          (wime--reset)
+          (should (equal (wime-input-method ?n) (list ?n)))))
+    (wime-english-mode -1)))
+
+(ert-deftest wime-english-predicates-choose-english-outside-compositions ()
+  (with-temp-buffer
+    (wime--reset)
+    (let ((wime-english-predicates (list #'always)))
+      (should (equal (wime-input-method ?n) (list ?n)))))
+  (wime-test--type "n"
+    (let ((wime-english-predicates (list #'always)))
+      (should-not (wime-input-method ?i))
+      (should (equal wime--input "ni")))))
 
 (ert-deftest wime-parse-keeps-typed-order ()
   (should (equal (wime--parse "yrZt") '(("yr" . "Z") ("t" . ""))))

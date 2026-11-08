@@ -4,6 +4,11 @@
 (require 'wime-edit)
 (require 'wime-neural)
 
+;; These tests type Chinese; a configured Emacs may share English mode or
+;; choose English by context.
+(wime-english-mode -1)
+(setq wime-english-predicates nil)
+
 (defconst wime-edit-test--dictionary
   '(("aa" ("甲" "a" 100) ("乙" "b" 90))
     ("bb" ("丙" "c" 100) ("丁" "d" 90))
@@ -14,6 +19,8 @@
   "Run BODY with editable input and a portable deterministic dictionary."
   (declare (indent 0))
   `(let ((wime-editable-preedit t)
+         ;; The mode is global; toggling it stays within the test.
+         (wime-english-mode nil)
          ;; Batch wdoom may configure model decoding; these tests drive the
          ;; editor with dictionary results alone.
          (wime-decoding 'lattice)

@@ -888,6 +888,10 @@ Rime completes partial pinyin."
   "Return non-nil when a composition is in progress."
   (and wime--input (not (string-empty-p wime--input))))
 
+(defun wime--composing-p ()
+  "Whether a composition is in progress in this buffer."
+  (or (wime--active-p) (wime--editing-p)))
+
 (defun wime--clear-overlay ()
   "Delete the preedit overlay, if any."
   (when (overlayp wime--overlay)
@@ -1147,17 +1151,29 @@ In the span view only numbered alternatives respond; others do nothing."
 
 (define-minor-mode wime-english-mode
   "Insert keys literally while wime stays the input method.
-With editable preedit, text typed inside a composition stays part of it:
-the Chinese on both sides converts as one sentence, and SPC after switching
+Like a system input method, the mode is shared by all buffers.  With
+editable preedit, text typed inside a composition stays part of it: the
+Chinese on both sides converts as one sentence, and SPC after switching
 back confirms everything."
+  :global t
   :lighter nil
-  (force-mode-line-update))
+  (force-mode-line-update t))
+
+(defcustom wime-english-predicates nil
+  "Functions of no arguments that choose English for the next key.
+Outside a composition, when one returns non-nil, wime passes the key
+through literally, as in program code or after an English word."
+  :type 'hook :group 'wime)
 
 (defun wime-toggle-english (&optional arg)
   "Switch between Chinese and literal English without leaving composition.
-Outside wime, or with prefix ARG, run `toggle-input-method' instead."
+This applies to every buffer.  Outside wime, or with prefix ARG, run
+`toggle-input-method' instead.  Wime also counts as the input method
+where Evil keeps it for Insert state."
   (interactive "P")
-  (if (and (equal current-input-method "wime") (not arg))
+  (if (and (not arg)
+           (member "wime" (list current-input-method
+                                (bound-and-true-p evil-input-method))))
       (wime-english-mode 'toggle)
     (toggle-input-method arg t)))
 
@@ -1179,6 +1195,9 @@ commits its selected candidate first."
   (cond
    ((wime--text-read-only-p) (list key))
    (wime-english-mode (wime--english-input key))
+   ((and (not (wime--composing-p))
+         (run-hook-with-args-until-success 'wime-english-predicates))
+    (list key))
    ((bound-and-true-p wime-edit-mode) (wime-edit--input-method key))
    (t (wime--legacy-input-method key))))
 
@@ -1293,7 +1312,6 @@ commits its selected candidate first."
   ;; variables, but wime's own modes end with it.
   (when (minibufferp)
     (add-hook 'minibuffer-exit-hook #'wime--exit-from-minibuffer))
-  (wime-english-mode -1)
   (wime-mode 1))
 
 (defun wime--exit-from-minibuffer ()
@@ -1305,7 +1323,6 @@ commits its selected candidate first."
 (defun wime-deactivate ()
   "Deactivate the wime input method."
   (wime--reset)
-  (wime-english-mode -1)
   (wime-mode -1)
   (kill-local-variable 'input-method-function))
 
@@ -1331,10 +1348,6 @@ keys pass through."
 ;; minibuffer and exits at once, which suits methods that read a whole
 ;; word per call, like quail.  Wime composes across commands, so that
 ;; minibuffer stays until the composition is committed or cancelled.
-
-(defun wime--composing-p ()
-  "Whether a composition is in progress in this buffer."
-  (or (wime--active-p) (wime--editing-p)))
 
 (defun wime--isearch-exit-when-settled ()
   "Exit the isearch minibuffer once nothing is being composed."
