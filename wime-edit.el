@@ -5,8 +5,8 @@
 ;;; Commentary:
 ;; Buffer characters carry immutable reading records, so ordinary edits and
 ;; undo retain the readings of untouched characters.  Literal text separates
-;; Chinese runs, except punctuation and text typed on from a run after turning
-;; wime off: they become literal units of it, and when wime is back on the run
+;; Chinese runs, except punctuation and English typed in a run with
+;; `wime-switch-language': they become literal units of it, and the run
 ;; converts as one sentence around them.  Only the run at point participates
 ;; in conversion; switching input methods suspends conversion without
 ;; throwing away those records.
@@ -52,8 +52,6 @@ Literal text inside the run does not count."
 (defvar-local wime-edit--internal nil)
 (defvar-local wime-edit--undoing nil)
 (defvar-local wime-edit--paused-point nil)
-(defvar-local wime-edit--literal-point nil
-  "Where text typed with wime off continues a run, or nil.")
 (defvar wime-edit-mode)
 
 ;; Plain insertions next to a Chinese character must not inherit its reading.
@@ -170,22 +168,6 @@ of truth.  Widen only for display; confirmation still respects narrowing."
   (wime-edit--clear-decoration)
   (wime-edit--refresh-pending-decorations))
 
-(defun wime-edit--continue-literally ()
-  "Let text typed next at point join the active run as literal units."
-  (when (and (> (point) wime-edit--start) (<= (point) wime-edit--end))
-    (setq wime-edit--literal-point (copy-marker (point)))))
-
-(defun wime-edit--type-on (start end)
-  "Make START..END, typed where the run continues, literal units of it."
-  (let ((wime-edit--internal t))
-    (with-silent-modifications
-      (cl-loop for p from start below end
-               do (put-text-property
-                   p (1+ p) 'wime-edit-unit
-                   (wime-edit--make-unit
-                    :keys (buffer-substring-no-properties p (1+ p)) :literal t)))))
-  (set-marker wime-edit--literal-point end))
-
 (defun wime-edit-pause ()
   "Hide conversion choices, visibly marking the retained editable readings."
   (interactive)
@@ -294,10 +276,6 @@ of truth.  Widen only for display; confirmation still respects narrowing."
 (defun wime-edit--post-command ()
   (unless (memq this-command '(undo undo-only undo-redo))
     (setq wime-edit--undoing nil))
-  (when (and wime-edit--literal-point
-             (or wime-mode (/= (point) wime-edit--literal-point)))
-    (set-marker wime-edit--literal-point nil)
-    (setq wime-edit--literal-point nil))
   (unless (or wime-edit--internal wime-edit--undoing
               (eq (point) wime-edit--paused-point)
               (memq this-command '(wime-edit-pause wime-edit-escape wime-edit-finish
@@ -329,17 +307,12 @@ of truth.  Widen only for display; confirmation still respects narrowing."
     ;; including yanked text, is literal and cannot acquire a stale reading.
     ;; Rebuilding scans the whole buffer, so only do it when readings or their
     ;; decorations changed; generated text elsewhere must stay cheap.
-    (let ((stripped (and (not undo-in-progress)
-                         (let ((wime-edit--internal t))
-                           (with-silent-modifications
-                             (remove-text-properties start end '(wime-edit-unit nil))))))
-          (continued (and wime-edit--literal-point (= start wime-edit--literal-point)
-                          (eq this-command 'self-insert-command))))
-      (when continued
-        (wime-edit--type-on start end))
-      (when (or undo-in-progress stripped continued
-                (wime-edit--decorations-touch-p start end))
-        (wime-edit--refresh-pending-decorations)))))
+    (when (or undo-in-progress
+              (let ((wime-edit--internal t))
+                (with-silent-modifications
+                  (remove-text-properties start end '(wime-edit-unit nil))))
+              (wime-edit--decorations-touch-p start end))
+      (wime-edit--refresh-pending-decorations))))
 
 (defun wime-edit--candidate-text ()
   "Return a full reading, with a one-character fallback for incomplete keys.

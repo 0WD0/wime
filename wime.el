@@ -89,6 +89,9 @@
 (defvar wime-title "wime"
   "The title shown in the mode line.")
 
+(defvar wime-english-title "英"
+  "The title shown while wime types English.")
+
 (defcustom wime-candidates-max 5
   "Maximum candidates in the sentence list or each uncertain span.
 Numbered span alternatives share the ten digit keys across all spans."
@@ -187,7 +190,6 @@ Errors yield no prefix.")
 
 (defvar wime-edit--start)
 (declare-function wime-edit--active-p "wime-edit")
-(declare-function wime-edit--continue-literally "wime-edit")
 (declare-function wime-edit--type-tone "wime-edit" (tone))
 (declare-function wime-edit--type-literal "wime-edit" (key))
 
@@ -1153,10 +1155,57 @@ Outside a composition, when one returns non-nil, wime passes the key
 through literally, as in program code."
   :type 'hook :group 'wime)
 
+(defvar-local wime--english nil
+  "Non-nil while wime types English in this buffer.")
+
+(defvar-local wime--boundary nil
+  "Where `wime-switch-language' left the boundary space pending.")
+
+(defun wime-switch-language ()
+  "Switch between Chinese and English, apart by a space.
+The space comes with the next key typed here, after a word, so switching
+twice adds none, nor does SPC right after it.  English typed inside an
+editable run joins it, and the run converts as one sentence."
+  (interactive)
+  (setq wime--english (not wime--english)
+        current-input-method-title (wime--title)
+        wime--boundary (unless (wime--boundary-p) (point-marker)))
+  (force-mode-line-update))
+
+(defun wime--title ()
+  (if wime--english wime-english-title wime-title))
+
+(defun wime--boundary-p ()
+  (and wime--boundary (eq (marker-buffer wime--boundary) (current-buffer))
+       (= wime--boundary (point))))
+
+(defun wime--take-boundary (key)
+  "Write the boundary space pending before KEY, unless KEY is SPC."
+  (when (wime--boundary-p)
+    (setq wime--boundary nil)
+    (when (and (/= key ?\s) (wime--active-p) (not (wime--editing-p)))
+      (wime--commit-selected))
+    (when (and (/= key ?\s) (char-before) (eq (char-syntax (char-before)) ?w)
+               (not (and (bound-and-true-p wime-edit-mode) (wime-edit--type-literal " "))))
+      (insert " "))))
+
+(defun wime--english-input (key)
+  "Insert KEY literally.
+Inside an editable run KEY joins the run.  The floating composition has
+no place for literal text, so it commits its selected candidate first."
+  (cond
+   ((bound-and-true-p wime-edit-mode)
+    (unless (wime-edit--type-literal key) (list key)))
+   (t
+    (when (wime--active-p)
+      (wime--commit-selected))
+    (list key))))
+
 (defun wime-input-method (key)
   "Process KEY for the wanxiang input method."
   (cond
    ((wime--text-read-only-p) (list key))
+   ((progn (wime--take-boundary key) wime--english) (wime--english-input key))
    ((and (not (wime--composing-p))
          (run-hook-with-args-until-success 'wime-english-predicates))
     (list key))
@@ -1258,11 +1307,12 @@ through literally, as in program code."
       (internal-pop-keymap wime-edit--keymap 'overriding-terminal-local-map))
     (remove-hook 'pre-command-hook #'wime--clear-before-unrelated-command t)))
 
+(defvar-keymap wime-mode-map
+  "S-SPC" #'wime-switch-language)
+
 (define-minor-mode wime-mode
   "Minor mode enabled while the wime input method is active."
-  :lighter nil
-  :init-value nil
-  :keymap nil)
+  :lighter nil)
 
 (defun wime-activate (_name)
   "Activate the wime input method."
@@ -1274,6 +1324,7 @@ through literally, as in program code."
   ;; variables, but wime's own modes end with it.
   (when (minibufferp)
     (add-hook 'minibuffer-exit-hook #'wime--exit-from-minibuffer))
+  (setq current-input-method-title (wime--title))
   (wime-mode 1))
 
 (defun wime--exit-from-minibuffer ()
@@ -1283,11 +1334,7 @@ through literally, as in program code."
     (remove-hook 'minibuffer-exit-hook #'wime--exit-from-minibuffer)))
 
 (defun wime-deactivate ()
-  "Deactivate the wime input method.
-Text typed next at an editable run joins it literally, so turning wime
-back on continues one sentence around it."
-  (when (wime--editing-p)
-    (wime-edit--continue-literally))
+  "Deactivate the wime input method."
   (wime--reset)
   (wime-mode -1)
   (kill-local-variable 'input-method-function))
@@ -1302,11 +1349,12 @@ back on continues one sentence around it."
 Bright while wime handles input, dim while the buffer is read-only and
 keys pass through."
   (if (and (equal current-input-method "wime") (bound-and-true-p wime-mode))
-      (propertize wime-title
+      (propertize (wime--title)
                   'face (if (wime--text-read-only-p)
                             'wime-indicator-dim-face
                           'wime-indicator-face)
-                  'help-echo "wime: 中文双拼")
+                  'help-echo (if wime--english "wime: 英文，S-SPC 切回中文"
+                               "wime: 中文双拼，S-SPC 切到英文"))
     ""))
 
 ;; `isearch-with-input-method' hands an input method one key in a

@@ -44,12 +44,10 @@ uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
       wime-candidate-style 'spans)
 ;; 不是微软双拼时：
 ;; (setq wime-database-file (expand-file-name "wanxiang-flypy.db" wime-data-directory))
-(global-set-key (kbd "C-\\") #'wime-toggle-english)
 (wime-setup)
 #+end_src
 
-=C-\\= 启用中文输入；中文输入时再按切到英文，原样输入字母，
-=C-u C-\\= 关闭输入法。
+=C-\\= 开关输入法。
 =wime-data-directory= 默认是 =~/.local/share/wime/=
 （设置了 =XDG_DATA_HOME= 时在它下面）。
 
@@ -66,7 +64,7 @@ uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
 | =DEL=         | 删掉最后一个键                             |
 | =ESC=         | 暂存待上屏的文字                           |
 | =TAB=         | 在分段视图和整句列表之间切换               |
-| =C-\\=        | 切换中文与英文                             |
+| =S-SPC=       | 切换中文与英文，交界处自动空一格           |
 
 声调只保留带这个调的字；词里的变调不影响筛选，打字典里的本调即可。
 方案用到 =;,./= 时，它们只在编码位置算键，别处仍是标点。
@@ -80,8 +78,10 @@ uvx --from huggingface-hub hf download 0WD0/wime-wanxiang wanxiang.db \
 - 光标可以移回去，在字后补大写辅助码，或删改其中的字。
 - 继续输入时，最近 =wime-edit-max-syllables= （默认 24）个字一起重新转换，
   后打的音节可以改变前面的选字。
-- 中间敲的标点，以及切到英文后打的字母、数字和空格，都成为这句的一部分，
-  前后的中文一起转换。
+- 中间敲的标点，以及 =S-SPC= 切到英文后打的字母、数字和空格，
+  都成为这句的一部分，前后的中文一起转换。
+- 交界处的空格在下一个键时才加，标点后不加；连按两次 =S-SPC= 不加，
+  切回中文紧接着按空格也不加，直接确认。
 - 选定的字保持固定；粘贴的文字会把两边分成两段。
 - 空格确认全部待上屏文字，再按一次空格才输入空格。
 - =ESC= 暂存，回来后可以继续改；启用 Evil 时同时进入 normal 状态。

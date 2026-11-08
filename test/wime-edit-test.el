@@ -58,11 +58,9 @@
           (undo-boundary))
         (string-to-list keys)))
 
-(defun wime-edit-test--toggle ()
-  "Turn wime off or on with `toggle-input-method'."
-  (let ((default-input-method "wime"))
-    (setq current-input-method (and wime-mode "wime"))
-    (wime-edit-test--command #'toggle-input-method)))
+(defun wime-edit-test--switch ()
+  "Switch between Chinese and English with S-SPC."
+  (wime-edit-test--command (keymap-lookup nil "S-SPC")))
 
 (defun wime-edit-test--keys (position)
   (when-let* ((unit (wime-edit--unit-at position)))
@@ -341,44 +339,64 @@
     (should (equal (buffer-substring-no-properties 1 (point-max)) "乙API42丙"))
     (should (equal (wime-edit-test--keys 7) "bb"))))
 
-;; Text typed on with wime off joins the run: the Chinese on both sides is one
-;; composition, the decoder hears the literal, and SPC confirms everything.
-(ert-deftest wime-edit-typing-on-with-wime-off-adds-literals-to-the-run ()
+;; English typed in a run joins it, apart by spaces: the Chinese on both
+;; sides is one composition, the decoder hears the English, and SPC
+;; confirms everything.
+(ert-deftest wime-edit-switching-language-types-english-into-the-run ()
   (wime-edit-test--buffer
     (wime-edit-test--type "aa")
-    (wime-edit-test--toggle)
-    (wime-edit-test--type "AP 4")
-    (wime-edit-test--toggle)
+    (wime-edit-test--switch)
+    (should (equal current-input-method-title wime-english-title))
+    (wime-edit-test--type "API 4")
+    (wime-edit-test--switch)
+    (should (equal current-input-method-title wime-title))
     (wime-edit-test--type "bb")
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲AP 4丙"))
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 API 4 丙"))
     (should (= wime-edit--start 1))
-    (should (= wime-edit--end 7))
-    (should (equal wime--input "aabb"))
-    (should (equal (wime-edit--literals) '((1 . "AP 4"))))
-    (should (equal (wime-edit--merge "乙丁") "乙AP 4丁"))
-    (wime-edit-test--toggle)
-    (wime-edit-test--type "!")
-    (wime-edit-test--toggle)
-    (wime-edit-test--type ",cc")
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲AP 4丙!，戊"))
-    (should (equal (wime-edit--literals) '((1 . "AP 4") (2 . "!，"))))
     (should (= wime-edit--end 10))
+    (should (equal wime--input "aabb"))
+    (should (equal (wime-edit--literals) '((1 . " API 4 "))))
+    (should (equal (wime-edit--merge "乙丁") "乙 API 4 丁"))
+    ;; No space after punctuation, nor for switching twice.
+    (wime-edit-test--type ",")
+    (wime-edit-test--switch)
+    (wime-edit-test--type "x")
+    (wime-edit-test--switch)
+    (wime-edit-test--switch)
+    (wime-edit-test--type "y")
+    (wime-edit-test--switch)
+    (wime-edit-test--type "cc")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 API 4 丙，xy 戊"))
+    (should (equal (wime-edit--literals) '((1 . " API 4 ") (2 . "，xy "))))
+    ;; Nor for SPC right after switching: it confirms.
+    (wime-edit-test--switch)
+    (wime-edit-test--switch)
     (wime-edit-test--type " ")
-    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲AP 4丙!，戊"))
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 API 4 丙，xy 戊"))
+    (should-not (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil))))
+
+(ert-deftest wime-edit-switching-language-outside-a-run ()
+  (wime-edit-test--buffer
+    (wime-edit-test--type "aa ")
+    (wime-edit-test--switch)
+    (wime-edit-test--type "Go 1")
+    (wime-edit-test--switch)
+    (wime-edit-test--type "bb ")
+    (should (equal (buffer-substring-no-properties 1 (point-max)) "甲 Go 1 丙"))
     (should-not (text-property-not-all (point-min) (point-max) 'wime-edit-unit nil))))
 
 (ert-deftest wime-edit-window-counts-syllables-only ()
   (wime-edit-test--buffer
     (let ((wime-edit-max-syllables 2))
       (wime-edit-test--type "aa")
-      (wime-edit-test--toggle)
+      (wime-edit-test--switch)
       (wime-edit-test--type "XYZ")
-      (wime-edit-test--toggle)
+      (wime-edit-test--switch)
       (wime-edit-test--type "bb")
       (should (= wime-edit--start 1))
       (wime-edit-test--type "cc")
       ;; The window starts at a syllable, not at the literal before it.
-      (should (= wime-edit--start 5))
+      (should (= wime-edit--start 7))
       (should (equal wime--input "bbcc")))))
 
 ;; A decoded reading must survive the dictionary guess shown while the next
@@ -399,15 +417,16 @@
 (ert-deftest wime-edit-deleting-the-last-syllable-leaves-literals-as-text ()
   (wime-edit-test--buffer
     (wime-edit-test--type "aa")
-    (wime-edit-test--toggle)
+    (wime-edit-test--switch)
     (wime-edit-test--type "X")
-    (wime-edit-test--toggle)
+    (wime-edit-test--switch)
+    (wime-edit-test--command #'wime-edit-delete-backward)
     (wime-edit-test--command #'wime-edit-delete-backward)
     (should (equal (buffer-substring-no-properties 1 (point-max)) "甲"))
     (wime-edit-test--command #'backward-char)
-    (wime-edit-test--toggle)
+    (wime-edit-test--switch)
     (wime-edit-test--type "Y")
-    (wime-edit-test--toggle)
+    (wime-edit-test--switch)
     (should (equal (buffer-substring-no-properties 1 (point-max)) "Y甲"))
     (should (equal (wime-edit--literals) nil))
     (wime-edit-test--command #'forward-char)
@@ -460,11 +479,7 @@
 
 (ert-deftest wime-edit-span-choice-updates-only-selected-text-before-model-reply ()
   (wime-edit-test--buffer
-    (wime-edit-test--type "aa")
-    (wime-edit-test--toggle)
-    (wime-edit-test--type "X")
-    (wime-edit-test--toggle)
-    (wime-edit-test--type "bb")
+    (wime-edit-test--type "aa,bb")
     (let ((wime-decoding 'hybrid) (wime-neural--failed nil)
           (wime-neural-rescorer "lm") (wime-candidate-style 'spans))
       ;; The model's first character differs from the dictionary's guess.
@@ -476,14 +491,14 @@
       (should (equal wime--span-choices '((1 2 "丁"))))
       (wime-edit-test--type "1")
       (should-not wime--model-ranked)
-      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙X丁"))
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙，丁"))
       (should-not (wime-edit--unit-pin (wime-edit--unit-at 1)))
       (should (eq (wime-edit--unit-pin (wime-edit--unit-at 3)) ?丁))
       ;; A new choice also takes precedence over a previously stored pin.
       (wime--choose-span 1 2 "丙")
-      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙X丙"))
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙，丙"))
       (wime-edit-test--type " ")
-      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙X丙")))))
+      (should (equal (buffer-substring-no-properties 1 (point-max)) "乙，丙")))))
 
 (ert-deftest wime-edit-backspace-removes-local-auxiliary-before-code ()
   (wime-edit-test--buffer
